@@ -6,13 +6,14 @@ import { t } from '@/i18n';
 import { shouldCheck } from './updateCheck';
 
 /**
- * Whether this copy takes updates at all: a release build made from the app's EAS project. A
- * development build runs the code on the computer instead, and a build without a project has
- * nowhere to take them from.
+ * Whether this copy takes updates at all: a store build made from the app's EAS project, which
+ * names the channel it listens on. A development build runs the code on the computer instead, and
+ * a build without a project or a channel (a local release build) has nowhere to take them from.
  */
-export const updatesOn = Platform.OS !== 'web' && !__DEV__ && Updates.isEnabled;
+export const updatesOn = Platform.OS !== 'web' && !__DEV__ && Updates.isEnabled && !!Updates.channel;
 
-let lastCheck: number | null = null;
+// The app already looks at launch, so the first return to the front does not look again at once.
+let lastCheck: number | null = Date.now();
 
 /**
  * Looks for an update and downloads it. It is used from the next start, or at once from the
