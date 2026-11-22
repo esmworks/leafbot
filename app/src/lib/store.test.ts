@@ -156,32 +156,56 @@ describe('rutin sayfası', () => {
   });
 });
 
-describe('yeni bot sayfası', () => {
+describe('bot ve uygulama sayfaları', () => {
   beforeEach(() => {
     askBeforeLeavingPage(null);
-    useUi.setState({ routine: null, newBot: null, botDialog: null, botId: 'b1', threadId: 't1' });
+    useUi.setState({ routine: null, botPage: null, apps: null, botId: 'b1', threadId: 't1', roomId: null });
   });
   afterEach(() => askBeforeLeavingPage(null));
 
-  it('yeni bot sayfa olarak açılır, bir botun ayarları pencerede kalır', () => {
-    useUi.getState().openBotDialog({ mode: 'create', preset: { name: 'Proje', projectDir: '/p' } });
-    expect(useUi.getState()).toMatchObject({ newBot: { preset: { name: 'Proje' } }, botDialog: null });
-    useUi.getState().openBotDialog({ mode: 'edit', botId: 'b1' });
-    expect(useUi.getState().botDialog).toEqual({ mode: 'edit', botId: 'b1' });
+  it('yeni bot da botun ayarları da sohbetin yerinde sayfa olarak açılır', () => {
+    useUi.getState().openBotPage({ mode: 'create', preset: { name: 'Proje', projectDir: '/p' } });
+    expect(useUi.getState().botPage).toEqual({ mode: 'create', preset: { name: 'Proje', projectDir: '/p' } });
+    useUi.getState().openBotPage({ mode: 'edit', botId: 'b2' });
+    expect(useUi.getState()).toMatchObject({
+      botPage: { mode: 'edit', botId: 'b2' },
+      botId: 'b2',
+      threadId: null,
+    });
   });
 
-  it('açık rutinden yeni bota geçerken sorar; yeni bot yarıda kalınca rutin açmadan önce sorar', () => {
+  it('açık rutinden bota geçerken sorar; yarım kalan bot rutin ya da sohbet açmadan önce sorar', () => {
     const ask = vi.fn(() => false);
     useUi.getState().openRoutine({ botId: 'b1', routineId: 'r1' });
     askBeforeLeavingPage(ask);
-    useUi.getState().openBotDialog({ mode: 'create' });
-    expect(useUi.getState()).toMatchObject({ newBot: null, routine: { routineId: 'r1' } });
+    useUi.getState().openBotPage({ mode: 'create' });
+    expect(useUi.getState()).toMatchObject({ botPage: null, routine: { routineId: 'r1' } });
     ask.mockReturnValue(true);
-    useUi.getState().openBotDialog({ mode: 'create' });
-    expect(useUi.getState()).toMatchObject({ newBot: {}, routine: null });
+    useUi.getState().openBotPage({ mode: 'create' });
+    expect(useUi.getState()).toMatchObject({ botPage: { mode: 'create' }, routine: null });
     askBeforeLeavingPage(() => false);
     useUi.getState().openRoutine({ botId: 'b1', routineId: 'r1' });
     useUi.getState().openChat('b2');
-    expect(useUi.getState()).toMatchObject({ newBot: {}, routine: null, botId: 'b1' });
+    expect(useUi.getState()).toMatchObject({ botPage: { mode: 'create' }, routine: null, botId: 'b1' });
+  });
+
+  it('uygulamalar açık sayfanın üstüne gelir, kapanınca sayfa olduğu gibi kalır', () => {
+    const ask = vi.fn(() => false);
+    useUi.getState().openRoutine({ botId: 'b1', routineId: 'r1' });
+    askBeforeLeavingPage(ask);
+    useUi.getState().openApps({ botId: 'b1', catalogId: 'gmail' });
+    expect(ask).not.toHaveBeenCalled();
+    expect(useUi.getState()).toMatchObject({ apps: { catalogId: 'gmail' }, routine: { routineId: 'r1' } });
+    useUi.getState().openApps(null);
+    expect(useUi.getState()).toMatchObject({ apps: null, routine: { routineId: 'r1' } });
+  });
+
+  it('uygulamalar açıkken başka bir şey açmak uygulamaları kapatır', () => {
+    useUi.getState().openApps({ botId: null });
+    useUi.getState().selectThread('t2');
+    expect(useUi.getState()).toMatchObject({ apps: null, threadId: 't2' });
+    useUi.getState().openApps({ botId: null });
+    useUi.getState().openBotPage({ mode: 'edit', botId: 'b1' });
+    expect(useUi.getState()).toMatchObject({ apps: null, botPage: { mode: 'edit', botId: 'b1' } });
   });
 });

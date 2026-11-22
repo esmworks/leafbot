@@ -20,7 +20,6 @@ import { z } from 'zod';
 import { BotAvatar, ObjectArt } from '@/components/BotAvatar';
 import { PersonComputerSwitch } from '@/features/PersonComputer';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -41,7 +40,7 @@ import {
   useProviders,
   useSettings,
 } from '@/lib/queries';
-import { askBeforeLeavingPage, useUi } from '@/lib/store';
+import { askBeforeLeavingPage, useUi, type UiState } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { MODE_LABEL } from './RightPanel';
 import { InstructionsDocStatus } from './InstructionsDoc';
@@ -165,61 +164,30 @@ const CLAUDE = '__claude__';
 /** A coding agent's entry in the connection list: `acp:<agent>`. */
 const AGENT = 'acp:';
 
-/** A bot's settings, in a window over the chat. */
-export function BotDialog() {
-  const t = useT();
-  const dialog = useUi((s) => s.botDialog);
-  const close = useUi((s) => s.openBotDialog);
-  const { data: bots = [] } = useBots();
-  const bot = dialog ? bots.find((b) => b.id === dialog.botId) : undefined;
-  // A stray click beside the window, Escape or Cancel must not throw away typed instructions.
-  const dirty = useRef(false);
-  const leave = () => {
-    if (dirty.current && !window.confirm(t('bot.discardConfirm'))) return;
-    dirty.current = false;
-    close(null);
-  };
-  return (
-    <Dialog open={!!dialog} onOpenChange={(o) => !o && leave()}>
-      {/* Title and buttons stay put; only the form between them scrolls. */}
-      <DialogContent className="screen-edges flex max-h-[min(880px,90vh)] flex-col gap-0 overflow-hidden rounded-3xl p-0 sm:max-w-2xl phone:h-dvh phone:max-h-none phone:max-w-full phone:rounded-none phone:border-0">
-        <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle>{bot ? t('bot.settingsTitle', { name: bot.name }) : t('bot.new')}</DialogTitle>
-        </DialogHeader>
-        {bot && (
-          <BotForm
-            key={bot.id}
-            bot={bot}
-            onDone={() => {
-              dirty.current = false;
-              close(null);
-            }}
-            onCancel={leave}
-            onDirty={(d) => {
-              dirty.current = d;
-            }}
-          />
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 /**
- * A new bot, as a page in place of the chat: there is room to read the starters and instructions,
- * and changes not saved are asked about before anything replaces the page.
+ * A new bot, or a bot's settings, as a page in place of the chat: there is room to read the
+ * starters and instructions, and changes not saved are asked about before anything replaces it.
+ * A bot gone meanwhile (archived elsewhere) closes its page.
  */
-export function NewBotPage({ preset }: { preset?: { name: string; projectDir: string } }) {
+export function BotFormPage({ page }: { page: NonNullable<UiState['botPage']> }) {
   const t = useT();
+  const { data: bots, isFetching } = useBots();
+  const bot = page.mode === 'edit' ? bots?.find((b) => b.id === page.botId) : undefined;
+  const gone = page.mode === 'edit' && !!bots && !isFetching && !bot;
+  useEffect(() => {
+    if (gone) useUi.getState().closePage();
+  }, [gone]);
   const dirty = useRef(false);
   useEffect(() => {
     askBeforeLeavingPage(() => !dirty.current || window.confirm(t('bot.discardConfirm')));
     return () => askBeforeLeavingPage(null);
   }, [t]);
+  if (page.mode === 'edit' && !bot) return null;
   return (
     <BotForm
-      page
-      preset={preset}
+      key={bot?.id ?? 'new'}
+      bot={bot}
+      preset={page.mode === 'create' ? page.preset : undefined}
       onDone={() => useUi.getState().closePage()}
       onCancel={() => useUi.getState().leavePage()}
       onDirty={(d) => {
@@ -232,7 +200,6 @@ export function NewBotPage({ preset }: { preset?: { name: string; projectDir: st
 function BotForm({
   bot,
   preset,
-  page = false,
   onDone,
   onCancel,
   onDirty,
@@ -240,8 +207,6 @@ function BotForm({
   bot?: Bot;
   /** What a new bot starts with besides the defaults. */
   preset?: { name: string; projectDir: string };
-  /** Drawn as a page: a bar with the title and buttons on top, the form in a column under it. */
-  page?: boolean;
   onDone(): void;
   onCancel(): void;
   /** Whether the form holds changes not saved yet, each time that changes. */
@@ -354,41 +319,55 @@ function BotForm({
     mutationFn: () => api.archiveBot(bot!.id),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['bots'] });
-      selectBot(null);
+      // The page closes first, so choosing no bot has nothing left to ask about.
       onDone();
+      selectBot(null);
       toast.success(t('bot.archived'));
     },
     onError: (e) => toast.error((e as Error).message),
   });
 
   return (
+    // The bar with the title and buttons stays put; only the form under it scrolls.
     <form
       onSubmit={form.handleSubmit((f) => save.mutate(f))}
       className="flex min-h-0 min-w-0 flex-1 flex-col"
-      aria-label={page ? t('bot.new') : undefined}
+      aria-label={bot ? t('bot.settingsTitle', { name: bot.name }) : t('bot.new')}
     >
-      {page && (
-        <header className="window-drag flex items-center gap-2 border-b px-3 py-3 sm:px-4">
+      <header className="window-drag flex items-center gap-2 border-b px-3 py-3 sm:px-4">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="shrink-0 rounded-full"
+          onClick={onCancel}
+          aria-label={t('common.back')}
+        >
+          <ChevronLeft className="size-5" />
+        </Button>
+        <h1 className="min-w-0 flex-1 truncate text-base font-semibold">
+          {bot ? t('bot.settingsTitle', { name: bot.name }) : v.name?.trim() || t('bot.new')}
+        </h1>
+        {bot && (
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            className="shrink-0 rounded-full"
-            onClick={onCancel}
-            aria-label={t('common.back')}
+            className="rounded-full text-muted-foreground"
+            onClick={() => archive.mutate()}
+            disabled={archive.isPending || readOnly}
+            aria-label={t('bot.archive')}
           >
-            <ChevronLeft className="size-5" />
+            <Archive /> <span className="phone:hidden">{t('bot.archive')}</span>
           </Button>
-          <h1 className="min-w-0 flex-1 truncate text-base font-semibold">
-            {v.name?.trim() || t('bot.new')}
-          </h1>
-          <Button type="submit" className="rounded-full" disabled={save.isPending}>
-            {t('bot.create')}
-          </Button>
-        </header>
-      )}
-      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div className={cn('space-y-5', page ? 'mx-auto max-w-2xl px-4 py-6 sm:px-6' : 'px-6 pt-1 pb-6')}>
+        )}
+        <Button type="submit" className="rounded-full" disabled={save.isPending || readOnly}>
+          {bot ? t('common.save') : t('bot.create')}
+        </Button>
+      </header>
+      {/* Positioned, so the hidden inputs of switches and lists stay inside what scrolls instead of
+          stretching the window. */}
+      <div className="scroll-thin relative min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="mx-auto max-w-2xl space-y-5 px-4 py-6 sm:px-6">
           {readOnly && <p className="rounded-2xl bg-secondary/60 px-4 py-3 text-sm">{t('share.readOnly')}</p>}
           {starters.length > 0 && (
             <section aria-labelledby="bot-starters">
@@ -656,28 +635,6 @@ function BotForm({
           )}
         </div>
       </div>
-      {!page && (
-        <div className="flex items-center gap-2 border-t px-6 py-4">
-          {bot && (
-            <Button
-              type="button"
-              variant="ghost"
-              className="mr-auto rounded-full text-muted-foreground"
-              onClick={() => archive.mutate()}
-              disabled={archive.isPending || readOnly}
-            >
-              <Archive /> {t('bot.archive')}
-            </Button>
-          )}
-          <div className="flex-1" />
-          <Button type="button" variant="ghost" className="rounded-full" onClick={onCancel}>
-            {t('common.cancel')}
-          </Button>
-          <Button type="submit" className="rounded-full" disabled={save.isPending || readOnly}>
-            {bot ? t('common.save') : t('bot.create')}
-          </Button>
-        </div>
-      )}
     </form>
   );
 }

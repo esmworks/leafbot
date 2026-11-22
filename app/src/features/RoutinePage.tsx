@@ -412,7 +412,9 @@ export function RoutinePage({
           {t('common.save')}
         </Button>
       </header>
-      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      {/* Positioned, so the hidden inputs of switches and lists stay inside what scrolls instead of
+          stretching the window, which then scrolled the whole app out of place. */}
+      <div className="scroll-thin relative min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {/* A list reads best as a narrow column; the flow takes the whole width. */}
         <div className={cn('mx-auto space-y-4 px-4 py-6 sm:px-6', view === 'list' && 'max-w-2xl')}>
           {!routine && (
@@ -513,6 +515,16 @@ export function RoutinePage({
                 modelPlaceholder={t('routine.stepModelPlaceholder')}
                 layout={layout}
                 onLayout={setLayout}
+                fullScreenBar={
+                  <>
+                    <h2 className="min-w-0 flex-1 truncate text-base font-semibold">
+                      {values.name?.trim() || (routine ? t('routine.edit') : t('routine.new'))}
+                    </h2>
+                    <Button type="submit" className="rounded-full" disabled={save.isPending}>
+                      {t('common.save')}
+                    </Button>
+                  </>
+                }
               />
               <MissingApps text={values.prompt ?? ''} botId={botId} />
               {routine && (

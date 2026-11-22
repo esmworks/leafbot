@@ -84,7 +84,7 @@ export const MODE_LABEL: Record<ShownMode, MessageKey> = {
 /** `beside`: in its own column next to the chat, rather than sliding over it. */
 export function RightPanel({ bot, beside }: { bot: Bot; beside?: boolean }) {
   const t = useT();
-  const openBotDialog = useUi((s) => s.openBotDialog);
+  const openBotPage = useUi((s) => s.openBotPage);
   const browser = useBrowserAvailable();
   const activity = useBotActivityById(bot.id);
   return (
@@ -97,7 +97,7 @@ export function RightPanel({ bot, beside }: { bot: Bot; beside?: boolean }) {
       <div className="window-drag absolute inset-x-0 top-0 h-6" />
       <div className="flex flex-col items-center gap-1 text-center">
         <button
-          onClick={() => openBotDialog({ mode: 'edit', botId: bot.id })}
+          onClick={() => openBotPage({ mode: 'edit', botId: bot.id })}
           className="group relative rounded-full"
           aria-label={t('panel.editBot')}
         >
@@ -237,7 +237,7 @@ const STACKED_LOGOS = 4;
 
 /**
  * The connections this bot may use, as one row: how many are on, and a warning when one needs
- * attention. The row opens a window with each one's switch; adding one opens the apps window.
+ * attention. The row opens a window with each one's switch; adding one opens the apps page.
  */
 function BotApps({ bot }: { bot: Bot }) {
   const t = useT();

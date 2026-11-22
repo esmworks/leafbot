@@ -11,7 +11,7 @@ describe('ayarlarda arama', () => {
   });
 });
 
-describe('search finds the apps window', () => {
+describe('search finds the apps page', () => {
   const catalog = [
     { id: 'notion', name: 'Notion' },
     { id: 'github', name: 'GitHub' },
