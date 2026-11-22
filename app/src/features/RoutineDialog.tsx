@@ -11,7 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Terminal, Webhook as WebhookIcon } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { useForm, useWatch, type UseFormRegisterReturn } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -111,6 +111,9 @@ const Form = z.object({
   /** The followed WhatsApp group's address; empty for none. */
   whatsappGroup: z.string(),
   whatsappPeople: z.boolean(),
+  /** The id of the bot's table whose rows start it; empty for none. */
+  tableTrigger: z.string(),
+  tableFilter: z.string().max(2000),
   model: z.string().max(200),
   slackChannel: z
     .string()
@@ -202,6 +205,8 @@ function fromRoutine(r?: Routine): Form {
     emailFilter: r?.emailFilter ?? '',
     whatsappGroup: r?.whatsappGroup ?? '',
     whatsappPeople: r?.whatsappPeople ?? false,
+    tableTrigger: r?.tableTrigger ?? '',
+    tableFilter: r?.tableFilter ?? '',
     model: r?.model ?? '',
   };
 }
@@ -267,6 +272,8 @@ export function RoutineDialog({
         emailFilter: f.emailFilter.trim(),
         whatsappGroup: f.whatsappGroup || null,
         whatsappPeople: f.whatsappPeople,
+        tableTrigger: f.tableTrigger || null,
+        tableFilter: f.tableFilter.trim(),
         model: f.model.trim(),
       };
       return routine
@@ -593,6 +600,13 @@ export function RoutineDialog({
                 <p className="mt-1 text-xs text-muted-foreground">{t('routine.emailFilterHint')}</p>
               </Field>
             )}
+            <TableFields
+              botId={botId}
+              open={open}
+              table={values.tableTrigger}
+              onTable={(v) => form.setValue('tableTrigger', v, { shouldDirty: true })}
+              filter={form.register('tableFilter')}
+            />
             <WhatsAppFields
               open={open}
               group={values.whatsappGroup}
@@ -791,6 +805,67 @@ export function runCommand(origin: string, routineId: string): string {
 
 /** No group: a value the select can hold, since an empty one means "nothing chosen" to it. */
 const NO_GROUP = 'none';
+
+/**
+ * The bot's table whose rows start the routine, and which rows. Only offered once the bot keeps a
+ * table; a routine already pointing at one keeps showing it.
+ */
+function TableFields({
+  botId,
+  open,
+  table,
+  onTable,
+  filter,
+}: {
+  botId: string;
+  open: boolean;
+  table: string;
+  onTable(v: string): void;
+  filter: UseFormRegisterReturn<'tableFilter'>;
+}) {
+  const t = useT();
+  const { data: tables = [] } = useQuery({
+    queryKey: ['tables', botId],
+    queryFn: () => api.botTables(botId),
+    enabled: open,
+  });
+  if (!tables.length && !table) return null;
+  return (
+    <>
+      <Field label={t('routine.tableTrigger')}>
+        <Select value={table || NO_TABLE} onValueChange={(v) => onTable(v === NO_TABLE ? '' : v)}>
+          <SelectTrigger className="w-full rounded-xl">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={NO_TABLE}>{t('routine.tableTriggerNone')}</SelectItem>
+            {tables.map((x) => (
+              <SelectItem key={x.id} value={x.id}>
+                {x.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <p className="mt-1 text-xs text-muted-foreground">{t('routine.tableTriggerHint')}</p>
+      </Field>
+      {table && (
+        <Field label={t('routine.tableFilter')}>
+          <Textarea
+            {...filter}
+            rows={2}
+            placeholder={t('routine.tableFilterPlaceholder')}
+            className="rounded-xl font-mono text-xs"
+            spellCheck={false}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">{t('routine.tableFilterHint')}</p>
+        </Field>
+      )}
+    </>
+  );
+}
+
+/** The select's value for "no table": a select item cannot have an empty value. */
+const NO_TABLE = 'none';
 
 /**
  * What on WhatsApp also starts the routine: people writing to the account, and one group. Offered

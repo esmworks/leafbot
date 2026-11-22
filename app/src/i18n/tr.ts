@@ -1413,6 +1413,14 @@ export const tr = {
   'routine.emailFilterPlaceholder': 'subject~=fatura\nfrom=banka@ornek.com',
   'routine.emailFilterHint':
     'Her satıra bir koşul; from, to, subject ya da text üzerinde: = eşit, != eşit değil, ~= içerir. Boş: her posta.',
+  'routine.tableTrigger': 'Tablodaki bir satır hazır olunca da',
+  'routine.tableTriggerNone': 'Tablo yok',
+  'routine.tableTriggerHint':
+    'Eklediğiniz ve doldurduğunuz ya da aşağıdaki koşullara uyacak biçimde değiştirdiğiniz her satır için bir kez çalışır; satır çalışmaya gelir. Botun yazdığı satırlar ve başkalarının eklediği satırlar başlatmaz.',
+  'routine.tableFilter': 'Hangi satırlar',
+  'routine.tableFilterPlaceholder': 'Durum=yapılacak',
+  'routine.tableFilterHint':
+    'Her satıra bir koşul, sütun adı üzerinde: = eşit, != eşit değil, ~= içerir. Bir durum sütunuyla satırın ne zaman hazır olduğuna siz karar verirsiniz. Boş: içinde bir şey olan her satır.',
   'routine.whatsappPeople': 'WhatsApp’ta biri yazınca da',
   'routine.whatsappPeopleHint':
     'Her sohbetin yeni mesajları (gruplar ve botlarla sohbetiniz hariç), sohbet birkaç dakika sessiz kalınca sohbetin son mesajlarıyla birlikte ayrı bir çalıştırmaya gelir. Mesajlar 30 gün saklanır (botun bunlarla yaptığı çalıştırmalar ve kartlar konuşmalarda kalır); kodlar, şifreler ve giriş bağlantıları hiç saklanmaz, yalnızca atlandıkları yazılır. Botun hazırladığı cevaplar yalnızca siz onaylayınca gider.',

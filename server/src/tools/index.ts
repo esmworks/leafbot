@@ -503,6 +503,14 @@ export class ToolFactory {
       }
       return {};
     };
+    /** A bot's table by name, for a routine to start on; the reason, listing its tables, when there is none. */
+    const tableNamed = async (botId: string, name: string) => {
+      const { found, names } = await s.tables.find(botId, name);
+      if (found) return found;
+      return names.length
+        ? t('tool.tableMissing', { table: name, tables: names.join(', ') })
+        : t('tool.tablesNone');
+    };
     /**
      * The routine a bot names, by name or id: one of its own, or, for a manager, one of another
      * bot's too, but not another manager's. A reason when there is none or more than one.
@@ -759,6 +767,9 @@ export class ToolFactory {
           /** Also run when mail arrives at the bot's address, when the mail meets `email_filter`. */
           on_email: z.boolean().default(false),
           email_filter: z.string().max(2000).optional(),
+          /** The name of one of its tables: a row the person adds there in the app starts it. */
+          on_table: z.string().min(1).max(200).optional(),
+          table_filter: z.string().max(2000).optional(),
           /** The model its runs use, on the bot's own engine; left out for the bot's own model. */
           model: z.string().trim().max(200).optional(),
         },
@@ -770,6 +781,8 @@ export class ToolFactory {
           if (same) return t('tool.routineExists', { name: same.name });
           const check = a.check_tool ? await s.connections.checkFromName(bot.id, a.check_tool, person) : null;
           if (a.check_tool && !check) return t('tool.routineBadCheck', { tool: a.check_tool });
+          const watched = a.on_table ? await tableNamed(bot.id, a.on_table) : null;
+          if (typeof watched === 'string') return watched;
           const settings = await s.settings.all();
           const r = await s.routines.create(
             {
@@ -797,6 +810,8 @@ export class ToolFactory {
               // WhatsApp is turned on with whatsapp_follow, which asks the person on its own card.
               whatsappGroup: null,
               whatsappPeople: false,
+              tableTrigger: watched?.id ?? null,
+              tableFilter: a.table_filter ?? '',
             },
             person,
           );
@@ -851,6 +866,9 @@ export class ToolFactory {
           model: z.string().trim().max(200).optional(),
           on_email: z.boolean().optional(),
           email_filter: z.string().max(2000).optional(),
+          /** An empty string stops starting on the table's new rows. */
+          on_table: z.string().max(200).optional(),
+          table_filter: z.string().max(2000).optional(),
         },
         async (a) => {
           // The bot changes itself only for someone who may change it.
@@ -869,6 +887,9 @@ export class ToolFactory {
           } else if (a.check_args && r.check) {
             check = { ...r.check, args: a.check_args };
           }
+          // The table is the routine's own bot's, which may be another one for a manager.
+          const watched = a.on_table ? await tableNamed(r.botId, a.on_table) : null;
+          if (typeof watched === 'string') return watched;
           const patch: z.infer<typeof RoutineUpdate> = {
             ...(a.enabled !== undefined && { enabled: a.enabled }),
             ...(a.name !== undefined && { name: a.name.trim() }),
@@ -883,6 +904,8 @@ export class ToolFactory {
             ...(a.model !== undefined && { model: a.model }),
             ...(a.on_email !== undefined && { emailTrigger: a.on_email }),
             ...(a.email_filter !== undefined && { emailFilter: a.email_filter }),
+            ...(a.on_table !== undefined && { tableTrigger: watched?.id ?? null }),
+            ...(a.table_filter !== undefined && { tableFilter: a.table_filter }),
           };
           if (!Object.keys(patch).length) return t('tool.routineNoChange');
           const rename = patch.name?.toLowerCase();

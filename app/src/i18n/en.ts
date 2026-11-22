@@ -1440,6 +1440,14 @@ export const en: Catalog<MessageKey> = {
   'routine.emailFilterPlaceholder': 'subject~=invoice\nfrom=bank@example.com',
   'routine.emailFilterHint':
     'One condition per line on from, to, subject or text: = equals, != does not equal, ~= contains. Empty: every mail.',
+  'routine.tableTrigger': 'Also when a table row is ready',
+  'routine.tableTriggerNone': 'No table',
+  'routine.tableTriggerHint':
+    'Runs once for each row you add and fill in, or change so it meets the conditions below; the row goes to the run. Rows the bot writes do not start it, and neither do rows other people add.',
+  'routine.tableFilter': 'Which rows',
+  'routine.tableFilterPlaceholder': 'Status=todo',
+  'routine.tableFilterHint':
+    'One condition per line on a column’s name: = equals, != does not equal, ~= contains. A status column lets you decide when a row is ready. Empty: every row that has something in it.',
   'routine.whatsappPeople': 'Also when someone writes on WhatsApp',
   'routine.whatsappPeopleHint':
     'Each chat’s new messages (not groups, not your chat with the bots) go to a run of their own a couple of minutes after the chat goes quiet, with the chat’s last messages. Messages are kept 30 days (the runs and cards the bot made from them stay in its conversations); codes, passwords and sign-in links are never kept, only a line saying one was left out. Replies the bot drafts go only after you approve them.',
