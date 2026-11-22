@@ -10,7 +10,9 @@ import {
   Play,
   Plus,
   ScrollText,
+  Settings2,
   Trash2,
+  X,
 } from 'lucide-react';
 import {
   useEffect,
@@ -88,6 +90,9 @@ export function RoutineFlow({
   layout,
   onLayout,
   fullScreenBar,
+  promptExtra,
+  settings,
+  settingsAtStart = false,
 }: {
   /** What else starts the routine, besides its schedule. */
   triggers: string[];
@@ -114,6 +119,15 @@ export function RoutineFlow({
   onLayout(next: FlowLayout): void;
   /** What the bar over a canvas covering the window shows besides its own button (title, save). */
   fullScreenBar?: ReactNode;
+  /** Shown in the instruction's box under it, such as the apps it names that are not connected. */
+  promptExtra?: ReactNode;
+  /**
+   * What else starts the routine and how it runs, beyond the boxes: opened beside the canvas from
+   * the first box or the canvas's corner, so the whole routine is set from the flow.
+   */
+  settings?: ReactNode;
+  /** Opens with the settings showing, as for a routine opened to see its latest runs. */
+  settingsAtStart?: boolean;
 }) {
   const t = useT();
   const locale = useLocale((s) => s.locale);
@@ -146,6 +160,8 @@ export function RoutineFlow({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [fullScreen]);
+
+  const [settingsOpen, setSettingsOpen] = useState(settingsAtStart);
 
   // The box being dragged, where it is now; the others keep their places meanwhile.
   const [moving, setMoving] = useState<{ id: string; spot: Spot } | null>(null);
@@ -435,139 +451,199 @@ export function RoutineFlow({
           : 'relative space-y-2',
       )}
     >
-      {fullScreen ? (
+      {fullScreen && (
         // Over the whole window the bar keeps clear of the window's own buttons and moves the window.
         <div className="window-drag flex items-center justify-end gap-2 frameless:pl-[88px]">
           {fullScreenBar}
-          {fullScreenButton}
         </div>
-      ) : (
-        <div className="absolute top-2 right-2 z-10">{fullScreenButton}</div>
       )}
       <div
-        ref={scroller}
-        role="group"
-        aria-label={t('routine.view.flow')}
         className={cn(
-          // Wheeling past the canvas's own edge goes on to scroll the page around it.
-          'scroll-thin relative overflow-auto rounded-2xl border',
+          'relative flex gap-3',
           fullScreen ? 'min-h-0 flex-1' : 'h-[max(34rem,calc(100dvh-16rem))]',
-          'bg-[radial-gradient(var(--border)_1px,transparent_1px)] [background-size:16px_16px]',
-          moving && 'cursor-grabbing select-none',
         )}
       >
-        <div className="relative" style={{ width: size.width, height: size.height, minWidth: '100%' }}>
-          <svg
-            className="pointer-events-none absolute inset-0"
-            width={size.width}
-            height={size.height}
-            aria-hidden
+        <div className="relative min-w-0 flex-1">
+          <div className="absolute top-2 right-2 z-10 flex gap-1.5">
+            {settings && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="icon"
+                className="size-8 rounded-full"
+                aria-pressed={settingsOpen}
+                onClick={() => setSettingsOpen(!settingsOpen)}
+                aria-label={t('flow.settings')}
+                title={t('flow.settings')}
+              >
+                <Settings2 className="size-4" />
+              </Button>
+            )}
+            {fullScreenButton}
+          </div>
+          <div
+            ref={scroller}
+            role="group"
+            aria-label={t('routine.view.flow')}
+            className={cn(
+              // Wheeling past the canvas's own edge goes on to scroll the page around it.
+              'scroll-thin relative h-full overflow-auto rounded-2xl border',
+              'bg-[radial-gradient(var(--border)_1px,transparent_1px)] [background-size:16px_16px]',
+              moving && 'cursor-grabbing select-none',
+            )}
           >
-            {ids.slice(1).map((id, k) => {
-              const from = ids[k]!;
-              const { path } = link(spots[from]!, spots[id]!);
-              // A line the run has gone along is drawn in the brand's color.
-              const passed = partOf(from)?.status === 'done';
-              const going = partOf(id)?.status === 'running';
-              return (
-                <path
-                  key={id}
-                  d={path}
-                  fill="none"
-                  strokeWidth={passed || going ? 2 : 1.5}
-                  strokeDasharray={going ? '6 5' : undefined}
-                  style={{ stroke: passed || going ? 'var(--brand)' : 'var(--border)' }}
-                />
-              );
-            })}
-          </svg>
-          {/* Under the boxes: a box moved onto a line covers its button, not the other way round. */}
-          {ids.slice(2).map((id, k) => addMenu(k, link(spots[ids[k + 1]!]!, spots[id]!).mid))}
-          {addMenu(steps.length, { x: last.x + BOX_W + 28, y: last.y + PORT_Y })}
+            <div className="relative" style={{ width: size.width, height: size.height, minWidth: '100%' }}>
+              <svg
+                className="pointer-events-none absolute inset-0"
+                width={size.width}
+                height={size.height}
+                aria-hidden
+              >
+                {ids.slice(1).map((id, k) => {
+                  const from = ids[k]!;
+                  const { path } = link(spots[from]!, spots[id]!);
+                  // A line the run has gone along is drawn in the brand's color.
+                  const passed = partOf(from)?.status === 'done';
+                  const going = partOf(id)?.status === 'running';
+                  return (
+                    <path
+                      key={id}
+                      d={path}
+                      fill="none"
+                      strokeWidth={passed || going ? 2 : 1.5}
+                      strokeDasharray={going ? '6 5' : undefined}
+                      style={{ stroke: passed || going ? 'var(--brand)' : 'var(--border)' }}
+                    />
+                  );
+                })}
+              </svg>
+              {/* Under the boxes: a box moved onto a line covers its button, not the other way round. */}
+              {ids.slice(2).map((id, k) => addMenu(k, link(spots[ids[k + 1]!]!, spots[id]!).mid))}
+              {addMenu(steps.length, { x: last.x + BOX_W + 28, y: last.y + PORT_Y })}
 
-          {box({
-            id: 'start',
-            index: -1,
-            icon: <Play className="size-4" />,
-            title: t('flow.start'),
-            status: run ? runAsStep(run) : undefined,
-            children: (
-              <>
-                {triggers.length > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {t('flow.alsoStarts', { what: triggers.join(', ') })}
-                  </p>
-                )}
-                <div className="space-y-3">{schedule}</div>
-                <p className="text-xs text-muted-foreground">{when}</p>
-                {onRunNow && (
+              {box({
+                id: 'start',
+                index: -1,
+                icon: <Play className="size-4" />,
+                title: t('flow.start'),
+                status: run ? runAsStep(run) : undefined,
+                children: (
                   <>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="secondary"
-                      className="w-full rounded-xl"
-                      disabled={!!runBlocked || run?.status === 'running'}
-                      onClick={onRunNow}
-                    >
-                      <Play className="size-3.5" /> {t('panel.runNow')}
-                    </Button>
-                    {runBlocked && <p className="text-xs text-muted-foreground">{runBlocked}</p>}
+                    {triggers.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        {t('flow.alsoStarts', { what: triggers.join(', ') })}
+                      </p>
+                    )}
+                    <div className="space-y-3">{schedule}</div>
+                    <p className="text-xs text-muted-foreground">{when}</p>
+                    {settings && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className="w-full rounded-xl"
+                        aria-pressed={settingsOpen}
+                        onClick={() => setSettingsOpen(true)}
+                      >
+                        <Settings2 className="size-3.5" /> {t('flow.settings')}
+                      </Button>
+                    )}
+                    {onRunNow && (
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          className="w-full rounded-xl"
+                          disabled={!!runBlocked || run?.status === 'running'}
+                          onClick={onRunNow}
+                        >
+                          <Play className="size-3.5" /> {t('panel.runNow')}
+                        </Button>
+                        {runBlocked && <p className="text-xs text-muted-foreground">{runBlocked}</p>}
+                      </>
+                    )}
                   </>
-                )}
-              </>
-            ),
-          })}
+                ),
+              })}
 
-          {box({
-            id: 'prompt',
-            index: -1,
-            icon: <ScrollText className="size-4" />,
-            title: t('routine.prompt'),
-            status: promptStatus?.status,
-            error: !!promptError,
-            children: (
-              <>
-                <Textarea
-                  value={prompt}
-                  onChange={(e) => onPrompt(e.target.value)}
-                  rows={4}
-                  className="scroll-thin max-h-48 overflow-y-auto rounded-xl text-sm"
-                  aria-label={t('routine.prompt')}
-                />
-                {promptError && <p className="text-xs text-destructive">{t(promptError as MessageKey)}</p>}
-                {statusBody(promptStatus)}
-                {tryButton(prompt, false)}
-              </>
-            ),
-          })}
+              {box({
+                id: 'prompt',
+                index: -1,
+                icon: <ScrollText className="size-4" />,
+                title: t('routine.prompt'),
+                status: promptStatus?.status,
+                error: !!promptError,
+                children: (
+                  <>
+                    <Textarea
+                      value={prompt}
+                      onChange={(e) => onPrompt(e.target.value)}
+                      rows={4}
+                      className="scroll-thin max-h-48 overflow-y-auto rounded-xl text-sm"
+                      aria-label={t('routine.prompt')}
+                    />
+                    {promptError && (
+                      <p className="text-xs text-destructive">{t(promptError as MessageKey)}</p>
+                    )}
+                    {promptExtra}
+                    {statusBody(promptStatus)}
+                    {tryButton(prompt, false)}
+                  </>
+                ),
+              })}
 
-          {steps.map((s, i) => {
-            const st = partOf(s.id);
-            return box({
-              id: s.id,
-              index: i,
-              icon: <StepIcon kind={s.kind} />,
-              title: t(`routine.step.${s.kind}`),
-              status: st?.status,
-              error: !!errors?.[i],
-              menu: stepMenu(i),
-              children: (
-                <>
-                  <StepFields
-                    step={s}
-                    onChange={(next) => onSteps(steps.map((x, j) => (j === i ? next : x)))}
-                    error={errors?.[i]}
-                    modelListId={modelListId}
-                    modelPlaceholder={modelPlaceholder}
-                  />
-                  {statusBody(st)}
-                  {s.kind === 'agent' && tryButton(s.prompt, true)}
-                </>
-              ),
-            });
-          })}
+              {steps.map((s, i) => {
+                const st = partOf(s.id);
+                return box({
+                  id: s.id,
+                  index: i,
+                  icon: <StepIcon kind={s.kind} />,
+                  title: t(`routine.step.${s.kind}`),
+                  status: st?.status,
+                  error: !!errors?.[i],
+                  menu: stepMenu(i),
+                  children: (
+                    <>
+                      <StepFields
+                        step={s}
+                        onChange={(next) => onSteps(steps.map((x, j) => (j === i ? next : x)))}
+                        error={errors?.[i]}
+                        modelListId={modelListId}
+                        modelPlaceholder={modelPlaceholder}
+                      />
+                      {statusBody(st)}
+                      {s.kind === 'agent' && tryButton(s.prompt, true)}
+                    </>
+                  ),
+                });
+              })}
+            </div>
+          </div>
         </div>
+        {settings && settingsOpen && (
+          // Beside the canvas on a wide screen, over it on a phone. Positioned, so the hidden inputs of
+          // its switches and lists stay inside what it scrolls.
+          <aside
+            aria-label={t('flow.settings')}
+            className="scroll-thin relative w-[min(26rem,45%)] shrink-0 space-y-4 overflow-y-auto rounded-2xl border bg-card p-4 phone:absolute phone:inset-0 phone:z-20 phone:w-auto"
+          >
+            <div className="flex items-center gap-2">
+              <h3 className="min-w-0 flex-1 text-sm font-semibold">{t('flow.settings')}</h3>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="-mr-1.5 size-7 rounded-full"
+                onClick={() => setSettingsOpen(false)}
+                aria-label={t('flow.closeSettings')}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+            {settings}
+          </aside>
+        )}
       </div>
       <p className="text-xs text-muted-foreground">{t('flow.pickHint')}</p>
     </div>

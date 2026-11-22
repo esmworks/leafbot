@@ -171,8 +171,9 @@ export function AppsPage() {
     setView({ kind: 'browse' });
   };
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 justify-center">
-      <div className="flex min-h-0 w-full max-w-3xl flex-col">
+    // The whole main area: the lists of apps take as many columns as its width holds.
+    <section className="@container flex min-h-0 min-w-0 flex-1">
+      <div className="flex min-h-0 w-full flex-col">
         {view.kind === 'browse' && (
           <Browse
             onView={setView}
@@ -419,7 +420,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <section className="pt-5">
       <h3 className="mb-2 text-sm font-medium text-muted-foreground">{title}</h3>
-      <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">{children}</div>
+      <div className="grid grid-cols-1 gap-x-6 gap-y-1 @xl:grid-cols-2 @5xl:grid-cols-3">{children}</div>
     </section>
   );
 }

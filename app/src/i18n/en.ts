@@ -1617,6 +1617,8 @@ export const en: Catalog<MessageKey> = {
   'flow.tryStep': 'A step is tried on its own: the bot does not get what the step before it ended with.',
   'flow.fullScreen': 'Fill the window',
   'flow.exitFullScreen': 'Back to the page',
+  'flow.settings': 'Triggers and settings',
+  'flow.closeSettings': 'Close the settings',
   'flow.options': 'Step options',
   'flow.onStartup': 'when the server starts',
   'flow.webhook': 'when its webhook is called',

@@ -1579,6 +1579,8 @@ export const tr = {
   'flow.tryStep': 'Adım tek başına denenir: bot önceki adımın sonucunu almaz.',
   'flow.fullScreen': 'Tam ekran',
   'flow.exitFullScreen': 'Sayfaya dön',
+  'flow.settings': 'Tetikleyiciler ve ayarlar',
+  'flow.closeSettings': 'Ayarları kapat',
   'flow.options': 'Adım seçenekleri',
   'flow.onStartup': 'sunucu açılınca',
   'flow.webhook': 'webhook çağrılınca',

@@ -377,6 +377,190 @@ export function RoutinePage({
     return e?.prompt?.message ?? e?.question?.message;
   });
 
+  /**
+   * What else starts the routine and how it runs: under the steps in the list, beside the canvas
+   * in the flow, so either view sets all of it.
+   */
+  const settingsFields = (
+    <>
+      {type !== 'interval' && (
+        <Field label={t('routine.missed')}>
+          <Select value={values.missed} onValueChange={(v) => form.setValue('missed', v as Form['missed'])}>
+            <SelectTrigger className="w-full rounded-xl">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="run">{t('routine.missed.run')}</SelectItem>
+              <SelectItem value="skip">{t('routine.missed.skip')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+      )}
+      <label className="flex items-start gap-3 rounded-2xl bg-secondary/60 px-3 py-2">
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">{t('routine.carryReport')}</span>
+          <span className="block text-xs text-muted-foreground">{t('routine.carryReportHint')}</span>
+        </span>
+        <Switch
+          checked={values.carryReport}
+          onCheckedChange={(v) => form.setValue('carryReport', v, { shouldDirty: true })}
+        />
+      </label>
+      <label className="flex items-start gap-3 rounded-2xl bg-secondary/60 px-3 py-2">
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">{t('routine.inMain')}</span>
+          <span className="block text-xs text-muted-foreground">{t('routine.inMainHint')}</span>
+        </span>
+        <Switch
+          checked={values.inMain}
+          onCheckedChange={(v) => form.setValue('inMain', v, { shouldDirty: true })}
+        />
+      </label>
+      <label className="flex items-start gap-3 rounded-2xl bg-secondary/60 px-3 py-2">
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">{t('routine.onStartup')}</span>
+          <span className="block text-xs text-muted-foreground">{t('routine.onStartupHint')}</span>
+        </span>
+        <Switch
+          checked={values.onStartup}
+          onCheckedChange={(v) => form.setValue('onStartup', v, { shouldDirty: true })}
+        />
+      </label>
+      <Field label={t('routine.model')}>
+        <Input
+          {...form.register('model')}
+          list="routine-model-options"
+          placeholder={t(claude ? 'routine.modelPlaceholder.claude' : 'routine.modelPlaceholder.pi')}
+          className="rounded-xl"
+        />
+        <datalist id="routine-model-options">
+          {claudeModels
+            .filter((m) => m.value !== 'default')
+            .map((m) => (
+              <option key={m.value} value={m.value} label={m.name || undefined} />
+            ))}
+        </datalist>
+        <p className="mt-1 text-xs text-muted-foreground">{t('routine.modelHint')}</p>
+      </Field>
+      {(slack?.available || !!values.slackChannel) && (
+        <Field label={t('routine.slackChannel')} error={err.slackChannel?.message}>
+          <Input {...form.register('slackChannel')} placeholder="C0123456789" className="rounded-xl" />
+          <p className="mt-1 text-xs text-muted-foreground">{t('routine.slackChannelHint')}</p>
+        </Field>
+      )}
+      {(slack?.available || !!values.slackReaction) && (
+        <Field label={t('routine.slackReaction')} error={err.slackReaction?.message}>
+          <Input
+            {...form.register('slackReaction')}
+            placeholder={t('routine.slackReactionPlaceholder')}
+            className="rounded-xl"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">{t('routine.slackReactionHint')}</p>
+          {!!values.slackReaction?.trim() && slack?.optionalMissing.includes('reactions:read') && (
+            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+              {t('routine.slackReactionNoPermission')}
+            </p>
+          )}
+        </Field>
+      )}
+      <Field label={t('routine.watchUrl')} error={err.watchUrl?.message}>
+        <Input
+          {...form.register('watchUrl')}
+          placeholder={t('routine.watchUrlPlaceholder')}
+          inputMode="url"
+          className="rounded-xl"
+        />
+        <p className="mt-1 text-xs text-muted-foreground">{t('routine.watchUrlHint')}</p>
+      </Field>
+      <label className="flex items-start gap-3 rounded-2xl bg-secondary/60 px-3 py-2">
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">{t('routine.emailTrigger')}</span>
+          <span className="block text-xs text-muted-foreground">{t('routine.emailTriggerHint')}</span>
+        </span>
+        <Switch
+          checked={values.emailTrigger}
+          onCheckedChange={(v) => form.setValue('emailTrigger', v, { shouldDirty: true })}
+        />
+      </label>
+      {values.emailTrigger && (
+        <Field label={t('routine.emailFilter')}>
+          <Textarea
+            {...form.register('emailFilter')}
+            rows={2}
+            placeholder={t('routine.emailFilterPlaceholder')}
+            className="rounded-xl font-mono text-xs"
+            spellCheck={false}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">{t('routine.emailFilterHint')}</p>
+        </Field>
+      )}
+      <TableFields
+        botId={botId}
+        table={values.tableTrigger}
+        onTable={(v) => form.setValue('tableTrigger', v, { shouldDirty: true })}
+        filter={form.register('tableFilter')}
+      />
+      <WhatsAppFields
+        group={values.whatsappGroup}
+        people={values.whatsappPeople}
+        onGroup={(v) => form.setValue('whatsappGroup', v, { shouldDirty: true })}
+        onPeople={(v) => form.setValue('whatsappPeople', v, { shouldDirty: true })}
+      />
+      {routine && <Check routine={routine} />}
+      {routine && <Webhook routine={routine} />}
+      {routine?.webhookToken && (
+        <AppEvents
+          routine={routine}
+          filter={values.webhookFilter ?? ''}
+          onFilter={(v) => form.setValue('webhookFilter', v, { shouldDirty: true })}
+        />
+      )}
+      {routine?.webhookToken && (
+        <Field label={t('routine.webhookFilter')}>
+          <Textarea
+            {...form.register('webhookFilter')}
+            rows={2}
+            placeholder={t('routine.webhookFilterPlaceholder')}
+            className="rounded-xl font-mono text-xs"
+            spellCheck={false}
+          />
+          <p className="mt-1 text-xs text-muted-foreground">{t('routine.webhookFilterHint')}</p>
+        </Field>
+      )}
+      {routine?.webhookToken && (
+        <label className="flex items-start gap-3 rounded-2xl bg-secondary/60 px-3 py-2">
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium">{t('routine.webhookPost')}</span>
+            <span className="block text-xs text-muted-foreground">{t('routine.webhookPostHint')}</span>
+          </span>
+          <Switch
+            checked={values.webhookPost}
+            onCheckedChange={(v) => form.setValue('webhookPost', v, { shouldDirty: true })}
+          />
+        </label>
+      )}
+      {routine && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-secondary/60 px-3 py-2 text-xs text-muted-foreground">
+          <span className="min-w-0 flex-1">{t('routine.runCommandHint')}</span>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            className="rounded-full"
+            onClick={async () => {
+              const ok = await copyText(runCommand(window.location.origin, routine.id));
+              if (ok) toast.success(t('routine.runCommandCopied'));
+              else toast.error(t('message.copyFailed'));
+            }}
+          >
+            <Terminal /> {t('routine.copyRunCommand')}
+          </Button>
+        </div>
+      )}
+      {routine && <RecentRuns routineId={routine.id} botId={botId} reveal={showRuns} />}
+    </>
+  );
+
   return (
     // The bar with the title and buttons stays put; only the form under it scrolls.
     <form
@@ -482,6 +666,7 @@ export function RoutinePage({
                 modelPlaceholder={t('routine.stepModelPlaceholder')}
               />
               <ScheduleFields form={form} values={values} />
+              {settingsFields}
             </>
           ) : (
             <>
@@ -515,6 +700,22 @@ export function RoutinePage({
                 modelPlaceholder={t('routine.stepModelPlaceholder')}
                 layout={layout}
                 onLayout={setLayout}
+                promptExtra={<MissingApps text={values.prompt ?? ''} botId={botId} />}
+                settings={
+                  <>
+                    {routine && (
+                      <PromptHistory
+                        routineId={routine.id}
+                        current={values.prompt ?? ''}
+                        onRestore={(prompt) =>
+                          form.setValue('prompt', prompt, { shouldDirty: true, shouldValidate: true })
+                        }
+                      />
+                    )}
+                    {settingsFields}
+                  </>
+                }
+                settingsAtStart={showRuns}
                 fullScreenBar={
                   <>
                     <h2 className="min-w-0 flex-1 truncate text-base font-semibold">
@@ -526,16 +727,6 @@ export function RoutinePage({
                   </>
                 }
               />
-              <MissingApps text={values.prompt ?? ''} botId={botId} />
-              {routine && (
-                <PromptHistory
-                  routineId={routine.id}
-                  current={values.prompt ?? ''}
-                  onRestore={(prompt) =>
-                    form.setValue('prompt', prompt, { shouldDirty: true, shouldValidate: true })
-                  }
-                />
-              )}
               {routine && (
                 <div ref={rehearsal}>
                   <RoutineRehearsal
@@ -551,186 +742,6 @@ export function RoutinePage({
                 </div>
               )}
             </>
-          )}
-          {type !== 'interval' && (
-            <Field label={t('routine.missed')}>
-              <Select
-                value={values.missed}
-                onValueChange={(v) => form.setValue('missed', v as Form['missed'])}
-              >
-                <SelectTrigger className="w-full rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="run">{t('routine.missed.run')}</SelectItem>
-                  <SelectItem value="skip">{t('routine.missed.skip')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          )}
-          <label className="flex items-start gap-3 rounded-2xl bg-secondary/60 px-3 py-2">
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">{t('routine.carryReport')}</span>
-              <span className="block text-xs text-muted-foreground">{t('routine.carryReportHint')}</span>
-            </span>
-            <Switch
-              checked={values.carryReport}
-              onCheckedChange={(v) => form.setValue('carryReport', v, { shouldDirty: true })}
-            />
-          </label>
-          <label className="flex items-start gap-3 rounded-2xl bg-secondary/60 px-3 py-2">
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">{t('routine.inMain')}</span>
-              <span className="block text-xs text-muted-foreground">{t('routine.inMainHint')}</span>
-            </span>
-            <Switch
-              checked={values.inMain}
-              onCheckedChange={(v) => form.setValue('inMain', v, { shouldDirty: true })}
-            />
-          </label>
-          <label className="flex items-start gap-3 rounded-2xl bg-secondary/60 px-3 py-2">
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">{t('routine.onStartup')}</span>
-              <span className="block text-xs text-muted-foreground">{t('routine.onStartupHint')}</span>
-            </span>
-            <Switch
-              checked={values.onStartup}
-              onCheckedChange={(v) => form.setValue('onStartup', v, { shouldDirty: true })}
-            />
-          </label>
-          <Field label={t('routine.model')}>
-            <Input
-              {...form.register('model')}
-              list="routine-model-options"
-              placeholder={t(claude ? 'routine.modelPlaceholder.claude' : 'routine.modelPlaceholder.pi')}
-              className="rounded-xl"
-            />
-            <datalist id="routine-model-options">
-              {claudeModels
-                .filter((m) => m.value !== 'default')
-                .map((m) => (
-                  <option key={m.value} value={m.value} label={m.name || undefined} />
-                ))}
-            </datalist>
-            <p className="mt-1 text-xs text-muted-foreground">{t('routine.modelHint')}</p>
-          </Field>
-          {(slack?.available || !!values.slackChannel) && (
-            <Field label={t('routine.slackChannel')} error={err.slackChannel?.message}>
-              <Input {...form.register('slackChannel')} placeholder="C0123456789" className="rounded-xl" />
-              <p className="mt-1 text-xs text-muted-foreground">{t('routine.slackChannelHint')}</p>
-            </Field>
-          )}
-          {(slack?.available || !!values.slackReaction) && (
-            <Field label={t('routine.slackReaction')} error={err.slackReaction?.message}>
-              <Input
-                {...form.register('slackReaction')}
-                placeholder={t('routine.slackReactionPlaceholder')}
-                className="rounded-xl"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">{t('routine.slackReactionHint')}</p>
-              {!!values.slackReaction?.trim() && slack?.optionalMissing.includes('reactions:read') && (
-                <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
-                  {t('routine.slackReactionNoPermission')}
-                </p>
-              )}
-            </Field>
-          )}
-          <Field label={t('routine.watchUrl')} error={err.watchUrl?.message}>
-            <Input
-              {...form.register('watchUrl')}
-              placeholder={t('routine.watchUrlPlaceholder')}
-              inputMode="url"
-              className="rounded-xl"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">{t('routine.watchUrlHint')}</p>
-          </Field>
-          <label className="flex items-start gap-3 rounded-2xl bg-secondary/60 px-3 py-2">
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-medium">{t('routine.emailTrigger')}</span>
-              <span className="block text-xs text-muted-foreground">{t('routine.emailTriggerHint')}</span>
-            </span>
-            <Switch
-              checked={values.emailTrigger}
-              onCheckedChange={(v) => form.setValue('emailTrigger', v, { shouldDirty: true })}
-            />
-          </label>
-          {values.emailTrigger && (
-            <Field label={t('routine.emailFilter')}>
-              <Textarea
-                {...form.register('emailFilter')}
-                rows={2}
-                placeholder={t('routine.emailFilterPlaceholder')}
-                className="rounded-xl font-mono text-xs"
-                spellCheck={false}
-              />
-              <p className="mt-1 text-xs text-muted-foreground">{t('routine.emailFilterHint')}</p>
-            </Field>
-          )}
-          <TableFields
-            botId={botId}
-            table={values.tableTrigger}
-            onTable={(v) => form.setValue('tableTrigger', v, { shouldDirty: true })}
-            filter={form.register('tableFilter')}
-          />
-          <WhatsAppFields
-            group={values.whatsappGroup}
-            people={values.whatsappPeople}
-            onGroup={(v) => form.setValue('whatsappGroup', v, { shouldDirty: true })}
-            onPeople={(v) => form.setValue('whatsappPeople', v, { shouldDirty: true })}
-          />
-          {routine && <Check routine={routine} />}
-          {routine && <Webhook routine={routine} />}
-          {routine?.webhookToken && (
-            <AppEvents
-              routine={routine}
-              filter={values.webhookFilter ?? ''}
-              onFilter={(v) => form.setValue('webhookFilter', v, { shouldDirty: true })}
-            />
-          )}
-          {routine?.webhookToken && (
-            <Field label={t('routine.webhookFilter')}>
-              <Textarea
-                {...form.register('webhookFilter')}
-                rows={2}
-                placeholder={t('routine.webhookFilterPlaceholder')}
-                className="rounded-xl font-mono text-xs"
-                spellCheck={false}
-              />
-              <p className="mt-1 text-xs text-muted-foreground">{t('routine.webhookFilterHint')}</p>
-            </Field>
-          )}
-          {routine?.webhookToken && (
-            <label className="flex items-start gap-3 rounded-2xl bg-secondary/60 px-3 py-2">
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium">{t('routine.webhookPost')}</span>
-                <span className="block text-xs text-muted-foreground">{t('routine.webhookPostHint')}</span>
-              </span>
-              <Switch
-                checked={values.webhookPost}
-                onCheckedChange={(v) => form.setValue('webhookPost', v, { shouldDirty: true })}
-              />
-            </label>
-          )}
-          {routine && (
-            <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-secondary/60 px-3 py-2 text-xs text-muted-foreground">
-              <span className="min-w-0 flex-1">{t('routine.runCommandHint')}</span>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="rounded-full"
-                onClick={async () => {
-                  const ok = await copyText(runCommand(window.location.origin, routine.id));
-                  if (ok) toast.success(t('routine.runCommandCopied'));
-                  else toast.error(t('message.copyFailed'));
-                }}
-              >
-                <Terminal /> {t('routine.copyRunCommand')}
-              </Button>
-            </div>
-          )}
-          {routine && (
-            <RecentRuns routineId={routine.id} botId={botId} reveal={showRuns && view === 'list'} />
           )}
         </div>
       </div>
