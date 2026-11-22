@@ -16,8 +16,11 @@ import { and, asc, desc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import {
+  endsSilent,
   isSilentReply,
   maybeSilentReply,
+  SILENT_REPLY,
+  withoutSilentEnd,
   toolPermName,
   type Engine,
   type PermissionAnswer,
@@ -2287,6 +2290,19 @@ export class TurnManager {
     // The engine words an abort its own way; a stop the person asked for is worded as theirs.
     if (this.stoppedByPerson.delete(turn.id) && !outcome.ok && outcome.kind === 'interrupted') {
       outcome = { ...outcome, message: t('turn.stoppedByUser'), byPerson: true };
+    }
+    // The silent reply on the last line, under what the bot wrote, is never shown. To a routine's
+    // run it means there is nothing to report; in a conversation the person reads, such a run leaves
+    // nothing, as a run that wrote only the silent reply does.
+    if (outcome.ok && endsSilent(outcome.text)) {
+      outcome =
+        turn.source === 'routine' && kind === 'user'
+          ? { ...outcome, text: SILENT_REPLY }
+          : {
+              ...outcome,
+              text: withoutSilentEnd(outcome.text),
+              ...(turn.source === 'routine' && { quiet: true }),
+            };
     }
     if (outcome.sessionId) {
       if (kind === 'room') await this.services.rooms.setSession(turn.threadId, turn.botId, outcome.sessionId);

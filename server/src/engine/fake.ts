@@ -229,6 +229,12 @@ export class FakeEngine implements Engine {
       req.onText(SILENT_REPLY.slice(3));
       return { ok: true, text: SILENT_REPLY, sessionId, costUsd: 0 };
     }
+    // Says why there is nothing to report, then gives the silent reply on its own line.
+    if (req.prompt.includes('[sessiz-son]')) {
+      const text = `Değişiklik yok.\n\n${SILENT_REPLY}`;
+      req.onText(text);
+      return { ok: true, text, sessionId, costUsd: 0 };
+    }
     const cost = /\[maliyet:(\d+(?:\.\d+)?)\]/.exec(req.prompt);
     const spent = cost ? Number(cost[1]) : 0;
     const parts: string[] = [];
