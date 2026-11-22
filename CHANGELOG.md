@@ -5,6 +5,16 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ## Unreleased
 
+### Added
+
+- A routine can start when a row of its bot's table is ready, so a table works as a list of jobs the bot picks up.
+  In the routine window, choose the table and, if you like, which rows (for example `Status=todo`). A row starts the
+  routine once, with that row, the first time it has something in it and meets the conditions: when you fill in a row
+  you added, or change one, say by setting its status. Rows the bot writes never start it, so a run that fills the
+  table cannot start itself again, and neither do changes other people make. A row with cells the bot or someone else
+  wrote is read as possibly holding outside text, so its run changes nothing without asking. A row that comes while
+  a run is going waits for it instead of being dropped.
+
 ### Changed
 
 - Bots use the board on their own. Before, they worked on tickets only when the person gave them one: they handed

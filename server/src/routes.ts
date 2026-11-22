@@ -951,13 +951,13 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   };
   app.post('/api/tables/:id/rows', async (req) => {
     const id = IdParams.parse(req.params).id;
-    const rows = await s.tables.addRows(id, [RowValues.parse(req.body)]);
+    const rows = await s.tables.addRows(id, [RowValues.parse(req.body)], me(req).userId);
     await rowsForRoutines(id, rows, req);
     return rows[0];
   });
   app.patch('/api/tables/:id/rows/:rowId', async (req) => {
     const p = z.object({ id: z.string(), rowId: z.string() }).parse(req.params);
-    const row = await s.tables.updateRow(p.id, p.rowId, RowValues.parse(req.body));
+    const row = await s.tables.updateRow(p.id, p.rowId, RowValues.parse(req.body), me(req).userId);
     await rowsForRoutines(p.id, [row], req);
     return row;
   });

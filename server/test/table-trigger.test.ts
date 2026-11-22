@@ -63,6 +63,40 @@ describe('a routine that starts on new table rows', () => {
     expect(t.engine.requests.at(-1)!.prompt).toContain('Board update');
   });
 
+  it('reads a row the bot wrote as outside text when the person only hands it over', async () => {
+    const { bot, table, routine } = await setUp();
+    const thread = (await t.api<Thread>('GET', `/api/bots/${bot.id}/main-thread`)).body;
+    await t.send(
+      thread.id,
+      '[araç:table_add {"table":"Decks","rows":[{"Title":"From a mail","Status":"later"}]}]',
+    );
+    await t.services.turns.idle();
+    const [row] = await t.services.tables.rows(table.id);
+    await t.api('PATCH', `/api/tables/${table.id}/rows/${row!.id}`, { Status: 'todo' });
+    await waitFor(async () => (await runs(routine.id))[0]);
+    await t.services.turns.idle();
+    // The title came from the bot, maybe from a mail: the run changes nothing without a card.
+    const [kept] = await t.db.db.select({ trigger: schema.routineRuns.trigger }).from(schema.routineRuns);
+    expect(kept!.trigger).toBe('stored');
+  });
+
+  it('refuses a filter on a column the table does not have, as written', async () => {
+    const { table, routine } = await setUp();
+    const res = await t.api<{ error: string }>('PATCH', `/api/routines/${routine.id}`, {
+      tableFilter: 'status=todo',
+    });
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).toContain('Status');
+    expect(
+      (
+        await t.api('PATCH', `/api/routines/${routine.id}`, {
+          tableTrigger: table.id,
+          tableFilter: 'Status!=done',
+        })
+      ).status,
+    ).toBe(200);
+  });
+
   it('does not run on a row the bot writes, so a run that fills the table cannot start itself', async () => {
     const { bot, table, routine } = await setUp();
     const thread = (await t.api<Thread>('GET', `/api/bots/${bot.id}/main-thread`)).body;

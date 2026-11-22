@@ -1612,6 +1612,12 @@ export const botTableRows = pgTable(
       .references(() => botTables.id, { onDelete: 'cascade' }),
     /** The row's values by column name; sealed with the conversations when sealing is on. */
     values: sealedJson('values').$type<Record<string, string | number | boolean | null>>().notNull(),
+    /**
+     * The person who wrote every cell of the row in the app; null once a bot, someone else or
+     * taking a turn back wrote any of it. A routine the row starts takes it as that person's own
+     * words only while it is theirs alone.
+     */
+    writtenBy: text('written_by'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },

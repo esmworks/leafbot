@@ -85,6 +85,8 @@ const tr = {
   'error.notYourself': 'Kendi hesabınızı buradan değiştiremezsiniz; Hesap bölümünü kullanın',
   'error.tableNoColumn': 'Tabloda "{column}" diye bir sütun yok. Sütunlar: {columns}',
   'error.routineTable': 'Rutin yalnızca kendi botunun bir tablosundan başlayabilir.',
+  'error.routineTableFilter':
+    'Koşuldaki "{column}" tabloda bir sütun değil. Sütun adlarını aynen yazın: {columns}',
   'error.tableColumns': 'Bir tabloda en çok 30 sütun olabilir.',
   'error.tableNoColumns': 'Yeni bir tablo için en az bir sütun ver.',
   'error.tableCount': 'Bir botun en çok 20 tablosu olabilir; yenisi için birini silin.',
@@ -1826,6 +1828,8 @@ const en: Catalog<ServerKey> = {
   'error.notYourself': 'You cannot change your own account here; use the Account section',
   'error.tableNoColumn': 'The table has no column "{column}". Columns: {columns}',
   'error.routineTable': 'A routine can start only from a table of its own bot.',
+  'error.routineTableFilter':
+    '"{column}" in the conditions is not a column of the table. Write the column names exactly: {columns}',
   'error.tableColumns': 'A table can have at most 30 columns.',
   'error.tableNoColumns': 'Give at least one column for a new table.',
   'error.tableCount': 'A bot can have at most 20 tables; delete one to make another.',
