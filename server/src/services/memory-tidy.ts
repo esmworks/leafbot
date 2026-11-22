@@ -370,17 +370,36 @@ export class MemoryTidyService {
    */
   private async checkFlagPages(defaultModel: string): Promise<number> {
     let proposed = 0;
-    for (const f of await this.services.memoryFlags.withUnreadPage(SOURCES_PER_PASS)) {
-      if (this.stopped) break;
-      const bot = await this.services.bots.get(f.botId).catch(() => null);
-      if (!bot || !bot.memory || bot.archivedAt || !bot.internet || !this.engineFor(bot).complete) continue;
-      if (await this.services.usage.reached(bot)) continue;
-      // Marked first: a page that fails is not read again.
-      await this.services.memoryFlags.checked(f.id);
-      try {
-        if (await this.checkFlagPage(f, bot, defaultModel)) proposed++;
-      } catch (err) {
-        console.warn(`Memory flag page check of ${f.id} failed: ${(err as Error).message}`);
+    let read = 0;
+    // Bots whose pages cannot be read now are left out of the next look, so their flags, left
+    // unread for a later pass, do not keep the others' from being read.
+    const skip = new Set<string>();
+    while (read < SOURCES_PER_PASS && !this.stopped) {
+      const flags = await this.services.memoryFlags.withUnreadPage(SOURCES_PER_PASS - read, [...skip]);
+      if (!flags.length) break;
+      for (const f of flags) {
+        if (this.stopped || read >= SOURCES_PER_PASS) break;
+        if (skip.has(f.botId)) continue;
+        const bot = await this.services.bots.get(f.botId).catch(() => null);
+        if (
+          !bot ||
+          !bot.memory ||
+          bot.archivedAt ||
+          !bot.internet ||
+          !this.engineFor(bot).complete ||
+          (await this.services.usage.reached(bot))
+        ) {
+          skip.add(f.botId);
+          continue;
+        }
+        read++;
+        // Marked first: a page that fails is not read again.
+        await this.services.memoryFlags.checked(f.id);
+        try {
+          if (await this.checkFlagPage(f, bot, defaultModel)) proposed++;
+        } catch (err) {
+          console.warn(`Memory flag page check of ${f.id} failed: ${(err as Error).message}`);
+        }
       }
     }
     return proposed;
@@ -423,9 +442,11 @@ export class MemoryTidyService {
     const change = await this.services.memory.propose({
       action: note ? 'update' : 'write',
       memoryId: note?.id ?? null,
-      scope: f.scope,
-      botId: f.scope === 'bot' ? f.botId : null,
-      place: f.place,
+      // A note's change is the note's owner's to take, which for a manager bot's flag on another
+      // bot's note is that bot.
+      scope: note?.scope ?? f.scope,
+      botId: note ? note.botId : f.scope === 'bot' ? f.botId : null,
+      place: note ? (note.place ?? null) : f.place,
       site: null,
       content,
       before: note?.content ?? null,

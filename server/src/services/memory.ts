@@ -436,6 +436,9 @@ export class MemoryService {
     if (!row) throw notFound('memory');
     const words = content?.trim() || row.content;
     const actor = `bot:${row.proposedBy}`;
+    // A flag waiting on this change is settled by it first: the note's change below would
+    // otherwise read as someone else's and drop the change as stale (see `settleNoteFlags`).
+    await settleChangeFlags(this.ctx.db, id, true);
     if (row.action === 'write') {
       const note = {
         scope: row.scope,
@@ -471,7 +474,6 @@ export class MemoryService {
       if (exists && row.action === 'forget') await this.remove(row.memoryId, actor);
     }
     await this.ctx.db.delete(schema.memoryChanges).where(eq(schema.memoryChanges.id, id));
-    await settleChangeFlags(this.ctx.db, id, true);
     this.ctx.bus.refresh({ scope: 'memory' });
   }
 

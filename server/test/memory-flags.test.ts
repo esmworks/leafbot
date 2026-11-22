@@ -2,7 +2,7 @@ import type { Memory, MemoryChange, MemoryFlag, TodayReport } from '@leafbot/sha
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
-import { FLAG_EXPIRE_MS, FLAGS_PER_TURN } from '../src/services/memory-flags';
+import { FLAG_EXPIRE_MS, FLAGS_PER_TURN, type FlagInput } from '../src/services/memory-flags';
 import { parseFlagAnswer } from '../src/services/memory-tidy';
 import { testServer, type TestServer } from './helpers';
 
@@ -25,6 +25,19 @@ describe('hafıza işaretleri: botun bilmediğini söylemesi', () => {
   const flags = async () => (await t.api<MemoryFlag[]>('GET', '/api/memory/flags')).body;
   const notes = async () => (await t.api<Memory[]>('GET', '/api/memory')).body;
   const rows = () => db().select().from(schema.memoryFlags);
+  const raise = (over: Partial<FlagInput> & Pick<FlagInput, 'botId' | 'about' | 'turnId'>) =>
+    t.services.memoryFlags.raise({
+      kind: 'missing',
+      seen: null,
+      memoryId: null,
+      skillId: null,
+      sourceUrl: null,
+      userId: 'owner',
+      place: null,
+      outside: null,
+      threadId: 'yok',
+      ...over,
+    });
 
   it('eksik bilgi işaretlenir, aynısı yeniden sayılır, Today sayısında görünür', async () => {
     const bot = await t.bot({ name: 'Satış' });
@@ -139,6 +152,104 @@ describe('hafıza işaretleri: botun bilmediğini söylemesi', () => {
     expect((await ayse.api('POST', `/api/memory/flags/${f!.id}/dismiss`)).status).toBe(404);
   });
 
+  it('yönetici botun başka botun notuna bıraktığı işaret, o notu değiştiremeyene görünmez', async () => {
+    const manager = await t.bot({ name: 'Yönetici' });
+    const other = await t.bot({ name: 'Rapor' });
+    const ayse = await t.person('ayse', 'member');
+    await t.api('PUT', `/api/bots/${manager.id}/access`, { everyone: 'none', people: { ayse: 'edit' } });
+    const note = await t.services.memory.create({
+      scope: 'bot',
+      botId: other.id,
+      content: 'Gizli fiyat 120 TL',
+      source: `bot:${other.id}`,
+    });
+    const r = await raise({
+      botId: manager.id,
+      kind: 'wrong',
+      about: 'Fiyat',
+      memoryId: note.id,
+      turnId: 'tur-1',
+    });
+    expect((await ayse.api<MemoryFlag[]>('GET', '/api/memory/flags')).body).toEqual([]);
+    expect((await ayse.api<TodayReport>('GET', '/api/today')).body.openFlags).toBe(0);
+    if (r.status !== 'raised') throw new Error(r.status);
+    expect((await ayse.api('POST', `/api/memory/flags/${r.id}/answer`, { text: 'x' })).status).toBe(404);
+    expect((await t.services.memory.get(note.id)).content).toBe('Gizli fiyat 120 TL');
+    // Someone who may change the note sees it.
+    expect(await flags()).toMatchObject([{ id: r.id, note: 'Gizli fiyat 120 TL' }]);
+  });
+
+  it('aynı turda iki kez ya da paralel bırakılan işaretler sınırı aşmaz', async () => {
+    const bot = await t.bot({ name: 'Satış' });
+    const abouts = ['Kargo firması', 'İade süresi', 'Depo adresi', 'Fatura unvanı', 'Vergi dairesi'];
+    const results = await Promise.all(
+      abouts.map((about) => raise({ botId: bot.id, about, turnId: 'tur-1' })),
+    );
+    expect(results.filter((r) => r.status === 'raised')).toHaveLength(FLAGS_PER_TURN);
+    expect(await rows()).toHaveLength(FLAGS_PER_TURN);
+    // The same turn meeting the same gap again does not count it twice.
+    await raise({ botId: bot.id, about: 'Kargo firması', turnId: 'tur-2' });
+    await raise({ botId: bot.id, about: 'Kargo firması', turnId: 'tur-2' });
+    expect((await rows()).find((f) => f.about === 'Kargo firması')).toMatchObject({ count: 2 });
+  });
+
+  it('geri alınan tur yeniden saydığı işareti bir eksiltir, kapanmış işarete dokunmaz', async () => {
+    const bot = await t.bot({ name: 'Satış' });
+    const th = await main(bot.id);
+    // A turn that changed something can be undone.
+    const turn = (n: number, about: string) =>
+      say(th, `[araç:memory_write {"content":"Not ${n}"}] ${flag({ kind: 'missing', about })}`);
+    await turn(1, 'Kargo firması');
+    await turn(2, 'Depo adresi bilgisi');
+    await turn(3, 'Kargo firması');
+    const kargo = (await rows()).find((r) => r.about === 'Kargo firması')!;
+    const depo = (await rows()).find((r) => r.about === 'Depo adresi bilgisi')!;
+    expect(kargo).toMatchObject({ count: 2 });
+    await t.api('POST', `/api/memory/flags/${depo.id}/dismiss`);
+    expect((await t.api('POST', `/api/turns/${kargo.againTurns[0]}/undo`)).status).toBe(200);
+    expect((await t.api('POST', `/api/turns/${depo.turnId}/undo`)).status).toBe(200);
+    const after = await rows();
+    expect(after.find((r) => r.id === kargo.id)).toMatchObject({ count: 1, againTurns: [] });
+    expect(after.find((r) => r.id === depo.id)).toMatchObject({ status: 'dismissed' });
+  });
+
+  it('beceri işareti konuşma incelemesine gitmez', async () => {
+    const bot = await t.bot({ name: 'Rapor' });
+    const skill = await t.services.skills.create({
+      name: 'haftalik-rapor',
+      description: 'Rapor',
+      body: 'Adım 1',
+    });
+    await raise({ botId: bot.id, kind: 'wrong', about: 'Adım yanlış', skillId: skill.id, turnId: 'tur-1' });
+    await raise({ botId: bot.id, about: 'Kargo firması', turnId: 'tur-2' });
+    expect((await t.services.memoryFlags.forReview(bot.id, 'owner', null)).map((f) => f.about)).toEqual([
+      'Kargo firması',
+    ]);
+  });
+
+  it('inceleme, kişi notun doğru olduğunu söyleyince işareti kapatır', async () => {
+    await t.services.settings.update({ memoryReviewEvery: 10 });
+    const bot = await t.bot({ name: 'Rapor' });
+    const th = await main(bot.id);
+    const note = await t.services.memory.create({
+      scope: 'bot',
+      botId: bot.id,
+      content: 'Tıklamalar clicks sütununda',
+      source: `bot:${bot.id}`,
+    });
+    await say(th, flag({ kind: 'wrong', about: 'Tıklama sütunu', note: note.id }));
+    const [f] = await flags();
+    t.engine.completer = () =>
+      JSON.stringify({
+        operations: [{ op: 'resolve', flag: f!.id, content: 'Tıklamalar clicks sütununda' }],
+      });
+    for (let i = 1; i <= 8; i++) await say(th, `mesaj ${i}`);
+    await say(th, 'Not doğru, clicks sütunu');
+    await t.services.memoryReview.idle();
+    expect(await flags()).toEqual([]);
+    expect((await rows())[0]).toMatchObject({ status: 'resolved', resolvedBy: 'review' });
+  });
+
   it('hafızası kapalı botta araç yoktur', async () => {
     const bot = await t.bot({ name: 'Unutkan', memory: false });
     const th = await main(bot.id);
@@ -251,6 +362,66 @@ describe('hafıza işaretleri: botun bilmediğini söylemesi', () => {
       const read = page('Aras');
       await t.services.memoryTidy.runAll();
       expect(read).toEqual([]);
+    });
+
+    it('sayfası okunamayan botun işaretleri diğerlerinin sırasını tıkamaz', async () => {
+      const off = await t.bot({ name: 'Kapalı', internet: false });
+      const on = await t.bot({ name: 'Açık', internet: true });
+      const words = [
+        'elma',
+        'armut',
+        'kiraz',
+        'erik',
+        'incir',
+        'üzüm',
+        'kavun',
+        'karpuz',
+        'ayva',
+        'nar',
+        'muz',
+        'limon',
+      ];
+      for (const [i, w] of words.entries())
+        await raise({ botId: off.id, about: w, sourceUrl: `https://ornek.com/${w}`, turnId: `kapali-${i}` });
+      await raise({
+        botId: on.id,
+        about: 'Kargo firması',
+        sourceUrl: 'https://ornek.com/kargo',
+        turnId: 'acik',
+      });
+      const read = page('Hakkımızda');
+      t.engine.completer = () => JSON.stringify({ answer: null });
+      await t.services.memoryTidy.runAll();
+      expect(read).toEqual(['https://ornek.com/kargo']);
+    });
+
+    it('bekleyen sayfa önerisi, not bu arada değişince düşer', async () => {
+      const bot = await t.bot({ name: 'Rapor', internet: true });
+      const th = await main(bot.id);
+      const note = await t.services.memory.create({
+        scope: 'bot',
+        botId: bot.id,
+        content: 'Tıklamalar clicks sütununda',
+        source: `bot:${bot.id}`,
+      });
+      await say(
+        th,
+        flag({ kind: 'wrong', about: 'Tıklama sütunu', note: note.id, where: 'https://ornek.com/sema' }),
+      );
+      page('Sütun link_clicks');
+      t.engine.completer = () => JSON.stringify({ answer: 'Tıklamalar link_clicks sütununda' });
+      await t.services.memoryTidy.runAll();
+      expect(await flags()).toMatchObject([{ status: 'proposed' }]);
+      // What waits for the person counts on Today as the list shows it.
+      expect((await t.api<TodayReport>('GET', '/api/today')).body.openFlags).toBe(1);
+      await t.api('PATCH', `/api/memory/${note.id}`, {
+        content: 'Tıklamalar link_clicks sütununda (Mart’tan beri)',
+      });
+      expect((await t.api<MemoryChange[]>('GET', '/api/memory-changes')).body).toEqual([]);
+      expect((await t.services.memory.get(note.id)).content).toBe(
+        'Tıklamalar link_clicks sütununda (Mart’tan beri)',
+      );
+      expect((await rows())[0]).toMatchObject({ status: 'resolved', resolvedBy: 'note-changed' });
     });
 
     it('yalnızca açık bir JSON cevabı alınır', () => {

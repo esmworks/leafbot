@@ -1,10 +1,10 @@
-import { and, asc, count, eq, inArray, lt, or, sql } from 'drizzle-orm';
+import { and, asc, count, eq, inArray, lt, notInArray, or, sql } from 'drizzle-orm';
 import type { MemoryFlag } from '@leafbot/shared';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import { HttpError, newId, notFound } from '../util';
 import { OWNER_ID } from '../users';
-import { decides, type MemoryReach } from './memory';
+import type { MemoryReach } from './memory';
 import { dice, wordsOf } from './routine-suggestions';
 import type { Services } from './index';
 
@@ -52,10 +52,17 @@ const OPEN = ['open', 'proposed'] as const;
  */
 export async function settleNoteFlags(db: Db, memoryIds: string[]): Promise<void> {
   if (!memoryIds.length) return;
-  await db
+  const settled = await db
     .update(schema.memoryFlags)
     .set({ status: 'resolved', resolvedBy: 'note-changed', resolvedAt: new Date() })
-    .where(and(inArray(schema.memoryFlags.memoryId, memoryIds), eq(schema.memoryFlags.status, 'open')));
+    .where(
+      and(inArray(schema.memoryFlags.memoryId, memoryIds), inArray(schema.memoryFlags.status, [...OPEN])),
+    )
+    .returning({ changeId: schema.memoryFlags.changeId });
+  // A page's answer waiting for the person was read against the note's old words: taking it now
+  // would undo the change just made.
+  const stale = settled.flatMap((f) => (f.changeId ? [f.changeId] : []));
+  if (stale.length) await db.delete(schema.memoryChanges).where(inArray(schema.memoryChanges.id, stale));
 }
 
 /**
@@ -73,8 +80,8 @@ export async function settleChangeFlags(db: Db, changeId: string, accepted: bool
     .where(and(eq(schema.memoryFlags.changeId, changeId), eq(schema.memoryFlags.status, 'proposed')));
 }
 
-/** The SQL condition for the flags `reach` sees: those of the notes it would see. */
-const reachable = (reach: MemoryReach) =>
+/** Whose a flag about nothing in particular is: the bot's, the person's or the place's, as its scope says. */
+const flagReachable = (reach: MemoryReach) =>
   or(
     and(eq(schema.memoryFlags.scope, 'user'), eq(schema.memoryFlags.userId, reach.userId)),
     reach.botIds.length
@@ -84,6 +91,42 @@ const reachable = (reach: MemoryReach) =>
       ? and(eq(schema.memoryFlags.scope, 'room'), inArray(schema.memoryFlags.place, reach.places))
       : sql`false`,
   )!;
+
+/** Whether `reach` may see and change the note a flag is about (see `MemoryService.canEdit`). */
+const noteReachable = (reach: MemoryReach) =>
+  or(
+    and(eq(schema.memories.scope, 'user'), eq(schema.memories.userId, reach.userId)),
+    reach.botIds.length
+      ? and(eq(schema.memories.scope, 'bot'), inArray(schema.memories.botId, reach.botIds))
+      : sql`false`,
+    reach.places.length
+      ? and(eq(schema.memories.scope, 'room'), inArray(schema.memories.place, reach.places))
+      : sql`false`,
+  )!;
+
+/**
+ * The SQL condition for the flags `reach` sees, for a query joined with the flag's note: a flag
+ * about a note goes to those who may change that note, which a manager bot's flag on another
+ * bot's note is not the manager's people's to see; any other flag goes by its own scope.
+ */
+const reachable = (reach: MemoryReach) =>
+  or(
+    and(sql`${schema.memories.id} is null`, flagReachable(reach)),
+    and(sql`${schema.memories.id} is not null`, noteReachable(reach)),
+  )!;
+
+/** One bot's flags are raised one at a time, so the limits below hold when a turn calls the tool in parallel. */
+const lanes = new Map<string, Promise<unknown>>();
+function oneAtATime<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const next = (lanes.get(key) ?? Promise.resolve()).catch(() => undefined).then(fn);
+  lanes.set(key, next);
+  void next
+    .finally(() => {
+      if (lanes.get(key) === next) lanes.delete(key);
+    })
+    .catch(() => undefined);
+  return next;
+}
 
 /**
  * The gaps bots found in what they know and could not fill themselves: a fact their notes lack,
@@ -102,7 +145,11 @@ export class MemoryFlagService {
    * Keeps a flag, or counts it again when the bot already has an open one for the same gap: the
    * same note or skill and kind, or, for a gap about nothing in particular, words alike enough.
    */
-  async raise(input: FlagInput): Promise<RaiseResult> {
+  raise(input: FlagInput): Promise<RaiseResult> {
+    return oneAtATime(input.botId, () => this.raiseNow(input));
+  }
+
+  private async raiseNow(input: FlagInput): Promise<RaiseResult> {
     const { db } = this.ctx;
     const [inTurn] = await db
       .select({ n: count() })
@@ -124,10 +171,14 @@ export class MemoryFlagService {
     );
     const now = this.clock();
     if (same) {
+      // The same turn raising it twice met the gap once.
+      if (same.turnId === input.turnId || same.againTurns.includes(input.turnId))
+        return { status: 'again', id: same.id };
       await db
         .update(schema.memoryFlags)
         .set({
           count: sql`${schema.memoryFlags.count} + 1`,
+          againTurns: [...same.againTurns, input.turnId],
           lastSeenAt: now,
           ...(input.seen && { seen: input.seen }),
           ...(input.sourceUrl && !same.sourceUrl && { sourceUrl: input.sourceUrl }),
@@ -213,23 +264,28 @@ export class MemoryFlagService {
       .sort((a, b) => b.count - a.count || a.createdAt.localeCompare(b.createdAt));
   }
 
+  /** The flags `reach` sees that wait, those whose page's answer waits for them included, as `list` shows them. */
   async openCount(reach: MemoryReach): Promise<number> {
     const [row] = await this.ctx.db
       .select({ n: count() })
       .from(schema.memoryFlags)
-      .where(and(eq(schema.memoryFlags.status, 'open'), reachable(reach)));
+      .leftJoin(schema.memories, eq(schema.memories.id, schema.memoryFlags.memoryId))
+      .where(and(inArray(schema.memoryFlags.status, [...OPEN]), reachable(reach)));
     return row?.n ?? 0;
   }
 
   /** A flag `reach` sees and that still waits; anything else is not theirs to see. */
   private async waiting(id: string, reach: MemoryReach): Promise<FlagRow> {
     const [row] = await this.ctx.db
-      .select()
+      .select({ flag: schema.memoryFlags })
       .from(schema.memoryFlags)
-      .where(and(eq(schema.memoryFlags.id, id), inArray(schema.memoryFlags.status, [...OPEN])))
+      .leftJoin(schema.memories, eq(schema.memories.id, schema.memoryFlags.memoryId))
+      .where(
+        and(eq(schema.memoryFlags.id, id), inArray(schema.memoryFlags.status, [...OPEN]), reachable(reach)),
+      )
       .limit(1);
-    if (!row || !decides(reach, row)) throw notFound('memoryFlag');
-    return row;
+    if (!row) throw notFound('memoryFlag');
+    return row.flag;
   }
 
   /**
@@ -306,6 +362,8 @@ export class MemoryFlagService {
         and(
           eq(schema.memoryFlags.status, 'open'),
           sql`${schema.memoryFlags.outside} is null`,
+          // A skill is settled by whoever may change it, not by a note the review writes.
+          sql`${schema.memoryFlags.skillId} is null`,
           eq(schema.memoryFlags.botId, botId),
           or(
             eq(schema.memoryFlags.scope, 'bot'),
@@ -354,8 +412,11 @@ export class MemoryFlagService {
       .where(eq(schema.memoryFlags.id, id));
   }
 
-  /** Open flags with a page not read yet, the oldest first, for the tidy-up to read. */
-  async withUnreadPage(limit: number): Promise<FlagRow[]> {
+  /**
+   * Open flags with a page not read yet, the oldest first, for the tidy-up to read, leaving out
+   * those of `skipBots`: bots whose pages cannot be read now.
+   */
+  async withUnreadPage(limit: number, skipBots: string[] = []): Promise<FlagRow[]> {
     return this.ctx.db
       .select()
       .from(schema.memoryFlags)
@@ -365,17 +426,40 @@ export class MemoryFlagService {
           sql`${schema.memoryFlags.sourceUrl} is not null`,
           sql`${schema.memoryFlags.checkedAt} is null`,
           sql`${schema.memoryFlags.outside} is null`,
+          skipBots.length ? notInArray(schema.memoryFlags.botId, skipBots) : undefined,
         ),
       )
       .orderBy(asc(schema.memoryFlags.createdAt))
       .limit(limit);
   }
 
-  /** The flags a stopped or undone turn raised go with it: what it saw is no longer trusted. */
+  /**
+   * What a stopped or undone turn said about gaps goes with it: what it saw is no longer trusted.
+   * A flag it raised and nothing else met goes; one it met again counts it once less. A flag
+   * already settled stays, with how it was settled.
+   */
   async dropForTurn(turnId: string): Promise<void> {
-    await this.ctx.db
+    const { db } = this.ctx;
+    await db
       .delete(schema.memoryFlags)
-      .where(and(eq(schema.memoryFlags.turnId, turnId), eq(schema.memoryFlags.count, 1)));
+      .where(
+        and(
+          eq(schema.memoryFlags.turnId, turnId),
+          eq(schema.memoryFlags.count, 1),
+          inArray(schema.memoryFlags.status, [...OPEN]),
+        ),
+      );
+    await db
+      .update(schema.memoryFlags)
+      .set({ count: sql`${schema.memoryFlags.count} - 1` })
+      .where(and(eq(schema.memoryFlags.turnId, turnId), sql`${schema.memoryFlags.count} > 1`));
+    await db
+      .update(schema.memoryFlags)
+      .set({
+        count: sql`greatest(${schema.memoryFlags.count} - 1, 1)`,
+        againTurns: sql`${schema.memoryFlags.againTurns} - ${turnId}::text`,
+      })
+      .where(sql`${schema.memoryFlags.againTurns} @> ${JSON.stringify([turnId])}::jsonb`);
     this.ctx.bus.refresh({ scope: 'memory' });
   }
 
