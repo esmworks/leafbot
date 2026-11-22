@@ -345,6 +345,11 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
       void services.routineSuggestions
         .runDue()
         .catch((err) => console.warn(`Routine suggestions failed: ${String(err)}`));
+    // Each person's many-step tasks are looked at for one to keep as a skill, once a week.
+    if (!opts.engine && !fake)
+      void services.skillSuggestions
+        .runDue()
+        .catch((err) => console.warn(`Skill suggestions failed: ${String(err)}`));
     // Each set of notes that changed is tidied once a week; likewise not with a test's engine.
     if (!opts.engine && !fake)
       void services.memoryTidy.runDue().catch((err) => console.warn(`Memory tidy-up failed: ${String(err)}`));
@@ -785,6 +790,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
       await services.memoryTidy.shutdown();
       await services.promises.shutdown();
       await services.routineSuggestions.shutdown();
+      await services.skillSuggestions.shutdown();
       await services.titles.shutdown();
       await services.offers.shutdown();
       await services.meetings.shutdown();

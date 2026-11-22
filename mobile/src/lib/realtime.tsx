@@ -244,6 +244,9 @@ function refresh(origin: string, e: RefreshScope, inv: (...key: unknown[]) => vo
     case 'routineSuggestions':
       inv('routine-suggestions', origin);
       break;
+    case 'skillSuggestions':
+      inv('skill-suggestions', origin);
+      break;
     case 'memory':
       inv('memory', origin);
       break;

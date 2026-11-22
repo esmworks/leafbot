@@ -15,6 +15,8 @@ import {
 import { and, asc, desc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
+import type { TurnStep } from '../db/schema';
+import { redactSecrets } from '../services/secrets';
 import {
   isSilentReply,
   maybeSilentReply,
@@ -215,6 +217,10 @@ function keepToolResult(threadDir: string) {
     return file;
   };
 }
+
+/** The steps kept for one turn, and what of each step's input is kept. */
+const MAX_KEPT_STEPS = 60;
+const STEP_DETAIL_CHARS = 200;
 
 /** The reads a turn asked by someone with no account here makes without a card. */
 const GUEST_READS: ReadonlySet<string> = new Set([
@@ -1435,6 +1441,23 @@ export class TurnManager {
           sandbox.writable,
         );
     /** The reason to refuse a step when it trips a wire (or one already did); null to go on. */
+    // The steps of the turn as they are kept on its row, for reading later how the bot goes about
+    // a kind of task. What a step was given is cut short and loses anything that looks like a secret.
+    const steps: TurnStep[] = [];
+    const keepStep = (ask: { toolName: string; input: Record<string, unknown> }) => {
+      if (steps.length >= MAX_KEPT_STEPS) return;
+      const tool = ask.toolName.split('__').at(-1) || ask.toolName;
+      const server = allTools.find((x) => toolPermName(x) === ask.toolName)?.server;
+      const said = describeAction(ask.toolName, ask.input, {
+        bot: bot.name,
+        locale,
+        service: server ? connectionNames.get(server) : undefined,
+      });
+      const detail = said.detail
+        ? redactSecrets(truncate(said.detail, STEP_DETAIL_CHARS), t('memory.redacted')).text
+        : '';
+      steps.push({ tool, step: said.step, ...(detail && { detail }) });
+    };
     const screen = async (ask: { toolName: string; input: Record<string, unknown> }) => {
       if (tripped) return t('turn.canaryRefused');
       const hit = await this.services.canary.screen({
@@ -1992,7 +2015,13 @@ export class TurnManager {
         shell,
         tools,
         ...((door || selectsTools(bot.toolSelection)) && { pickTool }),
-        screen,
+        // The engine looks at every call it sees once, before any card: each one let through is a
+        // step of the turn. The look again inside the card below keeps none, or a step would count twice.
+        screen: async (ask) => {
+          const refused = await screen(ask);
+          if (!refused) keepStep(ask);
+          return refused;
+        },
         canUseTool: async (ask) => {
           // Before anything else, so a step that trips a wire makes no card and no line in the
           // list of what the bot did.
@@ -2242,6 +2271,12 @@ export class TurnManager {
       await files
         .finish()
         .catch((err: unknown) => console.warn(`Could not journal a turn's files: ${String(err)}`));
+      if (steps.length)
+        await this.ctx.db
+          .update(schema.turns)
+          .set({ steps })
+          .where(eq(schema.turns.id, turn.id))
+          .catch((err: unknown) => console.warn(`Could not keep a turn's steps: ${String(err)}`));
     }
     if (controller.signal.reason === PAUSED && !outcome.ok && outcome.kind === 'interrupted') {
       outcome = { ...outcome, message: t('turn.botPaused'), paused: true };

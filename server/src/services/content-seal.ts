@@ -32,7 +32,14 @@ const SEALED: Sealed[] = [
     ],
   },
   { table: schema.threads, id: schema.threads.id, columns: [['title', schema.threads.title, 'text']] },
-  { table: schema.turns, id: schema.turns.id, columns: [['prompt', schema.turns.prompt, 'text']] },
+  {
+    table: schema.turns,
+    id: schema.turns.id,
+    columns: [
+      ['prompt', schema.turns.prompt, 'text'],
+      ['steps', schema.turns.steps, 'json'],
+    ],
+  },
   {
     table: schema.memories,
     id: schema.memories.id,
@@ -98,6 +105,15 @@ const SEALED: Sealed[] = [
     columns: [
       ['payload', schema.routineRuns.payload, 'text'],
       ['triggerInput', schema.routineRuns.triggerInput, 'text'],
+    ],
+  },
+  {
+    table: schema.skillSuggestions,
+    id: schema.skillSuggestions.id,
+    columns: [
+      ['description', schema.skillSuggestions.description, 'text'],
+      ['body', schema.skillSuggestions.body, 'text'],
+      ['signature', schema.skillSuggestions.signature, 'text'],
     ],
   },
   {

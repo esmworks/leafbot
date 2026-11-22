@@ -1,12 +1,14 @@
 import type { Bot, Memory } from '@leafbot/shared';
-import { eq } from 'drizzle-orm';
+import { eq, isNotNull } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import type { Engine } from '../engine/types';
 import { translator, type T } from '../i18n';
 import { HttpError, truncate } from '../util';
+import { pageText } from './routines';
 import { redactSecrets } from './secrets';
+import { fetchPublic, type PublicResponse } from './skill-link';
 import type { Services } from './index';
 
 /** How long a set of notes is left alone after a tidy-up. */
@@ -27,6 +29,43 @@ const MIN_DELETES = 3;
 /** Who the history names for a change the tidy-up made. */
 export const TIDY_ACTOR = 'tidy';
 const LAST_PASS_KEY = 'memoryTidy.lastPass';
+/**
+ * A note that came from a page is read against the page again this long after the last look, once
+ * it is this old: a note just written was read from the page moments ago. One pass reads at most
+ * this many pages, so a memory full of links is gone through over a few weeks.
+ */
+const SOURCE_EVERY_MS = 30 * 86_400_000;
+const SOURCE_FRESH_MS = 7 * 86_400_000;
+const SOURCES_PER_PASS = 10;
+/** What of a page is read, and what of its text goes to the model. */
+const PAGE_MAX = 1024 * 1024;
+const PAGE_CHARS = 30_000;
+const PAGE_TIMEOUT_MS = 15_000;
+const USER_AGENT = 'Mozilla/5.0 (compatible; LeafBot memory check)';
+
+/** What the model says of a note against its page; anything unclear is "unclear". */
+export function parseVerdict(text: string): { verdict: 'same' | 'changed' | 'unclear'; content?: string } {
+  const json = text.match(/\{[\s\S]*\}/)?.[0];
+  if (!json) return { verdict: 'unclear' };
+  try {
+    const v = JSON.parse(json) as { verdict?: unknown; content?: unknown };
+    if (v.verdict === 'same') return { verdict: 'same' };
+    if (v.verdict === 'changed' && typeof v.content === 'string' && v.content.trim())
+      return { verdict: 'changed', content: v.content.trim() };
+  } catch {
+    // Read as unclear below.
+  }
+  return { verdict: 'unclear' };
+}
+
+/** The readable text of what a page served, or null for what is not text (a picture, a file). */
+export function servedText(res: Pick<PublicResponse, 'body' | 'contentType'>): string | null {
+  const type = res.contentType.toLowerCase();
+  const raw = res.body.toString('utf8');
+  if (/html|xml/.test(type)) return pageText(raw);
+  if (!type || /^text\/|json/.test(type)) return raw.replace(/\s+/g, ' ').trim();
+  return null;
+}
 const ranAtKey = (group: string) => `memoryTidy.ranAt.${group}`;
 
 /** One change as the model asks for it; a malformed one is dropped, not fatal. */
@@ -78,6 +117,8 @@ export interface TidyCount {
 }
 export interface TidyPass extends TidyCount {
   at: string;
+  /** Notes read against the page they came from. */
+  checked: number;
   /** Sets of notes looked at in the pass. */
   sets: number;
 }
@@ -126,6 +167,15 @@ export class MemoryTidyService {
   private pass: Promise<TidyPass | null> | null = null;
   private current = new Set<AbortController>();
   private stopped = false;
+  /** How a page is read; tests put a stand-in here. */
+  readPage: (url: URL) => Promise<PublicResponse> = (url) =>
+    fetchPublic(url, PAGE_MAX, {
+      start: true,
+      redirects: 3,
+      timeoutMs: PAGE_TIMEOUT_MS,
+      userAgent: USER_AGENT,
+      accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5',
+    });
 
   constructor(
     private ctx: Ctx,
@@ -186,7 +236,7 @@ export class MemoryTidyService {
     if (!settings.memoryTidy) return null;
     const now = this.clock();
     const sets = noteSets(await this.services.memory.list(), now);
-    const sum: TidyPass = { at: now.toISOString(), sets: 0, merged: 0, updated: 0, forgot: 0 };
+    const sum: TidyPass = { at: now.toISOString(), sets: 0, checked: 0, merged: 0, updated: 0, forgot: 0 };
     for (const set of sets) {
       if (this.stopped) break;
       if (!all && !(await this.due(set, now))) continue;
@@ -206,7 +256,10 @@ export class MemoryTidyService {
         console.warn(`Memory tidy-up of ${set.key} failed: ${(err as Error).message}`);
       }
     }
-    if (sum.sets) {
+    const sources = await this.checkSources(now, settings.defaultModel);
+    sum.checked = sources.checked;
+    sum.updated += sources.updated;
+    if (sum.sets || sum.checked) {
       await this.ctx.db
         .insert(schema.kv)
         .values({ key: LAST_PASS_KEY, value: sum })
@@ -214,6 +267,103 @@ export class MemoryTidyService {
       this.ctx.bus.refresh({ scope: 'memory' });
     }
     return sum;
+  }
+
+  /**
+   * Reads notes that came from a page against the page as it is now, the longest unread first: a
+   * price, a date or an address on a page changes after a bot wrote it down. The small model of the
+   * bot that wrote the note says whether the page still says the same, and gives the note's new
+   * words when the page now plainly says otherwise; the note keeps its page. A page that cannot be
+   * read, or that says nothing clear, leaves the note as it was: a site being down is no reason to
+   * doubt a note. Notes of a bot kept off the internet are not read, nor the person's own or pinned.
+   */
+  private async checkSources(now: Date, defaultModel: string): Promise<{ checked: number; updated: number }> {
+    const out = { checked: 0, updated: 0 };
+    const rows = await this.ctx.db
+      .select({ id: schema.memories.id, at: schema.memories.sourceCheckedAt })
+      .from(schema.memories)
+      .where(isNotNull(schema.memories.sourceUrl));
+    if (!rows.length) return out;
+    const lastRead = new Map(rows.map((r) => [r.id, r.at?.getTime() ?? 0]));
+    const due = (await this.services.memory.list())
+      .filter(
+        (m) =>
+          m.sourceUrl &&
+          !theirs(m) &&
+          !(m.validUntil && Date.parse(m.validUntil) <= now.getTime()) &&
+          Date.parse(m.updatedAt) <= now.getTime() - SOURCE_FRESH_MS &&
+          (lastRead.get(m.id) ?? 0) <= now.getTime() - SOURCE_EVERY_MS,
+      )
+      .sort((a, b) => (lastRead.get(a.id) ?? 0) - (lastRead.get(b.id) ?? 0));
+    for (const m of due) {
+      if (this.stopped || out.checked >= SOURCES_PER_PASS) break;
+      const botId = m.scope === 'bot' ? m.botId : writerOf(m);
+      const bot = botId ? await this.services.bots.get(botId).catch(() => null) : null;
+      if (!bot || !bot.memory || bot.archivedAt || !bot.internet || !this.engineFor(bot).complete) continue;
+      // Marked first: a page that fails is not read again every hour.
+      await this.ctx.db
+        .update(schema.memories)
+        .set({ sourceCheckedAt: now })
+        .where(eq(schema.memories.id, m.id));
+      try {
+        out.checked++;
+        if (await this.checkSource(m, bot, defaultModel)) out.updated++;
+      } catch (err) {
+        console.warn(`Memory source check of ${m.id} failed: ${(err as Error).message}`);
+      }
+    }
+    return out;
+  }
+
+  /** One note against its page; whether its words were changed. */
+  private async checkSource(m: Memory, bot: Bot, defaultModel: string): Promise<boolean> {
+    let url: URL;
+    try {
+      url = new URL(m.sourceUrl!);
+    } catch {
+      return false;
+    }
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
+    // Read over https only: the read is the server's, and it does not go out in the clear.
+    url.protocol = 'https:';
+    url.hash = '';
+    const text = servedText(
+      await this.readPage(url).catch(() => ({ body: Buffer.from(''), contentType: 'none' })),
+    );
+    if (!text) return false;
+    const locale =
+      (await this.services.settings.all(m.scope === 'user' ? (m.userId ?? undefined) : undefined)).language ??
+      (await this.services.settings.locale());
+    const t = translator(locale);
+    const controller = new AbortController();
+    this.current.add(controller);
+    let answer: string;
+    try {
+      ({ text: answer } = await this.engineFor(bot).complete!({
+        model: bot.model || (bot.engine === 'claude' ? defaultModel : '') || this.ctx.config.claudeModel,
+        system: t('memoryTidy.sourceSystem', { today: this.clock().toISOString().slice(0, 10) }),
+        user: `<note>${data(m.content)}</note>\n<page url="${data(url.href).replace(/"/g, '%22')}">${data(truncate(text, PAGE_CHARS))}</page>`,
+        signal: controller.signal,
+        locale,
+      }));
+    } finally {
+      this.current.delete(controller);
+    }
+    if (controller.signal.aborted) return false;
+    const v = parseVerdict(answer);
+    if (v.verdict !== 'changed') return false;
+    // The same fact in new words, about as long as the note: a page cannot grow a note into
+    // something else through this.
+    if (v.content!.length > Math.min(2000, m.content.length * 2 + 200)) return false;
+    const content = redactSecrets(v.content!, t('memory.redacted')).text;
+    if (content === m.content) return false;
+    try {
+      await this.services.memory.update(m.id, { content, expectedUpdatedAt: m.updatedAt }, TIDY_ACTOR);
+      return true;
+    } catch (err) {
+      if (err instanceof HttpError && err.status === 409) return false;
+      throw err;
+    }
   }
 
   private async stamp(key: string, at: Date) {

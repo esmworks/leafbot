@@ -176,6 +176,9 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'GET /api/routine-suggestions': 'self',
   'POST /api/routine-suggestions/:id/accept': 'self',
   'POST /api/routine-suggestions/:id/dismiss': 'self',
+  'GET /api/skill-suggestions': 'self',
+  'POST /api/skill-suggestions/:id/accept': 'self',
+  'POST /api/skill-suggestions/:id/dismiss': 'self',
   'GET /api/turns/:id/result': read('turn'),
   'GET /api/turns/:id/changes': read('turn'),
   'POST /api/turns/:id/undo': write('turn'),
@@ -302,6 +305,8 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'DELETE /api/memory-changes/:id': 'self',
   'GET /api/memory-stale': 'self',
   'POST /api/memory-stale/delete': 'self',
+  'GET /api/memory-tidy': 'signedIn',
+  'POST /api/memory-tidy': 'admin',
 
   // Connected apps, keys, documents, the vault and the chat apps.
   'GET /api/connections': 'self',

@@ -16,6 +16,18 @@ version is 0.x, a minor release may change the data format or the API; the serve
   about different sites or true until different dates, and one pass deletes at most about a third of a set. Every
   change shows in the memory history as the weekly tidy-up's; "Tidy now" runs a pass at once and the screen says what
   the last one did.
+- The tidy-up also reads a note that came from a page against the page as it is now, once a month per note and at most
+  ten pages a pass, a week after the note was written. When the page now plainly says otherwise about the same thing
+  (a new price, date or address), the note gets its new value in about as many words and keeps its page; a page that
+  cannot be read or says nothing clear leaves the note as it was. Pages are read by the server over https, never on
+  this computer or the private network, and only for bots allowed on the internet.
+- Skill suggestions (Settings → Profile, on by default; each person has their own). Every turn now keeps a short list of
+  the steps it took, secrets taken out. Once a week the many-step tasks a person asked a bot for over the last weeks are
+  grouped; a kind of task asked at least three times on two days, done in three or more working steps each time and
+  covered by none of the bot's skills, is written up as a skill by one call to the bot's small model, from the steps
+  that worked and what the person wrote right after the answer. Today shows it with its name, description and
+  instructions to edit; "Add skill" makes it and turns it on for the bot, "Not this" closes it for good. Only someone
+  who may change the bot can add it.
 
 ### Changed
 

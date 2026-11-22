@@ -271,6 +271,13 @@ export const roomMembers = pgTable(
   (t) => [uniqueIndex('room_members_uq').on(t.roomId, t.botId)],
 );
 
+/** One step of a turn as it is kept: the tool's short name, what it did, and what it was given. */
+export interface TurnStep {
+  tool: string;
+  step: string;
+  detail?: string;
+}
+
 export const turns = pgTable(
   'turns',
   {
@@ -322,6 +329,12 @@ export const turns = pgTable(
      * more with its bot than talk with it, and the person's "always allow" rules do not count.
      */
     guest: boolean('guest').notNull().default(false),
+    /**
+     * The steps the bot took, in order: the tool and a short line of what it did, secrets taken
+     * out. Read later to see how a bot goes about a kind of task (the skill suggestions); null for
+     * a turn that took none, or ran before steps were kept.
+     */
+    steps: sealedJson('steps').$type<TurnStep[]>(),
     createdAt: created(),
     startedAt: ts('started_at'),
     finishedAt: ts('finished_at'),
@@ -472,6 +485,8 @@ export const memories = pgTable(
      * someone says otherwise.
      */
     validUntil: ts('valid_until'),
+    /** When the weekly tidy-up last read the page the note came from; null when it never did. */
+    sourceCheckedAt: ts('source_checked_at'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
@@ -1740,6 +1755,44 @@ export const routineSuggestions = pgTable(
   (t) => [
     index('routine_suggestions_user_status_idx').on(t.userId, t.status),
     uniqueIndex('routine_suggestions_fingerprint_uq').on(t.userId, t.botId, t.fingerprint),
+  ],
+);
+
+/**
+ * A skill offered to a person: a kind of multi-step task they asked a bot for again and again,
+ * written up from how the bot did it and what the person corrected. Theirs alone; Today shows it.
+ */
+export const skillSuggestions = pgTable(
+  'skill_suggestions',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: sealedText('description').notNull(),
+    body: sealedText('body').notNull(),
+    /** How many requests there were, and the local days (YYYY-MM-DD) they were made on. */
+    requests: integer('requests').notNull(),
+    days: jsonb('days').$type<string[]>().notNull(),
+    /** Identifies the kind of task, so a later pass finds the same group again. */
+    fingerprint: text('fingerprint').notNull(),
+    /** The words the group's requests share; what a later pass compares a new group with. */
+    signature: sealedText('signature').notNull().default(''),
+    status: text('status', { enum: ['open', 'accepted', 'dismissed'] })
+      .notNull()
+      .default('open'),
+    skillId: text('skill_id').references(() => skills.id, { onDelete: 'set null' }),
+    costUsd: real('cost_usd'),
+    createdAt: created(),
+    decidedAt: ts('decided_at'),
+  },
+  (t) => [
+    index('skill_suggestions_user_status_idx').on(t.userId, t.status),
+    uniqueIndex('skill_suggestions_fingerprint_uq').on(t.userId, t.botId, t.fingerprint),
   ],
 );
 

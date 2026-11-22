@@ -42,6 +42,7 @@ import { MemoryReviewService } from './memory-review';
 import { MemoryTidyService } from './memory-tidy';
 import { PromiseService } from './promises';
 import { RoutineSuggestionService } from './routine-suggestions';
+import { SkillSuggestionService } from './skill-suggestions';
 import { PushService } from './push';
 import { RoutineService } from './routines';
 import { RehearsalService } from './rehearsals';
@@ -81,6 +82,7 @@ export class Services {
   readonly memoryTidy: MemoryTidyService;
   readonly promises: PromiseService;
   readonly routineSuggestions: RoutineSuggestionService;
+  readonly skillSuggestions: SkillSuggestionService;
   readonly meetings: MeetingService;
   readonly push: PushService;
   readonly settings: SettingsService;
@@ -197,6 +199,7 @@ export class Services {
     this.promises = new PromiseService(ctx, this, engineFor, clock);
     this.turns.onFinished((t, o) => this.promises.onTurnFinished(t, o));
     this.routineSuggestions = new RoutineSuggestionService(ctx, this, engineFor, clock);
+    this.skillSuggestions = new SkillSuggestionService(ctx, this, engineFor, clock);
     this.meetings = new MeetingService(ctx, this, engineFor, clock);
     this.turns.onFinished((t) => this.meetings.onTurnFinished(t));
     this.telegram = new TelegramChannels(ctx, this, this.vault);

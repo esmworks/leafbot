@@ -46,6 +46,7 @@ export type NotFoundKind =
   | 'meeting'
   | 'promise'
   | 'routineSuggestion'
+  | 'skillSuggestion'
   | 'routineRun'
   | 'rehearsal'
   | 'turn';

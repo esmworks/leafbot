@@ -1072,7 +1072,15 @@ export interface MemoryTidyStatus {
   /** A pass is under way. */
   running: boolean;
   /** The last pass that looked at any notes: when, how many sets, and what it did. */
-  last: { at: string; sets: number; merged: number; updated: number; forgot: number } | null;
+  last: {
+    at: string;
+    sets: number;
+    /** Notes read against the page they came from; missing on older servers. */
+    checked?: number;
+    merged: number;
+    updated: number;
+    forgot: number;
+  } | null;
 }
 /**
  * Days after which a note that no prompt carries, and that no bot changed or looked up, is offered
@@ -1852,6 +1860,32 @@ export const SkillCreate = z.object({
 export type SkillCreate = z.input<typeof SkillCreate>;
 export const SkillUpdate = SkillCreate.omit({ botIds: true }).partial();
 export type SkillUpdate = z.infer<typeof SkillUpdate>;
+
+/** A skill offered from a kind of task the person asked a bot for again and again. */
+export const SkillSuggestion = z.object({
+  id: Id,
+  botId: Id,
+  /** The skill's name as a skill takes it (`weekly-sales-report`). */
+  name: z.string(),
+  description: z.string(),
+  /** What the skill tells the bot; the person may change it before adding the skill. */
+  body: z.string(),
+  /** How many requests it was made from, and the local days (YYYY-MM-DD) they were made on. */
+  requests: z.number().int(),
+  days: z.array(z.string()),
+  /** Whether the person may change the bot, which turning a skill on for it needs. */
+  canCreate: z.boolean(),
+  createdAt: z.string(),
+});
+export type SkillSuggestion = z.infer<typeof SkillSuggestion>;
+
+/** What the person settled on when adding the skill from a suggestion. */
+export const SkillSuggestionAccept = z.object({
+  name: SkillName.optional(),
+  description: z.string().trim().min(1).max(1024).optional(),
+  body: z.string().trim().min(1).max(50_000).optional(),
+});
+export type SkillSuggestionAccept = z.infer<typeof SkillSuggestionAccept>;
 export const SkillBot = z.object({ on: z.boolean() });
 
 /** A message found by the search, with where it is. */

@@ -53,7 +53,9 @@ The interface is available in English and Turkish.
   them each bot you pick keeps the decisions and its own tasks in memory.
 - **Memory and routines** — bots keep notes across chats on their own, without asking (or work without memory), and
   look through their past conversations. Once a week each set of notes that changed is tidied: notes that repeat are
-  merged and, of two that disagree, the newer one or the one the person wrote stays. Routines run on a schedule (including cron and day/hour windows), when the server starts, from a
+  merged and, of two that disagree, the newer one or the one the person wrote stays; a note taken from a page is read
+  against the page again and corrected when it changed. A kind of many-step task asked for again and again is offered
+  on Today as a skill, written from the steps that worked and what the person corrected. Routines run on a schedule (including cron and day/hour windows), when the server starts, from a
   filtered webhook, or only when a watched page or a connected app's answer changes; they can build on their last report and run in the main
   conversation.
 - **Today and usage** — a Today page of what the bots did and what waits for you; spending by bot, model and routine,

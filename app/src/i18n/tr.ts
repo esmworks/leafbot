@@ -294,6 +294,19 @@ export const tr = {
   'routineSuggest.setting.on': 'Sürekli istediğim şeyler için rutin öner',
   'routineSuggest.setting.hint':
     'Günde bir kez, botlara son haftalarda yazdığın mesajlara bakılır; tekrar tekrar istediğin bir şey varsa Bugün sayfası bunu rutin yapmayı önerir. Rutini botun kendi hesabından kısa bir istek yazar. Mesajlarını ve önerileri başkası görmez.',
+  'skillSuggest.title': 'Beceri olabilecek işler',
+  'skillSuggest.line':
+    'Bu işi {bot} botundan {count} kez, {days} ayrı günde istedin; bot her seferinde birkaç adımda yaptı. Nasıl yaptığından ve sonra düzelttiklerinden bir beceri yazıldı.',
+  'skillSuggest.name': 'Becerinin adı',
+  'skillSuggest.description': 'Ne zaman kullanılır',
+  'skillSuggest.body': 'Becerinin talimatları',
+  'skillSuggest.create': 'Beceriyi ekle',
+  'skillSuggest.dismiss': 'Bu değil',
+  'skillSuggest.created': '"{name}" becerisi eklendi ve {bot} için açıldı',
+  'skillSuggest.askOwner': 'Bunu beceri yapması için {bot} botunun sahibine söyle.',
+  'skillSuggest.setting.on': 'Sürekli yaptırdığım işler için beceri öner',
+  'skillSuggest.setting.hint':
+    'Haftada bir, botlara son haftalarda birkaç adımda yaptırdığın işlere, botun attığı adımlarla ve senin sonradan düzelttiklerinle birlikte bakılır; aynı iş tekrar tekrar geliyorsa Bugün sayfası onu beceri olarak saklamayı önerir. Beceriyi botun kendi hesabından kısa bir istek yazar; sen eklemeden hiçbir şey değişmez.',
   'usage.suggestions': 'Rutin önerileri',
   'usage.suggestions.checks': '{count} istek rutine çevrildi; maliyeti {cost}; yapılan öneri: {found}',
   'usage.offers': 'İş önerileri',
@@ -2703,12 +2716,13 @@ export const tr = {
   'memory.learnEveryChoice': 'Her {count} turda bir',
   'memory.tidy': 'Hafızayı haftada bir düzenle',
   'memory.tidyHint':
-    'Her botun notları haftada bir bütün olarak okunur: tekrar eden notlar birleştirilir, birbiriyle çelişenlerde yenisi ya da sizin yazdığınız kalır, tarihi geçmiş planlar silinir. Sizin yazdığınız ve sabitlediğiniz notlara dokunulmaz; her değişiklik aşağıdaki geçmişte görünür.',
+    'Her botun notları haftada bir bütün olarak okunur: tekrar eden notlar birleştirilir, birbiriyle çelişenlerde yenisi ya da sizin yazdığınız kalır, tarihi geçmiş planlar silinir. Bir sayfadan alınmış notlar ayda bir o sayfanın bugünkü hâliyle karşılaştırılır ve değişen bilgi düzeltilir. Sizin yazdığınız ve sabitlediğiniz notlara dokunulmaz; her değişiklik aşağıdaki geçmişte görünür.',
   'memory.tidyNow': 'Şimdi düzenle',
   'memory.tidyRunning': 'Notlar düzenleniyor…',
   'memory.tidyNever': 'Henüz düzenlenmedi',
   'memory.tidyLast': 'Son düzenleme: {when}',
-  'memory.tidyDid': 'Birleştirilen {merged} · düzeltilen {updated} · silinen {forgot}',
+  'memory.tidyDid':
+    'Kaynağına bakılan {checked} · birleştirilen {merged} · düzeltilen {updated} · silinen {forgot}',
   'memory.tidyNothing': 'Düzenlenecek bir şey yoktu',
   'memory.history.tidy': 'Haftalık düzenleme',
   'projects.title': 'Bu bilgisayardaki kodlama ajanlarının klasörleri',

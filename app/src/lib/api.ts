@@ -6,6 +6,8 @@ import type {
   TurnChanges,
   RoutineSuggestion,
   RoutineSuggestionAccept,
+  SkillSuggestion,
+  SkillSuggestionAccept,
   DoctorCheckId,
   DoctorReport,
   ReplayResult,
@@ -303,6 +305,8 @@ export interface Settings {
   memoryTidy?: boolean;
   /** Whether the person's own requests are looked at for something asked again and again; missing on older servers. */
   routineSuggestions?: boolean;
+  /** Whether the person's many-step tasks are looked at for one to keep as a skill; missing on older servers. */
+  skillSuggestions?: boolean;
   /** The promise safety net after a bot's reply; missing on older servers. */
   promiseKeeper?: boolean;
   /** The time of day a reminder of the person's own promise arrives (HH:MM); missing on older servers. */
@@ -792,6 +796,10 @@ export const api = {
     http.post<Routine>(`/api/routine-suggestions/${id}/accept`, input),
   dismissRoutineSuggestion: (id: string) =>
     http.post<{ ok: true }>(`/api/routine-suggestions/${id}/dismiss`, {}),
+  skillSuggestions: () => http.get<SkillSuggestion[]>('/api/skill-suggestions'),
+  acceptSkillSuggestion: (id: string, input: SkillSuggestionAccept) =>
+    http.post<Skill>(`/api/skill-suggestions/${id}/accept`, input),
+  dismissSkillSuggestion: (id: string) => http.post<{ ok: true }>(`/api/skill-suggestions/${id}/dismiss`, {}),
   /** The turns of a conversation with something to put back, with how many changes each made. */
   turnChangesPending: (threadId: string) =>
     http.get<Record<string, number>>(`/api/threads/${threadId}/turn-changes`),

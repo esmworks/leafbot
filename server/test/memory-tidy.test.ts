@@ -1,7 +1,7 @@
 import type { Memory, MemoryTidyStatus } from '@leafbot/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Settings } from '../src/services/settings';
-import { noteSets, parseTidy, TIDY_ACTOR } from '../src/services/memory-tidy';
+import { noteSets, parseTidy, parseVerdict, servedText, TIDY_ACTOR } from '../src/services/memory-tidy';
 import { testServer, type TestServer } from './helpers';
 
 describe('haftalık hafıza düzenlemesi: tekrar eden ve çelişen notları toparlama', () => {
@@ -235,5 +235,114 @@ describe('haftalık hafıza düzenlemesi: tekrar eden ve çelişen notları topa
     const notes = [1, 2, 3, 4].map((i) => make(i));
     expect(noteSets([...notes, make(5, { validUntil: '2026-11-19T00:00:00Z' })], now)).toEqual([]);
     expect(noteSets([...notes, make(5)], now).map((s) => [s.key, s.notes.length])).toEqual([['bot:b', 5]]);
+  });
+
+  describe('notu alındığı sayfayla karşılaştırma', () => {
+    /** A page that says `text`, and every address read. */
+    const page = (text: string) => {
+      const read: string[] = [];
+      t.services.memoryTidy.readPage = async (url) => {
+        read.push(url.href);
+        return {
+          body: Buffer.from(`<html><body><p>${text}</p></body></html>`),
+          contentType: 'text/html',
+          url,
+        };
+      };
+      return read;
+    };
+    /** The model's word on a note against its page; the other calls get no change. */
+    const verdict = (answer: object) => {
+      t.engine.completer = (req) => (req.user.includes('<note>') ? JSON.stringify(answer) : ops());
+    };
+    const later = (days: number) => (t.now.value = new Date(t.now.value.getTime() + days * 86_400_000));
+
+    it('sayfa artık başka bir şey diyorsa notu düzeltir; sayfası kalır, geçmişte düzenleme olarak görünür', async () => {
+      const bot = await t.bot({ name: 'Fiyat' });
+      const m = await note(bot.id, 'Kalem 10 TL', { sourceUrl: 'https://ornek.com/kalem#fiyat' });
+      const read = page('Kalem fiyatı: 12 TL');
+      verdict({ verdict: 'changed', content: 'Kalem 12 TL' });
+      // A note just written was read from its page moments ago.
+      await tidyNow();
+      expect(read).toEqual([]);
+      later(8);
+      await tidyNow();
+      expect(read).toEqual(['https://ornek.com/kalem']);
+      const asked = t.engine.completions.find((c) => c.user.includes('<note>'))!;
+      expect(asked.user).toContain('<note>Kalem 10 TL</note>');
+      expect(asked.user).toContain('Kalem fiyatı: 12 TL');
+      expect(asked.user).not.toContain('<p>');
+      const after = await t.services.memory.get(m.id);
+      expect(after).toMatchObject({ content: 'Kalem 12 TL', sourceUrl: 'https://ornek.com/kalem#fiyat' });
+      const hist = (await t.api<{ actor: string; action: string }[]>('GET', '/api/memory-history')).body;
+      expect(hist.at(-1)).toMatchObject({ actor: TIDY_ACTOR, action: 'update' });
+      expect((await t.api<MemoryTidyStatus>('GET', '/api/memory-tidy')).body.last).toMatchObject({
+        checked: 1,
+        updated: 1,
+      });
+      // Read again only a month later.
+      later(8);
+      await tidyNow();
+      expect(read).toHaveLength(1);
+      later(31);
+      await tidyNow();
+      expect(read).toHaveLength(2);
+    });
+
+    it('aynıysa, emin değilse, sayfa okunamazsa ya da cevap notu büyütüyorsa dokunmaz', async () => {
+      const bot = await t.bot({ name: 'Fiyat' });
+      const same = await note(bot.id, 'Kalem 10 TL', { sourceUrl: 'https://ornek.com/a' });
+      later(8);
+      const read = page('Kalem 10 TL');
+      verdict({ verdict: 'same' });
+      await tidyNow();
+      verdict({ verdict: 'changed', content: 'x'.repeat(500) });
+      later(31);
+      await tidyNow();
+      // Both looks read the page; neither changed the note.
+      expect(read).toHaveLength(2);
+      t.services.memoryTidy.readPage = async () => {
+        throw new Error('site kapalı');
+      };
+      verdict({ verdict: 'changed', content: 'Kalem 99 TL' });
+      later(31);
+      await tidyNow();
+      expect((await t.services.memory.get(same.id)).content).toBe('Kalem 10 TL');
+    });
+
+    it('internete kapalı botun, kişinin yazdığı ya da sabitlediği notun sayfasına bakmaz', async () => {
+      const offline = await t.bot({ name: 'Kapalı' });
+      await t.api('PATCH', `/api/bots/${offline.id}`, { internet: false });
+      await note(offline.id, 'Kalem 10 TL', { sourceUrl: 'https://ornek.com/a' });
+      const bot = await t.bot({ name: 'Açık' });
+      await t.services.memory.create({
+        scope: 'bot',
+        botId: bot.id,
+        content: 'Silgi 5 TL',
+        source: 'user',
+        sourceUrl: 'https://ornek.com/b',
+      });
+      const pinned = await note(bot.id, 'Defter 20 TL', { sourceUrl: 'https://ornek.com/c' });
+      await t.services.memory.update(pinned.id, { pinned: true }, 'user:owner');
+      const read = page('her şey değişti');
+      later(8);
+      await tidyNow();
+      expect(read).toEqual([]);
+    });
+
+    it('cevabı ve sayfa metnini dikkatle okur', () => {
+      expect(parseVerdict('olmaz')).toEqual({ verdict: 'unclear' });
+      expect(parseVerdict('{"verdict":"changed"}')).toEqual({ verdict: 'unclear' });
+      expect(parseVerdict('{"verdict":"changed","content":" yeni "}')).toEqual({
+        verdict: 'changed',
+        content: 'yeni',
+      });
+      expect(parseVerdict('{"verdict":"same"}')).toEqual({ verdict: 'same' });
+      expect(
+        servedText({ body: Buffer.from('<script>x</script><b>Merhaba</b> dünya'), contentType: 'text/html' }),
+      ).toBe('Merhaba dünya');
+      expect(servedText({ body: Buffer.from('a\n\nb'), contentType: 'text/plain' })).toBe('a b');
+      expect(servedText({ body: Buffer.from('%PDF'), contentType: 'application/pdf' })).toBeNull();
+    });
   });
 });

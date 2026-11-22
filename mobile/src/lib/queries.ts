@@ -205,6 +205,10 @@ export const useRoutineSuggestions = () => {
   const api = useApi();
   return useQuery({ queryKey: ['routine-suggestions', useOrigin()], queryFn: api.routineSuggestions });
 };
+export const useSkillSuggestions = () => {
+  const api = useApi();
+  return useQuery({ queryKey: ['skill-suggestions', useOrigin()], queryFn: api.skillSuggestions });
+};
 export const usePeople = () => {
   const api = useApi();
   return useQuery({ queryKey: ['people', useOrigin()], queryFn: api.people });

@@ -343,7 +343,11 @@ export class FakeEngine implements Engine {
           parts.push(`${name}: araç yok`);
           continue;
         }
-        const answer = await req.canUseTool({ toolName: toolPermName(tool), input });
+        // As the real engines do, every call is looked at before any card.
+        const refused = await req.screen?.({ toolName: toolPermName(tool), input });
+        const answer = refused
+          ? ({ behavior: 'deny', message: refused } as const)
+          : await req.canUseTool({ toolName: toolPermName(tool), input });
         if (answer.behavior === 'deny') {
           parts.push(`${name}: reddedildi (${answer.message})`);
           continue;

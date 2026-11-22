@@ -97,7 +97,7 @@ export function dice(a: ReadonlySet<string>, b: ReadonlySet<string>): number {
  * What share of `key` is found in `text`. A word is found when one of the text's words starts
  * with it or the other way round, so that "week" (cut from "week's") meets "weekl" (cut from "weekly").
  */
-function covered(key: readonly string[], text: ReadonlySet<string>): number {
+export function covered(key: readonly string[], text: ReadonlySet<string>): number {
   if (!key.length) return 0;
   const found = (w: string) => [...text].some((v) => v.startsWith(w) || w.startsWith(v));
   return key.filter(found).length / key.length;
@@ -150,7 +150,7 @@ export function groupRequests(requests: Request[], byMeaning: boolean): Request[
   return groups.map((g) => g.items);
 }
 
-function unit(v: number[]): number[] {
+export function unit(v: number[]): number[] {
   const len = Math.sqrt(v.reduce((a, x) => a + x * x, 0)) || 1;
   return v.map((x) => x / len);
 }

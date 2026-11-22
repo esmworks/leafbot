@@ -70,8 +70,13 @@ function TidyRows({ on, onChange }: { on: boolean; onChange: (on: boolean) => vo
           }
           detail={
             !running && last
-              ? last.merged + last.updated + last.forgot
-                ? t('memory.tidyDid', { merged: last.merged, updated: last.updated, forgot: last.forgot })
+              ? (last.checked ?? 0) + last.merged + last.updated + last.forgot
+                ? t('memory.tidyDid', {
+                    checked: last.checked ?? 0,
+                    merged: last.merged,
+                    updated: last.updated,
+                    forgot: last.forgot,
+                  })
                 : t('memory.tidyNothing')
               : null
           }

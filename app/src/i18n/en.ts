@@ -301,6 +301,22 @@ export const en: Catalog<MessageKey> = {
   'routineSuggest.setting.on': 'Suggest routines for what I keep asking',
   'routineSuggest.setting.hint':
     "Once a day, your own messages to bots from the last weeks are looked at for a request you made again and again. Today then offers to make it a routine; one short request on the bot's own account writes it. Nobody else sees your messages or the suggestions.",
+  'skillSuggest.title': 'Tasks that could be skills',
+  'skillSuggest.line': {
+    one: 'You asked {bot} for this once, on {days} day, and it took several steps. A skill was written from how it did it and what you corrected.',
+    other:
+      'You asked {bot} for this {count} times, on {days} different days, and it took several steps each time. A skill was written from how it did it and what you corrected.',
+  },
+  'skillSuggest.name': 'Skill name',
+  'skillSuggest.description': 'When it is used',
+  'skillSuggest.body': 'What the skill tells the bot',
+  'skillSuggest.create': 'Add skill',
+  'skillSuggest.dismiss': 'Not this',
+  'skillSuggest.created': 'Skill "{name}" added and turned on for {bot}',
+  'skillSuggest.askOwner': 'Ask the owner of {bot} to keep this as a skill.',
+  'skillSuggest.setting.on': 'Suggest skills for tasks I keep asking for',
+  'skillSuggest.setting.hint':
+    "Once a week, the tasks you had bots do in several steps over the last weeks are looked at, with the steps the bot took and what you corrected afterwards. When the same task keeps coming, Today offers to keep it as a skill; one short request on the bot's own account writes it, and nothing changes until you add it.",
   'usage.suggestions': 'Routine suggestions',
   'usage.suggestions.checks': {
     one: '1 request written into a routine; it cost {cost}; suggestions made: {found}',
@@ -2731,12 +2747,13 @@ export const en: Catalog<MessageKey> = {
   'memory.learnEveryChoice': 'Every {count} turns',
   'memory.tidy': 'Tidy the memory once a week',
   'memory.tidyHint':
-    'Once a week each bot’s notes are read as a whole: notes that repeat are merged, of two that disagree the newer one or the one you wrote stays, and plans whose date has passed are deleted. Notes you wrote or pinned are never changed; every change shows in the history below.',
+    'Once a week each bot’s notes are read as a whole: notes that repeat are merged, of two that disagree the newer one or the one you wrote stays, and plans whose date has passed are deleted. A note taken from a page is read against the page once a month and corrected when the page now says otherwise. Notes you wrote or pinned are never changed; every change shows in the history below.',
   'memory.tidyNow': 'Tidy now',
   'memory.tidyRunning': 'Tidying the notes…',
   'memory.tidyNever': 'Not tidied yet',
   'memory.tidyLast': 'Last tidied {when}',
-  'memory.tidyDid': 'Merged {merged} · corrected {updated} · deleted {forgot}',
+  'memory.tidyDid':
+    'Checked against its page {checked} · merged {merged} · corrected {updated} · deleted {forgot}',
   'memory.tidyNothing': 'There was nothing to tidy',
   'memory.history.tidy': 'Weekly tidy-up',
   'projects.title': 'Coding agents’ folders on this computer',

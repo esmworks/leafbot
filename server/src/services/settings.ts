@@ -111,6 +111,12 @@ export const Settings = z.object({
    * model call; each person has their own.
    */
   routineSuggestions: z.boolean().default(true),
+  /**
+   * Once a week, the many-step tasks the person asked bots for again and again are read with the
+   * steps the bot took, and Today offers to keep the way as a skill. Off stops the looking and the
+   * model call; each person has their own.
+   */
+  skillSuggestions: z.boolean().default(true),
   /** The time of day, in the person's time zone, that a reminder of their own promise arrives. */
   promiseRemindAt: z
     .string()
@@ -184,6 +190,7 @@ export const PERSONAL_SETTINGS = [
   'onboarded',
   'promiseRemindAt',
   'routineSuggestions',
+  'skillSuggestions',
   // The language the app and the bots speak with the person.
   'language',
 ] as const satisfies readonly (keyof Settings)[];
@@ -198,6 +205,7 @@ const Profile = Settings.pick({
   onboarded: true,
   promiseRemindAt: true,
   routineSuggestions: true,
+  skillSuggestions: true,
   language: true,
 });
 

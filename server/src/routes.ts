@@ -53,6 +53,7 @@ import {
   pickLocale,
   RoutineCreate,
   RoutineSuggestionAccept,
+  SkillSuggestionAccept,
   RoutineUpdate,
   RehearsalStart,
   RoomCreate,
@@ -1792,6 +1793,18 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   );
   app.post('/api/routine-suggestions/:id/dismiss', async (req) =>
     s.routineSuggestions.dismiss(IdParams.parse(req.params).id, me(req).userId),
+  );
+  // Skills suggested from many-step tasks the person keeps asking for: their own, never anyone else's.
+  app.get('/api/skill-suggestions', async (req) => s.skillSuggestions.list(me(req)));
+  app.post('/api/skill-suggestions/:id/accept', async (req) =>
+    s.skillSuggestions.accept(
+      IdParams.parse(req.params).id,
+      me(req),
+      SkillSuggestionAccept.parse(req.body ?? {}),
+    ),
+  );
+  app.post('/api/skill-suggestions/:id/dismiss', async (req) =>
+    s.skillSuggestions.dismiss(IdParams.parse(req.params).id, me(req).userId),
   );
   app.post('/api/api-keys/import', async (req) => {
     const { team, ...body } = ApiKeyImport.parse(req.body);

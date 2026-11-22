@@ -10,6 +10,7 @@ import { useBots, useSummaries } from '@/lib/queries';
 import { useUi } from '@/lib/store';
 import { PromisesSection } from './Promises';
 import { RoutineSuggestionsSection } from './RoutineSuggestions';
+import { SkillSuggestionsSection } from './SkillSuggestions';
 import { SecondYesSection } from './SecondYes';
 import { cn } from '@/lib/utils';
 
@@ -97,6 +98,8 @@ export function TodayDialog() {
             <PromisesSection enabled={open} onOpen={(p) => go(p.botId, p.threadId)} />
             {/* What the person keeps asking a bot for by hand, offered as a routine. */}
             <RoutineSuggestionsSection enabled={open} />
+            {/* A many-step task the person keeps asking a bot for, offered as a skill. */}
+            <SkillSuggestionsSection enabled={open} />
             <Section
               title={t('today.waiting')}
               empty={t('today.waitingNone')}

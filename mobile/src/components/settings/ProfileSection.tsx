@@ -117,6 +117,15 @@ export function ProfileSection() {
               />
             </Section>
           ) : null}
+          {settings.skillSuggestions !== undefined ? (
+            <Section footer={t('skillSuggest.setting.hint')}>
+              <SwitchRow
+                label={t('skillSuggest.setting.on')}
+                value={settings.skillSuggestions}
+                onChange={(skillSuggestions) => save.mutate({ skillSuggestions })}
+              />
+            </Section>
+          ) : null}
         </>
       ) : null}
     </>
