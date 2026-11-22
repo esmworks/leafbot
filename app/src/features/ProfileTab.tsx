@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useT } from '@/i18n';
 import { useSettings } from '@/lib/queries';
 import { Chip } from './onboarding/Chip';
-import { Card, Row, useSaveSettings } from './SettingsDialog';
+import { Card, Row, useSaveSettings } from './SettingsPage';
 import { SlackLinkCard } from './SlackCards';
 import { TeamsLinkCard } from './TeamsCards';
 

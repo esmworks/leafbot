@@ -10,7 +10,7 @@ import { api } from '@/lib/api';
 import { copyText } from '@/lib/clipboard';
 import { useBots } from '@/lib/queries';
 import { cn } from '@/lib/utils';
-import { Card } from './SettingsDialog';
+import { Card } from './SettingsPage';
 
 /** Azure's page for registering a new bot. */
 const NEW_BOT = 'https://portal.azure.com/#create/Microsoft.AzureBot';

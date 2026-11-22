@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useT, type MessageKey } from '@/i18n';
 import { api } from '@/lib/api';
-import { Card } from './SettingsDialog';
+import { Card } from './SettingsPage';
 
 const KINDS: { kind: AiKind; title: MessageKey; hint: MessageKey; model: MessageKey; url: MessageKey }[] = [
   {

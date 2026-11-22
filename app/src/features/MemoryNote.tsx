@@ -14,7 +14,7 @@ import { historyText, historyWho, noteExpired, untilDay, untilEndOfDay } from '@
 import { useBots, useManagesServer, useSession, useSettings } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { NoteSource } from './NoteSource';
-import { Card, Row, useSaveSettings } from './SettingsDialog';
+import { Card, Row, useSaveSettings } from './SettingsPage';
 
 /** The interval a looking back starts with when the person turns it on. */
 const REVIEW_DEFAULT = 20;

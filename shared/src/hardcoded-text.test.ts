@@ -41,9 +41,9 @@ const ALLOWED_TEXT: { file: string; text: string; reason: string }[] = [
   { file: 'app/src/features/Sidebar.tsx', text: 'Leaf Bot', reason: 'product name' },
   { file: 'mobile/src/app/login.tsx', text: 'Leaf Bot', reason: 'product name' },
   { file: 'mobile/src/app/bots.tsx', text: 'Leaf Bot', reason: 'product name' },
-  { file: 'app/src/features/SettingsDialog.tsx', text: 'Leaf Bot', reason: 'product name' },
+  { file: 'app/src/features/SettingsPage.tsx', text: 'Leaf Bot', reason: 'product name' },
   {
-    file: 'app/src/features/SettingsDialog.tsx',
+    file: 'app/src/features/SettingsPage.tsx',
     text: 'Copyright © 2026 esmworks (Erhan Erbaş)',
     reason: 'copyright notice, the same in every language',
   },

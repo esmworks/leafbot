@@ -50,7 +50,6 @@ import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { BotAvatar } from '@/components/BotAvatar';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -219,10 +218,20 @@ function TimeZoneField({ value, onChange }: { value: string; onChange(zone: stri
   );
 }
 
-export function SettingsDialog() {
+/** A dialog, menu or open list over the settings: Escape is theirs to close, not the settings'. */
+const OVER_SETTINGS =
+  '[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]';
+
+/**
+ * The settings, as a page over the whole window rather than a box over the chat: fifteen
+ * sections, several of them long lists of cards, need the room. What lies under stays mounted,
+ * so leaving the settings comes back to the same conversation, scrolled where it was.
+ */
+export function SettingsPage() {
   const t = useT();
   const tab = useUi((s) => s.settingsTab);
   const open = useUi((s) => s.openSettings);
+  const close = () => open(null);
   const manages = useManagesServer();
   // Until the session is known, every section shows, as it did with a single account.
   const known = !!useSession().data?.user;
@@ -247,7 +256,7 @@ export function SettingsDialog() {
   );
   const openAppsFound = () => {
     if (!appsFound) return;
-    open(null);
+    close();
     useUi.getState().openApps({ botId: null, catalogId: appsFound.catalogId ?? undefined });
   };
   // ⌘, / Ctrl+, opens the settings, as in most desktop apps; again closes them.
@@ -261,78 +270,116 @@ export function SettingsDialog() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [open]);
+  const isOpen = !!tab;
+  // Escape leaves the settings, unless something open over them takes it first.
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || e.isComposing) return;
+      if (document.querySelector(OVER_SETTINGS)) return;
+      if ((e.target as HTMLElement | null)?.getAttribute('aria-expanded') === 'true') return;
+      open(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isOpen, open]);
+  // Opening starts at the search box (a phone waits for a tap, or its keyboard would cover the
+  // list); closing gives the focus back to where it was, as a dialog would.
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    const before = document.activeElement as HTMLElement | null;
+    if (!phone) searchRef.current?.focus();
+    return () => before?.focus?.();
+    // Only on opening and closing; a phone turning sideways does not move the focus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
+  if (!isOpen) return null;
   return (
-    <Dialog open={!!tab} onOpenChange={(o) => !o && open(null)}>
-      <DialogContent
-        // A phone would put its keyboard over the list for the search box; there it waits for a tap.
-        onOpenAutoFocus={(e) => phone && e.preventDefault()}
-        // Escape in an open list (the model search) closes the list, not the whole settings.
-        onEscapeKeyDown={(e) => {
-          const el = e.target as HTMLElement | null;
-          if (el?.getAttribute('role') === 'combobox' && el.getAttribute('aria-expanded') === 'true')
-            e.preventDefault();
-        }}
-        className="screen-edges sidebar-top flex h-[min(720px,90vh)] gap-0 overflow-hidden rounded-3xl p-0 sm:max-w-4xl phone:flex-col phone:h-dvh phone:max-h-none phone:max-w-full phone:rounded-none phone:border-0"
-      >
-        {(!phone || listing) && (
-          <nav className="scroll-thin flex shrink-0 flex-col gap-1 bg-sidebar p-3 phone:min-h-0 phone:flex-1 phone:overflow-y-auto roomy:w-56 roomy:border-r">
-            <DialogTitle className="px-3 pt-2 pb-3 text-base phone:pt-1 phone:text-lg">
-              {t('settings.title')}
-            </DialogTitle>
-            <Input
-              value={find}
-              onChange={(e) => setFind(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
-                if (shownTabs[0]) open(shownTabs[0].id);
-                else openAppsFound();
-              }}
-              placeholder={t('settings.search')}
-              aria-label={t('settings.search')}
-              className="mb-2 h-8 shrink-0 rounded-full text-sm phone:h-10 phone:text-base"
-            />
-            {shownTabs.map((tb) => (
-              <button
-                key={tb.id}
-                onClick={() => open(tb.id)}
-                className={cn(
-                  'flex shrink-0 items-center gap-3 rounded-xl px-3 py-2 text-sm whitespace-nowrap transition-colors hover:bg-accent [&>svg]:size-4 phone:py-3 phone:text-base',
-                  !phone && current.id === tb.id && 'bg-accent font-medium',
-                )}
-              >
-                {tb.icon}
-                <span className="flex-1 text-left">{t(`settings.tab.${tb.id}`)}</span>
-                {phone && <ChevronRight className="text-muted-foreground" />}
-              </button>
-            ))}
-            {appsFound && (
-              <button
-                onClick={openAppsFound}
-                className="flex shrink-0 items-center gap-3 rounded-xl px-3 py-2 text-sm whitespace-nowrap transition-colors hover:bg-accent [&>svg]:size-4 phone:py-3 phone:text-base"
-              >
-                <Plug />
-                <span className="flex-1 truncate text-left">
-                  {appsFound.name
-                    ? t('settings.appsResultFor', { name: appsFound.name })
-                    : t('settings.appsResult')}
-                </span>
-                <ExternalLink className="text-muted-foreground" />
-              </button>
-            )}
-          </nav>
-        )}
-        {!listing && (
-          <>
-            {phone && (
-              // The section's own title bar, with the way back to the list.
-              <div className="flex h-14 shrink-0 items-center gap-1 border-b bg-sidebar pr-12 pl-1">
-                <Button variant="ghost" size="icon" onClick={toList} aria-label={t('settings.back')}>
-                  <ChevronLeft className="size-5" />
-                </Button>
-                <DialogTitle className="truncate text-lg">{t(`settings.tab.${current.id}`)}</DialogTitle>
-              </div>
-            )}
-            <div className="scroll-thin min-h-0 min-w-0 flex-1 overflow-y-auto p-4 roomy:p-8">
+    <div
+      role="region"
+      aria-label={t('settings.title')}
+      className="screen-edges sidebar-top fixed inset-0 z-40 flex animate-in bg-background duration-150 fade-in-0 phone:flex-col"
+    >
+      {(!phone || listing) && (
+        <nav className="scroll-thin flex shrink-0 flex-col gap-1 overflow-y-auto bg-sidebar px-3 pb-3 phone:min-h-0 phone:flex-1 roomy:w-64 roomy:border-r">
+          {/* Room for the window buttons; empty in a browser. */}
+          <div className="window-drag h-12 shrink-0 phone:hidden" />
+          <div className="flex shrink-0 items-center gap-1 pb-3 phone:pt-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={close}
+              aria-label={t('settings.close')}
+              title={t('settings.close')}
+            >
+              <ChevronLeft className="size-5" />
+            </Button>
+            <h1 className="text-base font-semibold phone:text-lg">{t('settings.title')}</h1>
+          </div>
+          <Input
+            ref={searchRef}
+            value={find}
+            onChange={(e) => setFind(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+              if (shownTabs[0]) open(shownTabs[0].id);
+              else openAppsFound();
+            }}
+            placeholder={t('settings.search')}
+            aria-label={t('settings.search')}
+            className="mb-2 h-8 shrink-0 rounded-full text-sm phone:h-10 phone:text-base"
+          />
+          {shownTabs.map((tb) => (
+            <button
+              key={tb.id}
+              onClick={() => open(tb.id)}
+              aria-current={!phone && current.id === tb.id ? 'page' : undefined}
+              className={cn(
+                'flex shrink-0 items-center gap-3 rounded-xl px-3 py-2 text-sm whitespace-nowrap transition-colors hover:bg-accent [&>svg]:size-4 phone:py-3 phone:text-base',
+                !phone && current.id === tb.id && 'bg-accent font-medium',
+              )}
+            >
+              {tb.icon}
+              <span className="flex-1 text-left">{t(`settings.tab.${tb.id}`)}</span>
+              {phone && <ChevronRight className="text-muted-foreground" />}
+            </button>
+          ))}
+          {appsFound && (
+            <button
+              onClick={openAppsFound}
+              className="flex shrink-0 items-center gap-3 rounded-xl px-3 py-2 text-sm whitespace-nowrap transition-colors hover:bg-accent [&>svg]:size-4 phone:py-3 phone:text-base"
+            >
+              <Plug />
+              <span className="flex-1 truncate text-left">
+                {appsFound.name
+                  ? t('settings.appsResultFor', { name: appsFound.name })
+                  : t('settings.appsResult')}
+              </span>
+              <ExternalLink className="text-muted-foreground" />
+            </button>
+          )}
+        </nav>
+      )}
+      {!listing && (
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          {phone ? (
+            // The section's own title bar, with the way back to the list.
+            <div className="flex h-14 shrink-0 items-center gap-1 border-b bg-sidebar px-1">
+              <Button variant="ghost" size="icon" onClick={toList} aria-label={t('settings.back')}>
+                <ChevronLeft className="size-5" />
+              </Button>
+              <h1 className="truncate text-lg font-semibold">{t(`settings.tab.${current.id}`)}</h1>
+            </div>
+          ) : (
+            <div className="window-drag h-12 shrink-0" />
+          )}
+          {/* Keyed by the section, so another section starts at its top. */}
+          <div
+            key={current.id}
+            className="scroll-thin min-h-0 flex-1 overflow-y-auto p-4 roomy:px-8 roomy:pt-2 roomy:pb-12"
+          >
+            <div className="mx-auto w-full max-w-3xl">
               <h2 className="mb-6 text-2xl font-semibold phone:hidden">{t(`settings.tab.${current.id}`)}</h2>
               {current.id === 'profile' && <ProfileTab />}
               {current.id === 'people' && <PeopleTab />}
@@ -350,10 +397,10 @@ export function SettingsDialog() {
               {current.id === 'usage' && <UsageTab />}
               {current.id === 'about' && <About />}
             </div>
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

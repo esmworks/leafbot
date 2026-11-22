@@ -22,7 +22,7 @@ import { useBots, useSettings, useStorage, useUsage } from '@/lib/queries';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { Chip } from './onboarding/Chip';
-import { Card, Row, useSaveSettings } from './SettingsDialog';
+import { Card, Row, useSaveSettings } from './SettingsPage';
 
 /** What the bots cost over a period: a total, the cost per day and the cost per bot. */
 export function UsageTab() {

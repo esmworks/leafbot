@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { changeHint, changeLabel } from '@/lib/memoryChange';
-import { Card, Row } from './SettingsDialog';
+import { Card, Row } from './SettingsPage';
 
 /**
  * Memory changes bots asked for while nobody watched (a routine, another bot's request). They

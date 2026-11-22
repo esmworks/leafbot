@@ -471,6 +471,7 @@ export const tr = {
   'bot.effortDefault': 'Bütün botlar için seçilen',
   'settings.search': 'Ayarlarda ara',
   'settings.back': 'Tüm ayarlar',
+  'settings.close': 'Uygulamaya dön',
   'settings.keywords.profile': 'ad, hakkımda, hitap, meslek, odak',
   'settings.keywords.general':
     'tema, koyu, açık, dil, yakınlaştırma, bildirim, ses, gönderme tuşu, enter, saat dilimi, kenar çubuğu, sıkışık, sohbet genişliği, girişte aç, sesli okuma',

@@ -9,7 +9,7 @@ import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { copyText } from '@/lib/clipboard';
 import { useBots, useInfo, useSettings } from '@/lib/queries';
-import { Card, Row, useSaveSettings } from './SettingsDialog';
+import { Card, Row, useSaveSettings } from './SettingsPage';
 
 /**
  * Mail for the bots: the domain they receive at, the secret a mail relay sends with each message,
