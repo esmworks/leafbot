@@ -20,6 +20,13 @@ describe('akış tamponu', () => {
     s.appendStream('t1', 'turn-b', 'Yeni');
     expect(useUi.getState().streams.t1?.text).toBe('Yeni');
   });
+  it('baştan başlayan çalışmanın yazısı öncekinin yerine geçer', () => {
+    const s = useUi.getState();
+    s.appendStream('t1', 'turn-a', 'Yarım kalan');
+    s.appendStream('t1', 'turn-a', 'Yeniden', true);
+    s.appendStream('t1', 'turn-a', ' deniyorum');
+    expect(useUi.getState().streams.t1).toEqual({ turnId: 'turn-a', text: 'Yeniden deniyorum' });
+  });
   it('yalnızca kendi turunun tamponunu siler', () => {
     const s = useUi.getState();
     s.appendStream('t1', 'turn-b', 'x');

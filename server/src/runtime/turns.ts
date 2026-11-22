@@ -1538,6 +1538,8 @@ export class TurnManager {
     let shown = 0;
     // A tool ran since the last words: what the bot writes next is its next step.
     let stepped = false;
+    // The run started over: the next words shown replace the earlier attempt's on screen.
+    let restart = false;
     // With a desktop, commands run there (run_command) instead of in this server's sandbox; a bot
     // with its own project folder keeps the sandbox, since the desktop cannot see that folder.
     // Whether a step that changes something (not a read) was let through in this turn.
@@ -2201,7 +2203,13 @@ export class TurnManager {
           }
           const upto = streamed.length - held;
           if (upto <= shown) return;
-          this.ctx.bus.delta({ threadId: thread.id, turnId: turn.id, text: streamed.slice(shown, upto) });
+          this.ctx.bus.delta({
+            threadId: thread.id,
+            turnId: turn.id,
+            text: streamed.slice(shown, upto),
+            ...(restart && { restart: true }),
+          });
+          restart = false;
           shown = upto;
         },
         onSession: (sessionId) => {
@@ -2279,6 +2287,7 @@ export class TurnManager {
         await saveSession(null);
         streamed = '';
         shown = 0;
+        restart = true;
         spent += outcome.costUsd ?? 0;
         // What the old session had folded into a summary goes along, or it would be lost with it.
         outcome = await run(await settle(await handoff(outcome.summary), false));
@@ -2298,6 +2307,7 @@ export class TurnManager {
         });
         streamed = '';
         shown = 0;
+        restart = true;
         spent += outcome.costUsd ?? 0;
         outcome = await run(lastPrompt);
       }
@@ -2344,6 +2354,7 @@ export class TurnManager {
           .where(eq(schema.turns.id, turn.id));
         streamed = '';
         shown = 0;
+        restart = true;
         spent += outcome.costUsd ?? 0;
         outcome = await run(await handoff(), backup);
         outcome.sessionId = null;

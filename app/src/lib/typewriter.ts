@@ -39,6 +39,11 @@ export function useTypewriter(text: string, key: string | null | undefined, live
     let pos = progress.get(key) ?? 0;
     let carry = 0;
     const tick = (now: number) => {
+      // Started over from outside (`restartTyping`): the text now begins anew.
+      if (pos > 0 && !progress.has(key)) {
+        pos = 0;
+        setShown(0);
+      }
       const target = latest.current.length;
       const dt = Math.min(now - last, 100);
       last = now;

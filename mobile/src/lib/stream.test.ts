@@ -34,6 +34,13 @@ describe('stream', () => {
     expect(s.t1).toEqual({ turnId: 'b', text: 'Yeni' });
   });
 
+  it('replaces the text of a turn whose run started over', () => {
+    let s = appendStream({}, 't1', 'a', 'Cut off');
+    s = appendStream(s, 't1', 'a', 'Again', true);
+    s = appendStream(s, 't1', 'a', ' from the start');
+    expect(s.t1).toEqual({ turnId: 'a', text: 'Again from the start' });
+  });
+
   it('drops only the turn it was asked to', () => {
     const s = appendStream({}, 't1', 'b', 'x');
     expect(dropStream(s, 't1', 'a')).toBe(s);

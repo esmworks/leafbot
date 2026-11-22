@@ -6,6 +6,7 @@ import { computerSocketClosed, onComputerReconnect, useComputers } from './compu
 import { notice, watchAnswered } from './notify';
 import { watchOutbox } from './outbox';
 import { useUi } from './store';
+import { restartTyping } from './typewriter';
 import { serverBuild } from './update';
 
 /**
@@ -44,7 +45,9 @@ export function connectRealtime(qc: QueryClient): () => void {
   });
   s.on('refresh', (e) => refresh(qc, e));
   s.on('delta', (e) => {
-    ui().appendStream(e.threadId, e.turnId, e.text);
+    // The earlier attempt's words go: the new ones are typed from their own start.
+    if (e.restart) restartTyping(e.turnId);
+    ui().appendStream(e.threadId, e.turnId, e.text, e.restart);
     ui().markWriting(e.threadId);
   });
   s.on('tool', (e) => ui().setTool(e.threadId, e.tool));
