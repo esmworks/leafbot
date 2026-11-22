@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { CATALOG_CATEGORIES, CATALOG_GROUPS, botToolArgs, catalogEntry, formHeaders } from './connections';
+import {
+  CATALOG_CATEGORIES,
+  CATALOG_GROUPS,
+  botToolArgs,
+  catalogEntry,
+  formHeaders,
+  serviceText,
+} from './connections';
 
 describe('yeni bağlantı formunun başlıkları', () => {
   it('eklenenlere yazılı ama eklenmemiş başlığı da katar; aynı ad büyük-küçük harf farkıyla bir kez gider', () => {
@@ -33,6 +40,27 @@ describe('botun bağlantı aracı çağrısı', () => {
     expect(botToolArgs({ url: 'https://evil.example/mcp' }, 'create_pull_request', { a: 1 })).toEqual({
       a: 1,
     });
+  });
+});
+
+describe('bağlantı cevabındaki HTML kaçışları', () => {
+  const posts = {
+    content: [{ type: 'text', text: '{"text":"-&gt; Sayfalar &amp; tablolar, &quot;a&quot;"}' }],
+    structuredContent: { data: [{ text: 'a &lt; b, &amp;gt; yazıldı' }], meta: { result_count: 2 } },
+  };
+
+  it("X'in gönderi metnindeki &gt;, &lt; ve &amp; yazılan karakterlere döner; JSON metni bozulmaz", () => {
+    const r = serviceText({ url: 'https://api.x.com/mcp/' }, posts);
+    expect(r.content[0]!.text).toBe('{"text":"-> Sayfalar & tablolar, &quot;a&quot;"}');
+    expect(JSON.parse(r.content[0]!.text)).toEqual({ text: '-> Sayfalar & tablolar, &quot;a&quot;' });
+    expect(r.structuredContent).toEqual({
+      data: [{ text: 'a < b, &gt; yazıldı' }],
+      meta: { result_count: 2 },
+    });
+  });
+
+  it('başka servisin cevabına dokunmaz', () => {
+    expect(serviceText(catalogEntry('github')!, posts)).toBe(posts);
   });
 });
 

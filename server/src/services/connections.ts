@@ -5,6 +5,7 @@ import {
   catalogEntry,
   connectionSlug,
   headerNameAllowed,
+  serviceText,
   sharesApp,
   type Connection,
   type ConnectionAuthStart,
@@ -1048,11 +1049,14 @@ export class ConnectionService {
     if ((tool.kind ?? tool.hinted) !== 'read' && o.bot.permissionMode !== 'auto') {
       throw new HttpError(403, 'error.appCallAsks');
     }
-    return callTool(
-      this.target(row),
-      tool.name,
-      o.args,
-      AbortSignal.timeout(this.ctx.config.mcpCallTimeoutMs),
+    return serviceText(
+      row,
+      await callTool(
+        this.target(row),
+        tool.name,
+        o.args,
+        AbortSignal.timeout(this.ctx.config.mcpCallTimeoutMs),
+      ),
     );
   }
 
@@ -1268,12 +1272,15 @@ export class ConnectionService {
         try {
           const result = tool.local
             ? await runGmailTool(this.target(current), tool.name, args, signal)
-            : await callTool(
-                this.target(current),
-                tool.name,
-                sent,
-                signal,
-                elicit && ((form) => elicit(form, row.name)),
+            : serviceText(
+                current,
+                await callTool(
+                  this.target(current),
+                  tool.name,
+                  sent,
+                  signal,
+                  elicit && ((form) => elicit(form, row.name)),
+                ),
               );
           // That view is the form itself: shown after the call, sending it would make the change twice.
           if (tool.ui && current.showApps && showApp && !result.isError && sent === args) {

@@ -287,13 +287,19 @@ export interface CatalogEntry {
    * bot may make the call at all was already decided by its permission settings and cards.
    */
   botSubmits?: { arg: string; tools: readonly string[] };
+  /**
+   * The service sends text with `&`, `<` and `>` written as HTML entities, though it means the
+   * characters: its answers are read back to them, so the bot and the service's own view show what
+   * was written.
+   */
+  escapesText?: boolean;
 }
 
 type Row = [
   name: string,
   url: string,
   auth: ConnectionAuth,
-  extra?: Pick<CatalogEntry, 'tokenHelp' | 'client' | 'scope' | 'featured' | 'botSubmits'>,
+  extra?: Pick<CatalogEntry, 'tokenHelp' | 'client' | 'scope' | 'featured' | 'botSubmits' | 'escapesText'>,
 ];
 
 const FEATURED = { featured: true } as const;
@@ -576,6 +582,8 @@ const ROWS: Record<CatalogCategory, Row[]> = {
         client: { help: 'https://developer.x.com/en/portal/dashboard', secretOptional: true },
         scope:
           'tweet.read tweet.write users.read follows.read like.read list.read bookmark.read bookmark.write media.write offline.access',
+        // A post's text comes as "-&gt;" for "->".
+        escapesText: true,
       },
     ],
   ],
@@ -657,6 +665,29 @@ export function botToolArgs(
   // By the address, not the entry a connection names: the mark means something only to that service.
   const submits = CONNECTION_CATALOG.find((e) => e.botSubmits && e.url === conn.url)?.botSubmits;
   return submits?.tools.includes(tool) ? { ...args, [submits.arg]: true } : args;
+}
+
+/**
+ * A connection's answer with the entities its service writes for `&`, `<` and `>` read back to the
+ * characters (see `escapesText`); other services' answers stay as they came. Only those three: a
+ * quote read back inside text that holds JSON would end its string.
+ */
+export function serviceText<R>(conn: { url: string }, result: R): R {
+  const key = addressKey(conn.url);
+  if (!CONNECTION_CATALOG.some((e) => e.escapesText && addressKey(e.url) === key)) return result;
+  return unescapeDeep(result) as R;
+}
+
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>' };
+
+function unescapeDeep(value: unknown): unknown {
+  // One pass, so "&amp;gt;" becomes the "&gt;" that was written.
+  if (typeof value === 'string') return value.replace(/&(amp|lt|gt);/g, (_, name: string) => ENTITIES[name]!);
+  if (Array.isArray(value)) return value.map(unescapeDeep);
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, unescapeDeep(v)]));
+  }
+  return value;
 }
 
 /**
