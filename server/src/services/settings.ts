@@ -95,6 +95,11 @@ export const Settings = z.object({
     .refine((n) => (MEMORY_REVIEW_STEPS as readonly number[]).includes(n))
     .default(20),
   /**
+   * The weekly memory tidy-up: each set of notes that changed is read whole by the small model,
+   * which merges what repeats and settles what disagrees. Off stops the looking and the calls.
+   */
+  memoryTidy: z.boolean().default(true),
+  /**
    * The promise safety net: after a reply that sounds like a promise of later action ("I'll tell
    * you tomorrow") with no routine set, a small model is asked, and a promise with a time gets a
    * one-time routine. Off stops the extra call.

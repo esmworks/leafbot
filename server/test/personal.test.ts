@@ -98,25 +98,32 @@ describe('her kişinin kendisine ait olanlar', () => {
     expect(his).not.toContain('Ayşe çayı demli içer');
   });
 
-  it('yalnızca konuşabilen kişinin istediği bot notu, botu yönetenin onayına gider', async () => {
+  it('yalnızca konuşabilen kişinin konuşmasında bot notu hemen yazılır; kimse onaya çağrılmaz', async () => {
     const bot = await shared('Ekip');
     const thread = (await ayse.api<Thread>('GET', `/api/bots/${bot.id}/main-thread`)).body;
     await say(ayse, thread.id, '[araç:memory_write {"content":"Raporlar cuma gider","scope":"bot"}]');
     await t.services.turns.idle();
-    expect((await t.services.memory.list({ scope: 'bot', botId: bot.id })).map((m) => m.content)).toEqual([]);
-
-    // Not Ayşe's to decide; the bot's owner sees it with who asked.
+    const [note] = await t.services.memory.list({ scope: 'bot', botId: bot.id });
+    expect(note).toMatchObject({
+      content: 'Raporlar cuma gider',
+      source: `bot:${bot.id}`,
+      threadId: thread.id,
+    });
+    // Nothing waits for anyone, and no card asked.
+    expect((await t.api<MemoryChange[]>('GET', '/api/memory-changes')).body).toEqual([]);
     expect((await ayse.api<MemoryChange[]>('GET', '/api/memory-changes')).body).toEqual([]);
-    const waiting = (await t.api<MemoryChange[]>('GET', '/api/memory-changes')).body.filter(
-      (c) => c.botId === bot.id,
+    // The bot corrects and forgets its own note in her conversation too.
+    await say(
+      ayse,
+      thread.id,
+      `[araç:memory_update {"id":"${note!.id}","content":"Raporlar perşembe gider"}]`,
     );
-    expect(waiting).toHaveLength(1);
-    expect(waiting[0]!.origin).toMatchObject({ kind: 'person' });
-    expect((await ayse.api('POST', `/api/memory-changes/${waiting[0]!.id}/accept`, {})).status).toBe(404);
-    expect((await t.api('POST', `/api/memory-changes/${waiting[0]!.id}/accept`, {})).status).toBe(200);
-    expect((await t.services.memory.list({ scope: 'bot', botId: bot.id })).map((m) => m.content)).toEqual([
-      'Raporlar cuma gider',
-    ]);
+    await t.services.turns.idle();
+    expect((await t.services.memory.get(note!.id)).content).toBe('Raporlar perşembe gider');
+    await say(ayse, thread.id, `[araç:memory_forget {"id":"${note!.id}"}]`);
+    await t.services.turns.idle();
+    expect(await t.services.memory.list({ scope: 'bot', botId: bot.id })).toEqual([]);
+    expect((await t.api<MemoryChange[]>('GET', '/api/memory-changes')).body).toEqual([]);
   });
 
   it('kişisel bağlantı yalnızca sahibinin işinde kullanılır; takımınkini yalnızca yöneten kurar', async () => {

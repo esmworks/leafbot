@@ -7,7 +7,6 @@ import type { Engine, TurnOutcome } from '../engine/types';
 import { translator, type T } from '../i18n';
 import { OWNER_ID } from '../users';
 import { HttpError, truncate } from '../util';
-import { atLeast } from './access';
 import { placeOf, ROOM_NOTES_PER_PLACE } from './memory';
 import { redactSecrets } from './secrets';
 import type { Services } from './index';
@@ -269,11 +268,9 @@ export class MemoryReviewService {
     const notes = [...visible.bot, ...(team ? [] : visible.user), ...visible.room];
 
     const outside = await this.readOutside(thread, span);
-    // A bot's notes reach everyone who uses the bot: they change only from a conversation with
-    // someone who may change the bot, as the bot's memory tools allow.
-    const botNotes =
-      !(await this.guestIn(thread, span)) &&
-      atLeast(await this.services.access.level(await this.services.access.viewerOf(person), bot.id), 'edit');
+    // A bot's notes reach everyone who uses the bot: they change from a conversation with anyone who
+    // has an account here, as the bot's memory tools allow, but not from one a stranger spoke in.
+    const botNotes = !(await this.guestIn(thread, span));
     const request = this.request(t, { team, place, notes, span, outside });
     const controller = new AbortController();
     this.current = controller;

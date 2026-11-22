@@ -255,7 +255,7 @@ describe('toplantı tutanağı', () => {
     expect((await call(r.id, m.id, 'save', { minutes: approved, botIds: [ada.id] })).status).toBe(409);
   });
 
-  it('yalnızca konuşabildiği botun notu sahibinin onayını bekler; başkası odanın tutanaklarını göremez', async () => {
+  it('yalnızca konuşabildiği botun notu hemen botun kendi notu olur; başkası odanın tutanaklarını göremez', async () => {
     await t.api('PUT', `/api/bots/${ada.id}/access`, { everyone: 'chat', people: {} });
     const ayse = await t.person('ayse');
     const r = await ayse.api<Room>('POST', '/api/rooms', { title: 'Ayşe', botIds: [ada.id] });
@@ -271,10 +271,13 @@ describe('toplantı tutanağı', () => {
       minutes: draft.minutes,
       botIds: [ada.id],
     });
-    expect(saved.body.sentTo).toEqual([{ botId: ada.id, waiting: true }]);
-    const waiting = (await t.api<MemoryChange[]>('GET', '/api/memory-changes')).body;
-    expect(waiting).toHaveLength(1);
-    expect(waiting[0]).toMatchObject({ botId: ada.id, origin: { kind: 'person' } });
+    expect(saved.body.sentTo).toEqual([{ botId: ada.id, waiting: false }]);
+    expect((await t.api<MemoryChange[]>('GET', '/api/memory-changes')).body).toEqual([]);
+    // Kept as the bot's own note, not as words the owner wrote: a bot note may be wrong.
+    const [note] = await t.services.memory.list({ scope: 'bot', botId: ada.id });
+    expect(note).toMatchObject({ source: `bot:${ada.id}` });
+    const hist = (await t.api<{ actor: string; action: string }[]>('GET', '/api/memory-history')).body;
+    expect(hist).toContainEqual(expect.objectContaining({ actor: 'user:ayse', action: 'create' }));
 
     const ali = await t.person('ali');
     expect((await ali.api('GET', `/api/rooms/${r.body.id}/meetings`)).status).toBeGreaterThanOrEqual(403);

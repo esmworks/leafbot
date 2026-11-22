@@ -1052,7 +1052,10 @@ export interface MemoryChange {
 /** One thing that happened to a memory note, as `GET /api/memory-history` lists it (oldest first). */
 export interface MemoryHistoryLine {
   id: string;
-  /** `user:<id>` for a person, `bot:<id>` for a bot; older lines hold a bare `bot` or `person`. */
+  /**
+   * `user:<id>` for a person, `bot:<id>` for a bot, `tidy` for the weekly tidy-up; older lines hold
+   * a bare `bot` or `person`.
+   */
   actor: string;
   action: 'create' | 'update' | 'delete' | 'pin' | 'unpin';
   targetId: string;
@@ -1063,6 +1066,13 @@ export interface MemoryHistoryLine {
   /** Whose note it was: `user:<id>`, `bot:<id>` or `room:<place>`. Null on lines from before people came in. */
   owner: string | null;
   createdAt: string;
+}
+/** The weekly tidy-up of the notes, as `GET /api/memory-tidy` gives it. */
+export interface MemoryTidyStatus {
+  /** A pass is under way. */
+  running: boolean;
+  /** The last pass that looked at any notes: when, how many sets, and what it did. */
+  last: { at: string; sets: number; merged: number; updated: number; forgot: number } | null;
 }
 /**
  * Days after which a note that no prompt carries, and that no bot changed or looked up, is offered

@@ -1,8 +1,9 @@
 import type { Memory } from '@leafbot/shared';
 import { MEMORY_REVIEW_STEPS } from '@leafbot/shared';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Pencil, Pin, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -11,7 +12,7 @@ import { useT } from '@/i18n';
 import { api, ApiError } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { historyText, historyWho, noteExpired, untilDay, untilEndOfDay } from '@/lib/memoryNotes';
-import { useBots, useManagesServer, useSession, useSettings } from '@/lib/queries';
+import { useBots, useManagesServer, useMemoryTidy, useSession, useSettings } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { NoteSource } from './NoteSource';
 import { Card, Row, useSaveSettings } from './SettingsDialog';
@@ -217,13 +218,14 @@ export function MemoryHistory() {
   );
 }
 
-/** Whether bots look back at conversations for lasting facts, and how often. */
+/** Whether bots look back at conversations for lasting facts, how often, and whether their notes are tidied. */
 export function LearnSetting() {
   const t = useT();
   const { data: settings } = useSettings();
   const save = useSaveSettings();
   const manages = useManagesServer();
   const every = settings?.memoryReviewEvery;
+  const tidy = settings?.memoryTidy;
   // A server older than the setting does not offer it; it is the server's, so only those who look
   // after the server may change it.
   if (every === undefined || !manages) return null;
@@ -252,6 +254,62 @@ export function LearnSetting() {
           </Select>
         </Row>
       )}
+      {tidy !== undefined && <TidyRows on={tidy} />}
     </Card>
+  );
+}
+
+/** The weekly tidy-up of the notes: on or off, what its last pass did, and a pass now. */
+function TidyRows({ on }: { on: boolean }) {
+  const t = useT();
+  const { dayLabel } = useFormat();
+  const save = useSaveSettings();
+  const qc = useQueryClient();
+  const { data: status } = useMemoryTidy();
+  const now = useMutation({
+    mutationFn: api.tidyMemory,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['memory', 'tidy'] }),
+    onError: (e) => toast.error((e as Error).message),
+  });
+  const last = status?.last;
+  const running = !!status?.running;
+  return (
+    <>
+      <Row label={t('memory.tidy')} hint={t('memory.tidyHint')}>
+        <Switch
+          checked={on}
+          aria-label={t('memory.tidy')}
+          onCheckedChange={(v) => save.mutate({ memoryTidy: v })}
+        />
+      </Row>
+      {on && (
+        <Row
+          label={
+            running
+              ? t('memory.tidyRunning')
+              : last
+                ? t('memory.tidyLast', { when: dayLabel(last.at) })
+                : t('memory.tidyNever')
+          }
+          hint={
+            !running && last
+              ? last.merged + last.updated + last.forgot
+                ? t('memory.tidyDid', { merged: last.merged, updated: last.updated, forgot: last.forgot })
+                : t('memory.tidyNothing')
+              : undefined
+          }
+        >
+          <Button
+            size="sm"
+            variant="ghost"
+            className="rounded-full"
+            disabled={running || now.isPending}
+            onClick={() => now.mutate()}
+          >
+            {t('memory.tidyNow')}
+          </Button>
+        </Row>
+      )}
+    </>
   );
 }

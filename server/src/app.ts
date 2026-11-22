@@ -345,6 +345,9 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
       void services.routineSuggestions
         .runDue()
         .catch((err) => console.warn(`Routine suggestions failed: ${String(err)}`));
+    // Each set of notes that changed is tidied once a week; likewise not with a test's engine.
+    if (!opts.engine && !fake)
+      void services.memoryTidy.runDue().catch((err) => console.warn(`Memory tidy-up failed: ${String(err)}`));
   };
   sweep();
   const sweepTimer = setInterval(sweep, 60 * 60_000);
@@ -779,6 +782,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
       services.subscriptions.stop();
       await services.turns.shutdown();
       await services.memoryReview.shutdown();
+      await services.memoryTidy.shutdown();
       await services.promises.shutdown();
       await services.routineSuggestions.shutdown();
       await services.titles.shutdown();

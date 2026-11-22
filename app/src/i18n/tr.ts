@@ -2698,9 +2698,19 @@ export const tr = {
   'memory.history.notKept': 'metin saklanmıyor',
   'memory.learn': 'Konuşmalardan öğren',
   'memory.learnHint':
-    'Birkaç konuşmada bir bot geriye dönüp bakar ve kalıcı bilgileri not eder. Ortak notlara yazmak istedikleri, yukarıdaki listede onayınızı bekler.',
+    'Birkaç konuşmada bir bot geriye dönüp bakar ve kalıcı bilgileri kendisi not eder; size sormaz. Yazdıkları yukarıdaki listede ve geçmişte görünür.',
   'memory.learnEvery': 'Ne sıklıkla baksın',
   'memory.learnEveryChoice': 'Her {count} turda bir',
+  'memory.tidy': 'Hafızayı haftada bir düzenle',
+  'memory.tidyHint':
+    'Her botun notları haftada bir bütün olarak okunur: tekrar eden notlar birleştirilir, birbiriyle çelişenlerde yenisi ya da sizin yazdığınız kalır, tarihi geçmiş planlar silinir. Sizin yazdığınız ve sabitlediğiniz notlara dokunulmaz; her değişiklik aşağıdaki geçmişte görünür.',
+  'memory.tidyNow': 'Şimdi düzenle',
+  'memory.tidyRunning': 'Notlar düzenleniyor…',
+  'memory.tidyNever': 'Henüz düzenlenmedi',
+  'memory.tidyLast': 'Son düzenleme: {when}',
+  'memory.tidyDid': 'Birleştirilen {merged} · düzeltilen {updated} · silinen {forgot}',
+  'memory.tidyNothing': 'Düzenlenecek bir şey yoktu',
+  'memory.history.tidy': 'Haftalık düzenleme',
   'projects.title': 'Bu bilgisayardaki kodlama ajanlarının klasörleri',
   'projects.hint':
     'Claude Code ve Codex bu klasörlerde çalışmış. Birinden bot yaparsan bot o klasörde çalışır. Yalnız araçların klasör listesine bakılır; sohbetleri okunmaz.',

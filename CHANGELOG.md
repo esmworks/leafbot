@@ -3,6 +3,28 @@
 All notable changes to Leaf Bot (called Yumak Bot before 0.7.0) are listed here. Versions follow [Semantic Versioning](https://semver.org/). While the
 version is 0.x, a minor release may change the data format or the API; the server migrates its database on start.
 
+## Unreleased
+
+### Added
+
+- The memory is tidied once a week (Settings → Memory, for those who look after the server; on by default). Bots
+  write notes one conversation at a time, so the same fact ends up in several notes and an old note stays beside the
+  newer one that contradicts it. Each set of notes that changed since it was last looked at (a bot's own, a person's
+  notes about themselves, a place's) is read whole with one call to the small model of the bot that wrote them: notes
+  that repeat are merged, of two that disagree the newer one or the person's own stays, and plans whose date has
+  plainly passed are deleted. Notes the person wrote or pinned are read but never changed, a merge never joins notes
+  about different sites or true until different dates, and one pass deletes at most about a third of a set. Every
+  change shows in the memory history as the weekly tidy-up's; "Tidy now" runs a pass at once and the screen says what
+  the last one did.
+
+### Changed
+
+- Bots save to memory without asking. A note a bot writes in the conversation of someone who may only talk with it,
+  and the meeting note such a person sends it, are kept at once instead of waiting for the bot's owner, who was asked
+  to judge facts from conversations they were not in. They show in the memory screen and its history like any other
+  note; a conversation a stranger with no account spoke in still writes none. Bots are also told not to ask whether
+  to remember something, and to write what is about the person in that person's own notes.
+
 ## 0.7.1 — 2026-11-21
 
 ### Added

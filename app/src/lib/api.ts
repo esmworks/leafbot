@@ -52,6 +52,7 @@ import type {
   Memory,
   MemoryChange,
   MemoryHistoryLine,
+  MemoryTidyStatus,
   Message,
   PermissionRule,
   Approver,
@@ -298,6 +299,8 @@ export interface Settings {
   maxTurns?: number;
   /** Finished turns between two looks back at a conversation for lasting facts; 0 is off. Missing on older servers. */
   memoryReviewEvery?: number;
+  /** The weekly tidy-up of the notes; missing on older servers. */
+  memoryTidy?: boolean;
   /** Whether the person's own requests are looked at for something asked again and again; missing on older servers. */
   routineSuggestions?: boolean;
   /** The promise safety net after a bot's reply; missing on older servers. */
@@ -674,6 +677,8 @@ export const api = {
   /** Deletes every note the bot keeps for itself. */
   removeBotMemory: (botId: string) => http.del<{ count: number }>(`/api/bots/${botId}/memory`),
   staleMemory: () => http.get<Memory[]>('/api/memory-stale'),
+  memoryTidy: () => http.get<MemoryTidyStatus>('/api/memory-tidy'),
+  tidyMemory: () => http.post<{ started: boolean }>('/api/memory-tidy', {}),
   removeStaleMemory: (ids: string[]) => http.post<{ count: number }>('/api/memory-stale/delete', { ids }),
   /** Memory changes bots asked for while nobody watched; they wait for the person. */
   memoryChanges: () => http.get<MemoryChange[]>('/api/memory-changes'),

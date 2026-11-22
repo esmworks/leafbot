@@ -96,6 +96,15 @@ export const useStaleMemory = () => {
   const api = useApi();
   return useQuery({ queryKey: ['memory', useOrigin(), 'stale'], queryFn: api.staleMemory });
 };
+/** Under `memory` too; looked at again every few seconds while a pass runs, as it says nothing until it ends. */
+export const useMemoryTidy = () => {
+  const api = useApi();
+  return useQuery({
+    queryKey: ['memory', useOrigin(), 'tidy'],
+    queryFn: api.memoryTidy,
+    refetchInterval: (q) => (q.state.data?.running ? 5000 : false),
+  });
+};
 /** Under `memory` too: memory changes waiting for the person's yes. */
 export const useMemoryChanges = () => {
   const api = useApi();

@@ -680,8 +680,7 @@ export class MeetingService {
 
   /**
    * The person approved the minutes: they are kept as approved, and each bot chosen gets a note of
-   * them, with what it took on first. A bot's notes reach everyone who uses it, so one the person
-   * may only talk with gets the note once those who may change it accept it.
+   * them, with what it took on first, at once.
    */
   async save(roomId: string, id: string, body: MeetingSave, viewer: Viewer): Promise<Meeting> {
     const row = await this.row(roomId, id);
@@ -697,11 +696,6 @@ export class MeetingService {
     const { t } = await this.translatorFor(roomId);
     const thread = await this.services.threads.row(roomId);
     const all = await this.services.bots.list();
-    const [who] = await this.ctx.db
-      .select({ name: schema.users.displayName, username: schema.users.username })
-      .from(schema.users)
-      .where(eq(schema.users.id, viewer.userId))
-      .limit(1);
     const timezone = (await this.services.settings.all(thread.userId ?? undefined)).timezone;
     const day = dayIn(row.fromAt, timezone);
     const sentTo: MeetingRecipient[] = [];
@@ -718,34 +712,18 @@ export class MeetingService {
       const note = { scope: 'bot' as const, botId, userId: null, content, site: null };
       // One bot that cannot take the note leaves the others theirs.
       try {
-        if (atLeast(level, 'edit')) {
-          if (!(await this.services.memory.findSame(note))) {
-            await this.services.memory.create({
-              ...note,
-              source: 'user',
-              actor: `user:${viewer.userId}`,
-              threadId: roomId,
-            });
-          }
-          sentTo.push({ botId, waiting: false });
-        } else {
-          await this.services.memory.propose({
-            action: 'write',
-            memoryId: null,
-            scope: 'bot',
-            botId,
-            place: null,
-            site: null,
-            content,
-            before: null,
-            proposedBy: botId,
-            origin: { kind: 'person', name: who?.name || who?.username || '' },
-            userId: viewer.userId,
+        if (!(await this.services.memory.findSame(note))) {
+          await this.services.memory.create({
+            ...note,
+            // Someone who may change the bot writes its notes as their own. A note from someone who
+            // may only talk with it is kept at once too, as the bot's own: nobody is asked to judge
+            // minutes of a meeting they were not in, and the note shows in the memory screen.
+            source: atLeast(level, 'edit') ? 'user' : `bot:${botId}`,
+            actor: `user:${viewer.userId}`,
             threadId: roomId,
-            sourceUrl: null,
           });
-          sentTo.push({ botId, waiting: true });
         }
+        sentTo.push({ botId, waiting: false });
       } catch (err) {
         console.warn(`Meeting note for bot ${botId} failed: ${(err as Error).message}`);
       }

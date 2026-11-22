@@ -78,6 +78,13 @@ export const useMailSender = (connectionId: string | undefined) =>
 export const useMemory = () => useQuery({ queryKey: ['memory'], queryFn: api.memory });
 // Under `memory`, so a change to any note brings the list up to date.
 export const useStaleMemory = () => useQuery({ queryKey: ['memory', 'stale'], queryFn: api.staleMemory });
+/** Under `memory` too; looked at again every few seconds while a pass runs, as it says nothing until it ends. */
+export const useMemoryTidy = () =>
+  useQuery({
+    queryKey: ['memory', 'tidy'],
+    queryFn: api.memoryTidy,
+    refetchInterval: (q) => (q.state.data?.running ? 5000 : false),
+  });
 /** The turns of a conversation the person may take back: those that changed something. */
 export const useTurnChanges = (threadId: string) =>
   useQuery({

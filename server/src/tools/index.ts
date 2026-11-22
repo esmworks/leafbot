@@ -20,7 +20,6 @@ import {
   type Bot,
   type BotLevel,
   type Memory,
-  type MemoryChange,
   outsideIn,
   type OutsideTrigger,
   type Routine,
@@ -465,44 +464,6 @@ export class ToolFactory {
     const fromUser = attended(turn.source);
     // Nobody may be watching a routine's or another bot's turn: its cards close unanswered in time.
     const unattended = fromUser ? undefined : this.ctx.config.unattendedApprovalMs;
-    type Change = Omit<MemoryChange, 'id' | 'createdAt' | 'proposedBy' | 'origin' | 'threadId' | 'userId'>;
-    /**
-     * A bot's notes reach everyone who uses the bot: a change to them asked by someone who may
-     * only talk with it waits for those who may change it.
-     */
-    const forReview = async (change: Change) => {
-      const [who] = await this.ctx.db
-        .select({ name: schema.users.displayName, username: schema.users.username })
-        .from(schema.users)
-        .where(eq(schema.users.id, person))
-        .limit(1);
-      await s.memory.propose({
-        ...change,
-        proposedBy: bot.id,
-        origin: { kind: 'person', name: who?.name || who?.username || '' },
-        threadId: thread.id,
-        userId: person,
-      });
-      return t('tool.memoryProposedReview');
-    };
-    /** Whether the person may change the bot whose notes a change is about. */
-    const mayChangeNotesOf = async (botId: string) =>
-      botId === bot.id
-        ? mayChange()
-        : !guest && atLeast(await s.access.level(await s.access.viewerOf(person), botId), 'edit');
-    /**
-     * How a memory change goes: made now, as the bot keeps its memory itself. Only a change to a
-     * bot's notes asked by someone who may not change that bot waits for those who may: it would
-     * reach everyone who uses the bot. `say`: the change is not made now, and this is the answer to
-     * give the bot.
-     */
-    type Gate = { say?: string };
-    const memoryGate = async (change: Change): Promise<Gate> => {
-      if (change.scope === 'bot' && change.botId && !(await mayChangeNotesOf(change.botId))) {
-        return { say: await forReview(change) };
-      }
-      return {};
-    };
     /**
      * The routine a bot names, by name or id: one of its own, or, for a manager, one of another
      * bot's too, but not another manager's. A reason when there is none or more than one.
@@ -1208,6 +1169,7 @@ export class ToolFactory {
             }
           }
           if (team && scope === 'user') return t('tool.memoryTeamPersonal');
+          if (guest && scope === 'bot') return t('tool.memoryGuest');
           const where = scope === 'room' ? await place() : null;
           if (scope === 'room' && !where) return t('tool.memoryNoPlace');
           const clean = redactSecrets(content, t('memory.redacted'));
@@ -1225,18 +1187,8 @@ export class ToolFactory {
             await s.memory.markUsed([same.id]);
             return t('tool.memoryAlreadySaved', { id: same.id });
           }
-          // Said before any card, so the person is not asked about a note that cannot be kept.
           if (where && (await s.memory.roomCount(where)) >= ROOM_NOTES_PER_PLACE)
             return t('tool.memoryRoomFull', { max: ROOM_NOTES_PER_PLACE });
-          const gate = await memoryGate({
-            action: 'write',
-            memoryId: null,
-            before: null,
-            ...note,
-            sourceUrl,
-            validUntil,
-          });
-          if (gate.say !== undefined) return gate.say;
           const m = await s.memory.create({
             ...note,
             source: `bot:${bot.id}`,
@@ -1256,8 +1208,10 @@ export class ToolFactory {
             ? `${t('tool.memorySaved', { id: m.id })} ${t('tool.memoryRedacted')}`
             : t('tool.memorySaved', { id: m.id });
         },
-        // The bot keeps its memory itself; everything it writes shows in the memory screen, where the
-        // user can change or delete it.
+        // The bot keeps its memory itself, whoever it works for: asking someone to approve each note
+        // asks them to judge facts from conversations they were not in. Everything it writes shows in
+        // the memory screen and its history, where those who may change the bot change or delete it,
+        // and the weekly tidy-up settles duplicates and contradictions.
         'internal',
       ),
       def(
@@ -1283,23 +1237,10 @@ export class ToolFactory {
           ) {
             return t('tool.memoryNotYours');
           }
+          // The bot's notes reach everyone who uses it; a stranger with no account here moves none.
+          if (guest && m.scope === 'bot') return t('tool.memoryGuest');
           const clean = redactSecrets(content, t('memory.redacted'));
-          const gate = await memoryGate({
-            action: 'update',
-            memoryId: m.id,
-            before: m.content,
-            content: clean.text,
-            scope: m.scope,
-            botId: m.botId,
-            place: m.place,
-            site: m.site,
-            sourceUrl,
-            // A waiting change can give a note a date, not take it away.
-            validUntil: validUntil ?? null,
-          });
-          if (gate.say !== undefined) return gate.say;
-          // Written against the version read above, so a change made while a card waited is not
-          // written over.
+          // Written against the version read above, so a change made meanwhile is not written over.
           try {
             const u = await s.memory.update(
               id,
@@ -1346,18 +1287,8 @@ export class ToolFactory {
           ) {
             return t('tool.memoryNotYours');
           }
-          const gate = await memoryGate({
-            action: 'forget',
-            memoryId: m.id,
-            before: null,
-            content: m.content,
-            scope: m.scope,
-            botId: m.botId,
-            place: m.place,
-            site: m.site,
-            sourceUrl: null,
-          });
-          if (gate.say !== undefined) return gate.say;
+          // The bot's notes reach everyone who uses it; a stranger with no account here moves none.
+          if (guest && m.scope === 'bot') return t('tool.memoryGuest');
           await s.memory.remove(id, `bot:${bot.id}`);
           await journal({
             kind: 'memory',

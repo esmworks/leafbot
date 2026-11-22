@@ -39,6 +39,7 @@ import { JobService } from './jobs';
 import { MemoryService } from './memory';
 import { MeetingService } from './meetings';
 import { MemoryReviewService } from './memory-review';
+import { MemoryTidyService } from './memory-tidy';
 import { PromiseService } from './promises';
 import { RoutineSuggestionService } from './routine-suggestions';
 import { PushService } from './push';
@@ -77,6 +78,7 @@ export class Services {
   readonly connections: ConnectionService;
   readonly memory: MemoryService;
   readonly memoryReview: MemoryReviewService;
+  readonly memoryTidy: MemoryTidyService;
   readonly promises: PromiseService;
   readonly routineSuggestions: RoutineSuggestionService;
   readonly meetings: MeetingService;
@@ -186,6 +188,7 @@ export class Services {
     this.turns.onFinished((t, o) => this.tickets.onTurnFinished(t, o));
     this.memoryReview = new MemoryReviewService(ctx, this, engineFor);
     this.turns.onFinished((t, o) => this.memoryReview.onTurnFinished(t, o));
+    this.memoryTidy = new MemoryTidyService(ctx, this, engineFor, clock);
     this.titles = new TitleService(ctx, this, engineFor);
     this.turns.onFinished((t, o) => this.titles.onTurnFinished(t, o));
     this.offers = new OfferService(ctx, this, engineFor, clock);

@@ -365,6 +365,21 @@ describe('Discord', () => {
     await t.services.turns.idle();
   });
 
+  it('hesabı olmayan birinin konuşmasından botun kendi notu yazılmaz; kanalın notu yazılır', async () => {
+    const bot = await setUp();
+    await discord.write(AYSE, '[araç:memory_write {"content":"İade 14 gün içinde olur","scope":"bot"}]');
+    await waitFor(async () => t.engine.requests.length === 1);
+    await t.services.turns.idle();
+    expect(await t.services.memory.list({ scope: 'bot', botId: bot.id })).toEqual([]);
+    expect(await t.services.memory.pending()).toEqual([]);
+    await discord.write(AYSE, '[araç:memory_write {"content":"Kanal iadeleri konuşur","scope":"room"}]');
+    await waitFor(async () => t.engine.requests.length === 2);
+    await t.services.turns.idle();
+    expect((await t.services.memory.list({ scope: 'room' })).map((m) => m.content)).toEqual([
+      'Kanal iadeleri konuşur',
+    ]);
+  });
+
   it('kimseyle paylaşılmamış bot Discord’da cevap vermez', async () => {
     const shared = await setUp();
     const mine = await t.bot({ name: 'Benim' });

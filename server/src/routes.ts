@@ -2040,8 +2040,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.get('/api/memory-history', async (req) => {
     return s.memory.history(100, await memoryReach(req));
   });
-  // Memory changes waiting for a person: a bot asked while nobody watched, or someone who may only
-  // talk with the bot asked for a change to its notes.
+  // Memory changes still waiting from before every change was made at once; none waits now.
   app.get('/api/memory-changes', async (req) => s.memory.pending(await memoryReach(req)));
   app.post('/api/memory-changes/:id/accept', async (req) => {
     const id = IdParams.parse(req.params).id;
@@ -2055,6 +2054,15 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     await ownChange(req, id);
     await s.memory.reject(id);
     return { ok: true };
+  });
+  // The weekly tidy-up of the notes: its last pass, and a pass now for those who look after the server.
+  app.get('/api/memory-tidy', async () => ({
+    running: s.memoryTidy.running,
+    last: await s.memoryTidy.lastPass(),
+  }));
+  app.post('/api/memory-tidy', async (req) => {
+    if (!managesServer(me(req).role)) throw new HttpError(403, 'error.adminOnly');
+    return s.memoryTidy.runNow();
   });
   // Notes no bot uses any more, offered to the user to keep or delete.
   app.get('/api/memory-stale', async (req) => s.memory.stale(new Date(), await memoryReach(req)));

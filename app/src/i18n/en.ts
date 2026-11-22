@@ -2726,9 +2726,19 @@ export const en: Catalog<MessageKey> = {
   'memory.history.notKept': 'the text is not kept',
   'memory.learn': 'Learn from conversations',
   'memory.learnHint':
-    'Every few conversations a bot looks back and keeps lasting facts as notes. What it wants to save to the shared notes waits for your approval in the list above.',
+    'Every few conversations a bot looks back and keeps lasting facts as notes itself, without asking you. What it writes shows in the list above and in the history.',
   'memory.learnEvery': 'How often to look back',
   'memory.learnEveryChoice': 'Every {count} turns',
+  'memory.tidy': 'Tidy the memory once a week',
+  'memory.tidyHint':
+    'Once a week each bot’s notes are read as a whole: notes that repeat are merged, of two that disagree the newer one or the one you wrote stays, and plans whose date has passed are deleted. Notes you wrote or pinned are never changed; every change shows in the history below.',
+  'memory.tidyNow': 'Tidy now',
+  'memory.tidyRunning': 'Tidying the notes…',
+  'memory.tidyNever': 'Not tidied yet',
+  'memory.tidyLast': 'Last tidied {when}',
+  'memory.tidyDid': 'Merged {merged} · corrected {updated} · deleted {forgot}',
+  'memory.tidyNothing': 'There was nothing to tidy',
+  'memory.history.tidy': 'Weekly tidy-up',
   'projects.title': 'Coding agents’ folders on this computer',
   'projects.hint':
     'Claude Code and Codex have worked in these folders. A bot made from one works in that folder. Only the tools’ lists of folders are read, never their conversations.',
