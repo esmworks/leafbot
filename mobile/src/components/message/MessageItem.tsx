@@ -16,11 +16,10 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import { Avatar } from '@/components/Avatar';
 import { confirm, toast, toastError } from '@/components/overlay';
 import { PillButton, Sheet, type SheetItem } from '@/components/page';
-import { locale, t } from '@/i18n';
+import { t } from '@/i18n';
 import { mixWithBlack } from '@/lib/color';
-import { formatters } from '@/lib/format';
 import { nav } from '@/lib/nav';
-import { useConnections, usePromises, useTurnChanges } from '@/lib/queries';
+import { useConnections, useTurnChanges } from '@/lib/queries';
 import { useLiveTool } from '@/lib/realtime';
 import { useApi, useServer } from '@/lib/server';
 import { newClientId } from '@/lib/stream';
@@ -64,8 +63,6 @@ export interface MessageItemProps {
   /** Brings a message of this conversation into view; a quote uses it to go back to its message. */
   onJump?: (messageId: string) => void;
 }
-
-const fmt = formatters(locale, t);
 
 const QUICK_EMOJIS = ['👍', '👎', '❤️', '😂', '🙏', '🔥', '👏', '🎉'];
 
@@ -717,7 +714,6 @@ function AssistantRow({
       ) : (
         card
       )}
-      {typeof m.props.promiseId === 'string' ? <PromiseLine id={m.props.promiseId} /> : null}
       {/* With a card the reaction leads its row of actions; bare files show it here. */}
       {reaction && !card ? (
         <Pressable
@@ -729,48 +725,6 @@ function AssistantRow({
           <Text style={styles.reactionText}>{reaction}</Text>
         </Pressable>
       ) : null}
-    </View>
-  );
-}
-
-/**
- * The small line under a bot's reply that made a promise: where it stands on the calendar, and a
- * way to take it back. Nothing is shown once the promise is closed.
- */
-function PromiseLine({ id }: { id: string }) {
-  const c = useColors();
-  const api = useApi();
-  const { origin } = useServer();
-  const qc = useQueryClient();
-  const { data: promises = [] } = usePromises();
-  const refresh = () => qc.invalidateQueries({ queryKey: ['promises', origin] });
-  const drop = useMutation({
-    mutationFn: api.promiseDrop,
-    onSuccess: refresh,
-    onError: (e) => {
-      toastError(e);
-      void refresh();
-    },
-  });
-  const p = promises.find((x) => x.id === id);
-  if (!p) return null;
-  const due = p.scheduled ? p.dueAt : null;
-  return (
-    <View style={styles.promise}>
-      <Feather name="calendar" size={13} color={c.mutedForeground} />
-      <Text style={[styles.small, { color: c.mutedForeground }]}>
-        {due ? t('promise.lineKept', { when: fmt.dayLabel(due) }) : t('promise.lineNoted', { what: p.text })}
-      </Text>
-      <Pressable
-        accessibilityRole="button"
-        disabled={drop.isPending}
-        hitSlop={8}
-        onPress={() => drop.mutate(p.id)}
-      >
-        <Text style={[styles.small, styles.strongText, { color: c.foreground }]}>
-          {due ? t('promise.cancel') : t('promise.drop')}
-        </Text>
-      </Pressable>
     </View>
   );
 }

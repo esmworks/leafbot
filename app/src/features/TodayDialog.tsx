@@ -8,7 +8,6 @@ import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { useBots, useSummaries } from '@/lib/queries';
 import { useUi } from '@/lib/store';
-import { PromisesSection } from './Promises';
 import { RoutineSuggestionsSection } from './RoutineSuggestions';
 import { SkillSuggestionsSection } from './SkillSuggestions';
 import { SecondYesSection } from './SecondYes';
@@ -94,8 +93,6 @@ export function TodayDialog() {
             ) : null}
             {/* Steps that need this person's second yes; they do not see the conversation. */}
             <SecondYesSection enabled={open} />
-            {/* What bots said they would do and what the person promised others, overdue first. */}
-            <PromisesSection enabled={open} onOpen={(p) => go(p.botId, p.threadId)} />
             {/* What the person keeps asking a bot for by hand, offered as a routine. */}
             <RoutineSuggestionsSection enabled={open} />
             {/* A many-step task the person keeps asking a bot for, offered as a skill. */}

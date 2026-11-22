@@ -2331,8 +2331,9 @@ export class TurnManager {
     // run it means there is nothing to report; in a conversation the person reads, such a run leaves
     // nothing, as a run that wrote only the silent reply does.
     if (outcome.ok && endsSilent(outcome.text)) {
+      // A follow-up the bot finds nothing new to say about leaves nothing either.
       outcome =
-        turn.source === 'routine' && kind === 'user'
+        (turn.source === 'routine' || turn.source === 'followup') && kind === 'user'
           ? { ...outcome, text: SILENT_REPLY }
           : {
               ...outcome,

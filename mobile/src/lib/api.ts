@@ -18,7 +18,6 @@ import type {
   SessionInfo,
   AccountSet,
   TodayReport,
-  Pledge,
   TurnChanges,
   Rehearsal,
   RehearsalStart,
@@ -333,9 +332,6 @@ export function apiFor(origin: string) {
     answerSecond: (id: string, decision: 'allow' | 'deny') =>
       http.post<Approval>(`/api/approvals-second/${id}`, { decision }),
     /** The person's open promises: a bot's, and their own to others. */
-    promises: () => http.get<Pledge[]>('/api/promises'),
-    promiseDone: (id: string) => http.post<Pledge>(`/api/promises/${id}/done`, {}),
-    promiseDrop: (id: string) => http.post<Pledge>(`/api/promises/${id}/drop`, {}),
     routineSuggestions: () => http.get<RoutineSuggestion[]>('/api/routine-suggestions'),
     acceptRoutineSuggestion: (id: string, input: RoutineSuggestionAccept) =>
       http.post<Routine>(`/api/routine-suggestions/${id}/accept`, input),

@@ -161,8 +161,8 @@ describe('söz bekçisi', () => {
       overdue: false,
       dueAt: '2026-11-17T06:00:00.000Z',
     });
-    // The line under the reply points at the promise.
-    expect((await lastReply(th.id)).props.promiseId).toBe(p!.id);
+    // Nothing under the reply asks the person to keep track of it.
+    expect((await lastReply(th.id)).props.promiseId).toBeUndefined();
   });
 
   it('yanıtı denetlerken maliyeti kaydeder; kullanım sayfası gösterir', async () => {
@@ -242,7 +242,7 @@ describe('söz bekçisi', () => {
     expect(await list()).toEqual([]);
   });
 
-  it('yalnızca koşulu olan söz kaydedilir ama zaman uydurulmaz', async () => {
+  it('koşula bağlı söz için zaman uydurulmaz; bot ertesi sabah kendisi bakar', async () => {
     const b = await bot();
     const th = await main(b.id);
     t.engine.completer = () =>
@@ -259,9 +259,14 @@ describe('söz bekçisi', () => {
       madeBy: 'bot',
       condition: 'fiyat 100 TL altına düşünce',
       dueAt: null,
-      scheduled: false,
+      scheduled: true,
     });
-    expect((await lastReply(th.id)).props.promiseId).toBe(p!.id);
+    // The next morning at the person's reminder time (09:00 in Istanbul), to see whether it came about.
+    const [f] = await followUps();
+    expect(f).toMatchObject({ kind: 'promise', botId: b.id });
+    expect(f!.dueAt.toISOString()).toBe('2026-11-17T06:00:00.000Z');
+    expect(f!.text).toContain('fiyat 100 TL altına düşünce');
+    expect(f!.text).toContain('NO_REPLY');
   });
 
   it('botu değiştiremeyen kişinin sözü de takip edilir: takip botu değiştirmez', async () => {

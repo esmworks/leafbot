@@ -188,10 +188,6 @@ export const useTurnChanges = (threadId: string) => {
     staleTime: 30_000,
   });
 };
-export const usePromises = () => {
-  const api = useApi();
-  return useQuery({ queryKey: ['promises', useOrigin()], queryFn: api.promises });
-};
 export const useRoutineSuggestions = () => {
   const api = useApi();
   return useQuery({ queryKey: ['routine-suggestions', useOrigin()], queryFn: api.routineSuggestions });
