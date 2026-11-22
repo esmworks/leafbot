@@ -2,7 +2,6 @@ import type {
   BotAction,
   LinkPreview,
   TailscaleState,
-  Pledge,
   TurnChanges,
   RoutineSuggestion,
   RoutineSuggestionAccept,
@@ -798,9 +797,6 @@ export const api = {
     http.get<Record<string, number>>(`/api/threads/${threadId}/turn-changes`),
   turnChanges: (turnId: string) => http.get<TurnChanges>(`/api/turns/${turnId}/changes`),
   undoTurn: (turnId: string) => http.post<TurnChanges>(`/api/turns/${turnId}/undo`, {}),
-  promises: () => http.get<Pledge[]>('/api/promises'),
-  promiseDone: (id: string) => http.post<Pledge>(`/api/promises/${id}/done`, {}),
-  promiseDrop: (id: string) => http.post<Pledge>(`/api/promises/${id}/drop`, {}),
   canaryAlarmSeen: (id: string) => http.post<{ ok: true }>(`/api/canary-alarms/${id}/seen`, {}),
   importApiKeys: (input: ApiKeyImport) => http.post<ApiKeyImportResult>('/api/api-keys/import', input),
   /** The page opened on its own, with the print dialog, to save it as a PDF. */

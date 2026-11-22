@@ -49,6 +49,12 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Changed
 
+- Promises no longer wait for the person. The Promises list on Today, with its "Done" and "Drop", and the line under a
+  reply that made a promise are gone: a promise is the bot's to keep, not the person's to close. A bot's promise goes
+  into its own calendar; one that waits for something ("when the result comes") is looked at the next morning, and
+  the bot sets the next look itself while it still waits, telling the person once if a week goes by. A follow-up
+  with nothing new to say (the bot already gave the result, or the thing is done) leaves nothing in the conversation.
+  A person's own promise to someone else is brought up on its day, with nothing to close afterwards.
 - The reminders of a person's promises, of a bot's own promises and of the tasks in approved meeting minutes are
   follow-ups instead of one-time routines, so they no longer fill the bot's list of routines, and a person who may
   only talk with the bot gets them too. Bots are told to keep something to bring up later as a follow-up, not a

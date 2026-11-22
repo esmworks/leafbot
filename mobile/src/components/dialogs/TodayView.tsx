@@ -6,7 +6,6 @@ import { Avatar } from '@/components/Avatar';
 import { Item, ItemCard } from '@/components/dialogs/Item';
 import {
   CanarySection,
-  PromisesSection,
   RoutineSuggestionsSection,
   SkillSuggestionsSection,
   SecondYesSection,
@@ -67,7 +66,6 @@ export function TodayView() {
           <CanarySection alarms={data.canaryAlarms ?? []} />
           {/* Steps that need this person's second yes, then what was promised, then routine offers. */}
           <SecondYesSection />
-          <PromisesSection />
           <RoutineSuggestionsSection />
           <SkillSuggestionsSection />
           <Block

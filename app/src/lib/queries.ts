@@ -88,8 +88,6 @@ export const useTurnChanges = (threadId: string) =>
     staleTime: 30_000,
   });
 /** The person's open promises: a bot's, and their own to others. */
-export const usePromises = (enabled = true) =>
-  useQuery({ queryKey: ['promises'], queryFn: api.promises, enabled });
 /** Routines offered because the person keeps asking a bot for the same thing by hand. */
 export const useRoutineSuggestions = (enabled = true) =>
   useQuery({ queryKey: ['routine-suggestions'], queryFn: api.routineSuggestions, enabled });

@@ -224,6 +224,26 @@ describe('takipler: botun kendi takvimi', () => {
     expect(reply.props.followUp).toBe(true);
   });
 
+  it('söylenecek yeni bir şey yoksa takip hiçbir şey bırakmaz ve kapanır', async () => {
+    const bot = await t.bot({ name: 'Kahya' });
+    const th = await main(bot.id);
+    await t.services.followUps.add({
+      bot,
+      userId: 'owner',
+      threadId: th.id,
+      // The test engine answers this with a line and the silent reply under it.
+      text: 'Teklif sonucu geldi mi bak [sessiz-son]',
+      dueAt: new Date('2026-11-16T07:00:00.000Z'),
+      t: tr,
+    });
+    const before = (await t.messages(th.id)).length;
+    await at('2026-11-16T07:01:00.000Z');
+    await t.services.turns.idle();
+    expect((await t.messages(th.id)).filter((m) => m.role === 'assistant')).toHaveLength(0);
+    expect((await t.messages(th.id)).length).toBe(before);
+    expect(await open()).toEqual([]);
+  });
+
   it('kaçmaz: durmuş bot bekler, arşivlenen botun yerine kişinin başka botu söyler, gece beklenir; olay geçtiyse düşer', async () => {
     const paused = await t.bot({ name: 'Bekleyen' });
     const gone = await t.bot({ name: 'Giden' });

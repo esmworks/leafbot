@@ -101,6 +101,13 @@ function checkPrompt(o: { now: string; reply: string; asked: string }): { system
   return { system, user };
 }
 
+/** The local day of a moment, YYYY-MM-DD. */
+const wallDay = (at: Date, timezone: string) => {
+  const w = wallClock(at, timezone);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${w.year}-${p(w.month)}-${p(w.day)}`;
+};
+
 /** A stored promise as the app reads it. */
 function toPledge(row: PromiseRow, now: Date): Pledge {
   return {
@@ -228,7 +235,7 @@ export class PromiseService {
       .values({ id: newId(), botId: bot.id, costUsd, found: !!found, createdAt: this.clock() });
     if (!found) return;
     const t = translator(settings.language ?? (await this.services.settings.locale()));
-    const row = await this.keep({
+    await this.keep({
       person,
       bot,
       threadId: thread.id,
@@ -240,19 +247,6 @@ export class PromiseService {
       timezone: settings.timezone,
       t,
     });
-    const [message] = await this.ctx.db
-      .select({ id: schema.messages.id })
-      .from(schema.messages)
-      .where(
-        and(
-          eq(schema.messages.turnId, turn.id),
-          eq(schema.messages.role, 'assistant'),
-          eq(schema.messages.threadId, thread.id),
-        ),
-      )
-      .orderBy(schema.messages.createdAt)
-      .limit(1);
-    if (message) await this.services.threads.mergeProps(message.id, { promiseId: row.id });
   }
 
   /**
@@ -287,7 +281,18 @@ export class PromiseService {
         : null;
     await this.sweep(o.person);
     let followUpId: string | null = null;
-    if (o.at) {
+    // The bot looks again when it said it would; a promise that waits for something instead is
+    // looked at the next morning, and the bot sets the next look itself while it still waits.
+    const remindAt = (await this.services.settings.all(o.person)).promiseRemindAt;
+    const tomorrow = new Date(
+      zonedTime(wallDay(this.clock(), o.timezone), '12:00', o.timezone).getTime() + 86_400_000,
+    );
+    const lookAt = o.at
+      ? zonedTime(o.at.date, o.at.time, o.timezone)
+      : o.madeBy === 'bot' && condition
+        ? zonedTime(wallDay(tomorrow, o.timezone), remindAt, o.timezone)
+        : null;
+    if (lookAt) {
       try {
         const followUp = await this.services.followUps.add({
           bot: o.bot,
@@ -299,9 +304,9 @@ export class PromiseService {
               : o.t('promise.reminderPrompt', {
                   what,
                   to: toWhom || o.t('promise.someone'),
-                  day: o.day ?? o.at.date,
+                  day: o.day ?? o.at!.date,
                 }),
-          dueAt: zonedTime(o.at.date, o.at.time, o.timezone),
+          dueAt: lookAt,
           kind: 'promise',
           t: o.t,
         });
