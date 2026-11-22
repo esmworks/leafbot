@@ -837,6 +837,15 @@ const tr = {
     'Kullanıcı anahtarı girmedi. Anahtar olmadan yapabileceğini yap ya da neden gerektiğini anlat.',
   'tool.credentialSaved':
     'Anahtar "{key}" adıyla kaydedildi; artık api_request ile {origin} adresine istek gönderebilirsin.',
+  'tool.credentialOwnerQuestion': 'Bu anahtar kimin olsun?',
+  'tool.credentialOwnerContext':
+    'Botun bilgisayarındaki git yalnızca ekibin GitHub anahtarını kullanır; bilgisayar botundur ve onunla konuşan herkesin işinde çalışır. Yalnızca sizin olursa bot onu yalnız sizin işinizde, api_request ile kullanır.',
+  'tool.credentialForTeam': 'Ekibin (git de kullansın)',
+  'tool.credentialForMe': 'Yalnızca benim',
+  'tool.credentialSavedForGit':
+    'Anahtar ekibin anahtarı olarak "{key}" adıyla kaydedildi. Bilgisayarındaki git GitHub isteklerine artık bunu ekler; api_request ile {origin} adresine de kullanabilirsin.',
+  'tool.credentialSavedNotGit':
+    'Anahtar "{key}" adıyla kişinin kendi anahtarı olarak kaydedildi; api_request ile {origin} adresine kullanabilirsin. Bilgisayarındaki git bunu kullanmaz, yalnızca ekibin GitHub anahtarını ekler. Git için sunucuyu yöneten birinin anahtarı Ayarlar’daki API anahtarlarında ekibin anahtarı yapması gerekir (Ayarlar → Kasa → API anahtarları, anahtarı düzenle); kişiye bunu söyle.',
   'tool.apiRedirect': 'Yönlendirme: {location} (izlenmedi; anahtar oraya gitmez)',
   'tool.apiCut': '(Yanıt uzun olduğu için kesildi.)',
   'tool.apiRefused.noKey':
@@ -1195,7 +1204,7 @@ const tr = {
   'tool.command_status':
     'run_command ile arka planda başlatılan komutun durumunu ve son çıktısını sor (kimliğiyle). wait_seconds kadar bitmesini bekleyebilir.',
   'tool.run_command':
-    'Kendi bilgisayarının terminalinde bir bash komutu çalıştır (çalışma klasöründe). python3, openpyxl, python-docx, LibreOffice (soffice --headless --convert-to pdf), git ve node (pnpm ile yarn corepack üzerinden) kurulu. Git GitHub’a sunucu üzerinden çıkar: özel bir depo için origin’i https://github.com olan kayıtlı bir anahtarı (yoksa credential_request ile iste; ör. key: github_git, label: depoya Contents okuma/yazma izni olan fine-grained GitHub tokenı) sunucu isteklere kendisi ekler, sen değeri görmezsin. Deponun varsayılan dalına push reddedilir: bir dala push et, pull request’i GitHub uygulamasıyla aç. Git kullanıcı adı okuyamadığını söylerse anahtar yoktur ya da o depoya erişimi yoktur. Çıktı ve çıkış kodu döner; uzun işler için timeout_seconds ver. 10 dakikadan uzun sürebilecek işlerde (derleme, kurulum) background: true ver ve command_status ile izle.',
+    'Kendi bilgisayarının terminalinde bir bash komutu çalıştır (çalışma klasöründe). python3, openpyxl, python-docx, LibreOffice (soffice --headless --convert-to pdf), git ve node (pnpm ile yarn corepack üzerinden) kurulu. Git GitHub’a sunucu üzerinden çıkar: özel bir depo için origin’i https://github.com olan ekibin kayıtlı anahtarını sunucu isteklere kendisi ekler, sen değeri görmezsin. Kişinin kendi anahtarını eklemez: bilgisayar senindir ve seninle konuşan herkesin işinde çalışır. Anahtar yoksa credential_request ile iste (origin: https://github.com; ör. key: github_git, label: depoya Contents okuma/yazma izni olan fine-grained GitHub tokenı); sunucuyu yöneten biri kartta onu ekibin anahtarı olarak kaydedebilir. Deponun varsayılan dalına push reddedilir: bir dala push et, pull request’i GitHub uygulamasıyla aç. Git kullanıcı adı okuyamadığını söylerse anahtar yoktur ya da o depoya erişimi yoktur. Çıktı ve çıkış kodu döner; uzun işler için timeout_seconds ver. 10 dakikadan uzun sürebilecek işlerde (derleme, kurulum) background: true ver ve command_status ile izle.',
   'tool.person_computer_screenshot':
     "Kişinin kendi Mac'inin ana ekranının görüntüsünü al. Bu senin bilgisayarın değil, onun gerçek bilgisayarı: açık uygulamaları, dosyaları ve oturumları onun. Yalnızca istediği iş için kullan. Koordinatlar bu görüntüdeki piksel (soldan, üstten).",
   'tool.person_computer_click':
@@ -2636,6 +2645,15 @@ const en: Catalog<ServerKey> = {
     'The user did not enter the key. Do what you can without it, or explain why it is needed.',
   'tool.credentialSaved':
     'The key was saved as "{key}"; you can now send requests to {origin} with api_request.',
+  'tool.credentialOwnerQuestion': 'Whose key should this be?',
+  'tool.credentialOwnerContext':
+    "Git on the bot's computer uses only the team's GitHub key: the computer is the bot's and works for everyone who talks with it. If it is yours alone, the bot uses it only in your work, with api_request.",
+  'tool.credentialForTeam': "The team's (git uses it too)",
+  'tool.credentialForMe': 'Mine alone',
+  'tool.credentialSavedForGit':
+    'The key was saved as the team\'s key "{key}". Git on your computer now adds it to its GitHub requests; you can also use it for {origin} with api_request.',
+  'tool.credentialSavedNotGit':
+    "The key was saved as \"{key}\", the person's own; you can use it for {origin} with api_request. Git on your computer does not use it: it adds only the team's GitHub key. For git, someone who looks after the server has to make it the team's key (Settings → Vault → API keys, edit the key); tell the person so.",
   'tool.apiRedirect': 'Redirect: {location} (not followed; the key does not go there)',
   'tool.apiCut': '(The response was cut because it is long.)',
   'tool.apiRefused.noKey':
@@ -2992,7 +3010,7 @@ const en: Catalog<ServerKey> = {
   'tool.command_status':
     'Ask for the state and latest output of a command started in the background with run_command (by its id). It can wait wait_seconds for it to end.',
   'tool.run_command':
-    "Run a bash command in your own computer's terminal (in the work folder). python3, openpyxl, python-docx, LibreOffice (soffice --headless --convert-to pdf), git and node (pnpm and yarn through corepack) are installed. Git reaches GitHub through the server: for a private repository, the server adds a saved key whose origin is https://github.com to the requests itself, and you never see the value (if there is none, ask with credential_request; e.g. key: github_git, label: a fine-grained GitHub token with Contents read/write on the repository). A push to the repository's default branch is refused: push a branch and open the pull request with the GitHub app. If git says it cannot read a username, there is no key or it has no access to that repository. Returns the output and the exit code; give timeout_seconds for long jobs. For work that may take longer than 10 minutes (a build, an install), give background: true and follow it with command_status.",
+    "Run a bash command in your own computer's terminal (in the work folder). python3, openpyxl, python-docx, LibreOffice (soffice --headless --convert-to pdf), git and node (pnpm and yarn through corepack) are installed. Git reaches GitHub through the server: for a private repository, the server adds the team's saved key whose origin is https://github.com to the requests itself, and you never see the value. It does not add a person's own key: the computer is yours and works for everyone who talks with you. If there is no key, ask with credential_request (origin: https://github.com; e.g. key: github_git, label: a fine-grained GitHub token with Contents read/write on the repository); someone who looks after the server can save it as the team's key on the card. A push to the repository's default branch is refused: push a branch and open the pull request with the GitHub app. If git says it cannot read a username, there is no key or it has no access to that repository. Returns the output and the exit code; give timeout_seconds for long jobs. For work that may take longer than 10 minutes (a build, an install), give background: true and follow it with command_status.",
   'tool.person_computer_screenshot':
     "Take a picture of the main screen of the person's own Mac. This is not your computer but their real one: the open apps, files and sign-ins are theirs. Use it only for the work they asked for. Coordinates are pixels in this picture (from the left and the top).",
   'tool.person_computer_click':

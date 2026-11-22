@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { ApiCredential, Approval, Thread } from '@leafbot/shared';
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
 import { testServer, waitFor, type Person, type TestServer } from './helpers';
@@ -328,6 +329,69 @@ describe('kayıtlı API anahtarları', () => {
       await say(ayse, thread.id, `[araç:api_request ${JSON.stringify({ key: 'servis', url: '/y' })}]`);
       await t.services.turns.idle();
       expect(svc.seen.at(-1)!.headers.authorization).toBe('Bearer yeni-anahtar-654321');
+    });
+
+    it('bilgisayardaki git yalnız ekibin GitHub anahtarını alır; sunucuyu yöneten kartta ekibin yapabilir', async () => {
+      const github = 'https://github.com';
+      const bot = await shared('Gitçi');
+      const ask = async (p: Person | null) => {
+        const thread = p ? await mainOf(p, bot.id) : await main(bot.id);
+        const text = `[araç:credential_request ${JSON.stringify({ key: 'github_git', origin: github, label: 'GitHub tokenı' })}]`;
+        if (p) await say(p, thread.id, text);
+        else await t.send(thread.id, text);
+        const card = await waitFor(
+          async () => (await (p ?? t).api<Approval[]>('GET', '/api/approvals?status=pending')).body[0],
+        );
+        return { thread, card, questions: card.input.questions as { options: string[]; secret?: boolean }[] };
+      };
+
+      // A member's GitHub key is their own, so git does not get it, and the bot is told why.
+      const member = await ask(ayse);
+      expect(member.questions).toHaveLength(1);
+      await ayse.api('POST', `/api/approvals/${member.card.id}`, { decision: 'allow', answer: KEY_VALUE });
+      await t.services.turns.idle();
+      const told = (await ayse.api<{ text: string }[]>('GET', `/api/threads/${member.thread.id}/messages`))
+        .body;
+      expect(told.at(-1)!.text).toContain('git bunu kullanmaz');
+      expect(await t.services.apiCredentials.gitToken(bot.id)).toBeNull();
+
+      // One who looks after the server is asked whose it is; the team's goes to git.
+      const admin = await ask(null);
+      expect(admin.questions).toHaveLength(2);
+      expect(admin.questions[1]!.options[0]).toBe('Ekibin (git de kullansın)');
+      await t.api('POST', `/api/approvals/${admin.card.id}`, {
+        decision: 'allow',
+        answer: JSON.stringify(['ghp_ekip-yeni-123456', admin.questions[1]!.options[0]]),
+      });
+      await t.services.turns.idle();
+      expect((await t.messages(admin.thread.id)).at(-1)!.text).toContain('ekibin anahtarı olarak');
+      const team = (await t.services.apiCredentials.list()).find((k) => !k.userId && k.origin === github)!;
+      expect(team).toMatchObject({ name: 'github_git', botIds: [bot.id] });
+      expect(await t.services.apiCredentials.gitToken(bot.id)).toBe('ghp_ekip-yeni-123456');
+      // The secret never stays on the card; the choice beside it does.
+      const rows = JSON.stringify(await t.db.db.select().from(schema.approvals));
+      expect(rows).not.toContain('ghp_ekip-yeni-123456');
+    });
+
+    it('birden çok ekip GitHub anahtarında git en son kaydedileni kullanır', async () => {
+      const bot = await shared('Sıralı');
+      const fresh = await t.services.apiCredentials.create(
+        { name: 'zz_yeni', origin: 'https://github.com', value: 'ghp_yeni-123456' },
+        null,
+      );
+      const old = await t.services.apiCredentials.create(
+        { name: 'aa_eski', origin: 'https://github.com', value: 'ghp_eski-123456' },
+        null,
+      );
+      // The older one by name sorts first, yet the one changed last is what someone just typed.
+      await t.db.db
+        .update(schema.apiCredentials)
+        .set({ updatedAt: new Date(Date.now() - 86_400_000) })
+        .where(eq(schema.apiCredentials.id, old.id));
+      expect(await t.services.apiCredentials.gitToken(bot.id)).toBe('ghp_yeni-123456');
+      await t.services.apiCredentials.update(old.id, { value: 'ghp_eski-yenilendi-123456' });
+      expect(await t.services.apiCredentials.gitToken(bot.id)).toBe('ghp_eski-yenilendi-123456');
+      expect(fresh.userId).toBeNull();
     });
 
     it('ekip konuşmasında anahtar istenemez', async () => {

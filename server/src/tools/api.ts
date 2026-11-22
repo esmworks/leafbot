@@ -3,7 +3,8 @@ import { z } from 'zod';
 import type { AppTool } from '../engine/types';
 import type { T } from '../i18n';
 import type { Services } from '../services';
-import { ApiCallError } from '../services/api-credentials';
+import { managesServer } from '../services/access';
+import { ApiCallError, GITHUB_ORIGIN } from '../services/api-credentials';
 import type { TurnRow } from '../runtime/turns';
 import { askPerson, type Define } from './index';
 
@@ -97,6 +98,11 @@ export function apiTools(opts: {
           if (pick !== typeNew) return t('tool.credentialSkipped');
         }
         const how = auth ?? { type: 'bearer' as const };
+        // Git on the bot's desktop uses only the team's GitHub key (see `gitToken`), so one who may
+        // keep the team's keys is asked on the same card whether this one is the team's.
+        const github = where.data === GITHUB_ORIGIN;
+        const mayTeam = github && managesServer((await s.access.viewerOf(own)).role);
+        const forTeam = t('tool.credentialForTeam');
         const r = await askPerson(s, {
           bot,
           thread,
@@ -113,12 +119,23 @@ export function apiTools(opts: {
               options: [],
               secret: true,
             },
+            ...(mayTeam
+              ? [
+                  {
+                    question: t('tool.credentialOwnerQuestion'),
+                    context: t('tool.credentialOwnerContext'),
+                    options: [forTeam, t('tool.credentialForMe')],
+                  },
+                ]
+              : []),
           ],
         });
         if (r.timedOut) return t('tool.questionTimedOut');
         if (r.status === 'expired') return t('tool.questionExpired');
         const value = r.answers[0]?.trim();
         if (r.status !== 'allowed' || !value) return t('tool.credentialSkipped');
+        const team = mayTeam && r.answers[1] === forTeam;
+        const prior = team ? await s.apiCredentials.owned(name.data, null) : existing;
         const saved = await s.apiCredentials.put(
           {
             name: name.data,
@@ -127,12 +144,18 @@ export function apiTools(opts: {
             label,
             value,
             // A new key is this bot's alone until the person opens it to others in the vault.
-            ...(existing ? {} : { botIds: [bot.id] }),
+            ...(prior ? {} : { botIds: [bot.id] }),
           },
-          own,
+          team ? null : own,
         );
-        if (closed) await s.apiCredentials.update(saved.id, { botIds: [...closed.botIds!, bot.id] });
-        return t('tool.credentialSaved', { key: name.data, origin: where.data });
+        // A key kept for other bots is opened to this one as well, since it was typed for it.
+        const kept = team ? prior : closed;
+        if (kept?.botIds && !kept.botIds.includes(bot.id)) {
+          await s.apiCredentials.update(saved.id, { botIds: [...kept.botIds, bot.id] });
+        }
+        const done = { key: name.data, origin: where.data };
+        if (team) return t('tool.credentialSavedForGit', done);
+        return github ? t('tool.credentialSavedNotGit', done) : t('tool.credentialSaved', done);
       },
       'internal',
     ),
