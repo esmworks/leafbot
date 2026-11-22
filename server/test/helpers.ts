@@ -7,6 +7,7 @@ import { SESSION_COOKIE } from '../src/auth';
 import { schema } from '../src/db';
 import { loadConfig, type Config } from '../src/config';
 import { FakeEngine } from '../src/engine/fake';
+import type { Engine } from '../src/engine/types';
 import postgres from 'postgres';
 
 /** Set to run the suite on PostgreSQL instead of in-memory PGlite; each server gets its own database. */
@@ -53,7 +54,11 @@ export interface Person {
   api<T = unknown>(method: string, url: string, body?: unknown): Promise<{ status: number; body: T }>;
 }
 
-export async function testServer(overrides: Partial<Config> = {}): Promise<TestServer> {
+/** `engine`: what runs the bots' turns instead of the fake engine, which `t.engine` still is. */
+export async function testServer(
+  overrides: Partial<Config> = {},
+  opts: { engine?: Engine } = {},
+): Promise<TestServer> {
   const dataDir = mkdtempSync(join(tmpdir(), 'leafbot-test-'));
   const pg = await freshDatabase();
   const config = loadConfig(
@@ -79,7 +84,7 @@ export async function testServer(overrides: Partial<Config> = {}): Promise<TestS
   );
   const engine = new FakeEngine();
   const now = { value: new Date('2026-11-16T05:00:00.000Z') };
-  const server = await createServer(config, { engine, clock: () => now.value });
+  const server = await createServer(config, { engine: opts.engine ?? engine, clock: () => now.value });
   // A model-written title would replace the first message's words that many tests read back; the
   // naming's own tests turn it on.
   await server.services.settings.update({ modelTitles: false });

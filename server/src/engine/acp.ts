@@ -124,6 +124,8 @@ export interface AcpEngineOptions {
   start?(agent: AcpAgentId, cwd: string): AcpProcess;
   /** The variables the tool starts with; the server's own secrets are left out. */
   env?: NodeJS.ProcessEnv;
+  /** How long a stopped agent has before it is ended; `CANCEL_GRACE_MS` unless a test says. */
+  cancelGraceMs?: number;
   /** How each agent's tool starts, where it differs from `ACP_COMMANDS`; for tests. */
   commands?: Partial<typeof ACP_COMMANDS>;
   version: string;
@@ -141,7 +143,15 @@ function startProcess(
   cwd: string,
   env: NodeJS.ProcessEnv,
 ): AcpProcess {
-  const child = spawn(command, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'] });
+  // A group of its own, so ending it also ends the commands it started.
+  const child = spawn(command, args, { cwd, env, stdio: ['pipe', 'pipe', 'pipe'], detached: true });
+  const kill = (signal: NodeJS.Signals) => {
+    try {
+      if (child.pid) process.kill(-child.pid, signal);
+    } catch {
+      child.kill(signal);
+    }
+  };
   let stderr = '';
   child.stderr.on('data', (d: Buffer) => {
     stderr = (stderr + d.toString()).slice(-2000);
@@ -163,8 +173,8 @@ function startProcess(
     exited,
     close() {
       if (child.exitCode !== null || child.signalCode !== null) return;
-      child.kill('SIGTERM');
-      setTimeout(() => child.kill('SIGKILL'), 3000).unref();
+      kill('SIGTERM');
+      setTimeout(() => kill('SIGKILL'), 3000).unref();
     },
   };
 }
@@ -225,6 +235,20 @@ function hostOf(call: ToolCallUpdate): string | null {
 
 /** A tool's name as the agent sees it: a connection's tools keep their connection's name before it. */
 const exposedName = (tool: AppTool) => (tool.server ? `${tool.server}__${tool.name}` : tool.name);
+
+/**
+ * Whether an agent's question is about calling one of the app's tools on the app's MCP server:
+ * agents name such a step by the tool, often with the server's name (`memory_save (leafbot MCP
+ * Server)`, `mcp__leafbot__memory_save`), and do not call it a read, edit or command.
+ */
+export function appToolCall(call: ToolCallUpdate, exposed: ReadonlySet<string>): boolean {
+  if (call.kind && call.kind !== 'other') return false;
+  const label = `${call.name ?? ''} ${call.title ?? ''}`;
+  if (!/leafbot/i.test(label)) return false;
+  return label
+    .split(/[^A-Za-z0-9_]+/)
+    .some((word) => [...exposed].some((name) => word === name || word.endsWith(`__${name}`)));
+}
 
 /**
  * The app's tools as an MCP server on this computer alone, for one turn: its address carries a
@@ -311,7 +335,9 @@ export async function serveTools(req: TurnRequest, t: T): Promise<{ url: string;
 }
 
 /** An engine that runs nothing and says why: a coding agent bot asked to work where it may not. */
-export const refusingEngine = (why: 'engine.acpOff' | 'engine.acpOwnerOnly'): Engine => ({
+export const refusingEngine = (
+  why: 'engine.acpOff' | 'engine.acpOwnerOnly' | 'engine.acpReadOnly',
+): Engine => ({
   kind: 'acp',
   run: async (req) => ({
     ok: false,
@@ -321,6 +347,9 @@ export const refusingEngine = (why: 'engine.acpOff' | 'engine.acpOwnerOnly'): En
     sessionId: req.sessionId,
   }),
 });
+
+/** How long an agent has to stop after it was told to, before it is ended. */
+export const CANCEL_GRACE_MS = 5000;
 
 /** The agent says it needs its own login (the protocol's "auth required"). */
 const AUTH_REQUIRED = -32000;
@@ -402,8 +431,12 @@ export class AcpEngine implements Engine {
       }
     };
 
+    const exposed = new Set(req.tools.map(exposedName));
     const ask = async (params: RequestPermissionRequest): Promise<RequestPermissionResponse> => {
       if (req.signal.aborted) return { outcome: { outcome: 'cancelled' } };
+      // Some agents ask before calling an MCP tool. A call to the app's own tools is asked about,
+      // or let through, where it lands (see `serveTools`), so it is not asked about twice.
+      if (appToolCall(params.toolCall, exposed)) return pickOption(params.options, true);
       const step = stepAsk(params.toolCall);
       const refused = await req.screen?.(step);
       if (refused) return pickOption(params.options, false);
@@ -451,7 +484,13 @@ export class AcpEngine implements Engine {
       }
       live = true;
       const sid = sessionId!;
-      const onAbort = () => void peer.notify('session/cancel', { sessionId: sid }).catch(() => {});
+      // Told to stop; an agent that does not is ended, along with what it started.
+      let grace: NodeJS.Timeout | undefined;
+      const onAbort = () => {
+        void peer.notify('session/cancel', { sessionId: sid }).catch(() => {});
+        grace = setTimeout(() => proc.close(), this.opts.cancelGraceMs ?? CANCEL_GRACE_MS);
+        grace.unref();
+      };
       req.signal.addEventListener('abort', onAbort, { once: true });
       try {
         // The protocol has no place for instructions: a new session reads them before the first message.
@@ -469,6 +508,7 @@ export class AcpEngine implements Engine {
         if (stopReason === 'refusal') return fail(t('engine.acpRefused', { agent: agent.name }));
         return { ok: true, text, sessionId, costUsd: null };
       } finally {
+        clearTimeout(grace);
         req.signal.removeEventListener('abort', onAbort);
       }
     };

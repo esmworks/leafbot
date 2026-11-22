@@ -27,9 +27,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
   agent uses its own sign-in and its own model. Only the server's owner can choose it, and only in the desktop app,
   where the server runs on that computer. The agent works outside the bot's protected folder with its own file and
   shell tools, so such a bot carries out only the owner's own messages in their own conversation: not a routine, a
-  mail, a webhook, a team chat, a room, a guest or another person. The steps the agent asks about come as the usual
-  cards, never with "always allow" toward the agent, and the bot's own tools (memory, files, apps) reach it through a
-  local MCP server that asks the same way; steps the agent takes without asking are not stopped by the app.
+  mail, a webhook, a team chat, a room, a guest or another person, and a bot that may only read is refused. Every step
+  past reading that the agent asks about (a command, an edit, a fetch) comes as a card at every level, without "always
+  allow". The bot's own tools (memory, files, apps) reach it through a local MCP server and go by the usual rules;
+  steps the agent takes without asking are not stopped by the app.
 
 ## 0.8.0 — 2026-11-22
 

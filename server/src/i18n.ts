@@ -529,8 +529,10 @@ const tr = {
   'engine.acpLimit': '{agent} kendi adım ya da uzunluk sınırına ulaştı; tur durduruldu.',
   'engine.acpOwnerOnly':
     'Bu bot bilgisayardaki bir kodlama ajanıyla çalışıyor; yalnızca sunucunun sahibinin kendi mesajlarını yürütür. Rutin, posta, webhook, ekip sohbeti ya da başka biri için çalışmaz.',
+  'engine.acpReadOnly':
+    'Bu bot bilgisayardaki bir kodlama ajanıyla çalışıyor; uygulama bir ajanı yalnızca okumaya tutamaz. Botun izin düzeyini "Önce sor" ya da üstü yapın.',
   'engine.acpOff':
-    'Kodlama ajanları yalnızca sunucu sahibin kendi bilgisayarında çalışırken kullanılabilir (masaüstü uygulaması).',
+    'Kodlama ajanları yalnızca sunucu, sahibinin kendi bilgisayarında çalışırken kullanılabilir (masaüstü uygulaması).',
   'engine.modelError': 'Model hatası',
   'engine.noResponse': 'Model yanıt vermedi',
   'engine.providerKey':
@@ -2345,6 +2347,8 @@ const en: Catalog<ServerKey> = {
   'engine.acpLimit': '{agent} reached its own step or length limit; the turn was stopped.',
   'engine.acpOwnerOnly':
     "This bot runs on a coding agent on the computer; it carries out only the server owner's own messages. It does not run for a routine, a mail, a webhook, a team chat or anyone else.",
+  'engine.acpReadOnly':
+    'This bot runs on a coding agent on the computer, and the app cannot hold an agent to only reading. Set the bot\'s level to "Ask first" or above.',
   'engine.acpOff':
     "Coding agents can be used only while the server runs on the owner's own computer (the desktop app).",
   'engine.modelError': 'Model error',

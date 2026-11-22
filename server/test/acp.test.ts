@@ -1,4 +1,4 @@
-import { agent as acpAgent, RequestError, type AgentApp, type SessionUpdate } from '@agentclientprotocol/sdk';
+import { agent as acpAgent, RequestError, type AgentApp } from '@agentclientprotocol/sdk';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { mkdtempSync, realpathSync } from 'node:fs';
@@ -6,91 +6,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { AcpEngine, agentEnv, pickOption, stepAsk } from '../src/engine/acp';
+import { AcpEngine, agentEnv, appToolCall, pickOption, stepAsk } from '../src/engine/acp';
+import { fakeAgent } from './fixtures/fake-acp-agent';
 import type { AppTool, PermissionAsk, PermissionAnswer, TurnRequest } from '../src/engine/types';
-
-/** What the fake agent was asked, and what it heard back. */
-interface Seen {
-  prompts: string[];
-  loads: string[];
-  cancelled: boolean;
-  answers: unknown[];
-  toolResults: unknown[];
-}
-
-/**
- * A coding agent speaking the protocol, in this process: what it does with a prompt is `onPrompt`.
- */
-function fakeAgent(opts: {
-  loadSession?: boolean;
-  http?: boolean;
-  onPrompt?: (
-    say: (u: SessionUpdate) => Promise<void>,
-    ctx: {
-      ask: (u: unknown) => Promise<unknown>;
-      mcpUrl: string | null;
-      seen: Seen;
-      cancelled: Promise<void>;
-    },
-  ) => Promise<string>;
-}) {
-  const seen: Seen = { prompts: [], loads: [], cancelled: false, answers: [], toolResults: [] };
-  let mcpUrl: string | null = null;
-  let onCancel = () => {};
-  const cancelled = new Promise<void>((r) => (onCancel = r));
-  const app: AgentApp = acpAgent({ name: 'fake' })
-    .onRequest('initialize', () => ({
-      protocolVersion: 1,
-      agentCapabilities: { loadSession: !!opts.loadSession, mcpCapabilities: { http: !!opts.http } },
-    }))
-    .onRequest('session/new', ({ params }) => {
-      mcpUrl = params.mcpServers.find((s) => 'url' in s)?.url ?? null;
-      return { sessionId: 's1' };
-    })
-    .onRequest('session/load', async ({ params, client }) => {
-      seen.loads.push(params.sessionId);
-      if (params.sessionId !== 's1') throw new Error('no such session');
-      mcpUrl = params.mcpServers.find((s) => 'url' in s)?.url ?? null;
-      // A loaded session replays its past first.
-      await client.notify('session/update', {
-        sessionId: 's1',
-        update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'OLD ' } },
-      });
-      return {};
-    })
-    .onNotification('session/cancel', () => {
-      seen.cancelled = true;
-      onCancel();
-    })
-    .onRequest('session/prompt', async ({ params, client }) => {
-      const first = params.prompt[0];
-      seen.prompts.push(first?.type === 'text' ? first.text : '');
-      const say = (update: SessionUpdate) =>
-        client.notify('session/update', { sessionId: params.sessionId, update });
-      const ask = async (toolCall: unknown) => {
-        const answer = await client.request('session/request_permission', {
-          sessionId: params.sessionId,
-          toolCall: toolCall as never,
-          options: [
-            { optionId: 'once', name: 'Allow', kind: 'allow_once' },
-            { optionId: 'always', name: 'Always', kind: 'allow_always' },
-            { optionId: 'no', name: 'Reject', kind: 'reject_once' },
-          ],
-        });
-        seen.answers.push(answer.outcome);
-        return answer.outcome;
-      };
-      const stop = await (
-        opts.onPrompt ??
-        (async (s) => {
-          await s({ sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'Merhaba' } });
-          return 'end_turn';
-        })
-      )(say, { ask, mcpUrl, seen, cancelled });
-      return { stopReason: stop as 'end_turn' };
-    });
-  return { app, seen };
-}
 
 function request(over: Partial<TurnRequest> = {}) {
   const asks: PermissionAsk[] = [];
@@ -327,5 +245,47 @@ describe('ACP motoru', () => {
     const out = await engineWith(app).run(request({ sessionId: 's1' }).req);
     expect(out).toMatchObject({ ok: false, kind: 'engine' });
     expect((out as { message: string }).message).toContain('giriş');
+  });
+
+  it('durdurmayı dinlemeyen ajanı süre dolunca kapatır', async () => {
+    const stop = new AbortController();
+    const { app } = fakeAgent({
+      onPrompt: async () => {
+        stop.abort();
+        // Never answers the cancel.
+        return new Promise<string>(() => {});
+      },
+    });
+    let closed = 0;
+    let die!: (e: Error) => void;
+    const engine = new AcpEngine({
+      version: 't',
+      cancelGraceMs: 20,
+      start: () => ({
+        target: app,
+        exited: new Promise<never>((_, reject) => (die = reject)),
+        close: () => {
+          closed++;
+          die(Object.assign(new Error('killed'), { exit: true }));
+        },
+      }),
+    });
+    const out = await engine.run(request({ signal: stop.signal }).req);
+    expect(closed).toBeGreaterThan(0);
+    expect(out).toMatchObject({ ok: false, kind: 'interrupted' });
+  });
+
+  it('uygulamanın kendi aracı için sorulan soruyu ayrıca kartla sormaz', () => {
+    const exposed = new Set(['memory_write', 'notion__search']);
+    expect(appToolCall({ toolCallId: 'x', title: 'memory_write (leafbot MCP Server)' }, exposed)).toBe(true);
+    expect(
+      appToolCall({ toolCallId: 'x', kind: 'other', name: 'mcp__leafbot__notion__search' }, exposed),
+    ).toBe(true);
+    // Another server's tool of the same name, a command, or a name it does not have: asked as usual.
+    expect(appToolCall({ toolCallId: 'x', title: 'memory_write (other MCP Server)' }, exposed)).toBe(false);
+    expect(appToolCall({ toolCallId: 'x', kind: 'execute', title: 'leafbot memory_write' }, exposed)).toBe(
+      false,
+    );
+    expect(appToolCall({ toolCallId: 'x', title: 'rm -rf (leafbot MCP Server)' }, exposed)).toBe(false);
   });
 });
