@@ -33,7 +33,14 @@
 
 :root {
   --radius: 1rem;
-  --background: oklch(0.985 0 0);
+  /*
+   * The color tone tints the gray surfaces: their lightness stays, so text reads as well in every
+   * tone, and the words, the main button, red and each bot's own color are left as they are.
+   * Neutral has no tint. Chosen per device under Settings → General (lib/theme.ts).
+   */
+  --tone-c: 0;
+  --tone-h: 0;
+  --background: oklch(0.985 var(--tone-c) var(--tone-h));
   --foreground: oklch(0.18 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.18 0 0);
@@ -41,18 +48,18 @@
   --popover-foreground: oklch(0.18 0 0);
   --primary: oklch(0.2 0 0);
   --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.955 0 0);
+  --secondary: oklch(0.955 var(--tone-c) var(--tone-h));
   --secondary-foreground: oklch(0.2 0 0);
-  --muted: oklch(0.955 0 0);
-  --muted-foreground: oklch(0.5 0 0);
-  --accent: oklch(0.94 0 0);
+  --muted: oklch(0.955 var(--tone-c) var(--tone-h));
+  --muted-foreground: oklch(0.5 var(--tone-c) var(--tone-h));
+  --accent: oklch(0.94 var(--tone-c) var(--tone-h));
   --accent-foreground: oklch(0.2 0 0);
   --destructive: oklch(0.58 0.22 27);
-  --border: oklch(0.91 0 0);
-  --input: oklch(0.91 0 0);
-  --ring: oklch(0.7 0 0);
+  --border: oklch(0.91 var(--tone-c) var(--tone-h));
+  --input: oklch(0.91 var(--tone-c) var(--tone-h));
+  --ring: oklch(0.7 var(--tone-c) var(--tone-h));
   --bubble: var(--sidebar);
-  --sidebar: oklch(0.97 0 0);
+  --sidebar: oklch(0.97 var(--tone-c) var(--tone-h));
   /* The conversation's column and a bot message's width; wider ones are chosen in Settings. */
   --chat-width: 860px;
   --bubble-width: 730px;
@@ -61,26 +68,42 @@
 }
 
 .dark {
-  --background: oklch(0.13 0 0);
+  --background: oklch(0.13 var(--tone-c) var(--tone-h));
   --foreground: oklch(0.95 0 0);
-  --card: oklch(0.18 0 0);
+  --card: oklch(0.18 var(--tone-c) var(--tone-h));
   --card-foreground: oklch(0.95 0 0);
-  --popover: oklch(0.2 0 0);
+  --popover: oklch(0.2 var(--tone-c) var(--tone-h));
   --popover-foreground: oklch(0.95 0 0);
   --primary: oklch(0.95 0 0);
   --primary-foreground: oklch(0.15 0 0);
-  --secondary: oklch(0.22 0 0);
+  --secondary: oklch(0.22 var(--tone-c) var(--tone-h));
   --secondary-foreground: oklch(0.95 0 0);
-  --muted: oklch(0.22 0 0);
-  --muted-foreground: oklch(0.65 0 0);
-  --accent: oklch(0.24 0 0);
+  --muted: oklch(0.22 var(--tone-c) var(--tone-h));
+  --muted-foreground: oklch(0.65 var(--tone-c) var(--tone-h));
+  --accent: oklch(0.24 var(--tone-c) var(--tone-h));
   --accent-foreground: oklch(0.95 0 0);
   --destructive: oklch(0.65 0.2 25);
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.55 0 0);
-  --bubble: oklch(0.2 0 0);
-  --sidebar: oklch(0.11 0 0);
+  --ring: oklch(0.55 var(--tone-c) var(--tone-h));
+  --bubble: oklch(0.2 var(--tone-c) var(--tone-h));
+  --sidebar: oklch(0.11 var(--tone-c) var(--tone-h));
+}
+
+:root[data-tone='slate'] {
+  --tone-c: 0.015;
+  --tone-h: 255;
+}
+:root[data-tone='leaf'] {
+  --tone-c: 0.015;
+  --tone-h: 160;
+}
+/* Dark surfaces need a little more of the tint to show it; these come later to win over the above. */
+.dark[data-tone='slate'] {
+  --tone-c: 0.018;
+}
+.dark[data-tone='leaf'] {
+  --tone-c: 0.016;
 }
 
 @theme inline {

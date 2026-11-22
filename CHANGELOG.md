@@ -7,6 +7,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A color tone beside the light and dark theme, in the web and the phone app: Neutral (as before), Slate or Leaf. It
+  tints only the gray surfaces and keeps their lightness, so text reads as well in each, and leaves the words, buttons
+  and each bot's own color as they are. It is kept per device under Settings → General.
 - The phone app takes new versions of its code without a store release, from the EAS project it is released from. It
   looks when it opens and when it comes back to the front, at most once an hour, uses an update from the next start and
   offers to restart into it at once. Settings → About shows which version is running and checks on request. An update

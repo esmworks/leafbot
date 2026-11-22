@@ -41,6 +41,10 @@
       } catch (e) {
         document.documentElement.classList.add('dark');
       }
+      try {
+        var tone = localStorage.getItem('leafbot.tone');
+        if (tone === 'slate' || tone === 'leaf') document.documentElement.dataset.tone = tone;
+      } catch (e) {}
     </script>
   </head>
   <body>

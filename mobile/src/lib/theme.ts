@@ -1,5 +1,6 @@
 import { useColorScheme } from 'react-native';
 import { useStored } from './stored';
+import { inTone, TONE_KEY, TONES, type ToneChoice } from './tone';
 
 /** The web app's color tokens in sRGB, so both apps look alike in light and dark. */
 const light = {
@@ -71,8 +72,21 @@ export function useIsDark(): boolean {
   return choice === 'system' ? scheme === 'dark' : choice === 'dark';
 }
 
+/** The color tone picked in the settings, kept on this phone like the theme. */
+export function useTone(): [ToneChoice, (v: ToneChoice) => void] {
+  const [tone, set] = useStored<ToneChoice>(TONE_KEY, 'neutral');
+  return [TONES.includes(tone) ? tone : 'neutral', set];
+}
+
+// Built once, so a screen's colors stay the same object between renders and its styles are not
+// worked out again each time.
+const TABLES = Object.fromEntries(
+  TONES.map((tone) => [tone, { light: inTone(light, tone, false), dark: inTone(dark, tone, true) }]),
+) as Record<ToneChoice, { light: Colors; dark: Colors }>;
+
 export function useColors(): Colors {
-  return useIsDark() ? dark : light;
+  const [tone] = useTone();
+  return TABLES[tone][useIsDark() ? 'dark' : 'light'];
 }
 
 /** Heights and corner radii shared by inputs and buttons. */
