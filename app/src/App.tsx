@@ -17,6 +17,7 @@ import { Chat } from '@/features/Chat';
 import { RoomDialog, RoomView } from '@/features/Rooms';
 import { Login } from '@/features/Login';
 import { Onboarding } from '@/features/onboarding/Onboarding';
+import { PhoneScreen } from '@/features/PhoneScreen';
 import { RightPanel } from '@/features/RightPanel';
 import { SearchDialog } from '@/features/SearchDialog';
 import { SettingsPage } from '@/features/SettingsPage';
@@ -29,6 +30,7 @@ import { Sidebar } from '@/features/Sidebar';
 import { useLocale, useT } from '@/i18n';
 import { api, setUnauthorizedHandler } from '@/lib/api';
 import { isQuickView } from '@/lib/quick';
+import { screenBotOf } from '@/lib/screen';
 import { takeLinkedThread } from '@/lib/threadLink';
 import { desktop } from '@/lib/desktop';
 import { useLayout } from '@/lib/layout';
@@ -107,6 +109,9 @@ function Authed() {
   useLocaleSync();
   // The desktop app's quick window shows only what waits for the person.
   if (isQuickView()) return <QuickPanel />;
+  // The phone app's web view shows only a bot's computer.
+  const screenBot = screenBotOf();
+  if (screenBot) return <PhoneScreen botId={screenBot} />;
   if (!desktop && !accountDone) {
     if (account.isPending) return <Loading />;
     if (account.data?.username === null) return <CreateAccount onDone={() => setAccountDone(true)} />;
