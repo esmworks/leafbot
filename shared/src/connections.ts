@@ -240,6 +240,20 @@ export const CATALOG_CATEGORIES = [
 ] as const;
 export type CatalogCategory = (typeof CATALOG_CATEGORIES)[number];
 
+/**
+ * The catalog's tabs: a few broad groups, each holding several categories, so the row of tabs fits
+ * and a category is found by what kind of work it is for. Every category is in exactly one group.
+ */
+export const CATALOG_GROUPS = {
+  work: ['projects', 'docs', 'meetings', 'automation'],
+  customers: ['messaging', 'sales', 'support', 'marketing'],
+  software: ['dev', 'monitoring', 'web'],
+  creative: ['design', 'media'],
+  business: ['finance', 'hr', 'analytics'],
+} as const satisfies Record<string, readonly CatalogCategory[]>;
+
+export type CatalogGroup = keyof typeof CATALOG_GROUPS;
+
 export interface CatalogEntry {
   /** Stable key, from the name; also the logo's file name (`/connections/<id>.png`). */
   id: string;

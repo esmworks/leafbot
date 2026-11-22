@@ -1,5 +1,6 @@
 import {
   CATALOG_CATEGORIES,
+  CATALOG_GROUPS,
   CONNECTION_CATALOG,
   addressKey,
   catalogEntry,
@@ -11,6 +12,7 @@ import {
   sharesApp,
   type Bot,
   type CatalogCategory,
+  type CatalogGroup,
   type CatalogEntry,
   type Connection,
   type ConnectionAuth,
@@ -48,7 +50,7 @@ import { TeamChoice } from './VaultTab';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
-type Filter = 'all' | 'connected' | CatalogCategory;
+type Filter = 'all' | 'connected' | CatalogGroup;
 type View =
   | { kind: 'browse' }
   | { kind: 'setup'; entry: CatalogEntry | null; sibling?: Connection }
@@ -171,8 +173,9 @@ export function AppsPage() {
     setView({ kind: 'browse' });
   };
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 justify-center">
-      <div className="flex min-h-0 w-full max-w-3xl flex-col">
+    // The whole main area: the lists of apps take as many columns as its width holds.
+    <section className="@container flex min-h-0 min-w-0 flex-1">
+      <div className="flex min-h-0 w-full flex-col">
         {view.kind === 'browse' && (
           <Browse
             onView={setView}
@@ -285,7 +288,10 @@ function Browse({
         ]
       : filter === 'connected'
         ? []
-        : [{ title: label(filter), entries: CONNECTION_CATALOG.filter((e) => e.category === filter) }];
+        : CATALOG_GROUPS[filter].map((c) => ({
+            title: label(c),
+            entries: CONNECTION_CATALOG.filter((e) => e.category === c),
+          }));
   const shownServices =
     filter === 'connected' || (!q && filter === 'all')
       ? services
@@ -346,7 +352,7 @@ function Browse({
       </div>
       {!q && (
         <div className="scroll-thin flex shrink-0 gap-2 overflow-x-auto px-5 sm:px-8 pt-4 pb-2">
-          {(['all', 'connected', ...CATALOG_CATEGORIES] as Filter[]).map((f) => (
+          {(['all', 'connected', ...Object.keys(CATALOG_GROUPS)] as Filter[]).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -355,7 +361,11 @@ function Browse({
                 filter === f ? 'bg-foreground text-background hover:bg-foreground/90' : 'bg-secondary/70',
               )}
             >
-              {f === 'all' ? t('apps.filter.all') : f === 'connected' ? t('apps.filter.connected') : label(f)}
+              {f === 'all'
+                ? t('apps.filter.all')
+                : f === 'connected'
+                  ? t('apps.filter.connected')
+                  : t(`apps.group.${f}`)}
             </button>
           ))}
         </div>
@@ -419,7 +429,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <section className="pt-5">
       <h3 className="mb-2 text-sm font-medium text-muted-foreground">{title}</h3>
-      <div className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">{children}</div>
+      <div className="grid grid-cols-1 gap-x-6 gap-y-1 @xl:grid-cols-2 @5xl:grid-cols-3">{children}</div>
     </section>
   );
 }
