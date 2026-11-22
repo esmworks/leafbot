@@ -1535,6 +1535,8 @@ export class TurnManager {
 
     let streamed = '';
     let shown = 0;
+    // A tool ran since the last words: what the bot writes next is its next step.
+    let stepped = false;
     // With a desktop, commands run there (run_command) instead of in this server's sandbox; a bot
     // with its own project folder keeps the sandbox, since the desktop cannot see that folder.
     // Whether a step that changes something (not a read) was let through in this turn.
@@ -2145,10 +2147,19 @@ export class TurnManager {
         },
         onActivity: (tool) => {
           watchdog.activity(tool);
-          if (tool) showTool(tool);
+          if (tool) {
+            showTool(tool);
+            stepped = true;
+          }
         },
-        onText: (delta) => {
+        onText: (text) => {
           watchdog.activity();
+          // The engines send the words of every step one after another, and a step often ends without
+          // a line break: the next one starts a paragraph instead of running on into the last sentence.
+          const breaks = stepped && streamed ? /\n*$/.exec(streamed)![0].length : 2;
+          const gap = '\n'.repeat(Math.max(0, 2 - breaks));
+          stepped = false;
+          const delta = gap + text;
           streamed += delta;
           // Once a wire tripped nothing more is shown: the engine may still send text while the
           // stop takes hold, and showing it would also show the token the earlier part held back.

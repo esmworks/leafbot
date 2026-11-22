@@ -65,6 +65,7 @@ import { BackupService } from './services/backup';
 import { probeShellSandbox } from './shell-sandbox';
 import { isServerKey, translator, type T } from './i18n';
 import { serverLocale } from './services/settings';
+import { inOrder } from './in-order';
 import { sweepUploads } from './uploads';
 import { HttpError } from './util';
 
@@ -726,6 +727,10 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
   const nobody = { emit: () => true } as unknown as ReturnType<typeof io.to>;
   const toPeople = (users: string[]) => (users.length ? io.to(users.map(personRoom)) : nobody);
   const toThread = async (threadId: string) => toPeople(await services.access.threadAudience(threadId));
+  // Events of one conversation go out in the order they happened, so a streaming reply is not scrambled.
+  const inThreadOrder = inOrder((err) => app.log.warn({ err }, 'could not send a conversation event'));
+  const sendToThread = (threadId: string, send: (to: ReturnType<typeof io.to>) => void) =>
+    void inThreadOrder(threadId, () => toThread(threadId), send);
   const toBotEditors = async (botId: string) => toPeople(await services.access.botPeople(botId, 'edit'));
   computer?.on((s) => void toBotEditors(s.botId).then((to) => to.emit('computer:state', s)));
   browser.on({
@@ -737,13 +742,13 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
   // A refresh only says what to fetch again, but one about a conversation or a bot also says it
   // exists and is busy: it goes only to those who see it. The rest are lists each fetches as theirs.
   bus.on('refresh', (e) => {
-    if (e.scope === 'thread') void toThread(e.threadId).then((to) => to.emit('refresh', e));
+    if (e.scope === 'thread') sendToThread(e.threadId, (to) => to.emit('refresh', e));
     else if (e.scope === 'threads' || e.scope === 'tables' || e.scope === 'actions')
       void toBotPeople(e.botId).then((to) => to.emit('refresh', e));
     else io.emit('refresh', e);
   });
-  bus.on('delta', (e) => void toThread(e.threadId).then((to) => to.emit('delta', e)));
-  bus.on('turn', (e) => void toThread(e.threadId).then((to) => to.emit('turn', e)));
+  bus.on('delta', (e) => sendToThread(e.threadId, (to) => to.emit('delta', e)));
+  bus.on('turn', (e) => sendToThread(e.threadId, (to) => to.emit('turn', e)));
   bus.on('notice', (e) => {
     // A notice for named people (a second yes wanted) goes to them alone.
     void (e.to ? Promise.resolve(e.to) : services.access.noticeAudience(e.threadId)).then((users) => {
@@ -751,7 +756,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
       return services.push.notice(e, users);
     });
   });
-  bus.on('tool', (e) => void toThread(e.threadId).then((to) => to.emit('tool', e)));
+  bus.on('tool', (e) => sendToThread(e.threadId, (to) => to.emit('tool', e)));
 
   await services.turns.recover();
   await services.jobs.recover().catch((err: unknown) => {
