@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { botToolArgs, catalogEntry, formHeaders } from './connections';
+import { CATALOG_CATEGORIES, CATALOG_GROUPS, botToolArgs, catalogEntry, formHeaders } from './connections';
 
 describe('yeni bağlantı formunun başlıkları', () => {
   it('eklenenlere yazılı ama eklenmemiş başlığı da katar; aynı ad büyük-küçük harf farkıyla bir kez gider', () => {
@@ -33,5 +33,12 @@ describe('botun bağlantı aracı çağrısı', () => {
     expect(botToolArgs({ url: 'https://evil.example/mcp' }, 'create_pull_request', { a: 1 })).toEqual({
       a: 1,
     });
+  });
+});
+
+describe('uygulama kataloğunun sekmeleri', () => {
+  it('her kategori tam bir sekmede yer alır, böylece hiçbir uygulama sekmelerde kaybolmaz', () => {
+    const grouped = Object.values(CATALOG_GROUPS).flat();
+    expect([...grouped].sort()).toEqual([...CATALOG_CATEGORIES].sort());
   });
 });

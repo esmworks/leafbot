@@ -1,5 +1,6 @@
 import {
   CATALOG_CATEGORIES,
+  CATALOG_GROUPS,
   CONNECTION_CATALOG,
   addressKey,
   catalogEntry,
@@ -11,6 +12,7 @@ import {
   sharesApp,
   type Bot,
   type CatalogCategory,
+  type CatalogGroup,
   type CatalogEntry,
   type Connection,
   type ConnectionAuth,
@@ -48,7 +50,7 @@ import { TeamChoice } from './VaultTab';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
-type Filter = 'all' | 'connected' | CatalogCategory;
+type Filter = 'all' | 'connected' | CatalogGroup;
 type View =
   | { kind: 'browse' }
   | { kind: 'setup'; entry: CatalogEntry | null; sibling?: Connection }
@@ -286,7 +288,10 @@ function Browse({
         ]
       : filter === 'connected'
         ? []
-        : [{ title: label(filter), entries: CONNECTION_CATALOG.filter((e) => e.category === filter) }];
+        : CATALOG_GROUPS[filter].map((c) => ({
+            title: label(c),
+            entries: CONNECTION_CATALOG.filter((e) => e.category === c),
+          }));
   const shownServices =
     filter === 'connected' || (!q && filter === 'all')
       ? services
@@ -347,7 +352,7 @@ function Browse({
       </div>
       {!q && (
         <div className="scroll-thin flex shrink-0 gap-2 overflow-x-auto px-5 sm:px-8 pt-4 pb-2">
-          {(['all', 'connected', ...CATALOG_CATEGORIES] as Filter[]).map((f) => (
+          {(['all', 'connected', ...Object.keys(CATALOG_GROUPS)] as Filter[]).map((f) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
@@ -356,7 +361,11 @@ function Browse({
                 filter === f ? 'bg-foreground text-background hover:bg-foreground/90' : 'bg-secondary/70',
               )}
             >
-              {f === 'all' ? t('apps.filter.all') : f === 'connected' ? t('apps.filter.connected') : label(f)}
+              {f === 'all'
+                ? t('apps.filter.all')
+                : f === 'connected'
+                  ? t('apps.filter.connected')
+                  : t(`apps.group.${f}`)}
             </button>
           ))}
         </div>

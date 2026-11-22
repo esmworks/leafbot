@@ -448,7 +448,7 @@ export function RoutineFlow({
         // No margin: the page's column spaces its parts with margins, which would cut it short.
         fullScreen
           ? 'safe-pane fixed inset-0 z-40 m-0 flex flex-col gap-2 bg-background p-3'
-          : 'relative space-y-2',
+          : 'relative flex flex-1 flex-col gap-2',
       )}
     >
       {fullScreen && (
@@ -460,10 +460,12 @@ export function RoutineFlow({
       <div
         className={cn(
           'relative flex gap-3',
-          fullScreen ? 'min-h-0 flex-1' : 'h-[max(34rem,calc(100dvh-16rem))]',
+          // On the page it takes the height left under the bar, never less than room for a few boxes.
+          fullScreen ? 'min-h-0 flex-1' : 'min-h-[28rem] flex-1',
         )}
       >
-        <div className="relative min-w-0 flex-1">
+        {/* Sized by the room it is given; the boxes scroll inside it instead of stretching the page. */}
+        <div className="relative min-w-0 flex-1 contain-size">
           <div className="absolute top-2 right-2 z-10 flex gap-1.5">
             {settings && (
               <Button
@@ -623,10 +625,11 @@ export function RoutineFlow({
         </div>
         {settings && settingsOpen && (
           // Beside the canvas on a wide screen, over it on a phone. Positioned, so the hidden inputs of
-          // its switches and lists stay inside what it scrolls.
+          // its switches and lists stay inside what it scrolls; sized by the canvas, never by its own
+          // fields, which would stretch the flow down the page.
           <aside
             aria-label={t('flow.settings')}
-            className="scroll-thin relative w-[min(26rem,45%)] shrink-0 space-y-4 overflow-y-auto rounded-2xl border bg-card p-4 phone:absolute phone:inset-0 phone:z-20 phone:w-auto"
+            className="scroll-thin relative w-[min(26rem,45%)] shrink-0 space-y-4 overflow-y-auto contain-size rounded-2xl border bg-card p-4 phone:absolute phone:inset-0 phone:z-20 phone:w-auto"
           >
             <div className="flex items-center gap-2">
               <h3 className="min-w-0 flex-1 text-sm font-semibold">{t('flow.settings')}</h3>
