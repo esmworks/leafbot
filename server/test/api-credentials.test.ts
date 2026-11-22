@@ -404,3 +404,60 @@ describe('kayıtlı API anahtarları', () => {
     });
   });
 });
+
+describe('bilgisayardaki git ve GitHub uygulaması', () => {
+  let t: TestServer;
+  beforeEach(async () => {
+    t = await testServer();
+  });
+  afterEach(() => t.dispose());
+
+  /** A GitHub app connection signed in with `token`, as the sign-in leaves one. */
+  const github = async (o: { token: string; userId?: string | null; botIds?: string[]; at?: Date }) => {
+    const id = `gh-${Math.random().toString(36).slice(2, 10)}`;
+    await t.db.db.insert(schema.connections).values({
+      id,
+      userId: o.userId ?? null,
+      slug: id,
+      name: 'GitHub',
+      catalogId: 'github',
+      url: 'https://api.githubcopilot.com/mcp/',
+      auth: 'oauth',
+      status: 'connected',
+      secrets: t.services.vault.seal(
+        JSON.stringify({ oauth: { tokens: { access_token: o.token, token_type: 'bearer' } } }),
+      ),
+      allBots: !o.botIds,
+      updatedAt: o.at ?? new Date(),
+    });
+    if (o.botIds?.length) {
+      await t.db.db
+        .insert(schema.botConnections)
+        .values(o.botIds.map((botId) => ({ botId, connectionId: id })));
+    }
+    return id;
+  };
+
+  it('ekibin GitHub uygulaması bota açıksa git onun oturumunu kullanır; kişinin kendisininkini kullanmaz', async () => {
+    const bot = await t.bot({ name: 'Gitçi' });
+    const other = await t.bot({ name: 'Başka' });
+    await t.person('ayse');
+    await github({ token: 'gho_ayseninki', userId: 'ayse' });
+    expect(await t.services.connections.gitToken(bot.id)).toBeNull();
+
+    // Open only to another bot, the team's sign-in is not this bot's either.
+    const team = await github({ token: 'gho_ekibin', botIds: [other.id] });
+    expect(await t.services.connections.gitToken(bot.id)).toBeNull();
+    expect(await t.services.connections.gitToken(other.id)).toBe('gho_ekibin');
+
+    await t.services.connections.setBots(team, { allBots: false, botIds: [other.id, bot.id] });
+    expect(await t.services.connections.gitToken(bot.id)).toBe('gho_ekibin');
+
+    // Signed out, it gives git nothing.
+    await t.db.db
+      .update(schema.connections)
+      .set({ status: 'signed-out' })
+      .where(eq(schema.connections.id, team));
+    expect(await t.services.connections.gitToken(bot.id)).toBeNull();
+  });
+});
