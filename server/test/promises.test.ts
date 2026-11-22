@@ -121,8 +121,15 @@ describe('söz bekçisi', () => {
   const lastReply = async (threadId: string) =>
     (await t.messages(threadId)).filter((m: Message) => m.role === 'assistant').at(-1)!;
   const ONCE = { type: 'once', date: '2026-11-17', time: '09:00' };
+  /** The bot's open follow-ups, soonest first. */
+  const followUps = () =>
+    db()
+      .select()
+      .from(schema.followUps)
+      .where(eq(schema.followUps.status, 'open'))
+      .orderBy(schema.followUps.dueAt);
 
-  it('zamanı olan söz için bir kerelik rutin kurar, sözü kaydeder ve yanıta çizgi ekler', async () => {
+  it('zamanı olan söz için bir takip kurar (rutin değil), sözü kaydeder ve yanıta çizgi ekler', async () => {
     const b = await bot();
     const th = await main(b.id);
     t.engine.completer = () => TOMORROW;
@@ -135,10 +142,12 @@ describe('söz bekçisi', () => {
     expect(asked.user).toContain('<reply>');
     expect(asked.user).toContain('<now>2026-11-16 08:00, Monday, Europe/Istanbul</now>');
 
-    const routines = await t.services.routines.list(b.id);
-    expect(routines).toHaveLength(1);
-    expect(routines[0]).toMatchObject({ schedule: ONCE, timezone: TZ, inMain: true, enabled: true });
-    expect(routines[0]!.prompt).toContain('Fiyatı kontrol edip haber vermek');
+    // Kept as a follow-up of the bot's, not a routine in its list.
+    expect(await t.services.routines.list(b.id)).toEqual([]);
+    const [f] = await followUps();
+    expect(f).toMatchObject({ botId: b.id, userId: 'owner', kind: 'promise' });
+    expect(f!.dueAt.toISOString()).toBe('2026-11-17T06:00:00.000Z');
+    expect(f!.text).toContain('Fiyatı kontrol edip haber vermek');
 
     const [p] = await list();
     expect(p).toMatchObject({
@@ -152,8 +161,8 @@ describe('söz bekçisi', () => {
       overdue: false,
       dueAt: '2026-11-17T06:00:00.000Z',
     });
-    // The line under the reply points at the promise.
-    expect((await lastReply(th.id)).props.promiseId).toBe(p!.id);
+    // Nothing under the reply asks the person to keep track of it.
+    expect((await lastReply(th.id)).props.promiseId).toBeUndefined();
   });
 
   it('yanıtı denetlerken maliyeti kaydeder; kullanım sayfası gösterir', async () => {
@@ -233,7 +242,7 @@ describe('söz bekçisi', () => {
     expect(await list()).toEqual([]);
   });
 
-  it('yalnızca koşulu olan söz kaydedilir ama zaman uydurulmaz', async () => {
+  it('koşula bağlı söz için zaman uydurulmaz; bot ertesi sabah kendisi bakar', async () => {
     const b = await bot();
     const th = await main(b.id);
     t.engine.completer = () =>
@@ -250,12 +259,17 @@ describe('söz bekçisi', () => {
       madeBy: 'bot',
       condition: 'fiyat 100 TL altına düşünce',
       dueAt: null,
-      scheduled: false,
+      scheduled: true,
     });
-    expect((await lastReply(th.id)).props.promiseId).toBe(p!.id);
+    // The next morning at the person's reminder time (09:00 in Istanbul), to see whether it came about.
+    const [f] = await followUps();
+    expect(f).toMatchObject({ kind: 'promise', botId: b.id });
+    expect(f!.dueAt.toISOString()).toBe('2026-11-17T06:00:00.000Z');
+    expect(f!.text).toContain('fiyat 100 TL altına düşünce');
+    expect(f!.text).toContain('NO_REPLY');
   });
 
-  it('botu değiştiremeyen kişinin sözü kaydedilir ama rutin kurulmaz', async () => {
+  it('botu değiştiremeyen kişinin sözü de takip edilir: takip botu değiştirmez', async () => {
     const b = await bot();
     await t.api('PUT', `/api/bots/${b.id}/access`, { everyone: 'chat', people: {} });
     const ayse = await t.person('ayse');
@@ -269,14 +283,15 @@ describe('söz bekçisi', () => {
     await t.services.promises.idle();
     const mine = (await ayse.api<Pledge[]>('GET', '/api/promises')).body;
     expect(mine).toHaveLength(1);
-    expect(mine[0]).toMatchObject({ scheduled: false, dueAt: '2026-11-17T06:00:00.000Z' });
+    expect(mine[0]).toMatchObject({ scheduled: true, dueAt: '2026-11-17T06:00:00.000Z' });
     expect(await t.services.routines.list(b.id)).toEqual([]);
+    expect((await followUps()).map((f) => f.userId)).toEqual(['ayse']);
   });
 
   describe('kişinin kendi sözleri: promise_track', () => {
     const track = (o: object) => `[araç:promise_track ${JSON.stringify(o)}]`;
 
-    it('vadesi olan söz için o gün 09:00’a bir hatırlatma rutini kurar', async () => {
+    it('vadesi olan söz için o gün 09:00’a bir takip kurar', async () => {
       const b = await bot();
       const th = await main(b.id);
       await say(th.id, track({ what: 'Raporu göndermek', to: 'Ali', due: '2026-11-20' }));
@@ -289,14 +304,12 @@ describe('söz bekçisi', () => {
         scheduled: true,
         overdue: false,
       });
-      const [r] = await t.services.routines.list(b.id);
-      expect(r).toMatchObject({
-        schedule: { type: 'once', date: '2026-11-20', time: '09:00' },
-        botId: b.id,
-        inMain: true,
-      });
-      expect(r!.prompt).toContain('Raporu göndermek');
-      expect(r!.prompt).toContain('Ali');
+      expect(await t.services.routines.list(b.id)).toEqual([]);
+      const [f] = await followUps();
+      expect(f).toMatchObject({ botId: b.id, kind: 'promise' });
+      expect(f!.dueAt.toISOString()).toBe('2026-11-20T06:00:00.000Z');
+      expect(f!.text).toContain('Raporu göndermek');
+      expect(f!.text).toContain('Ali');
       // The bot said nothing the safety net could add to.
       expect(t.engine.completions).toHaveLength(0);
     });
@@ -306,16 +319,16 @@ describe('söz bekçisi', () => {
       expect((await t.api('PATCH', '/api/settings', { promiseRemindAt: '25:00' })).status).toBe(400);
       const b = await bot();
       await say((await main(b.id)).id, track({ what: 'Teklifi yollamak', to: 'Veli', due: '2026-11-20' }));
-      const [r] = await t.services.routines.list(b.id);
-      expect(r!.schedule).toEqual({ type: 'once', date: '2026-11-20', time: '18:30' });
+      const [f] = await followUps();
+      expect(f!.dueAt.toISOString()).toBe('2026-11-20T15:30:00.000Z');
     });
 
-    it('vadesiz söz yalnızca kaydedilir; rutin kurulmaz', async () => {
+    it('vadesiz söz yalnızca kaydedilir; takip kurulmaz', async () => {
       const b = await bot();
       await say((await main(b.id)).id, track({ what: 'Ona bir kitap vermek', to: 'Can' }));
       const [p] = await list();
       expect(p).toMatchObject({ madeBy: 'person', dueAt: null, scheduled: false, toWhom: 'Can' });
-      expect(await t.services.routines.list(b.id)).toEqual([]);
+      expect(await followUps()).toEqual([]);
     });
 
     it('geçmiş bir gün gecikmiş görünür, hatırlatma kurulmaz', async () => {
@@ -323,7 +336,7 @@ describe('söz bekçisi', () => {
       await say((await main(b.id)).id, track({ what: 'Faturayı ödemek', due: '2026-11-10' }));
       const [p] = await list();
       expect(p).toMatchObject({ overdue: true, scheduled: false });
-      expect(await t.services.routines.list(b.id)).toEqual([]);
+      expect(await followUps()).toEqual([]);
     });
 
     it('bugünkü vade için hatırlatma birkaç dakika sonraya kurulur', async () => {
@@ -331,8 +344,8 @@ describe('söz bekçisi', () => {
       await t.api('PATCH', '/api/settings', { promiseRemindAt: '07:00' });
       const b = await bot();
       await say((await main(b.id)).id, track({ what: 'Telefon etmek', due: '2026-11-16' }));
-      const [r] = await t.services.routines.list(b.id);
-      expect(r!.schedule).toEqual({ type: 'once', date: '2026-11-16', time: '08:02' });
+      const [f] = await followUps();
+      expect(f!.dueAt.toISOString()).toBe('2026-11-16T05:02:00.000Z');
     });
 
     it('gün olmayan vadeyi kabul etmez', async () => {
@@ -374,52 +387,47 @@ describe('söz bekçisi', () => {
       expect((await list()).map((p) => p.text)).toEqual(['Gecikmiş', 'Yakın', 'Gelecek', 'Vadesiz']);
     });
 
-    it('tamam diyince söz listeden çıkar ve bekleyen rutin silinir', async () => {
-      const { b, p } = await make();
-      expect(await t.services.routines.list(b.id)).toHaveLength(1);
+    it('tamam diyince söz listeden çıkar ve bekleyen takip kalkar', async () => {
+      const { p } = await make();
+      expect(await followUps()).toHaveLength(1);
       const done = await t.api<Pledge>('POST', `/api/promises/${p.id}/done`);
       expect(done.body).toMatchObject({ status: 'done', scheduled: false });
       expect(await list()).toEqual([]);
-      expect(await t.services.routines.list(b.id)).toEqual([]);
+      expect(await followUps()).toEqual([]);
       const [row] = await db().select().from(schema.promises).where(eq(schema.promises.id, p.id));
-      expect(row).toMatchObject({ status: 'done', routineId: null });
+      expect(row).toMatchObject({ status: 'done', followUpId: null });
       expect(row!.closedAt).toBeInstanceOf(Date);
     });
 
-    it('vazgeçince söz düşer ve bekleyen rutin silinir; yanıttaki "İptal" aynı işi yapar', async () => {
-      const { b, p } = await make();
+    it('vazgeçince söz düşer ve bekleyen takip kalkar; yanıttaki "İptal" aynı işi yapar', async () => {
+      const { p } = await make();
       // The line under the reply calls the same endpoint.
       expect((await t.api<Pledge>('POST', `/api/promises/${p.id}/drop`)).body.status).toBe('dropped');
       expect(await list()).toEqual([]);
-      expect(await t.services.routines.list(b.id)).toEqual([]);
+      expect(await followUps()).toEqual([]);
       // Closing again changes nothing.
       expect((await t.api<Pledge>('POST', `/api/promises/${p.id}/done`)).body.status).toBe('dropped');
     });
 
-    it('çalışmış rutin: botun sözü yerine getirilmiş sayılır, rutin listeden kalkar', async () => {
-      const { b, p } = await make();
-      const [r] = await t.services.routines.list(b.id);
-      await db()
-        .update(schema.routines)
-        .set({ enabled: false, lastRunAt: new Date('2026-11-17T06:00:05.000Z') })
-        .where(eq(schema.routines.id, r!.id));
+    it('gelen takip: botun sözü yerine getirilmiş sayılır', async () => {
+      const { p } = await make();
+      t.now.value = new Date('2026-11-17T06:00:30.000Z');
+      await t.services.followUps.tick();
+      await t.services.turns.idle();
       expect(await list()).toEqual([]);
       const [row] = await db().select().from(schema.promises).where(eq(schema.promises.id, p.id));
       expect(row!.status).toBe('done');
-      expect(await t.services.routines.list(b.id)).toEqual([]);
     });
 
-    it('çalışmış hatırlatma kişinin sözünü açık bırakır', async () => {
+    it('gelen hatırlatma kişinin sözünü açık bırakır', async () => {
       const b = await bot();
       await say(
         (await main(b.id)).id,
         `[araç:promise_track ${JSON.stringify({ what: 'Raporu göndermek', to: 'Ali', due: '2026-11-20' })}]`,
       );
-      const [r] = await t.services.routines.list(b.id);
-      await db()
-        .update(schema.routines)
-        .set({ enabled: false, lastRunAt: new Date('2026-11-20T06:00:05.000Z') })
-        .where(eq(schema.routines.id, r!.id));
+      t.now.value = new Date('2026-11-20T06:00:30.000Z');
+      await t.services.followUps.tick();
+      await t.services.turns.idle();
       t.now.value = new Date('2026-11-20T07:00:00.000Z');
       const [p] = await list();
       expect(p).toMatchObject({ status: 'open', scheduled: false, overdue: false });

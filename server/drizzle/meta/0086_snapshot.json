@@ -1,5 +1,5 @@
 {
-  "id": "2ff9d56d-1bc1-41c5-bc6b-4e3fa7a280aa",
+  "id": "7d396665-5cd2-4c0a-b6f8-ff5646d2e67f",
   "prevId": "52839ef6-7b3a-438a-88c0-df34387be324",
   "version": "7",
   "dialect": "postgresql",
@@ -848,12 +848,6 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
-        },
-        "written_by": {
-          "name": "written_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -5224,19 +5218,6 @@
           "notNull": true,
           "default": false
         },
-        "table_trigger": {
-          "name": "table_trigger",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "table_filter": {
-          "name": "table_filter",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
         "sign_in_wait": {
           "name": "sign_in_wait",
           "type": "text",
@@ -5265,19 +5246,6 @@
           "tableTo": "users",
           "columnsFrom": [
             "created_by_user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "routines_table_trigger_bot_tables_id_fk": {
-          "name": "routines_table_trigger_bot_tables_id_fk",
-          "tableFrom": "routines",
-          "tableTo": "bot_tables",
-          "columnsFrom": [
-            "table_trigger"
           ],
           "columnsTo": [
             "id"
@@ -6676,6 +6644,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "steps": {
+          "name": "steps",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",

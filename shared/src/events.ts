@@ -12,6 +12,7 @@ export type RefreshScope =
   | { scope: 'routines' }
   | { scope: 'promises' }
   | { scope: 'routineSuggestions' }
+  | { scope: 'skillSuggestions' }
   | { scope: 'rules' }
   | { scope: 'vault' }
   | { scope: 'connections' }

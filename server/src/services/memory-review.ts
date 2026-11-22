@@ -199,6 +199,8 @@ export class MemoryReviewService {
     const engine = this.engineFor(bot);
     // An engine that cannot answer without a session is skipped: a turn is never run for this.
     if (!engine.complete) return;
+    // A spent limit stops the bot's background calls too; the review looks again after a later turn.
+    if (await this.services.usage.reached(bot)) return;
     // A turn still going would be read without its answer, and the cursor would then pass its
     // question by: the review waits, and the next turn that ends brings it back.
     const [busy] = await this.ctx.db
@@ -269,17 +271,21 @@ export class MemoryReviewService {
     const notes = [...visible.bot, ...(team ? [] : visible.user), ...visible.room];
 
     const outside = await this.readOutside(thread, span);
-    // A bot's notes reach everyone who uses the bot: they change only from a conversation with
-    // someone who may change the bot, as the bot's memory tools allow.
-    const botNotes =
-      !(await this.guestIn(thread, span)) &&
-      atLeast(await this.services.access.level(await this.services.access.viewerOf(person), bot.id), 'edit');
-    const request = this.request(t, { team, place, notes, span, outside });
+    // A bot's notes reach everyone who uses the bot: they change from a conversation with anyone who
+    // has an account here, as the bot's memory tools allow, but not from one a stranger spoke in.
+    const botNotes = !(await this.guestIn(thread, span));
+    // Someone who may only talk with the bot: its own notes reach everyone else who uses it, so what
+    // is about them goes to their own notes only.
+    const member =
+      !team &&
+      !atLeast(await this.services.access.level(await this.services.access.viewerOf(person), bot.id), 'edit');
+    const request = this.request(t, { team, member, place, notes, span, outside });
     const controller = new AbortController();
     this.current = controller;
     let text: string;
+    let costUsd: number | null;
     try {
-      ({ text } = await engine.complete!({
+      ({ text, costUsd } = await engine.complete!({
         model: bot.model || (bot.engine === 'claude' ? defaultModel : '') || this.ctx.config.claudeModel,
         ...request,
         signal: controller.signal,
@@ -288,6 +294,7 @@ export class MemoryReviewService {
     } finally {
       this.current = null;
     }
+    await this.services.usage.background(bot.id, 'memoryReview', costUsd);
     if (controller.signal.aborted) return;
     const shown = new Map(notes.filter((n) => request.shown.has(n.id)).map((n) => [n.id, n]));
     const changed = await this.apply(parseOperations(text), {
@@ -356,6 +363,7 @@ export class MemoryReviewService {
     t: T,
     o: {
       team: boolean;
+      member: boolean;
       place: string | null;
       notes: Memory[];
       span: { role: string; text: string; props: unknown }[];
@@ -368,6 +376,7 @@ export class MemoryReviewService {
       ...(o.team ? [] : [t('memoryReview.scopeUser')]),
       ...(o.place ? [t('memoryReview.scopeRoom')] : []),
       ...(o.team ? [t('memoryReview.scopesTeam')] : []),
+      ...(o.member ? [t('memoryReview.scopesMember')] : []),
     ].join('\n');
     const system = t('memoryReview.system', {
       pinned: t('memoryReview.markPinned'),

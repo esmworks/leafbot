@@ -20,12 +20,12 @@ import {
   type Bot,
   type BotLevel,
   type Memory,
-  type MemoryChange,
   outsideIn,
   type OutsideTrigger,
   type Routine,
   type Skill,
   type WhatsAppGroup,
+  wallClock,
   zonedTime,
 } from '@leafbot/shared';
 import { and, desc, eq } from 'drizzle-orm';
@@ -51,6 +51,7 @@ import { emailTools } from './email';
 import { pickGroup, whatsappRoots, whatsappTools } from './whatsapp';
 import { tableTools } from './tables';
 import { ticketTools } from './tickets';
+import { FollowUpsFull, MAX_OPEN_FOLLOW_UPS, readMoment } from '../services/follow-ups';
 import { placeOf, ROOM_NOTES_PER_PLACE, sourceOf } from '../services/memory';
 import { redactSecrets } from '../services/secrets';
 import { siteOf } from '../services/vault';
@@ -108,6 +109,16 @@ export function noteUntil(text: string, timezone: string): string | null | undef
 }
 
 /**
+ * The moment a bot gives for a follow-up, in the person's time zone: a day alone means `dayTime` on
+ * it. Null for none, undefined for something that is not one.
+ */
+export function followUpTime(text: string, timezone: string, dayTime: string): string | null | undefined {
+  const given = text.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(given)) return noteUntil(`${given} ${dayTime}`, timezone);
+  return noteUntil(given, timezone);
+}
+
+/**
  * The page a bot says a fact came from, as a web address the person can open; null for none and
  * undefined for something that is not one. Whatever could sign someone in is taken out first: the
  * address is kept and shown, while what it held would leak with it.
@@ -145,6 +156,10 @@ const TEAM_OFF = new Set<string>([
   'routine_delete',
   // The person's own promises to others: a team or a chat app's stranger has none to keep here.
   'promise_track',
+  // A follow-up comes up in a person's own conversation: a team conversation has no one to tell.
+  'followup_add',
+  'followup_list',
+  'followup_drop',
   'my_activity',
   'conversations_search',
   'message_read',
@@ -165,6 +180,9 @@ const GUEST_OFF = new Set<string>([
   'skill_save',
   'browser_card',
   'promise_track',
+  'followup_add',
+  'followup_list',
+  'followup_drop',
   // Signing in with the vault's password, its two-step code or a code mailed to the bot runs
   // without a card: someone with no account here would get into the person's accounts by asking.
   'browser_login',
@@ -287,6 +305,9 @@ export type ToolName =
   | 'routine_update'
   | 'routine_delete'
   | 'promise_track'
+  | 'followup_add'
+  | 'followup_list'
+  | 'followup_drop'
   | 'routine_failed'
   | 'routine_set'
   | 'routine_stop'
@@ -465,44 +486,6 @@ export class ToolFactory {
     const fromUser = attended(turn.source);
     // Nobody may be watching a routine's or another bot's turn: its cards close unanswered in time.
     const unattended = fromUser ? undefined : this.ctx.config.unattendedApprovalMs;
-    type Change = Omit<MemoryChange, 'id' | 'createdAt' | 'proposedBy' | 'origin' | 'threadId' | 'userId'>;
-    /**
-     * A bot's notes reach everyone who uses the bot: a change to them asked by someone who may
-     * only talk with it waits for those who may change it.
-     */
-    const forReview = async (change: Change) => {
-      const [who] = await this.ctx.db
-        .select({ name: schema.users.displayName, username: schema.users.username })
-        .from(schema.users)
-        .where(eq(schema.users.id, person))
-        .limit(1);
-      await s.memory.propose({
-        ...change,
-        proposedBy: bot.id,
-        origin: { kind: 'person', name: who?.name || who?.username || '' },
-        threadId: thread.id,
-        userId: person,
-      });
-      return t('tool.memoryProposedReview');
-    };
-    /** Whether the person may change the bot whose notes a change is about. */
-    const mayChangeNotesOf = async (botId: string) =>
-      botId === bot.id
-        ? mayChange()
-        : !guest && atLeast(await s.access.level(await s.access.viewerOf(person), botId), 'edit');
-    /**
-     * How a memory change goes: made now, as the bot keeps its memory itself. Only a change to a
-     * bot's notes asked by someone who may not change that bot waits for those who may: it would
-     * reach everyone who uses the bot. `say`: the change is not made now, and this is the answer to
-     * give the bot.
-     */
-    type Gate = { say?: string };
-    const memoryGate = async (change: Change): Promise<Gate> => {
-      if (change.scope === 'bot' && change.botId && !(await mayChangeNotesOf(change.botId))) {
-        return { say: await forReview(change) };
-      }
-      return {};
-    };
     /** A bot's table by name, for a routine to start on; the reason, listing its tables, when there is none. */
     const tableNamed = async (botId: string, name: string) => {
       const { found, names } = await s.tables.find(botId, name);
@@ -954,16 +937,95 @@ export class ToolFactory {
             what,
             toWhom: to,
             day,
-            schedule: await mayChange(),
             t,
           });
-          return t(row.routineId ? 'tool.promiseTrackedRemind' : 'tool.promiseTracked', {
+          return t(row.followUpId ? 'tool.promiseTrackedRemind' : 'tool.promiseTracked', {
             what: row.text,
             day: day ?? '-',
           });
         },
-        // The person sees and closes every promise on their Today page, and a reminder is a routine
-        // they can cancel there, so the bot notes it without a card.
+        // The person sees and closes every promise on their Today page, and its reminder is a
+        // follow-up, not a routine, so the bot notes it without a card.
+        'internal',
+      ),
+      def(
+        'followup_add',
+        {
+          what: z.string().trim().min(1).max(500),
+          event: z.string().trim().max(40).optional(),
+          when: z.string().trim().max(40).optional(),
+          from: z.string().trim().max(500).optional(),
+          replaces: z.string().trim().max(100).optional(),
+        },
+        async ({ what, event, when, from, replaces }) => {
+          const settings = await s.settings.all(person);
+          const now = s.followUps.now();
+          const moment = event ? readMoment(event, settings.timezone) : null;
+          if (event && !moment) return t('tool.followUpBadTime', { when: event });
+          const due = when ? followUpTime(when, settings.timezone, settings.promiseRemindAt) : null;
+          if (when && !due) return t('tool.followUpBadTime', { when });
+          if (!moment && !due) return t('tool.followUpNeedsTime');
+          if (due && new Date(due).getTime() <= now.getTime()) return t('tool.followUpPast');
+          // The turn dealt with a promise itself: the safety net has nothing to add to its reply.
+          s.promises.routineTouched(turn.id);
+          try {
+            const f = await s.followUps.add({
+              bot,
+              userId: person,
+              threadId: thread.id,
+              text: what,
+              context: from,
+              eventAt: moment?.at ?? null,
+              eventHasTime: moment?.hasTime,
+              dueAt: due ? new Date(due) : null,
+              outside: reads(),
+              present: fromUser,
+              replaces,
+              t,
+            });
+            if (!f) return t('tool.followUpTooLate');
+            const w = wallClock(new Date(f.dueAt), settings.timezone);
+            const p = (n: number) => String(n).padStart(2, '0');
+            return t('tool.followUpAdded', {
+              id: f.id,
+              when: `${w.year}-${p(w.month)}-${p(w.day)} ${p(w.hour)}:${p(w.minute)}`,
+            });
+          } catch (err) {
+            if (err instanceof FollowUpsFull) return t('tool.followUpsFull', { max: MAX_OPEN_FOLLOW_UPS });
+            throw err;
+          }
+        },
+        // The bot keeping track for itself: nobody is asked, and it is no routine. When it comes up the
+        // turn works for nobody who asked just now, and one set from outside text keeps that mark, so
+        // anything that would change something still waits for a card.
+        'internal',
+      ),
+      def(
+        'followup_list',
+        {},
+        async () => {
+          const list = await s.followUps.list(person);
+          if (!list.length) return t('tool.followUpsNone');
+          return list
+            .map(
+              (f) =>
+                `- [${f.id}] ${f.dueAt}${f.eventAt ? ` (${t('tool.followUpEvent', { at: f.eventAt })})` : ''}: ${f.text}${f.context ? ` — ${f.context}` : ''}`,
+            )
+            .join('\n');
+        },
+        'read',
+      ),
+      def(
+        'followup_drop',
+        { id: z.string().min(1).max(100) },
+        async ({ id }) => {
+          try {
+            await s.followUps.drop(id, person);
+          } catch {
+            return t('tool.followUpNotFound');
+          }
+          return t('tool.followUpDropped');
+        },
         'internal',
       ),
       def(
@@ -1231,6 +1293,7 @@ export class ToolFactory {
             }
           }
           if (team && scope === 'user') return t('tool.memoryTeamPersonal');
+          if (guest && scope === 'bot') return t('tool.memoryGuest');
           const where = scope === 'room' ? await place() : null;
           if (scope === 'room' && !where) return t('tool.memoryNoPlace');
           const clean = redactSecrets(content, t('memory.redacted'));
@@ -1248,18 +1311,8 @@ export class ToolFactory {
             await s.memory.markUsed([same.id]);
             return t('tool.memoryAlreadySaved', { id: same.id });
           }
-          // Said before any card, so the person is not asked about a note that cannot be kept.
           if (where && (await s.memory.roomCount(where)) >= ROOM_NOTES_PER_PLACE)
             return t('tool.memoryRoomFull', { max: ROOM_NOTES_PER_PLACE });
-          const gate = await memoryGate({
-            action: 'write',
-            memoryId: null,
-            before: null,
-            ...note,
-            sourceUrl,
-            validUntil,
-          });
-          if (gate.say !== undefined) return gate.say;
           const m = await s.memory.create({
             ...note,
             source: `bot:${bot.id}`,
@@ -1275,12 +1328,16 @@ export class ToolFactory {
             scopeBotId: m.scope === 'bot' ? m.botId : null,
             after: { sig: sig(noteShape(m)) },
           });
-          return clean.redacted
+          const said = clean.redacted
             ? `${t('tool.memorySaved', { id: m.id })} ${t('tool.memoryRedacted')}`
             : t('tool.memorySaved', { id: m.id });
+          // Someone who may only talk with the bot: its own notes reach everyone else who uses it.
+          return m.scope === 'bot' && !(await mayChange()) ? `${said} ${t('tool.memorySharedNote')}` : said;
         },
-        // The bot keeps its memory itself; everything it writes shows in the memory screen, where the
-        // user can change or delete it.
+        // The bot keeps its memory itself, whoever it works for: asking someone to approve each note
+        // asks them to judge facts from conversations they were not in. Everything it writes shows in
+        // the memory screen and its history, where those who may change the bot change or delete it,
+        // and the weekly tidy-up settles duplicates and contradictions.
         'internal',
       ),
       def(
@@ -1306,23 +1363,10 @@ export class ToolFactory {
           ) {
             return t('tool.memoryNotYours');
           }
+          // The bot's notes reach everyone who uses it; a stranger with no account here moves none.
+          if (guest && m.scope === 'bot') return t('tool.memoryGuest');
           const clean = redactSecrets(content, t('memory.redacted'));
-          const gate = await memoryGate({
-            action: 'update',
-            memoryId: m.id,
-            before: m.content,
-            content: clean.text,
-            scope: m.scope,
-            botId: m.botId,
-            place: m.place,
-            site: m.site,
-            sourceUrl,
-            // A waiting change can give a note a date, not take it away.
-            validUntil: validUntil ?? null,
-          });
-          if (gate.say !== undefined) return gate.say;
-          // Written against the version read above, so a change made while a card waited is not
-          // written over.
+          // Written against the version read above, so a change made meanwhile is not written over.
           try {
             const u = await s.memory.update(
               id,
@@ -1369,18 +1413,8 @@ export class ToolFactory {
           ) {
             return t('tool.memoryNotYours');
           }
-          const gate = await memoryGate({
-            action: 'forget',
-            memoryId: m.id,
-            before: null,
-            content: m.content,
-            scope: m.scope,
-            botId: m.botId,
-            place: m.place,
-            site: m.site,
-            sourceUrl: null,
-          });
-          if (gate.say !== undefined) return gate.say;
+          // The bot's notes reach everyone who uses it; a stranger with no account here moves none.
+          if (guest && m.scope === 'bot') return t('tool.memoryGuest');
           await s.memory.remove(id, `bot:${bot.id}`);
           await journal({
             kind: 'memory',

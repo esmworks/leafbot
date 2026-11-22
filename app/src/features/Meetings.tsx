@@ -615,9 +615,9 @@ function MinutesEditor({
   const questionsFit = fits(lines(questions));
   // The room's bots first, then the rest the person may talk with; only bots that keep memory.
   const members = room.members.flatMap((id) => bots.filter((b) => b.id === id && !b.archivedAt));
-  // A reminder runs as a routine of a bot the person may change: the one that took the task on,
-  // or else the room's first such bot. The server picks the same.
-  const editable = members.filter((b) => b.yourLevel !== 'chat');
+  // A reminder is a follow-up of a bot the person talks with: the one that took the task on, or
+  // else the room's first bot. The server picks the same.
+  const editable = members;
   const byName = (name: string) =>
     members.find((b) => b.name.toLocaleLowerCase() === name.trim().replace(/^@/, '').toLocaleLowerCase());
   const reminderBot = (owner: string) => {
@@ -841,7 +841,7 @@ function Reminders({ meeting }: { meeting: Meeting }) {
       <h3 className="text-sm font-semibold">{t('meeting.reminders')}</h3>
       <ul className="space-y-1 text-[15px]">
         {meeting.reminders.map((r) => (
-          <li key={r.routineId} className="flex flex-wrap items-baseline gap-x-2">
+          <li key={r.followUpId ?? r.routineId ?? r.task} className="flex flex-wrap items-baseline gap-x-2">
             <Bell className="size-3.5 shrink-0 self-center text-muted-foreground" />
             <span className="text-sm text-muted-foreground">
               {calendarDay(r.date)} {r.time} ·{' '}

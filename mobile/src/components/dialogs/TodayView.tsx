@@ -6,8 +6,8 @@ import { Avatar } from '@/components/Avatar';
 import { Item, ItemCard } from '@/components/dialogs/Item';
 import {
   CanarySection,
-  PromisesSection,
   RoutineSuggestionsSection,
+  SkillSuggestionsSection,
   SecondYesSection,
 } from '@/components/dialogs/TodaySections';
 import { Loading, Page } from '@/components/page';
@@ -66,8 +66,8 @@ export function TodayView() {
           <CanarySection alarms={data.canaryAlarms ?? []} />
           {/* Steps that need this person's second yes, then what was promised, then routine offers. */}
           <SecondYesSection />
-          <PromisesSection />
           <RoutineSuggestionsSection />
+          <SkillSuggestionsSection />
           <Block
             title={t('today.waiting')}
             empty={t('today.waitingNone')}

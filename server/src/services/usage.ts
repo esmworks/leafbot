@@ -12,6 +12,8 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { Ctx } from '../context';
 import { schema } from '../db';
+import { BACKGROUND_CALLS } from '../db/schema';
+import { newId } from '../util';
 import type { SettingsService } from './settings';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -69,6 +71,21 @@ export class UsageService {
     private settings: SettingsService,
     private clock: () => Date = () => new Date(),
   ) {}
+
+  /**
+   * Keeps what one background call on a bot's model cost (the memory review, a title, a meeting's
+   * minutes). A cost that cannot be kept is only logged: the work it paid for is done either way.
+   */
+  async background(
+    botId: string,
+    kind: (typeof BACKGROUND_CALLS)[number],
+    costUsd: number | null,
+  ): Promise<void> {
+    await this.ctx.db
+      .insert(schema.backgroundCalls)
+      .values({ id: newId(), botId, kind, costUsd, createdAt: this.clock() })
+      .catch((err: unknown) => console.warn(`Could not keep a background call's cost: ${String(err)}`));
+  }
 
   /** Today, from midnight in the owner's time zone: each bot's finished turns, and the routines run. */
   /** Today's work; with `botIds`, only those bots'. */
@@ -219,7 +236,12 @@ export class UsageService {
     return null;
   }
 
-  /** What the finished turns since `since` cost; with `botId`, only that bot's. */
+  /**
+   * What the bots spent since `since`; with `botId`, only that bot's. The finished turns, and the
+   * calls the server makes on a bot's account in the background (the routine pre-check, the promise
+   * safety net, the routine, work and skill suggestions, the memory tidy-up and review, titles and
+   * meeting minutes): each is spent from the same account, so each counts toward the limits.
+   */
   private async spentSince(since: Date, botId?: string): Promise<number> {
     const rows = await this.ctx.db
       .select({ costUsd: schema.turns.costUsd })
@@ -231,7 +253,47 @@ export class UsageService {
           botId ? eq(schema.turns.botId, botId) : undefined,
         ),
       );
-    return rows.reduce((sum, r) => sum + (r.costUsd ?? 0), 0);
+    const turns = rows.reduce((sum, r) => sum + (r.costUsd ?? 0), 0);
+    return turns + (await this.backgroundSince(since, botId));
+  }
+
+  /** What the background calls on the bots' accounts cost since `since`; with `botId`, only that bot's. */
+  private async backgroundSince(since: Date, botId?: string): Promise<number> {
+    const sumOf = async (
+      table:
+        | typeof schema.promiseChecks
+        | typeof schema.routineSuggestionChecks
+        | typeof schema.workOfferChecks
+        | typeof schema.skillSuggestionChecks
+        | typeof schema.memoryTidyChecks
+        | typeof schema.backgroundCalls,
+    ) => {
+      const [row] = await this.ctx.db
+        .select({ total: sql<number | null>`sum(${table.costUsd})` })
+        .from(table)
+        .where(and(gte(table.createdAt, since), botId ? eq(table.botId, botId) : undefined));
+      return Number(row?.total ?? 0);
+    };
+    const [gate] = await this.ctx.db
+      .select({ total: sql<number | null>`sum(${schema.routineRuns.gateCostUsd})` })
+      .from(schema.routineRuns)
+      .innerJoin(schema.routines, eq(schema.routines.id, schema.routineRuns.routineId))
+      .where(
+        and(
+          isNotNull(schema.routineRuns.gateCostUsd),
+          gte(schema.routineRuns.startedAt, since),
+          botId ? eq(schema.routines.botId, botId) : undefined,
+        ),
+      );
+    const parts = await Promise.all([
+      sumOf(schema.promiseChecks),
+      sumOf(schema.routineSuggestionChecks),
+      sumOf(schema.workOfferChecks),
+      sumOf(schema.skillSuggestionChecks),
+      sumOf(schema.memoryTidyChecks),
+      sumOf(schema.backgroundCalls),
+    ]);
+    return parts.reduce((a, b) => a + b, Number(gate?.total ?? 0));
   }
 
   /** Every finished turn of the last `days` days as CSV, one row each, oldest first. */
@@ -376,6 +438,9 @@ export class UsageService {
       promises: await this.promiseNet(since, new Set(keys), timezone, botId),
       suggestions: await this.suggestionNet(since, new Set(keys), timezone, botId),
       offers: await this.offerNet(since, new Set(keys), timezone, botId),
+      tidy: await this.tidyNet(since, new Set(keys), timezone, botId),
+      skillSuggestions: await this.skillNet(since, new Set(keys), timezone, botId),
+      background: await this.backgroundNet(since, new Set(keys), timezone, botId),
     };
   }
 
@@ -512,5 +577,102 @@ export class UsageService {
       if (r.found) sum.found++;
     }
     return sum.checks ? sum : undefined;
+  }
+
+  /** The memory tidy-up over the period: the sets and pages it read, what that cost and the notes it changed. */
+  private async tidyNet(
+    since: Date,
+    days: Set<string>,
+    timezone: string,
+    botId?: string,
+  ): Promise<UsageReport['tidy']> {
+    const rows = await this.ctx.db
+      .select({
+        at: schema.memoryTidyChecks.createdAt,
+        kind: schema.memoryTidyChecks.kind,
+        costUsd: schema.memoryTidyChecks.costUsd,
+        changed: schema.memoryTidyChecks.changed,
+      })
+      .from(schema.memoryTidyChecks)
+      .where(
+        and(
+          gte(schema.memoryTidyChecks.createdAt, since),
+          botId ? eq(schema.memoryTidyChecks.botId, botId) : undefined,
+        ),
+      );
+    const sum = { sets: 0, sources: 0, costUsd: 0, changed: 0 };
+    for (const r of rows) {
+      if (!days.has(dayKey(r.at, timezone))) continue;
+      if (r.kind === 'set') sum.sets++;
+      else sum.sources++;
+      sum.costUsd += r.costUsd ?? 0;
+      sum.changed += r.changed;
+    }
+    return sum.sets || sum.sources ? sum : undefined;
+  }
+
+  /** The skill suggestions over the period: their calls to the small model, what they cost and the skills written. */
+  private async skillNet(
+    since: Date,
+    days: Set<string>,
+    timezone: string,
+    botId?: string,
+  ): Promise<UsageReport['skillSuggestions']> {
+    const rows = await this.ctx.db
+      .select({
+        at: schema.skillSuggestionChecks.createdAt,
+        costUsd: schema.skillSuggestionChecks.costUsd,
+        found: schema.skillSuggestionChecks.found,
+      })
+      .from(schema.skillSuggestionChecks)
+      .where(
+        and(
+          gte(schema.skillSuggestionChecks.createdAt, since),
+          botId ? eq(schema.skillSuggestionChecks.botId, botId) : undefined,
+        ),
+      );
+    const sum = { checks: 0, costUsd: 0, found: 0 };
+    for (const r of rows) {
+      if (!days.has(dayKey(r.at, timezone))) continue;
+      sum.checks++;
+      sum.costUsd += r.costUsd ?? 0;
+      if (r.found) sum.found++;
+    }
+    return sum.checks ? sum : undefined;
+  }
+
+  /** The other background calls over the period, by kind: how many and what they cost. */
+  private async backgroundNet(
+    since: Date,
+    days: Set<string>,
+    timezone: string,
+    botId?: string,
+  ): Promise<UsageReport['background']> {
+    const rows = await this.ctx.db
+      .select({
+        at: schema.backgroundCalls.createdAt,
+        kind: schema.backgroundCalls.kind,
+        costUsd: schema.backgroundCalls.costUsd,
+      })
+      .from(schema.backgroundCalls)
+      .where(
+        and(
+          gte(schema.backgroundCalls.createdAt, since),
+          botId ? eq(schema.backgroundCalls.botId, botId) : undefined,
+        ),
+      );
+    const byKind = new Map<
+      string,
+      { kind: (typeof BACKGROUND_CALLS)[number]; calls: number; costUsd: number }
+    >();
+    for (const r of rows) {
+      if (!days.has(dayKey(r.at, timezone))) continue;
+      const sum = byKind.get(r.kind) ?? { kind: r.kind, calls: 0, costUsd: 0 };
+      sum.calls++;
+      sum.costUsd += r.costUsd ?? 0;
+      byKind.set(r.kind, sum);
+    }
+    const out = BACKGROUND_CALLS.flatMap((k) => byKind.get(k) ?? []);
+    return out.length ? out : undefined;
   }
 }

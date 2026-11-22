@@ -1,4 +1,4 @@
-import type { CanaryAlarm, Pledge, RoutineSuggestion, SecondYes } from '@leafbot/shared';
+import type { CanaryAlarm, RoutineSuggestion, SecondYes, SkillSuggestion } from '@leafbot/shared';
 import { INTL_LOCALE } from '@leafbot/shared/i18n';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
@@ -8,19 +8,12 @@ import { ItemCard } from '@/components/dialogs/Item';
 import { toast, toastError } from '@/components/overlay';
 import { PillButton } from '@/components/page';
 import { describeSchedule } from '@/components/panel/schedule';
-import { Chip, ChipRow, SavedField, useSaveSettings } from '@/components/settings/common/controls';
+import { Chip, ChipRow } from '@/components/settings/common/controls';
 import { Field } from '@/components/ui';
 import { locale, t } from '@/i18n';
 import { formatters } from '@/lib/format';
 import { nav } from '@/lib/nav';
-import {
-  useBots,
-  usePeople,
-  usePromises,
-  useRoutineSuggestions,
-  useSecondYes,
-  useSettings,
-} from '@/lib/queries';
+import { useBots, usePeople, useRoutineSuggestions, useSecondYes, useSkillSuggestions } from '@/lib/queries';
 import { useApi, useServer } from '@/lib/server';
 import { isClockTime, personNameOf, pickable, scheduleOf, type Rhythm } from '@/lib/today';
 import { useColors } from '@/lib/theme';
@@ -173,91 +166,6 @@ export function SecondYesSection() {
   );
 }
 
-/**
- * The person's open promises, overdue first: what a bot said it would do for them and what they
- * promised others. Done or dropped also removes a routine still waiting for it.
- */
-export function PromisesSection() {
-  const c = useColors();
-  const api = useApi();
-  const { data: promises = [] } = usePromises();
-  const { data: bots = [] } = useBots();
-  const { data: settings } = useSettings();
-  const save = useSaveSettings();
-  const refresh = useRefresher('promises');
-  const fail = (e: unknown) => {
-    toastError(e);
-    refresh();
-  };
-  const done = useMutation({ mutationFn: api.promiseDone, onSuccess: refresh, onError: fail });
-  const drop = useMutation({ mutationFn: api.promiseDrop, onSuccess: refresh, onError: fail });
-  if (!promises.length) return null;
-  const busy = done.isPending || drop.isPending;
-  const cards = promises.map((p: Pledge) => {
-    const bot = bots.find((b) => b.id === p.botId);
-    return (
-      <View key={p.id} style={styles.card}>
-        <View style={styles.head}>
-          {bot ? <Avatar name={bot.name} color={bot.color} avatar={bot.avatar} size={24} /> : null}
-          <Text
-            style={[styles.grow, styles.strong, { color: c.foreground }]}
-            onPress={() => nav.chat(p.botId, { threadId: p.threadId ?? undefined })}
-          >
-            {p.text}
-          </Text>
-        </View>
-        <Text style={[styles.small, { color: c.mutedForeground }]}>
-          {p.madeBy === 'bot'
-            ? t('promise.byBot', { bot: bot?.name ?? t('common.bot') })
-            : p.toWhom
-              ? t('promise.byYouTo', { name: p.toWhom })
-              : t('promise.byYou')}
-          {p.dueAt ? (
-            <Text style={p.overdue ? { color: c.destructive, fontWeight: '500' } : undefined}>
-              {' · '}
-              {p.overdue ? t('promise.overdue') : t('promise.due')}{' '}
-              {p.dueHasTime ? fmt.dayLabel(p.dueAt) : fmt.calendarDay(p.dueAt.slice(0, 10))}
-            </Text>
-          ) : null}
-          {p.condition ? ` · ${t('promise.waitingFor', { condition: p.condition })}` : ''}
-          {p.scheduled ? ` · ${t('promise.scheduled')}` : ''}
-        </Text>
-        <View style={styles.actions}>
-          <PillButton
-            label={t('promise.done')}
-            icon="check"
-            disabled={busy}
-            onPress={() => done.mutate(p.id)}
-          />
-          <PillButton
-            label={t('promise.drop')}
-            variant="ghost"
-            disabled={busy}
-            onPress={() => drop.mutate(p.id)}
-          />
-        </View>
-      </View>
-    );
-  });
-  if (settings?.promiseRemindAt) {
-    const current = settings.promiseRemindAt;
-    cards.push(
-      <View key="remind" style={styles.card}>
-        <SavedField
-          label={t('promise.remindAt')}
-          value={current}
-          max={5}
-          onSave={(v) => {
-            // A time the server would refuse stays unsaved and the box shows the saved one again.
-            if (isClockTime(v) && v !== current) save.mutate({ promiseRemindAt: v });
-          }}
-        />
-      </View>,
-    );
-  }
-  return <Group title={t('promise.title')}>{cards}</Group>;
-}
-
 /** One suggestion: what the person kept asking for, the instructions to edit, and the two answers. */
 function SuggestionCard({ s }: { s: RoutineSuggestion }) {
   const c = useColors();
@@ -382,6 +290,111 @@ export function RoutineSuggestionsSection() {
     <Group title={t('routineSuggest.title')}>
       {suggestions.map((s) => (
         <SuggestionCard key={s.id} s={s} />
+      ))}
+    </Group>
+  );
+}
+
+/** One skill suggestion: the kind of task, the skill to read and edit, and the two answers. */
+function SkillCard({ s }: { s: SkillSuggestion }) {
+  const c = useColors();
+  const api = useApi();
+  const { data: bots = [] } = useBots();
+  const bot = bots.find((b) => b.id === s.botId);
+  const [name, setName] = useState(s.name);
+  const [description, setDescription] = useState(s.description);
+  const [body, setBody] = useState(s.body);
+  const refresh = useRefresher('skill-suggestions', 'skills');
+  const fail = (e: unknown) => {
+    toastError(e);
+    refresh();
+  };
+  const botName = bot?.name ?? t('common.bot');
+  const create = useMutation({
+    mutationFn: () =>
+      api.acceptSkillSuggestion(s.id, {
+        name: name.trim() || s.name,
+        description: description.trim() || s.description,
+        body: body.trim() || s.body,
+      }),
+    onSuccess: (skill) => {
+      toast(t('skillSuggest.created', { name: skill.name, bot: botName }));
+      refresh();
+    },
+    onError: fail,
+  });
+  const dismiss = useMutation({
+    mutationFn: () => api.dismissSkillSuggestion(s.id),
+    onSuccess: refresh,
+    onError: fail,
+  });
+  const busy = create.isPending || dismiss.isPending;
+  return (
+    <View style={styles.card}>
+      <View style={styles.head}>
+        {bot ? <Avatar name={bot.name} color={bot.color} avatar={bot.avatar} size={24} /> : null}
+        <View style={styles.grow}>
+          <Text style={[styles.strong, { color: c.foreground }]}>{s.description}</Text>
+          <Text style={[styles.small, { color: c.mutedForeground }]}>
+            {t('skillSuggest.line', { bot: botName, count: s.requests, days: s.days.length })}
+          </Text>
+        </View>
+      </View>
+      {s.canCreate ? (
+        <>
+          <Field
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="none"
+            accessibilityLabel={t('skillSuggest.name')}
+          />
+          <Field
+            value={description}
+            onChangeText={setDescription}
+            accessibilityLabel={t('skillSuggest.description')}
+          />
+          <Field
+            value={body}
+            onChangeText={setBody}
+            multiline
+            accessibilityLabel={t('skillSuggest.body')}
+            style={styles.area}
+          />
+        </>
+      ) : (
+        <Text style={[styles.small, { color: c.mutedForeground }]}>
+          {t('skillSuggest.askOwner', { bot: botName })}
+        </Text>
+      )}
+      <View style={styles.actions}>
+        <PillButton
+          label={t('skillSuggest.dismiss')}
+          variant="ghost"
+          disabled={busy}
+          onPress={() => dismiss.mutate()}
+        />
+        {s.canCreate ? (
+          <PillButton
+            label={t('skillSuggest.create')}
+            variant="primary"
+            disabled={!body.trim() || busy}
+            busy={create.isPending}
+            onPress={() => create.mutate()}
+          />
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/** Many-step tasks the person keeps asking a bot for, offered as skills. */
+export function SkillSuggestionsSection() {
+  const { data: suggestions = [] } = useSkillSuggestions();
+  if (!suggestions.length) return null;
+  return (
+    <Group title={t('skillSuggest.title')}>
+      {suggestions.map((s) => (
+        <SkillCard key={s.id} s={s} />
       ))}
     </Group>
   );

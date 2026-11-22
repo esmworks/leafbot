@@ -13,7 +13,7 @@ import {
   type MeetingTask,
   type Message,
   type RoomMinutes,
-  RoutineCreate,
+  zonedTime,
 } from '@leafbot/shared';
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -104,7 +104,7 @@ export const dayIn = (at: Date, timeZone: string) =>
 
 /** Minutes that cannot be written, with the reason the person reads. */
 class MinutesError extends Error {
-  constructor(readonly key: 'meeting.failedNoEngine' | 'meeting.failedAnswer') {
+  constructor(readonly key: 'meeting.failedNoEngine' | 'meeting.failedAnswer' | 'meeting.failedLimit') {
     super(key);
   }
 }
@@ -586,6 +586,8 @@ export class MeetingService {
     if (!lines.length) return null;
     const writer = members.find((b) => this.engineFor(b).complete);
     if (!writer) throw new MinutesError('meeting.failedNoEngine');
+    // The minutes are spent from the writer's account: a spent limit stops them as it stops turns.
+    if (await this.services.usage.reached(writer)) throw new MinutesError('meeting.failedLimit');
     const engine = this.engineFor(writer);
     const settings = await this.services.settings.all(userId ?? undefined);
     const model =
@@ -620,7 +622,14 @@ export class MeetingService {
       const controller = new AbortController();
       this.current = { meetingId: row.id, controller };
       try {
-        const { text } = await engine.complete!({ model, system, user, signal: controller.signal, locale });
+        const { text, costUsd } = await engine.complete!({
+          model,
+          system,
+          user,
+          signal: controller.signal,
+          locale,
+        });
+        await this.services.usage.background(writer.id, 'minutes', costUsd);
         if (controller.signal.aborted) throw new Error('stopped');
         return text;
       } finally {
@@ -680,8 +689,7 @@ export class MeetingService {
 
   /**
    * The person approved the minutes: they are kept as approved, and each bot chosen gets a note of
-   * them, with what it took on first. A bot's notes reach everyone who uses it, so one the person
-   * may only talk with gets the note once those who may change it accept it.
+   * them, with what it took on first, at once.
    */
   async save(roomId: string, id: string, body: MeetingSave, viewer: Viewer): Promise<Meeting> {
     const row = await this.row(roomId, id);
@@ -697,11 +705,6 @@ export class MeetingService {
     const { t } = await this.translatorFor(roomId);
     const thread = await this.services.threads.row(roomId);
     const all = await this.services.bots.list();
-    const [who] = await this.ctx.db
-      .select({ name: schema.users.displayName, username: schema.users.username })
-      .from(schema.users)
-      .where(eq(schema.users.id, viewer.userId))
-      .limit(1);
     const timezone = (await this.services.settings.all(thread.userId ?? undefined)).timezone;
     const day = dayIn(row.fromAt, timezone);
     const sentTo: MeetingRecipient[] = [];
@@ -718,34 +721,18 @@ export class MeetingService {
       const note = { scope: 'bot' as const, botId, userId: null, content, site: null };
       // One bot that cannot take the note leaves the others theirs.
       try {
-        if (atLeast(level, 'edit')) {
-          if (!(await this.services.memory.findSame(note))) {
-            await this.services.memory.create({
-              ...note,
-              source: 'user',
-              actor: `user:${viewer.userId}`,
-              threadId: roomId,
-            });
-          }
-          sentTo.push({ botId, waiting: false });
-        } else {
-          await this.services.memory.propose({
-            action: 'write',
-            memoryId: null,
-            scope: 'bot',
-            botId,
-            place: null,
-            site: null,
-            content,
-            before: null,
-            proposedBy: botId,
-            origin: { kind: 'person', name: who?.name || who?.username || '' },
-            userId: viewer.userId,
+        if (!(await this.services.memory.findSame(note))) {
+          await this.services.memory.create({
+            ...note,
+            // Someone who may change the bot writes its notes as their own. A note from someone who
+            // may only talk with it is kept at once too, as the bot's own: nobody is asked to judge
+            // minutes of a meeting they were not in, and the note shows in the memory screen.
+            source: atLeast(level, 'edit') ? 'user' : `bot:${botId}`,
+            actor: `user:${viewer.userId}`,
             threadId: roomId,
-            sourceUrl: null,
           });
-          sentTo.push({ botId, waiting: true });
         }
+        sentTo.push({ botId, waiting: false });
       } catch (err) {
         console.warn(`Meeting note for bot ${botId} failed: ${(err as Error).message}`);
       }
@@ -766,10 +753,11 @@ export class MeetingService {
   }
 
   /**
-   * Reminders for the tasks the person picked: a routine that runs once on the task's day, in the
-   * bot's main conversation, as the person. The bot that took the task on looks at where it stands;
-   * a person's task, or one of a bot the person may not change, is brought up by the first bot of
-   * the room the person may change. A task with no day, or a day already past, gets none.
+   * Reminders for the tasks the person picked: a follow-up on the task's day, in the bot's main
+   * conversation with the person. The bot that took the task on looks at where it stands; a
+   * person's task is brought up by the first bot of the room. A follow-up changes nothing about the
+   * bot, so any member the person may talk with keeps one. A task with no day, or a day already
+   * past, gets none.
    */
   private async remind(
     roomId: string,
@@ -784,15 +772,15 @@ export class MeetingService {
     });
     if (!picked.length) return [];
     const { members } = await this.bots(roomId);
-    const editable: Bot[] = [];
+    const usable: Bot[] = [];
     for (const b of members) {
-      if (atLeast(await this.services.access.level(viewer, b.id), 'edit')) editable.push(b);
+      if (atLeast(await this.services.access.level(viewer, b.id), 'chat')) usable.push(b);
     }
     const pruned = new Set<string>();
     const made: MeetingReminder[] = [];
     for (const task of picked) {
-      const own = editable.find((b) => b.id === task.botId);
-      const bot = own ?? editable[0];
+      const own = usable.find((b) => b.id === task.botId);
+      const bot = own ?? usable[0];
       if (!bot) break;
       const prompt = own
         ? o.t('meeting.reminderOwn', { title: minutes.title, day: o.day, room: o.room, task: task.text })
@@ -808,29 +796,32 @@ export class MeetingService {
           pruned.add(bot.id);
           await this.pruneReminders(bot.id);
         }
-        const routine = await this.services.routines.create(
-          {
-            ...RoutineCreate.parse({
-              botId: bot.id,
-              name: truncate(o.t('meeting.reminderName', { task: task.text }), 80),
-              prompt: redactSecrets(prompt, o.t('memory.redacted')).text,
-              schedule: { type: 'once', date: task.due, time: body.remindAt },
-              timezone: o.timezone,
-            }),
-            // In the conversation where the person talks with the bot, so they see it there.
-            inMain: true,
-          },
-          viewer.userId,
-        );
+        const dueAt = zonedTime(task.due!, body.remindAt, o.timezone);
+        // A day already gone gets none.
+        if (dueAt.getTime() <= this.clock().getTime()) continue;
+        // A follow-up in the conversation where the person talks with the bot, so they see it
+        // there; the bot keeping track, not a routine in its list.
+        const followUp = await this.services.followUps.add({
+          bot,
+          userId: viewer.userId,
+          threadId: roomId,
+          text: prompt,
+          context: o.t('meeting.reminderName', { task: task.text }),
+          eventAt: zonedTime(task.due!, '00:00', o.timezone),
+          dueAt,
+          kind: 'meeting',
+          t: o.t,
+        });
+        if (!followUp) continue;
         made.push({
-          routineId: routine.id,
+          followUpId: followUp.id,
           botId: bot.id,
           task: task.text,
           date: task.due!,
           time: body.remindAt,
         });
       } catch (err) {
-        // A day already past, or a bot with no room for another routine: that task gets none.
+        // A bot that keeps as many follow-ups as it may: that task gets none.
         console.warn(`Meeting reminder for bot ${bot.id} not set: ${(err as Error).message}`);
       }
     }
@@ -846,7 +837,7 @@ export class MeetingService {
     const ids = rows.flatMap((r) =>
       ((r.reminders as MeetingReminder[] | null) ?? [])
         .filter((x) => x.botId === botId)
-        .map((x) => x.routineId),
+        .flatMap((x) => (x.routineId ? [x.routineId] : [])),
     );
     if (!ids.length) return;
     const spent = await this.ctx.db

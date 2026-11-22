@@ -82,6 +82,9 @@ export async function testServer(overrides: Partial<Config> = {}): Promise<TestS
   // A model-written title would replace the first message's words that many tests read back; the
   // naming's own tests turn it on.
   await server.services.settings.update({ modelTitles: false });
+  // Reading each turn for what is coming up would add a model call to every test that names a day;
+  // the follow-ups' own tests turn it on.
+  server.services.followUps.readTurns = false;
   const api = async <T>(method: string, url: string, body?: unknown) => {
     const res = await server.app.inject({
       method: method as 'GET',

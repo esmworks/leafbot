@@ -136,6 +136,9 @@ function refresh(qc: QueryClient, e: RefreshScope) {
     case 'routineSuggestions':
       inv('routine-suggestions');
       break;
+    case 'skillSuggestions':
+      inv('skill-suggestions');
+      break;
     case 'rules':
       inv('rules');
       inv('suggestions');

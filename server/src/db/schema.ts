@@ -238,9 +238,11 @@ export const meetings = pgTable(
     error: text('error'),
     /** The bots that were told, and whether each note waits for the bot's owner. */
     sentTo: jsonb('sent_to').$type<{ botId: string; waiting: boolean }[]>().notNull().default([]),
-    /** The reminders set for its tasks: routines that run once on a task's day. */
+    /** The reminders set for its tasks: follow-ups on a task's day (routines, for older meetings). */
     reminders: sealedJson('reminders')
-      .$type<{ routineId: string; botId: string; task: string; date: string; time: string }[]>()
+      .$type<
+        { followUpId?: string; routineId?: string; botId: string; task: string; date: string; time: string }[]
+      >()
       .notNull()
       .default([]),
     createdAt: created(),
@@ -271,6 +273,13 @@ export const roomMembers = pgTable(
   (t) => [uniqueIndex('room_members_uq').on(t.roomId, t.botId)],
 );
 
+/** One step of a turn as it is kept: the tool's short name, what it did, and what it was given. */
+export interface TurnStep {
+  tool: string;
+  step: string;
+  detail?: string;
+}
+
 export const turns = pgTable(
   'turns',
   {
@@ -285,7 +294,10 @@ export const turns = pgTable(
     // `ticket`: work on a ticket of the board, started by its assignment or a comment on it.
     // `upkeep`: the server's own work on a conversation (folding it while idle), kept for its cost;
     // it is written once done and never queued.
-    source: text('source', { enum: ['user', 'reaction', 'routine', 'bot', 'ticket', 'upkeep'] }).notNull(),
+    // `followup`: a reminder the bot set itself came due (see `followUps`).
+    source: text('source', {
+      enum: ['user', 'reaction', 'routine', 'bot', 'ticket', 'upkeep', 'followup'],
+    }).notNull(),
     /** The person the turn works for: who wrote, or whose request a bot passed on; null when nobody asked. */
     userId: text('user_id').references(() => users.id, { onDelete: 'set null' }),
     status: text('status', {
@@ -322,6 +334,12 @@ export const turns = pgTable(
      * more with its bot than talk with it, and the person's "always allow" rules do not count.
      */
     guest: boolean('guest').notNull().default(false),
+    /**
+     * The steps the bot took, in order: the tool and a short line of what it did, secrets taken
+     * out. Read later to see how a bot goes about a kind of task (the skill suggestions); null for
+     * a turn that took none, or ran before steps were kept.
+     */
+    steps: sealedJson('steps').$type<TurnStep[]>(),
     createdAt: created(),
     startedAt: ts('started_at'),
     finishedAt: ts('finished_at'),
@@ -472,6 +490,8 @@ export const memories = pgTable(
      * someone says otherwise.
      */
     validUntil: ts('valid_until'),
+    /** When the weekly tidy-up last read the page the note came from; null when it never did. */
+    sourceCheckedAt: ts('source_checked_at'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
@@ -1662,6 +1682,58 @@ export const canaryAlarms = pgTable(
  * Only the person it belongs to sees it, admins included. Due promises have a one-time routine
  * that does the bot's part or reminds the person; it is removed with the promise.
  */
+/**
+ * A reminder a bot keeps for itself: at `dueAt` it brings `text` up with the person, in its main
+ * conversation with them. Not a routine: nobody is asked before one is set, it is no standing job
+ * and it shows in no list of routines. Something coming up the bot read about (a visit, a deadline),
+ * its own promise to look again, a person's promise or a meeting's task each become one. One set
+ * from outside text (a mail) keeps that mark, so the turn it starts changes nothing without a card.
+ */
+export const followUps = pgTable(
+  'follow_ups',
+  {
+    id: text('id').primaryKey(),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    /**
+     * The person it is for: it comes up in the bot's main conversation with them. A follow-up is the
+     * person's: the same thing learned by two bots is kept once, by the bot that learned it first.
+     */
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** The conversation it was set in; null when none (a meeting, a promise net). */
+    threadId: text('thread_id').references(() => threads.id, { onDelete: 'set null' }),
+    /** What to bring up, and what it came from (a mail's sender and subject, say), as the bot wrote it. */
+    text: sealedText('text').notNull(),
+    context: sealedText('context').notNull().default(''),
+    /** When the thing itself happens, when there is such a moment (the visit, the deadline). */
+    eventAt: ts('event_at'),
+    /** Whether `eventAt` names a time of day, or only the day (kept as that day's start). */
+    eventHasTime: boolean('event_has_time').notNull().default(false),
+    /** When the bot brings it up. */
+    dueAt: ts('due_at').notNull(),
+    /** What set it: the bot itself, a person's promise or a meeting's task. */
+    kind: text('kind', { enum: ['bot', 'promise', 'meeting'] })
+      .notNull()
+      .default('bot'),
+    /** Outside text the turn that set it had read; the turn it starts reads it as read. */
+    outside: text('outside', { enum: OUTSIDE_TRIGGERS }),
+    status: text('status', { enum: ['open', 'fired', 'dropped'] })
+      .notNull()
+      .default('open'),
+    /** The turn it started, once due. */
+    turnId: text('turn_id'),
+    createdAt: created(),
+    firedAt: ts('fired_at'),
+  },
+  (t) => [
+    index('follow_ups_due_idx').on(t.status, t.dueAt),
+    index('follow_ups_user_idx').on(t.userId, t.status),
+  ],
+);
+
 export const promises = pgTable(
   'promises',
   {
@@ -1684,8 +1756,10 @@ export const promises = pgTable(
     dueHasTime: boolean('due_has_time').notNull().default(false),
     /** What it waits for instead of a time ("when the price drops"); empty when it has none. */
     condition: sealedText('condition').notNull().default(''),
-    /** The one-time routine that keeps it; null when none was set (no time, or it could not be). */
+    /** The one-time routine that kept it, for a promise set before follow-ups; null for the rest. */
     routineId: text('routine_id').references(() => routines.id, { onDelete: 'set null' }),
+    /** The follow-up that brings it up when it falls due; null when none was set (no time). */
+    followUpId: text('follow_up_id').references(() => followUps.id, { onDelete: 'set null' }),
     status: text('status', { enum: ['open', 'done', 'dropped'] })
       .notNull()
       .default('open'),
@@ -1751,6 +1825,101 @@ export const routineSuggestions = pgTable(
     index('routine_suggestions_user_status_idx').on(t.userId, t.status),
     uniqueIndex('routine_suggestions_fingerprint_uq').on(t.userId, t.botId, t.fingerprint),
   ],
+);
+
+/**
+ * A skill offered to a person: a kind of multi-step task they asked a bot for again and again,
+ * written up from how the bot did it and what the person corrected. Theirs alone; Today shows it.
+ */
+export const skillSuggestions = pgTable(
+  'skill_suggestions',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    description: sealedText('description').notNull(),
+    body: sealedText('body').notNull(),
+    /** How many requests there were, and the local days (YYYY-MM-DD) they were made on. */
+    requests: integer('requests').notNull(),
+    days: jsonb('days').$type<string[]>().notNull(),
+    /** Identifies the kind of task, so a later pass finds the same group again. */
+    fingerprint: text('fingerprint').notNull(),
+    /** The words the group's requests share; what a later pass compares a new group with. */
+    signature: sealedText('signature').notNull().default(''),
+    status: text('status', { enum: ['open', 'accepted', 'dismissed'] })
+      .notNull()
+      .default('open'),
+    skillId: text('skill_id').references(() => skills.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    decidedAt: ts('decided_at'),
+  },
+  (t) => [
+    index('skill_suggestions_user_status_idx').on(t.userId, t.status),
+    uniqueIndex('skill_suggestions_fingerprint_uq').on(t.userId, t.botId, t.fingerprint),
+  ],
+);
+
+/** One call the skill suggestions made to write a skill: what it cost and whether it wrote one. */
+export const skillSuggestionChecks = pgTable(
+  'skill_suggestion_checks',
+  {
+    id: text('id').primaryKey(),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    costUsd: real('cost_usd'),
+    found: boolean('found').notNull().default(false),
+    createdAt: created(),
+  },
+  (t) => [index('skill_suggestion_checks_created_idx').on(t.createdAt)],
+);
+
+/**
+ * One call the memory tidy-up made: reading a set of notes, or a note against its page. What it
+ * cost, and how many notes it changed.
+ */
+export const memoryTidyChecks = pgTable(
+  'memory_tidy_checks',
+  {
+    id: text('id').primaryKey(),
+    /** The bot whose model was asked. */
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: ['set', 'source'] }).notNull(),
+    costUsd: real('cost_usd'),
+    changed: integer('changed').notNull().default(0),
+    createdAt: created(),
+  },
+  (t) => [index('memory_tidy_checks_created_idx').on(t.createdAt)],
+);
+
+/** The kinds of background call kept in `background_calls`. */
+export const BACKGROUND_CALLS = ['memoryReview', 'title', 'minutes', 'followUps'] as const;
+
+/**
+ * One call the server made to a bot's model in the background that has no table of its own: the
+ * memory review of a conversation, a conversation's title, a meeting's minutes, the reading of a
+ * turn for what is coming up (follow-ups). What it cost, so it
+ * shows on the usage page and counts toward the spending limits.
+ */
+export const backgroundCalls = pgTable(
+  'background_calls',
+  {
+    id: text('id').primaryKey(),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: BACKGROUND_CALLS }).notNull(),
+    costUsd: real('cost_usd'),
+    createdAt: created(),
+  },
+  (t) => [index('background_calls_created_idx').on(t.createdAt)],
 );
 
 /** One look of the routine suggestions at a group of requests: what the small-model call cost. */

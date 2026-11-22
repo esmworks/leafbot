@@ -47,14 +47,21 @@ The interface is available in English and Turkish.
 - **People** — the owner and admins add people, each with their own password and role (admin or member). A bot is
   shared with everyone or some people, to talk with or to change; each person's conversations, profile, notes,
   connections and vault entries are theirs alone, admins included, and a bot works with what belongs to the person it
-  works for. A note on a bot's own memory asked for by someone who may only talk with it waits for the bot's owner.
+  works for.
 - **Approvals** — bots ask before using tools you have not allowed; you can remember a decision per bot.
 - **Meeting minutes** — a room asks whether a talk is a meeting, writes its minutes when it ends, and once you approve
   them each bot you pick keeps the decisions and its own tasks in memory.
-- **Memory and routines** — bots keep notes across chats (or work without memory) and look through their past
-  conversations. Routines run on a schedule (including cron and day/hour windows), when the server starts, from a
-  filtered webhook, when a row of a bot's table is ready, or only when a watched page or a connected app's answer changes; they can build on their last report and run in the main
-  conversation.
+- **Memory and routines** — bots keep notes across chats on their own, without asking (or work without memory), and
+  look through their past conversations. Once a week each set of notes that changed is tidied: notes that repeat are
+  merged and, of two that disagree, the newer one or the one the person wrote stays; a note taken from a page is read
+  against the page again and corrected when it changed. A kind of many-step task asked for again and again is offered
+  on Today as a skill, written from the steps that worked and what the person corrected. Routines run on a schedule
+  (including cron and day/hour windows), when the server starts, from a filtered webhook, when a row of a bot's table
+  is ready, or only when a watched page or a connected app's answer changes; they can build on their last report and
+  run in the main conversation.
+- **Follow-ups** — each bot keeps its own calendar apart from the routines: whatever it learns is coming up (a visit
+  in a mail, a deadline said in the chat, a promise) it keeps track of by itself, without asking and without filling
+  the list of routines, and brings it up the morning before, with the calendar checked, also in Telegram or WhatsApp.
 - **Today and usage** — a Today page of what the bots did and what waits for you; spending by bot, model and routine,
   a monthly limit and a CSV export.
 - **Telegram and WhatsApp** — each bot can have its own Telegram bot, paired with your Telegram account only;

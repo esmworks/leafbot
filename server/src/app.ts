@@ -345,6 +345,14 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
       void services.routineSuggestions
         .runDue()
         .catch((err) => console.warn(`Routine suggestions failed: ${String(err)}`));
+    // Each person's many-step tasks are looked at for one to keep as a skill, once a week.
+    if (!opts.engine && !fake)
+      void services.skillSuggestions
+        .runDue()
+        .catch((err) => console.warn(`Skill suggestions failed: ${String(err)}`));
+    // Each set of notes that changed is tidied once a week; likewise not with a test's engine.
+    if (!opts.engine && !fake)
+      void services.memoryTidy.runDue().catch((err) => console.warn(`Memory tidy-up failed: ${String(err)}`));
   };
   sweep();
   const sweepTimer = setInterval(sweep, 60 * 60_000);
@@ -741,6 +749,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     app.log.warn({ err }, 'marker recount failed');
   });
   services.routines.start();
+  services.followUps.start();
   services.turns.startUpkeep();
   await services.meetings.start();
   // In the background: model lists work from the engine's own until the catalog is in.
@@ -769,6 +778,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     },
     async close() {
       await services.routines.stop();
+      await services.followUps.stop();
       await services.telegram.stop();
       await services.whatsapp.stop();
       await services.slack.stop();
@@ -779,8 +789,10 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
       services.subscriptions.stop();
       await services.turns.shutdown();
       await services.memoryReview.shutdown();
+      await services.memoryTidy.shutdown();
       await services.promises.shutdown();
       await services.routineSuggestions.shutdown();
+      await services.skillSuggestions.shutdown();
       await services.titles.shutdown();
       await services.offers.shutdown();
       await services.meetings.shutdown();

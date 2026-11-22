@@ -476,7 +476,9 @@ export type MeetingRecipient = z.infer<typeof MeetingRecipient>;
  * person's task is brought up by a bot of the room.
  */
 export const MeetingReminder = z.object({
-  routineId: Id,
+  /** The follow-up that brings the task up; a meeting saved before follow-ups has a routine instead. */
+  followUpId: Id.optional(),
+  routineId: Id.optional(),
   botId: Id,
   task: z.string(),
   /** The local day and time it runs, as `YYYY-MM-DD` and `HH:MM`. */
@@ -1052,7 +1054,10 @@ export interface MemoryChange {
 /** One thing that happened to a memory note, as `GET /api/memory-history` lists it (oldest first). */
 export interface MemoryHistoryLine {
   id: string;
-  /** `user:<id>` for a person, `bot:<id>` for a bot; older lines hold a bare `bot` or `person`. */
+  /**
+   * `user:<id>` for a person, `bot:<id>` for a bot, `tidy` for the weekly tidy-up; older lines hold
+   * a bare `bot` or `person`.
+   */
   actor: string;
   action: 'create' | 'update' | 'delete' | 'pin' | 'unpin';
   targetId: string;
@@ -1573,6 +1578,35 @@ export const UsageReport = z.object({
     .optional(),
   /** The work offers' looks at conversations over the period, when there were any: looks, cost, offers made. */
   offers: z.object({ checks: z.number().int(), costUsd: z.number(), found: z.number().int() }).optional(),
+  /**
+   * The memory tidy-up's calls over the period, when it made any: sets of notes read, notes read
+   * against their page, what the calls cost and the notes they changed.
+   */
+  tidy: z
+    .object({
+      sets: z.number().int(),
+      sources: z.number().int(),
+      costUsd: z.number(),
+      changed: z.number().int(),
+    })
+    .optional(),
+  /**
+   * The other calls the server made to the bots' models in the background over the period, by kind
+   * (the memory review, conversation titles, meeting minutes, follow-ups), when there were any.
+   */
+  background: z
+    .array(
+      z.object({
+        kind: z.enum(['memoryReview', 'title', 'minutes', 'followUps']),
+        calls: z.number().int(),
+        costUsd: z.number(),
+      }),
+    )
+    .optional(),
+  /** The skill suggestions' calls over the period, when there were any: calls, cost, skills written. */
+  skillSuggestions: z
+    .object({ checks: z.number().int(), costUsd: z.number(), found: z.number().int() })
+    .optional(),
 });
 export type UsageReport = z.infer<typeof UsageReport>;
 
@@ -1662,6 +1696,23 @@ export const Pledge = z.object({
   createdAt: z.string(),
 });
 export type Pledge = z.infer<typeof Pledge>;
+
+/** A reminder a bot keeps for itself, as the bot lists it. */
+export const FollowUp = z.object({
+  id: Id,
+  botId: Id,
+  /** What the bot brings up, and what it came from (a mail's sender and subject, say). */
+  text: z.string(),
+  context: z.string(),
+  /** When the thing itself happens, when there is such a moment; null when none. */
+  eventAt: z.string().nullable(),
+  /** When the bot brings it up. */
+  dueAt: z.string(),
+  /** What set it: the bot keeping track, a person's promise, a meeting's task. */
+  kind: z.enum(['bot', 'promise', 'meeting']),
+  createdAt: z.string(),
+});
+export type FollowUp = z.infer<typeof FollowUp>;
 
 /** What a turn changed that can be put back, by the kind of thing it was. */
 export const TURN_CHANGE_KINDS = [
@@ -1842,6 +1893,32 @@ export const SkillCreate = z.object({
 export type SkillCreate = z.input<typeof SkillCreate>;
 export const SkillUpdate = SkillCreate.omit({ botIds: true }).partial();
 export type SkillUpdate = z.infer<typeof SkillUpdate>;
+
+/** A skill offered from a kind of task the person asked a bot for again and again. */
+export const SkillSuggestion = z.object({
+  id: Id,
+  botId: Id,
+  /** The skill's name as a skill takes it (`weekly-sales-report`). */
+  name: z.string(),
+  description: z.string(),
+  /** What the skill tells the bot; the person may change it before adding the skill. */
+  body: z.string(),
+  /** How many requests it was made from, and the local days (YYYY-MM-DD) they were made on. */
+  requests: z.number().int(),
+  days: z.array(z.string()),
+  /** Whether the person may change the bot, which turning a skill on for it needs. */
+  canCreate: z.boolean(),
+  createdAt: z.string(),
+});
+export type SkillSuggestion = z.infer<typeof SkillSuggestion>;
+
+/** What the person settled on when adding the skill from a suggestion. */
+export const SkillSuggestionAccept = z.object({
+  name: SkillName.optional(),
+  description: z.string().trim().min(1).max(1024).optional(),
+  body: z.string().trim().min(1).max(50_000).optional(),
+});
+export type SkillSuggestionAccept = z.infer<typeof SkillSuggestionAccept>;
 export const SkillBot = z.object({ on: z.boolean() });
 
 /** A message found by the search, with where it is. */
