@@ -110,6 +110,35 @@ describe('hafıza işaretleri: botun bilmediğini söylemesi', () => {
     expect(row).toMatchObject({ status: 'resolved', resolvedBy: 'user:owner' });
   });
 
+  it('bir notta eksik olanın cevabı notun sonuna eklenir; sığmazsa ayrı not olur', async () => {
+    const bot = await t.bot({ name: 'Rapor' });
+    const th = await main(bot.id);
+    const note = await t.services.memory.create({
+      scope: 'bot',
+      botId: bot.id,
+      content: 'Ayşe Acme’de çalışır, sabah toplantılarını sever',
+      source: `bot:${bot.id}`,
+    });
+    await say(th, flag({ kind: 'missing', about: 'Ayşe’nin telefonu', note: note.id }));
+    const [f] = await flags();
+    await t.api('POST', `/api/memory/flags/${f!.id}/answer`, { text: 'Telefonu 0555 000 00 00' });
+    expect((await t.services.memory.get(note.id)).content).toBe(
+      'Ayşe Acme’de çalışır, sabah toplantılarını sever\nTelefonu 0555 000 00 00',
+    );
+
+    const long = await t.services.memory.create({
+      scope: 'bot',
+      botId: bot.id,
+      content: 'x'.repeat(1990),
+      source: `bot:${bot.id}`,
+    });
+    await say(th, flag({ kind: 'missing', about: 'Uzun notun eksiği', note: long.id }));
+    const [g] = await flags();
+    await t.api('POST', `/api/memory/flags/${g!.id}/answer`, { text: 'Eksik olan bu bilgidir' });
+    expect((await t.services.memory.get(long.id)).content).toBe('x'.repeat(1990));
+    expect((await notes()).some((m) => m.content === 'Eksik olan bu bilgidir')).toBe(true);
+  });
+
   it('eksik bilginin cevabı kişinin kendi notu olur; "gerek yok" işareti kaldırır', async () => {
     const bot = await t.bot({ name: 'Satış' });
     const th = await main(bot.id);

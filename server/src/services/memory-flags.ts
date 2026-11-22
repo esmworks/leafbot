@@ -115,6 +115,9 @@ const reachable = (reach: MemoryReach) =>
     and(sql`${schema.memories.id} is not null`, noteReachable(reach)),
   )!;
 
+/** The longest a note may be, as a change to one is checked (`MemoryUpdate`). */
+const NOTE_MAX = 2000;
+
 /** One bot's flags are raised one at a time, so the limits below hold when a turn calls the tool in parallel. */
 const lanes = new Map<string, Promise<unknown>>();
 function oneAtATime<T>(key: string, fn: () => Promise<T>): Promise<T> {
@@ -322,7 +325,13 @@ export class MemoryFlagService {
       }
     } else {
       const note = flag.memoryId ? await memory.get(flag.memoryId).catch(() => null) : null;
-      if (note) await memory.update(note.id, { content: words, sourceUrl: null }, actor);
+      // A wrong note is put right by the answer; a note that lacks something keeps what it says
+      // and takes the answer after it, or beside it as a note of its own when both do not fit.
+      const added = note && `${note.content.trimEnd()}\n${words}`;
+      if (note && flag.kind === 'wrong')
+        await memory.update(note.id, { content: words, sourceUrl: null }, actor);
+      else if (note && added && added.length <= NOTE_MAX)
+        await memory.update(note.id, { content: added, sourceUrl: null }, actor);
       else
         await memory.create({
           scope: flag.scope,

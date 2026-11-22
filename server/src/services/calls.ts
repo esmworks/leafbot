@@ -206,7 +206,8 @@ export class CallService {
       if (c.stopping) continue;
       const state = await this.ctx.browser.listenState(botId).catch(() => null);
       // A page not listening may be loading the next one, as joining a call does; it starts
-      // listening again once loaded. Not listening for two checks in a row, it left.
+      // listening again once loaded. Not listening for two checks in a row, it left. No state at
+      // all means the tab or the browser is gone (see `listenState`): that ends it at once.
       c.away = state && !state.listening ? c.away + 1 : 0;
       if (state && !state.listening && c.away < 2) continue;
       if (state?.tracks) c.voices = true;
@@ -233,8 +234,11 @@ export class CallService {
         const stamp = `${String(w.hour).padStart(2, '0')}:${String(w.minute).padStart(2, '0')}`;
         await appendFile(c.file, `[${stamp}] ${text.trim()}\n`);
         c.lines++;
-        c.lastHeard = at.getTime();
+        c.lastHeard = Math.max(c.lastHeard, at.getTime());
       } catch {
+        // Words the speech service could not give back were still someone speaking: a failing
+        // service is no quiet call. Only sound that holds no words (noise) leaves the call quiet.
+        c.lastHeard = Math.max(c.lastHeard, at.getTime());
         c.missed++;
       }
     });

@@ -14,17 +14,26 @@ export const updatesOn = Platform.OS !== 'web' && !__DEV__ && Updates.isEnabled 
 
 // The app already looks at launch, so the first return to the front does not look again at once.
 let lastCheck: number | null = Date.now();
+let looking: Promise<boolean> | null = null;
 
 /**
  * Looks for an update and downloads it. It is used from the next start, or at once from the
  * restart the app then offers. Resolves to whether one was found.
  */
-export async function checkForUpdate(): Promise<boolean> {
+export function checkForUpdate(): Promise<boolean> {
+  // A look already under way (the settings button and a return to the front at once) is shared:
+  // expo-updates refuses a second check or download while one runs.
+  if (looking) return looking;
   lastCheck = Date.now();
-  const found = await Updates.checkForUpdateAsync();
-  if (!found.isAvailable) return false;
-  await Updates.fetchUpdateAsync();
-  return true;
+  looking = (async () => {
+    const found = await Updates.checkForUpdateAsync();
+    if (!found.isAvailable) return false;
+    await Updates.fetchUpdateAsync();
+    return true;
+  })().finally(() => {
+    looking = null;
+  });
+  return looking;
 }
 
 export function restartIntoUpdate() {

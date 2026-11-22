@@ -56,12 +56,16 @@ function tokenOf(activity: LiveActivity<LiveActivityProps>): Promise<string | nu
       sub.remove();
       resolve(e.pushToken);
     });
-    void activity.getPushToken().then((token) => {
-      if (!token) return;
-      clearTimeout(timer);
-      sub.remove();
-      resolve(token);
-    });
+    // A failed ask leaves the listener and the time limit to settle it.
+    activity
+      .getPushToken()
+      .then((token) => {
+        if (!token) return;
+        clearTimeout(timer);
+        sub.remove();
+        resolve(token);
+      })
+      .catch(() => undefined);
   });
 }
 
@@ -78,17 +82,18 @@ export async function showWork(
   const f = factory();
   if (!f || serverCannot) return;
   const open = shown.get(threadId);
-  if (open && f.getInstances().some((a) => a.getId() === open.getId())) return;
   let activity: LiveActivity<LiveActivityProps>;
   const since = Date.now();
   try {
+    if (open && f.getInstances().some((a) => a.getId() === open.getId())) return;
     activity = f.start(
       { bot, state: t('activity.working'), phase: 'working', since },
       undefined,
       new Date(Date.now() + STALE_MS),
     );
   } catch {
-    // Live Activities turned off for the app in the phone's settings.
+    // Live Activities turned off for the app in the phone's settings, or the phone would not say
+    // which are showing.
     return;
   }
   shown.set(threadId, activity);

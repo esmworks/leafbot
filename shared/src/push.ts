@@ -47,7 +47,7 @@ export type LiveActivitySet = z.infer<typeof LiveActivitySet>;
  * and the phases of the work it shows.
  */
 export const LIVE_ACTIVITY_NAME = 'BotWork';
-export type LiveActivityPhase = 'working' | 'waiting' | 'done' | 'failed';
+export type LiveActivityPhase = 'working' | 'waiting' | 'done' | 'failed' | 'stopped';
 
 /** What a Live Activity shows; the words come already in the person's language. */
 export interface LiveActivityProps {
