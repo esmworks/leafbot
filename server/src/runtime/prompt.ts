@@ -233,6 +233,9 @@ export function buildSystemPrompt(opts: {
     // Asked for several things at once, a model tends to do most and drop one, and only owns up
     // when asked; a written list and a read of the request before the end catch the dropped one.
     t('prompt.ruleChecklist'),
+    // An item left for later lives only in the reply and the turn's own list, both gone by the
+    // next message; on the board it stays where the person follows their work.
+    ...(opts.board ? [t('prompt.ruleChecklistBoard')] : []),
     t('prompt.ruleFacts'),
     t('prompt.ruleDraft'),
     t('prompt.ruleFiles'),
