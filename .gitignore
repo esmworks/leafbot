@@ -8,7 +8,7 @@ data/
 .env.*
 !.env.example
 
-# Yerel çalışma notları
+# Local working notes
 PRD.md
 TASKS.md
 .claude/launch.json
