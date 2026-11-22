@@ -305,7 +305,7 @@ export class PromiseService {
           kind: 'promise',
           t: o.t,
         });
-        followUpId = followUp.id;
+        followUpId = followUp?.id ?? null;
       } catch (err) {
         console.warn(`Promise follow-up for bot ${o.bot.id} not set: ${(err as Error).message}`);
       }

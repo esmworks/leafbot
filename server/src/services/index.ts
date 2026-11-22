@@ -202,7 +202,8 @@ export class Services {
     this.turns.onFinished((t, o) => this.promises.onTurnFinished(t, o));
     this.routineSuggestions = new RoutineSuggestionService(ctx, this, engineFor, clock);
     this.skillSuggestions = new SkillSuggestionService(ctx, this, engineFor, clock);
-    this.followUps = new FollowUpService(ctx, this, clock);
+    this.followUps = new FollowUpService(ctx, this, engineFor, clock);
+    this.turns.onFinished((t, o) => this.followUps.onTurnFinished(t, o));
     this.meetings = new MeetingService(ctx, this, engineFor, clock);
     this.turns.onFinished((t) => this.meetings.onTurnFinished(t));
     this.telegram = new TelegramChannels(ctx, this, this.vault);

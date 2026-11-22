@@ -78,13 +78,7 @@ export const useMailSender = (connectionId: string | undefined) =>
 export const useMemory = () => useQuery({ queryKey: ['memory'], queryFn: api.memory });
 // Under `memory`, so a change to any note brings the list up to date.
 export const useStaleMemory = () => useQuery({ queryKey: ['memory', 'stale'], queryFn: api.staleMemory });
-/** Under `memory` too; looked at again every few seconds while a pass runs, as it says nothing until it ends. */
-export const useMemoryTidy = () =>
-  useQuery({
-    queryKey: ['memory', 'tidy'],
-    queryFn: api.memoryTidy,
-    refetchInterval: (q) => (q.state.data?.running ? 5000 : false),
-  });
+
 /** The turns of a conversation the person may take back: those that changed something. */
 export const useTurnChanges = (threadId: string) =>
   useQuery({
@@ -99,8 +93,6 @@ export const usePromises = (enabled = true) =>
 /** Routines offered because the person keeps asking a bot for the same thing by hand. */
 export const useRoutineSuggestions = (enabled = true) =>
   useQuery({ queryKey: ['routine-suggestions'], queryFn: api.routineSuggestions, enabled });
-export const useFollowUps = (enabled = true) =>
-  useQuery({ queryKey: ['follow-ups'], queryFn: api.followUps, enabled });
 export const useSkillSuggestions = (enabled = true) =>
   useQuery({ queryKey: ['skill-suggestions'], queryFn: api.skillSuggestions, enabled });
 export const useRoutines = () => useQuery({ queryKey: ['routines'], queryFn: api.routines });

@@ -1069,21 +1069,6 @@ export interface MemoryHistoryLine {
   owner: string | null;
   createdAt: string;
 }
-/** The weekly tidy-up of the notes, as `GET /api/memory-tidy` gives it. */
-export interface MemoryTidyStatus {
-  /** A pass is under way. */
-  running: boolean;
-  /** The last pass that looked at any notes: when, how many sets, and what it did. */
-  last: {
-    at: string;
-    sets: number;
-    /** Notes read against the page they came from; missing on older servers. */
-    checked?: number;
-    merged: number;
-    updated: number;
-    forgot: number;
-  } | null;
-}
 /**
  * Days after which a note that no prompt carries, and that no bot changed or looked up, is offered
  * to the user for deletion.
@@ -1607,12 +1592,12 @@ export const UsageReport = z.object({
     .optional(),
   /**
    * The other calls the server made to the bots' models in the background over the period, by kind
-   * (the memory review, conversation titles, meeting minutes), when there were any.
+   * (the memory review, conversation titles, meeting minutes, follow-ups), when there were any.
    */
   background: z
     .array(
       z.object({
-        kind: z.enum(['memoryReview', 'title', 'minutes']),
+        kind: z.enum(['memoryReview', 'title', 'minutes', 'followUps']),
         calls: z.number().int(),
         costUsd: z.number(),
       }),
@@ -1712,7 +1697,7 @@ export const Pledge = z.object({
 });
 export type Pledge = z.infer<typeof Pledge>;
 
-/** A reminder a bot keeps for itself, as `GET /api/follow-ups` lists it. */
+/** A reminder a bot keeps for itself, as the bot lists it. */
 export const FollowUp = z.object({
   id: Id,
   botId: Id,

@@ -1686,7 +1686,10 @@ export const followUps = pgTable(
     botId: text('bot_id')
       .notNull()
       .references(() => bots.id, { onDelete: 'cascade' }),
-    /** The person it is for: it comes up in the bot's main conversation with them. */
+    /**
+     * The person it is for: it comes up in the bot's main conversation with them. A follow-up is the
+     * person's: the same thing learned by two bots is kept once, by the bot that learned it first.
+     */
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
@@ -1697,6 +1700,8 @@ export const followUps = pgTable(
     context: sealedText('context').notNull().default(''),
     /** When the thing itself happens, when there is such a moment (the visit, the deadline). */
     eventAt: ts('event_at'),
+    /** Whether `eventAt` names a time of day, or only the day (kept as that day's start). */
+    eventHasTime: boolean('event_has_time').notNull().default(false),
     /** When the bot brings it up. */
     dueAt: ts('due_at').notNull(),
     /** What set it: the bot itself, a person's promise or a meeting's task. */
@@ -1885,11 +1890,12 @@ export const memoryTidyChecks = pgTable(
 );
 
 /** The kinds of background call kept in `background_calls`. */
-export const BACKGROUND_CALLS = ['memoryReview', 'title', 'minutes'] as const;
+export const BACKGROUND_CALLS = ['memoryReview', 'title', 'minutes', 'followUps'] as const;
 
 /**
  * One call the server made to a bot's model in the background that has no table of its own: the
- * memory review of a conversation, a conversation's title, a meeting's minutes. What it cost, so it
+ * memory review of a conversation, a conversation's title, a meeting's minutes, the reading of a
+ * turn for what is coming up (follow-ups). What it cost, so it
  * shows on the usage page and counts toward the spending limits.
  */
 export const backgroundCalls = pgTable(

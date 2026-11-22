@@ -117,15 +117,6 @@ export function ProfileTab() {
                   onCheckedChange={(routineSuggestions) => save.mutate({ routineSuggestions })}
                 />
               </Row>
-              {settings.skillSuggestions !== undefined && (
-                <Row label={t('skillSuggest.setting.on')} hint={t('skillSuggest.setting.hint')}>
-                  <Switch
-                    checked={settings.skillSuggestions}
-                    aria-label={t('skillSuggest.setting.on')}
-                    onCheckedChange={(skillSuggestions) => save.mutate({ skillSuggestions })}
-                  />
-                </Row>
-              )}
             </Card>
           )}
         </>

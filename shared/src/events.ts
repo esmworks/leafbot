@@ -13,7 +13,6 @@ export type RefreshScope =
   | { scope: 'promises' }
   | { scope: 'routineSuggestions' }
   | { scope: 'skillSuggestions' }
-  | { scope: 'followUps' }
   | { scope: 'rules' }
   | { scope: 'vault' }
   | { scope: 'connections' }

@@ -807,11 +807,12 @@ export class MeetingService {
           threadId: roomId,
           text: prompt,
           context: o.t('meeting.reminderName', { task: task.text }),
-          eventAt: dueAt,
+          eventAt: zonedTime(task.due!, '00:00', o.timezone),
           dueAt,
           kind: 'meeting',
           t: o.t,
         });
+        if (!followUp) continue;
         made.push({
           followUpId: followUp.id,
           botId: bot.id,

@@ -28,7 +28,6 @@ const MAX_DELETE_SHARE = 0.3;
 const MIN_DELETES = 3;
 /** Who the history names for a change the tidy-up made. */
 export const TIDY_ACTOR = 'tidy';
-const LAST_PASS_KEY = 'memoryTidy.lastPass';
 /**
  * A note that came from a page is read against the page again this long after the last look, once
  * it is this old: a note just written was read from the page moments ago. One pass reads at most
@@ -109,7 +108,7 @@ const theirs = (m: Memory) => !!m.pinned || m.source === 'user';
 /** The bot that wrote a note, from its source (`bot:<id>`); null for a person's. */
 const writerOf = (m: Memory) => (m.source.startsWith('bot:') ? m.source.slice(4) : null);
 
-/** What one tidy-up did, counted; also the shape of the last pass the app shows. */
+/** What one tidy-up did, counted. */
 export interface TidyCount {
   merged: number;
   updated: number;
@@ -195,30 +194,14 @@ export class MemoryTidyService {
     await this.idle();
   }
 
-  get running(): boolean {
-    return !!this.pass;
-  }
-
-  /** The last pass that changed or looked at anything, for the memory screen. */
-  async lastPass(): Promise<TidyPass | null> {
-    const [row] = await this.ctx.db.select().from(schema.kv).where(eq(schema.kv.key, LAST_PASS_KEY));
-    const v = row?.value as TidyPass | undefined;
-    return v && typeof v.at === 'string' ? v : null;
-  }
-
   /** Called from the hourly sweep: the sets that are due. Not waited for. */
   runDue(): Promise<TidyPass | null> {
     return this.start(false);
   }
 
-  /**
-   * A pass now over every set, however recently it was looked at; for the person who asks from
-   * the memory screen. Refused while the tidy-up is turned off; a pass already running is joined.
-   */
-  async runNow(): Promise<{ started: boolean }> {
-    if (!(await this.services.settings.all()).memoryTidy) throw new HttpError(409, 'error.memoryTidyOff');
-    void this.start(true).catch((err) => console.warn(`Memory tidy-up failed: ${String(err)}`));
-    return { started: true };
+  /** A pass over every set, however recently it was looked at (tests); a pass running is joined. */
+  runAll(): Promise<TidyPass | null> {
+    return this.start(true);
   }
 
   private start(all: boolean): Promise<TidyPass | null> {
@@ -233,7 +216,6 @@ export class MemoryTidyService {
 
   private async run(all: boolean): Promise<TidyPass | null> {
     const settings = await this.services.settings.all();
-    if (!settings.memoryTidy) return null;
     const now = this.clock();
     const sets = noteSets(await this.services.memory.list(), now);
     const sum: TidyPass = { at: now.toISOString(), sets: 0, checked: 0, merged: 0, updated: 0, forgot: 0 };
@@ -259,13 +241,7 @@ export class MemoryTidyService {
     const sources = await this.checkSources(now, settings.defaultModel);
     sum.checked = sources.checked;
     sum.updated += sources.updated;
-    if (sum.sets || sum.checked) {
-      await this.ctx.db
-        .insert(schema.kv)
-        .values({ key: LAST_PASS_KEY, value: sum })
-        .onConflictDoUpdate({ target: schema.kv.key, set: { value: sum } });
-      this.ctx.bus.refresh({ scope: 'memory' });
-    }
+    if (sum.sets || sum.checked) this.ctx.bus.refresh({ scope: 'memory' });
     return sum;
   }
 

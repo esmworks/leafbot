@@ -25,6 +25,7 @@ import {
   type Routine,
   type Skill,
   type WhatsAppGroup,
+  wallClock,
   zonedTime,
 } from '@leafbot/shared';
 import { and, desc, eq } from 'drizzle-orm';
@@ -50,7 +51,7 @@ import { emailTools } from './email';
 import { pickGroup, whatsappRoots, whatsappTools } from './whatsapp';
 import { tableTools } from './tables';
 import { ticketTools } from './tickets';
-import { FollowUpsFull, MAX_OPEN_FOLLOW_UPS } from '../services/follow-ups';
+import { FollowUpsFull, MAX_OPEN_FOLLOW_UPS, readMoment } from '../services/follow-ups';
 import { placeOf, ROOM_NOTES_PER_PLACE, sourceOf } from '../services/memory';
 import { redactSecrets } from '../services/secrets';
 import { siteOf } from '../services/vault';
@@ -928,17 +929,20 @@ export class ToolFactory {
         'followup_add',
         {
           what: z.string().trim().min(1).max(500),
-          when: z.string().trim().min(1).max(40),
           event: z.string().trim().max(40).optional(),
+          when: z.string().trim().max(40).optional(),
           from: z.string().trim().max(500).optional(),
+          replaces: z.string().trim().max(100).optional(),
         },
-        async ({ what, when, event, from }) => {
+        async ({ what, event, when, from, replaces }) => {
           const settings = await s.settings.all(person);
-          const dueAt = followUpTime(when, settings.timezone, settings.promiseRemindAt);
-          if (!dueAt) return t('tool.followUpBadTime', { when });
-          if (new Date(dueAt).getTime() <= s.followUps.now().getTime()) return t('tool.followUpPast');
-          const eventAt = event ? followUpTime(event, settings.timezone, '09:00') : null;
-          if (eventAt === undefined) return t('tool.followUpBadTime', { when: event! });
+          const now = s.followUps.now();
+          const moment = event ? readMoment(event, settings.timezone) : null;
+          if (event && !moment) return t('tool.followUpBadTime', { when: event });
+          const due = when ? followUpTime(when, settings.timezone, settings.promiseRemindAt) : null;
+          if (when && !due) return t('tool.followUpBadTime', { when });
+          if (!moment && !due) return t('tool.followUpNeedsTime');
+          if (due && new Date(due).getTime() <= now.getTime()) return t('tool.followUpPast');
           // The turn dealt with a promise itself: the safety net has nothing to add to its reply.
           s.promises.routineTouched(turn.id);
           try {
@@ -948,12 +952,21 @@ export class ToolFactory {
               threadId: thread.id,
               text: what,
               context: from,
-              eventAt: eventAt ? new Date(eventAt) : null,
-              dueAt: new Date(dueAt),
+              eventAt: moment?.at ?? null,
+              eventHasTime: moment?.hasTime,
+              dueAt: due ? new Date(due) : null,
               outside: reads(),
+              present: fromUser,
+              replaces,
               t,
             });
-            return t('tool.followUpAdded', { id: f.id, when });
+            if (!f) return t('tool.followUpTooLate');
+            const w = wallClock(new Date(f.dueAt), settings.timezone);
+            const p = (n: number) => String(n).padStart(2, '0');
+            return t('tool.followUpAdded', {
+              id: f.id,
+              when: `${w.year}-${p(w.month)}-${p(w.day)} ${p(w.hour)}:${p(w.minute)}`,
+            });
           } catch (err) {
             if (err instanceof FollowUpsFull) return t('tool.followUpsFull', { max: MAX_OPEN_FOLLOW_UPS });
             throw err;
@@ -968,7 +981,7 @@ export class ToolFactory {
         'followup_list',
         {},
         async () => {
-          const list = await s.followUps.list(person, bot.id);
+          const list = await s.followUps.list(person);
           if (!list.length) return t('tool.followUpsNone');
           return list
             .map(
@@ -984,7 +997,7 @@ export class ToolFactory {
         { id: z.string().min(1).max(100) },
         async ({ id }) => {
           try {
-            await s.followUps.drop(id, person, bot.id);
+            await s.followUps.drop(id, person);
           } catch {
             return t('tool.followUpNotFound');
           }
@@ -1292,9 +1305,11 @@ export class ToolFactory {
             scopeBotId: m.scope === 'bot' ? m.botId : null,
             after: { sig: sig(noteShape(m)) },
           });
-          return clean.redacted
+          const said = clean.redacted
             ? `${t('tool.memorySaved', { id: m.id })} ${t('tool.memoryRedacted')}`
             : t('tool.memorySaved', { id: m.id });
+          // Someone who may only talk with the bot: its own notes reach everyone else who uses it.
+          return m.scope === 'bot' && !(await mayChange()) ? `${said} ${t('tool.memorySharedNote')}` : said;
         },
         // The bot keeps its memory itself, whoever it works for: asking someone to approve each note
         // asks them to judge facts from conversations they were not in. Everything it writes shows in

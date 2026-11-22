@@ -126,6 +126,27 @@ describe('her kişinin kendisine ait olanlar', () => {
     expect((await t.api<MemoryChange[]>('GET', '/api/memory-changes')).body).toEqual([]);
   });
 
+  it('yalnızca konuşabilen kişinin konuşmasını gözden geçirirken özel bilgiyi kişinin kendi notuna yazması söylenir', async () => {
+    const bot = await shared('Gözcü');
+    const thread = (await ayse.api<Thread>('GET', `/api/bots/${bot.id}/main-thread`)).body;
+    for (const text of ['bir', 'iki', 'üç']) await say(ayse, thread.id, text);
+    await t.services.turns.idle();
+    const before = t.engine.completions.length;
+    await t.services.memoryReview.onContextReset(thread.id);
+    await t.services.memoryReview.idle();
+    const asked = t.engine.completions.slice(before).find((c) => c.user.includes('<conversation>'));
+    expect(asked!.system).toContain('yalnızca "user" kapsamına');
+    // The owner's own conversation gets no such line.
+    const own = (await t.api<Thread>('GET', `/api/bots/${bot.id}/main-thread`)).body;
+    for (const text of ['bir', 'iki', 'üç']) await t.send(own.id, text);
+    await t.services.turns.idle();
+    const mark = t.engine.completions.length;
+    await t.services.memoryReview.onContextReset(own.id);
+    await t.services.memoryReview.idle();
+    const mine = t.engine.completions.slice(mark).find((c) => c.user.includes('<conversation>'));
+    expect(mine!.system).not.toContain('yalnızca "user" kapsamına');
+  });
+
   it('kişisel bağlantı yalnızca sahibinin işinde kullanılır; takımınkini yalnızca yöneten kurar', async () => {
     const bot = await shared('Bağlı');
     const own = await ayse.api<Connection>('POST', '/api/connections', {

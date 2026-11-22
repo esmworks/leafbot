@@ -29,12 +29,10 @@ import type {
   RoutineSuggestionAccept,
   SkillSuggestion,
   SkillSuggestionAccept,
-  FollowUp,
   Group,
   Memory,
   MemoryChange,
   MemoryHistoryLine,
-  MemoryTidyStatus,
   Message,
   PermissionRule,
   ProviderInfo,
@@ -229,12 +227,8 @@ export interface Settings {
   maxTurns?: number;
   /** Finished turns between two looks back at a conversation for lasting facts; 0 is off. Missing on older servers. */
   memoryReviewEvery?: number;
-  /** The weekly tidy-up of the notes; missing on older servers. */
-  memoryTidy?: boolean;
   /** Whether the person's own requests are looked at for something asked again and again; missing on older servers. */
   routineSuggestions?: boolean;
-  /** Whether the person's many-step tasks are looked at for one to keep as a skill; missing on older servers. */
-  skillSuggestions?: boolean;
   /** The promise safety net after a bot's reply; missing on older servers. */
   promiseKeeper?: boolean;
   /** The time of day a reminder of the person's own promise arrives (HH:MM); missing on older servers. */
@@ -347,8 +341,6 @@ export function apiFor(origin: string) {
       http.post<Routine>(`/api/routine-suggestions/${id}/accept`, input),
     dismissRoutineSuggestion: (id: string) =>
       http.post<{ ok: true }>(`/api/routine-suggestions/${id}/dismiss`, {}),
-    followUps: () => http.get<FollowUp[]>('/api/follow-ups'),
-    dropFollowUp: (id: string) => http.del<{ ok: true }>(`/api/follow-ups/${id}`),
     skillSuggestions: () => http.get<SkillSuggestion[]>('/api/skill-suggestions'),
     acceptSkillSuggestion: (id: string, input: SkillSuggestionAccept) =>
       http.post<Skill>(`/api/skill-suggestions/${id}/accept`, input),
@@ -531,8 +523,6 @@ export function apiFor(origin: string) {
     /** Deletes every note the bot keeps for itself. */
     removeBotMemory: (botId: string) => http.del<{ count: number }>(`/api/bots/${botId}/memory`),
     staleMemory: () => http.get<Memory[]>('/api/memory-stale'),
-    memoryTidy: () => http.get<MemoryTidyStatus>('/api/memory-tidy'),
-    tidyMemory: () => http.post<{ started: boolean }>('/api/memory-tidy', {}),
     /** Memory changes bots asked for while nobody watched; they wait for the person. */
     memoryChanges: () => http.get<MemoryChange[]>('/api/memory-changes'),
     acceptMemoryChange: (id: string) => http.post<{ ok: true }>(`/api/memory-changes/${id}/accept`, {}),

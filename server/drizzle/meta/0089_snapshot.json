@@ -1,5 +1,5 @@
 {
-  "id": "af8d56bc-3e21-4ff8-bd18-8eff5e449192",
+  "id": "d5d6cfd9-2782-4f21-be4f-ef0482af1ba3",
   "prevId": "e5ffbad6-6197-40bd-b61d-6a33010d3882",
   "version": "7",
   "dialect": "postgresql",
@@ -2372,6 +2372,13 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "event_has_time": {
+          "name": "event_has_time",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "due_at": {
           "name": "due_at",

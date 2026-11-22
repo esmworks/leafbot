@@ -2,7 +2,6 @@ import type { Skill, SkillSuggestion, UsageReport } from '@leafbot/shared';
 import { eq, sql } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
-import { Settings } from '../src/services/settings';
 import { parseSkill, workSteps } from '../src/services/skill-suggestions';
 import { OWNER_ID } from '../src/users';
 import { testServer, type TestServer } from './helpers';
@@ -162,14 +161,9 @@ describe('beceri önerileri: tekrar tekrar yaptırılan çok adımlı işten bec
     expect(await t.services.skillSuggestions.run(OWNER_ID)).toBe(0);
   });
 
-  it('varsayılan açıktır; kapalıyken bakılmaz; kişiye özeldir; yalnızca konuşabilen ekleyemez', async () => {
-    expect(Settings.parse({}).skillSuggestions).toBe(true);
+  it('kişiye özeldir; yalnızca konuşabilen ekleyemez', async () => {
     const bot = await t.bot({ name: 'Rapor' });
     await reports(bot.id);
-    await t.api('PATCH', '/api/settings', { skillSuggestions: false });
-    expect(await t.services.skillSuggestions.run(OWNER_ID)).toBe(0);
-    expect(t.engine.completions).toHaveLength(0);
-    await t.api('PATCH', '/api/settings', { skillSuggestions: true });
     t.engine.completer = () => skill();
     await t.services.skillSuggestions.run(OWNER_ID);
     const [s] = await suggestions();

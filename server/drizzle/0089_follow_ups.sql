@@ -8,6 +8,7 @@ CREATE TABLE "follow_ups" (
 	"text" text NOT NULL,
 	"context" text DEFAULT '' NOT NULL,
 	"event_at" timestamp with time zone,
+	"event_has_time" boolean DEFAULT false NOT NULL,
 	"due_at" timestamp with time zone NOT NULL,
 	"kind" text DEFAULT 'bot' NOT NULL,
 	"outside" text,

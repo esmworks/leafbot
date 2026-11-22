@@ -155,7 +155,7 @@ export const tr = {
   'meeting.remindNoBot': 'Odada konuşabildiğin bir bot yok; hatırlatma kurulamaz',
   'meeting.reminders': 'Hatırlatmalar',
   'meeting.remindersHint':
-    'Her biri botun takip ettiği bir hatırlatmadır, rutin değildir; Bugün sayfasında görünür ve oradan kaldırabilirsin.',
+    'Her biri botun kendi takibidir, rutin değildir; rutin listesinde görünmez. Bota neleri takip ettiğini sorabilir, istemediğini kaldırmasını söyleyebilirsin.',
   'meeting.reminderCount': '{count} hatırlatma kuruldu',
   'meeting.recipients': 'Hangi botlar bilsin?',
   'meeting.recipientsHint':
@@ -277,12 +277,6 @@ export const tr = {
   'usage.promises.hint':
     'Sonra bir şey yapacağını söyleyen ve rutin kurmayan bir yanıttan sonra, botun kendi hesabından kısa bir istek bunu kontrol eder. Zamanı olan söz için bot kendine bir takip kurar (rutin değil); yanıtın altında görünür ve oradan iptal edilebilir.',
   'usage.promises.checks': '{count} yanıt kontrol edildi; kontrollerin maliyeti {cost}; {found} söz bulundu',
-  'followUp.title': 'Takipteki işler',
-  'followUp.when': '{bot}, {when} haber verecek',
-  'followUp.event': 'olay: {when}',
-  'followUp.drop': 'Takibi kaldır',
-  'followUp.all': 'Tümünü göster ({count})',
-  'followUp.fewer': 'Daha az göster',
   'routineSuggest.title': 'İşine yarayabilecek rutinler',
   'routineSuggest.line': '{bot} botundan bunu {count} kez, {days} ayrı günde istedin.',
   'routineSuggest.rhythm': 'Şuna uyuyor: {when}.',
@@ -312,9 +306,6 @@ export const tr = {
   'skillSuggest.dismiss': 'Bu değil',
   'skillSuggest.created': '"{name}" becerisi eklendi ve {bot} için açıldı',
   'skillSuggest.askOwner': 'Bunu beceri yapması için {bot} botunun sahibine söyle.',
-  'skillSuggest.setting.on': 'Sürekli yaptırdığım işler için beceri öner',
-  'skillSuggest.setting.hint':
-    'Haftada bir, botlara son haftalarda birkaç adımda yaptırdığın işlere, botun attığı adımlarla ve senin sonradan düzelttiklerinle birlikte bakılır; aynı iş tekrar tekrar geliyorsa Bugün sayfası onu beceri olarak saklamayı önerir. Beceriyi botun kendi hesabından kısa bir istek yazar; sen eklemeden hiçbir şey değişmez.',
   'usage.suggestions': 'Rutin önerileri',
   'usage.suggestions.checks': '{count} istek rutine çevrildi; maliyeti {cost}; yapılan öneri: {found}',
   'usage.tidy': 'Haftalık hafıza düzenlemesi',
@@ -326,6 +317,7 @@ export const tr = {
   'usage.background.memoryReview': 'Konuşmalardan not çıkarma',
   'usage.background.title': 'Sohbet başlıkları',
   'usage.background.minutes': 'Toplantı tutanakları',
+  'usage.background.followUps': 'Yaklaşan işleri takibe alma',
   'usage.background.line': '{count} çağrı; maliyeti {cost}',
   'usage.offers': 'İş önerileri',
   'usage.offers.checks': '{count} sohbete bakıldı; maliyeti {cost}; yapılan öneri: {found}',
@@ -2732,16 +2724,6 @@ export const tr = {
     'Birkaç konuşmada bir bot geriye dönüp bakar ve kalıcı bilgileri kendisi not eder; size sormaz. Yazdıkları yukarıdaki listede ve geçmişte görünür.',
   'memory.learnEvery': 'Ne sıklıkla baksın',
   'memory.learnEveryChoice': 'Her {count} turda bir',
-  'memory.tidy': 'Hafızayı haftada bir düzenle',
-  'memory.tidyHint':
-    'Her botun notları haftada bir bütün olarak okunur: tekrar eden notlar birleştirilir, birbiriyle çelişenlerde yenisi ya da sizin yazdığınız kalır, tarihi geçmiş planlar silinir. Bir sayfadan alınmış notlar ayda bir o sayfanın bugünkü hâliyle karşılaştırılır ve değişen bilgi düzeltilir. Sizin yazdığınız ve sabitlediğiniz notlara dokunulmaz; her değişiklik aşağıdaki geçmişte görünür.',
-  'memory.tidyNow': 'Şimdi düzenle',
-  'memory.tidyRunning': 'Notlar düzenleniyor…',
-  'memory.tidyNever': 'Henüz düzenlenmedi',
-  'memory.tidyLast': 'Son düzenleme: {when}',
-  'memory.tidyDid':
-    'Kaynağına bakılan {checked} · birleştirilen {merged} · düzeltilen {updated} · silinen {forgot}',
-  'memory.tidyNothing': 'Düzenlenecek bir şey yoktu',
   'memory.history.tidy': 'Haftalık düzenleme',
   'projects.title': 'Bu bilgisayardaki kodlama ajanlarının klasörleri',
   'projects.hint':

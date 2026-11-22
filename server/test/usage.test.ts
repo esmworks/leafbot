@@ -200,12 +200,10 @@ describe('kullanım raporu', () => {
         source: `bot:${a.id}`,
       });
     const before = t.engine.completions.length;
-    await t.api('POST', '/api/memory-tidy');
-    await t.services.memoryTidy.idle();
+    await t.services.memoryTidy.runAll();
     expect(t.engine.completions).toHaveLength(before);
     await t.api('PATCH', `/api/bots/${a.id}`, { monthlyLimitUsd: 0 });
-    await t.api('POST', '/api/memory-tidy');
-    await t.services.memoryTidy.idle();
+    await t.services.memoryTidy.runAll();
     expect(t.engine.completions).toHaveLength(before + 1);
   });
 

@@ -56,12 +56,9 @@ The interface is available in English and Turkish.
   merged and, of two that disagree, the newer one or the one the person wrote stays; a note taken from a page is read
   against the page again and corrected when it changed. A kind of many-step task asked for again and again is offered
   on Today as a skill, written from the steps that worked and what the person corrected.
-- **Follow-ups and check-ins** — a bot keeps its own reminders apart from the routines: something coming up that it
-  read in a mail (a visit, a deadline) or a promise to look again is brought up at the right time, with the calendar
-  checked, without asking first and without filling the list of routines. A bot can also check in by itself after
-  hours of quiet, writing only when something important is coming up. Routines run on a schedule (including cron and day/hour windows), when the server starts, from a
-  filtered webhook, or only when a watched page or a connected app's answer changes; they can build on their last report and run in the main
-  conversation.
+- **Follow-ups** — each bot keeps its own calendar apart from the routines: whatever it learns is coming up (a visit
+  in a mail, a deadline said in the chat, a promise) it keeps track of by itself, without asking and without filling
+  the list of routines, and brings it up the morning before, with the calendar checked, also in Telegram or WhatsApp.
 - **Today and usage** — a Today page of what the bots did and what waits for you; spending by bot, model and routine,
   a monthly limit and a CSV export.
 - **Telegram and WhatsApp** — each bot can have its own Telegram bot, paired with your Telegram account only;

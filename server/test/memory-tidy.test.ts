@@ -1,6 +1,5 @@
-import type { Memory, MemoryTidyStatus, UsageReport } from '@leafbot/shared';
+import type { Memory, UsageReport } from '@leafbot/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { Settings } from '../src/services/settings';
 import { noteSets, parseTidy, parseVerdict, servedText, TIDY_ACTOR } from '../src/services/memory-tidy';
 import { testServer, type TestServer } from './helpers';
 
@@ -23,9 +22,7 @@ describe('haftalık hafıza düzenlemesi: tekrar eden ve çelişen notları topa
   const contents = async (botId: string) =>
     (await t.services.memory.list({ scope: 'bot', botId })).map((m) => m.content).sort();
   const tidyNow = async () => {
-    const r = await t.api<{ started: boolean }>('POST', '/api/memory-tidy');
-    expect(r.status).toBe(200);
-    await t.services.memoryTidy.idle();
+    await t.services.memoryTidy.runAll();
   };
   /** Five notes, the least a set needs to be looked at. */
   const fiveNotes = async (botId: string) => {
@@ -74,8 +71,6 @@ describe('haftalık hafıza düzenlemesi: tekrar eden ve çelişen notları topa
         .map((l) => l.action)
         .sort(),
     ).toEqual(['delete', 'delete', 'update', 'update']);
-    const status = (await t.api<MemoryTidyStatus>('GET', '/api/memory-tidy')).body;
-    expect(status).toMatchObject({ running: false, last: { sets: 1, merged: 1, updated: 1, forgot: 1 } });
     // What the call cost shows on the usage page, apart from the bots' turns.
     const usage = (await t.api<UsageReport>('GET', '/api/usage?days=7')).body;
     expect(usage.tidy).toEqual({ sets: 1, sources: 0, costUsd: 0.001, changed: 3 });
@@ -189,19 +184,6 @@ describe('haftalık hafıza düzenlemesi: tekrar eden ve çelişen notları topa
     expect(t.engine.completions).toHaveLength(before);
   });
 
-  it('varsayılan açıktır; kapalıyken bakmaz, şimdi düzenle reddedilir; yalnızca sunucuyu yöneten başlatır', async () => {
-    expect(Settings.parse({}).memoryTidy).toBe(true);
-    const bot = await t.bot({ name: 'Kapalı' });
-    await fiveNotes(bot.id);
-    const member = await t.person('uye');
-    expect((await member.api('POST', '/api/memory-tidy')).status).toBe(403);
-    expect((await member.api('PATCH', '/api/settings', { memoryTidy: false })).status).toBe(403);
-    expect((await t.api('PATCH', '/api/settings', { memoryTidy: false })).status).toBe(200);
-    await t.services.memoryTidy.runDue();
-    expect((await t.api('POST', '/api/memory-tidy')).status).toBe(409);
-    expect(t.engine.completions).toHaveLength(0);
-  });
-
   it('modelin cevabını dikkatle okur: bozuk öğeler atılır, en çok 30 işlem alınır', () => {
     expect(parseTidy('olmaz')).toEqual([]);
     expect(parseTidy('{"operations":"x"}')).toEqual([]);
@@ -280,10 +262,6 @@ describe('haftalık hafıza düzenlemesi: tekrar eden ve çelişen notları topa
       expect(after).toMatchObject({ content: 'Kalem 12 TL', sourceUrl: 'https://ornek.com/kalem#fiyat' });
       const hist = (await t.api<{ actor: string; action: string }[]>('GET', '/api/memory-history')).body;
       expect(hist.at(-1)).toMatchObject({ actor: TIDY_ACTOR, action: 'update' });
-      expect((await t.api<MemoryTidyStatus>('GET', '/api/memory-tidy')).body.last).toMatchObject({
-        checked: 1,
-        updated: 1,
-      });
       const usage = (await t.api<UsageReport>('GET', '/api/usage?days=7')).body;
       expect(usage.tidy).toMatchObject({ sources: 1, changed: 1 });
       // Read again only a month later.

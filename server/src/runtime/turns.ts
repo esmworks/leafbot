@@ -2346,6 +2346,8 @@ export class TurnManager {
         props: {
           ...(outcome.ok ? {} : { partial: true }),
           ...(read?.outside ? { outside: read.outside } : {}),
+          // Something the bot kept track of came up: it reaches the person in their chat apps too.
+          ...(turn.source === 'followup' ? { followUp: true } : {}),
         },
       });
       if (heard && outcome.ok && kind !== 'routine') {

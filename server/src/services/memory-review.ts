@@ -7,6 +7,7 @@ import type { Engine, TurnOutcome } from '../engine/types';
 import { translator, type T } from '../i18n';
 import { OWNER_ID } from '../users';
 import { HttpError, truncate } from '../util';
+import { atLeast } from './access';
 import { placeOf, ROOM_NOTES_PER_PLACE } from './memory';
 import { redactSecrets } from './secrets';
 import type { Services } from './index';
@@ -273,7 +274,12 @@ export class MemoryReviewService {
     // A bot's notes reach everyone who uses the bot: they change from a conversation with anyone who
     // has an account here, as the bot's memory tools allow, but not from one a stranger spoke in.
     const botNotes = !(await this.guestIn(thread, span));
-    const request = this.request(t, { team, place, notes, span, outside });
+    // Someone who may only talk with the bot: its own notes reach everyone else who uses it, so what
+    // is about them goes to their own notes only.
+    const member =
+      !team &&
+      !atLeast(await this.services.access.level(await this.services.access.viewerOf(person), bot.id), 'edit');
+    const request = this.request(t, { team, member, place, notes, span, outside });
     const controller = new AbortController();
     this.current = controller;
     let text: string;
@@ -357,6 +363,7 @@ export class MemoryReviewService {
     t: T,
     o: {
       team: boolean;
+      member: boolean;
       place: string | null;
       notes: Memory[];
       span: { role: string; text: string; props: unknown }[];
@@ -369,6 +376,7 @@ export class MemoryReviewService {
       ...(o.team ? [] : [t('memoryReview.scopeUser')]),
       ...(o.place ? [t('memoryReview.scopeRoom')] : []),
       ...(o.team ? [t('memoryReview.scopesTeam')] : []),
+      ...(o.member ? [t('memoryReview.scopesMember')] : []),
     ].join('\n');
     const system = t('memoryReview.system', {
       pinned: t('memoryReview.markPinned'),

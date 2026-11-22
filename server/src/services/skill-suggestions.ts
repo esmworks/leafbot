@@ -153,7 +153,7 @@ const lastRunKey = (userId: string) => `skillSuggestions.ranAt.${userId}`;
 
 /**
  * Notices a kind of many-step task a person keeps asking a bot for and offers to keep the way it
- * is done as a skill. Once a week, for each person who has not turned it off, it reads that
+ * is done as a skill. Once a week, for each person, it reads that
  * person's own requests to bots of the last weeks with the steps each turn took (their own
  * conversations only: no room, team conversation, routine run or chat app stranger), groups the
  * requests that mean the same, and for a group of at least three many-step tasks on two days that
@@ -210,7 +210,6 @@ export class SkillSuggestionService {
   /** One person's pass: reads their tasks and makes the suggestions that are due. */
   async run(userId: string): Promise<number> {
     const settings = await this.services.settings.all(userId);
-    if (!settings.skillSuggestions) return 0;
     const now = this.clock();
     await this.ctx.db
       .insert(schema.kv)

@@ -33,7 +33,6 @@ import {
   useMemoryChanges,
   useRooms,
   useSession,
-  useMemoryTidy,
   useSettings,
   useStaleMemory,
 } from '@/lib/queries';
@@ -43,57 +42,6 @@ import { useApi, useServer } from '@/lib/server';
 import { useColors } from '@/lib/theme';
 
 const fmt = formatters(locale, t);
-
-/** The weekly tidy-up of the notes, as on the web: on or off, what its last pass did, and a pass now. */
-function TidyRows({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
-  const api = useApi();
-  const qc = useQueryClient();
-  const { data: status } = useMemoryTidy();
-  const now = useMutation({
-    mutationFn: () => api.tidyMemory(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['memory'] }),
-    onError: (e) => toastError(e),
-  });
-  const last = status?.last;
-  const running = !!status?.running;
-  return (
-    <>
-      <SwitchRow label={t('memory.tidy')} detail={t('memory.tidyHint')} value={on} onChange={onChange} />
-      {on ? (
-        <Row
-          label={
-            running
-              ? t('memory.tidyRunning')
-              : last
-                ? t('memory.tidyLast', { when: fmt.dayLabel(last.at) })
-                : t('memory.tidyNever')
-          }
-          detail={
-            !running && last
-              ? (last.checked ?? 0) + last.merged + last.updated + last.forgot
-                ? t('memory.tidyDid', {
-                    checked: last.checked ?? 0,
-                    merged: last.merged,
-                    updated: last.updated,
-                    forgot: last.forgot,
-                  })
-                : t('memory.tidyNothing')
-              : null
-          }
-          right={
-            <PillButton
-              variant="ghost"
-              label={t('memory.tidyNow')}
-              onPress={() => now.mutate()}
-              busy={now.isPending}
-              disabled={running}
-            />
-          }
-        />
-      ) : null}
-    </>
-  );
-}
 
 /** The interval a looking back starts with when the person turns it on. */
 const REVIEW_DEFAULT = 20;
@@ -582,9 +530,6 @@ export function MemorySection() {
               }))}
               onChange={(v) => saveSettings.mutate({ memoryReviewEvery: Number(v) })}
             />
-          ) : null}
-          {settings?.memoryTidy !== undefined ? (
-            <TidyRows on={settings.memoryTidy} onChange={(on) => saveSettings.mutate({ memoryTidy: on })} />
           ) : null}
         </Section>
       ) : null}

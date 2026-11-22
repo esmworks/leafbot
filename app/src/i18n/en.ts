@@ -152,7 +152,7 @@ export const en: Catalog<MessageKey> = {
   'meeting.remindNoBot': 'No bot in the room you may talk with; no reminder can be set',
   'meeting.reminders': 'Reminders',
   'meeting.remindersHint':
-    'Each is a reminder the bot keeps track of, not a routine; it shows on the Today page, where you can remove it.',
+    'Each is a follow-up the bot keeps, not a routine; it does not show among the routines. Ask the bot what it keeps track of, or tell it to drop one.',
   'meeting.reminderCount': '{count} reminders set',
   'meeting.recipients': 'Which bots should know?',
   'meeting.recipientsHint':
@@ -282,12 +282,6 @@ export const en: Catalog<MessageKey> = {
     one: '1 reply checked; the check cost {cost}; promises found: {found}',
     other: '{count} replies checked; the checks cost {cost}; promises found: {found}',
   },
-  'followUp.title': 'Being kept track of',
-  'followUp.when': '{bot} brings it up {when}',
-  'followUp.event': 'happens {when}',
-  'followUp.drop': 'Stop keeping track',
-  'followUp.all': 'Show all ({count})',
-  'followUp.fewer': 'Show fewer',
   'routineSuggest.title': 'Routines you might want',
   'routineSuggest.line': {
     one: 'You asked {bot} for this once, on {days} day.',
@@ -323,9 +317,6 @@ export const en: Catalog<MessageKey> = {
   'skillSuggest.dismiss': 'Not this',
   'skillSuggest.created': 'Skill "{name}" added and turned on for {bot}',
   'skillSuggest.askOwner': 'Ask the owner of {bot} to keep this as a skill.',
-  'skillSuggest.setting.on': 'Suggest skills for tasks I keep asking for',
-  'skillSuggest.setting.hint':
-    "Once a week, the tasks you had bots do in several steps over the last weeks are looked at, with the steps the bot took and what you corrected afterwards. When the same task keeps coming, Today offers to keep it as a skill; one short request on the bot's own account writes it, and nothing changes until you add it.",
   'usage.suggestions': 'Routine suggestions',
   'usage.suggestions.checks': {
     one: '1 request written into a routine; it cost {cost}; suggestions made: {found}',
@@ -343,6 +334,7 @@ export const en: Catalog<MessageKey> = {
   'usage.background.memoryReview': 'Learning from conversations',
   'usage.background.title': 'Conversation titles',
   'usage.background.minutes': 'Meeting minutes',
+  'usage.background.followUps': 'Keeping track of what is coming up',
   'usage.background.line': {
     one: '1 call; it cost {cost}',
     other: '{count} calls; they cost {cost}',
@@ -2770,16 +2762,6 @@ export const en: Catalog<MessageKey> = {
     'Every few conversations a bot looks back and keeps lasting facts as notes itself, without asking you. What it writes shows in the list above and in the history.',
   'memory.learnEvery': 'How often to look back',
   'memory.learnEveryChoice': 'Every {count} turns',
-  'memory.tidy': 'Tidy the memory once a week',
-  'memory.tidyHint':
-    'Once a week each bot’s notes are read as a whole: notes that repeat are merged, of two that disagree the newer one or the one you wrote stays, and plans whose date has passed are deleted. A note taken from a page is read against the page once a month and corrected when the page now says otherwise. Notes you wrote or pinned are never changed; every change shows in the history below.',
-  'memory.tidyNow': 'Tidy now',
-  'memory.tidyRunning': 'Tidying the notes…',
-  'memory.tidyNever': 'Not tidied yet',
-  'memory.tidyLast': 'Last tidied {when}',
-  'memory.tidyDid':
-    'Checked against its page {checked} · merged {merged} · corrected {updated} · deleted {forgot}',
-  'memory.tidyNothing': 'There was nothing to tidy',
   'memory.history.tidy': 'Weekly tidy-up',
   'projects.title': 'Coding agents’ folders on this computer',
   'projects.hint':
