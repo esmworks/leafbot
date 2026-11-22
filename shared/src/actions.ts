@@ -73,6 +73,7 @@ const UPLOAD: Verb = ['yüklemek', 'yükleyebilir', 'yüklemeyecek'];
 const TURN_OFF: Verb = ['kapatmak', 'kapatabilir', 'kapatmayacak'];
 const DELETE: Verb = ['silmek', 'silebilir', 'silmeyecek'];
 const CREATE: Verb = ['oluşturmak', 'oluşturabilir', 'oluşturmayacak'];
+const TRANSCRIBE: Verb = ['yazıya dökmek', 'yazıya dökebilir', 'yazıya dökmeyecek'];
 
 /**
  * The start of the names of the tools that use the person's own Mac: the screen, the mouse and the
@@ -113,6 +114,12 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
     return {
       tr: ['telefonunun konumunu', 'telefonunun konumunu', READ],
       en: ['see where your phone is', 'see where your phone is'],
+    };
+  }
+  if (name === 'call_listen') {
+    return {
+      tr: ['tarayıcısında açık görüşmeyi', 'bu görüşmeyi', TRANSCRIBE],
+      en: ['transcribe the call open in its browser', 'transcribe this call'],
     };
   }
   switch (name) {
@@ -365,6 +372,11 @@ function detailFor(name: string, input: Record<string, unknown>, locale: Locale)
   if (name === `${PERSON_COMPUTER}type`) return str(input.text);
   if (name === `${PERSON_COMPUTER}key`) return str(input.keys);
   if (name === `${PERSON_PHONE}contacts`) return str(input.query);
+  // The card says where the voices go, since the people in the call are not the ones asked.
+  if (name === 'call_listen')
+    return locale === 'tr'
+      ? 'Görüşmedeki herkesin sesi yazıya dökülmek üzere konuşmayı yazıya çeviren servise gider; ses saklanmaz, yazısı sohbet klasörüne kaydedilir. Görüşmedekilere kaydedildiklerini söyle.'
+      : 'Everyone’s voice in the call goes to the speech-to-text service to be written out; no audio is kept, the text is saved in the conversation’s folder. Tell the people in the call they are being transcribed.';
   switch (name) {
     case 'Bash':
       return str(input.command);

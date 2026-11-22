@@ -7,6 +7,16 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A bot can listen to a call it joins in its browser and write it out. Ask it to join a Jitsi, Google Meet or
+  Microsoft Teams link: it opens the page, joins with its usual browser steps under a name that says it takes notes,
+  and listens once you agree on a card, which comes every time and has no "always allow", since the other people's
+  voices go to the speech-to-text service. What is said is written out every 30 seconds into a file in the
+  conversation's folder; silence is not sent and no audio is kept. The audio is taken in the page itself, so the
+  computer needs no sound device. When the call ends (the page leaves it, nobody speaks for 15 minutes, or after 3
+  hours) the bot is started again to write you notes of the call; the transcript counts as outside text. It is offered
+  only in work your own message started, not in routines, team chats, to guests or to a bot that may only read, and it
+  needs a speech-to-text service. Speakers are not told apart. The bot's browser keeps WebRTC to its proxy, so the call's
+  sound comes through the meeting service's relay over TCP; a service that offers none cannot be heard.
 - German. Pick "Deutsch" on the sign-in page or under Settings › General; the phone app follows the phone's language.
   The web app downloads the German text only when it is picked. Bots are told to answer in German; what the server
   itself writes (approval sentences, error messages, system lines in chats) stays in English. A text added after the

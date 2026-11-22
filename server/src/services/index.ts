@@ -44,6 +44,7 @@ import { PromiseService } from './promises';
 import { RoutineSuggestionService } from './routine-suggestions';
 import { SkillSuggestionService } from './skill-suggestions';
 import { FollowUpService } from './follow-ups';
+import { CallService } from './calls';
 import { PushService } from './push';
 import { RoutineService } from './routines';
 import { RehearsalService } from './rehearsals';
@@ -85,6 +86,7 @@ export class Services {
   readonly routineSuggestions: RoutineSuggestionService;
   readonly skillSuggestions: SkillSuggestionService;
   readonly followUps: FollowUpService;
+  readonly calls: CallService;
   readonly meetings: MeetingService;
   readonly push: PushService;
   readonly settings: SettingsService;
@@ -203,6 +205,7 @@ export class Services {
     this.routineSuggestions = new RoutineSuggestionService(ctx, this, engineFor, clock);
     this.skillSuggestions = new SkillSuggestionService(ctx, this, engineFor, clock);
     this.followUps = new FollowUpService(ctx, this, engineFor, clock);
+    this.calls = new CallService(ctx, this, clock);
     this.turns.onFinished((t, o) => this.followUps.onTurnFinished(t, o));
     this.meetings = new MeetingService(ctx, this, engineFor, clock);
     this.turns.onFinished((t) => this.meetings.onTurnFinished(t));

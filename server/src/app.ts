@@ -827,6 +827,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
       await services.titles.shutdown();
       await services.offers.shutdown();
       await services.meetings.shutdown();
+      await services.calls.shutdown();
       await browser.shutdown();
       if (computerCheck) clearInterval(computerCheck);
       clearInterval(sweepTimer);

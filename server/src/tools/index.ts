@@ -44,6 +44,7 @@ import { replayHandOver, replaySteps } from '../browser/replay';
 import { browserTools, type AskCard, type AskLogin } from './browser';
 import { computerTools } from './computer';
 import { personComputerTools } from './person-computer';
+import { callTools } from './calls';
 import { personPhoneTools } from './person-phone';
 import { handFiles, pageImageTool, sendFileTool, showPageTool } from './files';
 import { imageTool } from './images';
@@ -351,7 +352,10 @@ export type ToolName =
   | 'person_computer_drag'
   | 'person_phone_calendar'
   | 'person_phone_contacts'
-  | 'person_phone_location';
+  | 'person_phone_location'
+  | 'call_listen'
+  | 'call_status'
+  | 'call_stop';
 
 /**
  * Puts questions to the person on a card in the turn's conversation and waits for the answers,
@@ -2012,6 +2016,21 @@ export class ToolFactory {
           now: this.clock,
         }),
       );
+    }
+    // Listening to a call in the bot's browser: the other people's voices go to the speech-to-text
+    // service, so only in work the person's own message started, in their own conversation, and
+    // not for a bot that may only read. Checking and stopping stay offered while a call is heard.
+    if (
+      this.ctx.browser.available &&
+      bot.internet &&
+      writer &&
+      turn.source === 'user' &&
+      !team &&
+      !turn.guest &&
+      !turn.rehearsalId &&
+      bot.permissionMode !== 'readonly'
+    ) {
+      tools.push(...callTools({ def, t, calls: s.calls, bot, threadId: thread.id, person: writer }));
     }
     if (bot.isManager && !team) {
       tools.push(
