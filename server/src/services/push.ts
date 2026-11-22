@@ -136,8 +136,15 @@ export class PushService {
    * the app is asleep while it shows. Says whether this server can send to it at all: without an
    * Apple key the phone ends it at once rather than show work that never moves.
    */
-  async watchActivity(threadId: string, input: LiveActivitySet): Promise<{ pushing: boolean }> {
+  async watchActivity(
+    threadId: string,
+    input: LiveActivitySet,
+    state: TurnEvent['state'],
+  ): Promise<{ pushing: boolean; over?: boolean }> {
     if (!(await this.credentials())) return { pushing: false };
+    // A short reply can be over before the phone has Apple's token: it ends the card itself.
+    const phase = phaseOf(state);
+    if (!phase) return { pushing: true, over: true };
     const [row] = await this.ctx.db
       .select({ name: schema.bots.name })
       .from(schema.threads)
@@ -155,11 +162,15 @@ export class PushService {
       sandbox: null,
       locale: input.locale,
       bot: row?.name ?? t('push.bot'),
-      startedAt: now,
+      // The phone's own start, unless it is in the future or older than an activity can be.
+      startedAt:
+        input.since && input.since <= now && now - input.since < ACTIVITY_LIFE_MS ? input.since : now,
       phase: 'working',
       failed: false,
     });
     this.activities.set(threadId, kept.slice(-ACTIVITIES_PER_THREAD));
+    // Already waiting for the person: the card says so at once.
+    if (phase !== 'working') await this.activityTurn({ threadId, botId: '', state });
     return { pushing: true };
   }
 

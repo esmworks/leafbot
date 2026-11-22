@@ -27,12 +27,17 @@ describe('kilit ekranındaki iş', () => {
   });
   afterEach(() => t.dispose());
 
-  const watch = (body: Record<string, unknown> = {}) =>
-    t.api<{ pushing: boolean }>('PUT', `/api/threads/${thread.id}/activity`, {
+  const route = (body: Record<string, unknown> = {}) =>
+    t.api<{ pushing: boolean; over?: boolean }>('PUT', `/api/threads/${thread.id}/activity`, {
       token: TOKEN,
       locale: 'tr',
       ...body,
     });
+  /** As the route does while the bot is at work. */
+  const watch = (
+    body: { locale?: 'tr' | 'en'; since?: number } = {},
+    state: 'running' | 'waiting' = 'running',
+  ) => t.services.push.watchActivity(thread.id, { token: TOKEN, locale: 'tr', ...body }, state);
   const turn = (state: 'running' | 'waiting' | 'idle' | 'queued') =>
     t.services.push.activityTurn({ threadId: thread.id, botId: thread.botId, state });
   const aps = (req: ApnsRequest) => (JSON.parse(req.body) as { aps: Record<string, unknown> }).aps;
@@ -40,14 +45,30 @@ describe('kilit ekranındaki iş', () => {
     JSON.parse((aps(req)['content-state'] as { props: string }).props) as Record<string, string | number>;
 
   it('Apple anahtarı yoksa telefona kartı hemen kapatmasını söyler', async () => {
-    expect((await watch()).body).toEqual({ pushing: false });
+    expect((await route()).body).toEqual({ pushing: false });
     await turn('idle');
     expect(sent).toHaveLength(0);
   });
 
+  it('kısa iş telefon kaydolmadan bittiyse kartı telefona kapattırır, hiçbir şey saklamaz', async () => {
+    await t.api('PUT', '/api/push/apns', APNS);
+    expect((await route()).body).toEqual({ pushing: true, over: true });
+    await turn('waiting');
+    await turn('idle');
+    expect(sent).toHaveLength(0);
+  });
+
+  it('kart açılırken bot zaten bekliyorsa bunu hemen söyler, sayacı telefonun başlangıcından sürdürür', async () => {
+    await t.api('PUT', '/api/push/apns', APNS);
+    const since = Date.now() - 60_000;
+    expect(await watch({ since }, 'waiting')).toEqual({ pushing: true });
+    expect(sent).toHaveLength(1);
+    expect(props(sent[0]!)).toMatchObject({ phase: 'waiting', since });
+  });
+
   it('işi durumdan duruma götürür ve bitince kapatır', async () => {
     await t.api('PUT', '/api/push/apns', APNS);
-    expect((await watch()).body).toEqual({ pushing: true });
+    expect(await watch()).toEqual({ pushing: true });
     // The phone started it as working: the same phase sends nothing.
     await turn('running');
     expect(sent).toHaveLength(0);

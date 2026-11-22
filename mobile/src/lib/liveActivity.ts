@@ -42,6 +42,8 @@ export const liveActivitiesSupported = () => factory() !== null;
 
 /** The activity shown for each conversation, so a second message does not start another. */
 const shown = new Map<string, LiveActivity<LiveActivityProps>>();
+/** The server said it cannot reach Apple: no card until the app starts again. */
+let serverCannot = false;
 
 function tokenOf(activity: LiveActivity<LiveActivityProps>): Promise<string | null> {
   return new Promise((resolve) => {
@@ -69,18 +71,19 @@ function tokenOf(activity: LiveActivity<LiveActivityProps>): Promise<string | nu
  * once put away; a server that cannot reach Apple has it ended at once rather than left standing.
  */
 export async function showWork(
-  watch: (threadId: string, b: LiveActivitySet) => Promise<{ pushing: boolean }>,
+  watch: (threadId: string, b: LiveActivitySet) => Promise<{ pushing: boolean; over?: boolean }>,
   threadId: string,
   bot: string,
 ): Promise<void> {
   const f = factory();
-  if (!f) return;
+  if (!f || serverCannot) return;
   const open = shown.get(threadId);
   if (open && f.getInstances().some((a) => a.getId() === open.getId())) return;
   let activity: LiveActivity<LiveActivityProps>;
+  const since = Date.now();
   try {
     activity = f.start(
-      { bot, state: t('activity.working'), phase: 'working', since: Date.now() },
+      { bot, state: t('activity.working'), phase: 'working', since },
       undefined,
       new Date(Date.now() + STALE_MS),
     );
@@ -96,13 +99,25 @@ export async function showWork(
   try {
     const token = await tokenOf(activity);
     if (!token) return void (await end());
-    const { pushing } = await watch(threadId, { token, locale });
-    if (!pushing) return void (await end());
+    const { pushing, over } = await watch(threadId, { token, locale, since });
+    if (!pushing) serverCannot = true;
+    if (!pushing || over) return void (await end());
     // Apple may give the activity a new token while it lasts; the server needs the newest.
     activity.addPushTokenListener(
-      (e) => void watch(threadId, { token: e.pushToken, locale }).catch(() => {}),
+      (e) => void watch(threadId, { token: e.pushToken, locale, since }).catch(() => {}),
     );
   } catch {
     await end();
   }
+}
+
+/**
+ * The work ended while the person watched it in the app: the answer is in front of them, so the
+ * card leaves at once instead of standing on the lock screen as done.
+ */
+export function endWorkSeen(threadId: string): void {
+  const activity = shown.get(threadId);
+  if (!activity) return;
+  shown.delete(threadId);
+  void activity.end('immediate').catch(() => undefined);
 }

@@ -7,7 +7,8 @@ import { createLiveActivity, type LiveActivityEnvironment } from 'expo-widgets';
  * A bot's work on the lock screen and in the Dynamic Island: the bot's name, what it is doing and
  * how long it has been at it. The words arrive already in the person's language (the app starts it,
  * the server moves it along); the layout itself holds none. It runs apart from the app, so it uses
- * nothing from outside this function.
+ * nothing from outside this function. Colors: the app's green, the amber of a card that waits, and
+ * red; white when the screen is dimmed or the card is out of date.
  */
 function BotWork(props: LiveActivityProps, environment: LiveActivityEnvironment) {
   'widget';
@@ -20,7 +21,6 @@ function BotWork(props: LiveActivityProps, environment: LiveActivityEnvironment)
         : props.phase === 'failed'
           ? 'exclamationmark.triangle.fill'
           : 'ellipsis.bubble.fill';
-  // The app's green, the amber of a card that waits, and red; white when the screen is dimmed.
   const color = dim
     ? '#FFFFFF'
     : props.phase === 'waiting'

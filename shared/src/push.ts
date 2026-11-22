@@ -37,6 +37,8 @@ export const LiveActivitySet = z.object({
     .trim()
     .regex(/^[0-9a-fA-F]{32,400}$/),
   locale: z.enum(LOCALES),
+  /** When the phone started it (ms since the epoch), so a token Apple replaces keeps the count. */
+  since: z.number().int().positive().optional(),
 });
 export type LiveActivitySet = z.infer<typeof LiveActivitySet>;
 

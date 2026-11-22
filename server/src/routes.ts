@@ -528,9 +528,14 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     return { ok: true };
   });
   // A Live Activity on the lock screen for this conversation's work, kept current from here.
-  app.put('/api/threads/:id/activity', async (req) =>
-    s.push.watchActivity(IdParams.parse(req.params).id, LiveActivitySet.parse(req.body)),
-  );
+  app.put('/api/threads/:id/activity', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    const body = LiveActivitySet.parse(req.body);
+    // As the conversation shows it: a turn just begun may not be saved as running yet.
+    const saved = await s.threads.state(id);
+    const state = saved === 'idle' && s.turns.isRunning(id) ? 'running' : saved;
+    return s.push.watchActivity(id, body, state);
+  });
   app.get('/api/push/apns', async () => s.push.apnsStatus());
   app.put('/api/push/apns', async (req) => {
     await s.push.setApns(ApnsSet.parse(req.body));
