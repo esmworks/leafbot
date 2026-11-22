@@ -13,8 +13,26 @@ export const BRAND_COLOR = '#2b8152';
 
 export const Id = z.string().min(1).max(64);
 
-export const EngineKind = z.enum(['claude', 'pi']);
+/**
+ * `claude`: Claude through its agent SDK. `pi`: another provider's model with the app's own tools.
+ * `acp`: another coding agent's command-line tool on the server's computer (Gemini CLI, Codex…),
+ * the bot's model naming which one.
+ */
+export const EngineKind = z.enum(['claude', 'pi', 'acp']);
 export type EngineKind = z.infer<typeof EngineKind>;
+
+/** The coding agents a bot may run on, by their command-line tools' protocol mode. */
+export const ACP_AGENTS = [
+  { id: 'gemini', name: 'Gemini CLI' },
+  { id: 'codex', name: 'Codex' },
+  { id: 'opencode', name: 'OpenCode' },
+  { id: 'kimi', name: 'Kimi Code' },
+] as const;
+export type AcpAgentId = (typeof ACP_AGENTS)[number]['id'];
+
+/** One of the coding agents, and whether its tool is installed where the server runs. */
+export const AcpAgentState = z.object({ id: z.string(), name: z.string(), installed: z.boolean() });
+export type AcpAgentState = z.infer<typeof AcpAgentState>;
 
 /**
  * How freely a bot acts: `readonly` only reads, `ask` asks before each change, `auto` goes ahead by
@@ -1551,9 +1569,7 @@ export const UsageReport = z.object({
    * Costliest first. `model` is null for turns from before the model was recorded, and for turns
    * that never started.
    */
-  models: z.array(
-    UsageTotals.extend({ engine: z.enum(['claude', 'pi']).nullable(), model: z.string().nullable() }),
-  ),
+  models: z.array(UsageTotals.extend({ engine: EngineKind.nullable(), model: z.string().nullable() })),
   /** What each routine's runs cost, costliest first; missing on older servers. */
   routines: z.array(UsageTotals.extend({ routineId: Id, name: z.string(), botId: Id.nullable() })).optional(),
   /** What rehearsals of each routine cost, costliest first; left out when there were none. */

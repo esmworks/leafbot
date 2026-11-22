@@ -97,14 +97,14 @@ const Form = z
       .trim()
       .max(1000)
       .refine((v) => !v || /^https:\/\/\S+$/i.test(v), 'bot.instructionsUrlInvalid'),
-    engine: z.enum(['claude', 'pi']),
+    engine: z.enum(['claude', 'pi', 'acp']),
     provider: z.string(),
     model: z.string().trim().max(100),
     dailyLimit: z.string().trim().refine(isLimit, 'bot.limitInvalid'),
     monthlyLimit: z.string().trim().refine(isLimit, 'bot.limitInvalid'),
   })
   .superRefine((f, ctx) => {
-    if (f.engine === 'pi' && !f.model)
+    if ((f.engine === 'pi' || f.engine === 'acp') && !f.model)
       ctx.addIssue({ code: 'custom', path: ['model'], message: 'bot.modelRequired' });
     for (const field of ['toolsAllow', 'toolsExclude'] as const) {
       if (!ToolSelection.shape.allow.safeParse(selectorLines(f[field])).success)
@@ -162,6 +162,8 @@ const CLAUDE_MODELS = ['sonnet', 'opus', 'haiku'].map((value) => ({ value, name:
 const CLI_DEFAULT = 'default';
 /** The connection select's value for Claude; no provider id takes this form. */
 const CLAUDE = '__claude__';
+/** A coding agent's entry in the connection list: `acp:<agent>`. */
+const AGENT = 'acp:';
 
 export function BotDialog() {
   const t = useT();
@@ -669,12 +671,22 @@ function ModelPicker({
   const { data: models = [] } = useProviderModelInfo(pi ? value.provider : null);
   const { data: claudeModels = [] } = useClaudeModels(!pi);
   const { data: info } = useInfo();
+  // The coding agents on the server's computer; only its owner gets the list, others none.
+  const { data: agents = [] } = useQuery({
+    queryKey: ['acp-agents'],
+    queryFn: api.acpAgents,
+    retry: false,
+    staleTime: 60_000,
+  });
+  const acp = value.engine === 'acp';
+  const agent = acp ? agents.find((a) => a.id === value.model) : undefined;
+  const agentName = agent?.name ?? value.model;
   // The bot's own provider stays listed after its key is gone, with the warning below.
   const connections = providers.filter((p) => p.configured || (pi && p.id === value.provider));
   const keyMissing =
     pi && providers.length > 0 && !providers.find((p) => p.id === value.provider)?.configured;
   // Only a definite "not signed in"; an unchecked or failing connection is not worth a warning here.
-  const claudeLoggedOut = !pi && info?.claude.status === 'logged-out';
+  const claudeLoggedOut = !pi && !acp && info?.claude.status === 'logged-out';
   const named = claudeModels.filter((m) => m.value !== CLI_DEFAULT);
   const options: ModelOption[] = pi
     ? models.map((m) => ({ value: m.id, name: m.name }))
@@ -683,10 +695,14 @@ function ModelPicker({
     <div className="grid gap-4 sm:grid-cols-2">
       <Field label={t('bot.connection')}>
         <Select
-          value={pi ? value.provider : CLAUDE}
+          value={pi ? value.provider : acp ? `${AGENT}${value.model}` : CLAUDE}
           onValueChange={(c) =>
             onChange(
-              c === CLAUDE ? { engine: 'claude', model: '' } : { engine: 'pi', provider: c, model: '' },
+              c === CLAUDE
+                ? { engine: 'claude', model: '' }
+                : c.startsWith(AGENT)
+                  ? { engine: 'acp', model: c.slice(AGENT.length) }
+                  : { engine: 'pi', provider: c, model: '' },
             )
           }
         >
@@ -700,26 +716,50 @@ function ModelPicker({
                 {connectionName(p)}
               </SelectItem>
             ))}
+            {agents.map((a) => (
+              <SelectItem key={a.id} value={`${AGENT}${a.id}`}>
+                {t(a.installed ? 'bot.engine.acp' : 'bot.engine.acpMissing', { name: a.name })}
+              </SelectItem>
+            ))}
+            {/* A bot already on an agent this list does not show (another server, no list) keeps it. */}
+            {acp && !agent && (
+              <SelectItem value={`${AGENT}${value.model}`}>
+                {t('bot.engine.acp', { name: value.model })}
+              </SelectItem>
+            )}
           </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">
-          {pi ? t('bot.engineHint.pi') : t('bot.engineHint.claude')}
+          {acp
+            ? t('bot.engineHint.acp', { name: agentName })
+            : pi
+              ? t('bot.engineHint.pi')
+              : t('bot.engineHint.claude')}
         </p>
         {providersLoaded && connections.length === 0 && (
           <p className="text-xs text-muted-foreground">{t('bot.connectionHint')}</p>
         )}
       </Field>
-      <Field label={t('bot.model')} error={error}>
-        <ModelSearch
-          value={value.model}
-          models={options}
-          onChange={(m) => onChange({ model: m })}
-          placeholder={pi ? t('bot.modelPlaceholder.pi') : t('bot.modelPlaceholder.claude')}
-          className="rounded-xl"
-        />
-        {keyMissing && <p className="text-xs text-amber-500">{t('bot.keyMissing')}</p>}
-        {claudeLoggedOut && <p className="text-xs text-amber-500">{t('bot.claudeLoggedOut')}</p>}
-      </Field>
+      {acp ? (
+        <Field label={t('bot.model')} error={error}>
+          <p className="pt-2 text-sm text-muted-foreground">{t('bot.acpModel', { name: agentName })}</p>
+          {agent && !agent.installed && (
+            <p className="text-xs text-amber-500">{t('bot.acpMissing', { name: agentName })}</p>
+          )}
+        </Field>
+      ) : (
+        <Field label={t('bot.model')} error={error}>
+          <ModelSearch
+            value={value.model}
+            models={options}
+            onChange={(m) => onChange({ model: m })}
+            placeholder={pi ? t('bot.modelPlaceholder.pi') : t('bot.modelPlaceholder.claude')}
+            className="rounded-xl"
+          />
+          {keyMissing && <p className="text-xs text-amber-500">{t('bot.keyMissing')}</p>}
+          {claudeLoggedOut && <p className="text-xs text-amber-500">{t('bot.claudeLoggedOut')}</p>}
+        </Field>
+      )}
     </div>
   );
 }

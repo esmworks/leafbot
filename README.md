@@ -37,9 +37,10 @@ The interface is available in English and Turkish.
 
 - **Bots** — create as many as you like, group them, give each a name, avatar, instructions and model. A manager bot
   can create, update and delegate work to other bots; bot-to-bot messages are guarded against loops.
-- **Two engines** — Claude through the Claude Agent SDK (with a Claude subscription token or an Anthropic API key), or
+- **Engines** — Claude through the Claude Agent SDK (with a Claude subscription token or an Anthropic API key), or
   models from other providers through the Pi engine: with your own key, or by signing in with your ChatGPT or GitHub
-  Copilot plan.
+  Copilot plan. In the desktop app a bot can also run on a coding agent installed on your computer (Gemini CLI, Codex,
+  OpenCode, Kimi Code) over the Agent Client Protocol, for your own messages only.
 - **Live chat** — streamed replies, file attachments, stop at any time, and turns that pick up where they left off
   after a server restart. Unread marks, find in a conversation (⌘F), `/` commands, quick replies, a goal per
   conversation, branching from a reply, Markdown export, sortable tables, Mermaid diagrams, speaking a message

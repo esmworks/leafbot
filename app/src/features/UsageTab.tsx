@@ -471,7 +471,9 @@ function Report({
                     </span>
                     {m.engine && (
                       <span className="shrink-0 text-xs text-muted-foreground">
-                        {t(`bot.engine.${m.engine}`)}
+                        {m.engine === 'acp'
+                          ? t('bot.engine.acp', { name: m.model ?? '' })
+                          : t(`bot.engine.${m.engine}`)}
                       </span>
                     )}
                   </div>

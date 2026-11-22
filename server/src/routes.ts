@@ -82,6 +82,8 @@ import {
   PaymentCardCreate,
   PaymentCardUpdate,
   type PersonComputerState,
+  ACP_AGENTS,
+  type AcpAgentState,
   PasswordManagerUpdate,
   VaultImport,
   VaultLoginCreate,
@@ -110,6 +112,7 @@ import {
   skillSlug,
 } from '@leafbot/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest, RouteShorthandOptions } from 'fastify';
+import { ACP_COMMANDS, onPath, shellPath } from './engine/acp';
 import { z } from 'zod';
 import { MIN_PASSWORD } from './account';
 import {
@@ -616,11 +619,23 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       .map((b) => ({ ...b, yourLevel: levels.get(b.id) ?? 'none' }))
       .filter((b) => b.yourLevel !== 'none');
   });
+  /**
+   * A coding agent runs on the server's computer with the owner's own logins: only the owner puts a
+   * bot on one, only where the server runs on their computer, and only on an agent the app knows.
+   */
+  const checkAgent = (req: FastifyRequest, engine: string | undefined, model: string | undefined) => {
+    if (engine !== 'acp') return;
+    if (me(req).role !== 'owner') throw new HttpError(403, 'error.ownerOnly');
+    if (!s.ctx.config.onUserComputer) throw new HttpError(400, 'engine.acpOff');
+    if (!ACP_AGENTS.some((a) => a.id === model))
+      throw new HttpError(400, 'engine.acpUnknown', { agent: model || '-' });
+  };
   // A bot linked to a document reads it right away, so its text waits for the person at once.
   app.post('/api/bots', async (req) => {
     const body = BotCreate.parse(req.body);
     // The Mac is the owner's: only they let a bot use it.
     if (body.personComputer && me(req).role !== 'owner') throw new HttpError(403, 'error.ownerOnly');
+    checkAgent(req, body.engine, body.model);
     checkProjectDir(req, body.projectDir);
     await checkGroup(req, body.groupId);
     const bot = await s.bots.create(body, me(req).userId);
@@ -648,6 +663,11 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     // The Mac is the owner's: only they let a bot use it.
     if (patch.personComputer && !before.personComputer && me(req).role !== 'owner') {
       throw new HttpError(403, 'error.ownerOnly');
+    }
+    if (patch.engine !== undefined || patch.model !== undefined) {
+      const engine = patch.engine ?? before.engine;
+      if (engine === 'acp' && (engine !== before.engine || (patch.model ?? before.model) !== before.model))
+        checkAgent(req, engine, patch.model ?? before.model);
     }
     const bot = await s.bots.update(id, patch);
     const relinked = !!bot.instructionsUrl && bot.instructionsUrl !== before.instructionsUrl;
@@ -1238,6 +1258,18 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
 
   // The person's answer on a work offer: taken sends its task as their message; or turned down.
   // Whether bots can use the person's own Mac, and opening macOS's prompts for its two permissions.
+  // The coding agents a bot may run on, and which are installed; none where the server is elsewhere.
+  app.get('/api/acp-agents', async (): Promise<AcpAgentState[]> => {
+    if (!s.ctx.config.onUserComputer) return [];
+    const path = await shellPath();
+    return Promise.all(
+      ACP_AGENTS.map(async (a) => ({
+        id: a.id,
+        name: a.name,
+        installed: await onPath(ACP_COMMANDS[a.id].command, path),
+      })),
+    );
+  });
   app.get('/api/person-computer', async (): Promise<PersonComputerState> => {
     const pc = s.ctx.personComputer;
     if (!pc) return { available: false, accessibility: false, screen: false };

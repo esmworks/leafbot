@@ -50,6 +50,7 @@ import { adoptLegacyAccount } from './users';
 import { atLeast, managesServer } from './services/access';
 import { enforceRule, ruleFor } from './access-rules';
 import { setContentKey } from './db/sealed';
+import { AcpEngine, refusingEngine } from './engine/acp';
 import { ClaudeEngine, FALLBACK_MODELS } from './engine/claude';
 import { FakeEngine } from './engine/fake';
 import { PiEngine } from './engine/pi';
@@ -228,7 +229,12 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     shellReady: () => shellSandbox.status === 'ok',
     shellDir,
   });
-  const engineFor = (bot: Bot): Engine => opts.engine ?? fake ?? (bot.engine === 'pi' ? pi : claude);
+  // Coding agents on the computer, only where the server runs on the owner's own computer.
+  const acp = config.onUserComputer ? new AcpEngine({ version: '0.8.0' }) : null;
+  const engineFor = (bot: Bot): Engine =>
+    opts.engine ??
+    fake ??
+    (bot.engine === 'pi' ? pi : bot.engine === 'acp' ? (acp ?? refusingEngine('engine.acpOff')) : claude);
   const services: Services = new Services(ctx, engineFor, opts.clock);
   // Content sealed at rest opens with a key from the vault key; the switch is the saved setting.
   setContentKey(services.vault.contentKey());

@@ -46,6 +46,7 @@ import { publicHost } from '../services/skill-link';
 import type { PlanItem, SubagentState } from '../engine/types';
 import { isUniqueViolation, newId, readableError, truncate } from '../util';
 import { submitsOnMac } from '../computer/person';
+import { refusingEngine } from '../engine/acp';
 import { markedOutside, outsideRead, outsideSource, resembledSite } from './outside';
 import { MAX_SOURCES } from '../services/canary';
 import { ownerWords, requestedBy } from './owner-words';
@@ -1586,6 +1587,12 @@ export class TurnManager {
       // said yes, looking, moving and plain typing go on in this piece of work without another
       // card; a key or text that could run or send something asks each time (see below).
       const onMac = (ask.toolName.split('__').at(-1) ?? '').startsWith(PERSON_COMPUTER);
+      // A coding agent's own step runs outside the bot's sandbox, with the person's rights, and the
+      // app knows of it only what the agent says: none of the shortcuts that rely on the sandbox
+      // apply, and anything past reading asks at every level, with no "always allow". Its calls to
+      // the app's own tools come through the app's MCP server and go by the usual rules.
+      const agentStep = bot.engine === 'acp' && !ask.toolName.startsWith('mcp__');
+      const agentAct = agentStep && ask.toolName !== 'Read' && ask.toolName !== 'Grep';
       // Reads and talking to the person are free at every level, after outside text too: that text
       // reaches the bot marked as data, and the steps that matter ask at every level.
       let free = readOnlyTools;
@@ -1703,6 +1710,7 @@ export class TurnManager {
       // desktop's home, where its programs keep sign-ins.
       const botRoot = dirname(dirname(paths.threadDir));
       if (
+        !agentStep &&
         ask.toolName === 'Bash' &&
         typeof ask.input.command === 'string' &&
         !askRuleMatches(rules, ask.toolName, ask.input) &&
@@ -1723,6 +1731,7 @@ export class TurnManager {
       // host and the group's shared folder still go by the level. Not for a step the person turned
       // down just now.
       if (
+        !agentStep &&
         !this.ctx.config.onUserComputer &&
         mode === 'ask' &&
         !locked &&
@@ -1743,6 +1752,7 @@ export class TurnManager {
       // rights; so does the group's shared folder, which other bots read, and so does a project
       // folder the bot was pointed at, which is the person's own.
       if (
+        !agentStep &&
         this.ctx.config.onUserComputer &&
         mode === 'ask' &&
         !locked &&
@@ -1764,7 +1774,7 @@ export class TurnManager {
         readOnlyTools: free,
         guest: locked,
       });
-      const verdict = (copied || onMac) && decided === 'allow' ? 'ask' : decided;
+      const verdict = (copied || onMac || agentAct) && decided === 'allow' ? 'ask' : decided;
       if (verdict === 'allow') {
         // A read goes without a line in the bot's list of what it changed.
         if (free.has(ask.toolName) || READ_ONLY_TOOLS.has(ask.toolName)) return { behavior: 'allow' };
@@ -1817,7 +1827,7 @@ export class TurnManager {
         timeoutMs: present ? undefined : this.ctx.config.unattendedApprovalMs,
         // A copy of a site gets no "always allow", nor an answer from another card's rule; nor does
         // the person's Mac.
-        outside: locked || capped || !!copied || onMac,
+        outside: locked || capped || !!copied || onMac || agentAct,
         second,
         onCreated: async (a) => {
           await threads.addMessage({
@@ -1829,7 +1839,7 @@ export class TurnManager {
               approvalId: a.id,
               ...held,
               ...(second ? { needsSecond: true } : {}),
-              ...(locked || capped || onMac ? { noAlways: true } : {}),
+              ...(locked || capped || onMac || agentAct ? { noAlways: true } : {}),
               ...(copied ? { resembles: copied.charAt(0).toUpperCase() + copied.slice(1) } : {}),
             },
             turnId: turn.id,
@@ -1845,7 +1855,23 @@ export class TurnManager {
         : answer;
     };
 
-    const engine = this.engineFor(bot);
+    // A coding agent on the computer runs outside the bot's sandbox, with the owner's own logins:
+    // only the owner's own words in their own conversation start it, nothing a routine, a mail, a
+    // webhook, another bot, a team or a guest brought.
+    const engine =
+      bot.engine === 'acp' && bot.permissionMode === 'readonly'
+        ? // The app cannot hold an agent with its own tools to only reading.
+          refusingEngine('engine.acpReadOnly')
+        : bot.engine === 'acp' &&
+            !(
+              own === OWNER_ID &&
+              thread.kind === 'user' &&
+              turn.source === 'user' &&
+              !turn.guest &&
+              !turn.rehearsalId
+            )
+          ? refusingEngine('engine.acpOwnerOnly')
+          : this.engineFor(bot);
     const roomPrompt = (fresh: boolean) =>
       this.services.rooms.prompt({ roomId: thread.id, bot, turn, fresh, t, note });
     const started = turn.startedAt ?? turn.createdAt;
