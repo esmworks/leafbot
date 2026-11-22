@@ -138,20 +138,24 @@
 /*
  * Inter holds Latin, Greek and Cyrillic only. Without a per-script stack the browser falls back to
  * whatever it has, and Chinese, Arabic or Devanagari text ends up in a different weight and line
- * height than the rest of the interface.
+ * height than the rest of the interface. Preflight reads `--default-font-family`, which Tailwind
+ * fills with the Latin stack at build time, so both variables move together.
  */
 :root:lang(zh) {
+  --default-font-family: var(--font-sans);
   --font-sans:
     'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Microsoft YaHei', ui-sans-serif, system-ui,
     sans-serif;
 }
 
 :root:lang(ar) {
+  --default-font-family: var(--font-sans);
   --font-sans:
     'Inter', 'Geeza Pro', 'Noto Sans Arabic', 'Segoe UI', Tahoma, ui-sans-serif, system-ui, sans-serif;
 }
 
 :root:lang(hi) {
+  --default-font-family: var(--font-sans);
   --font-sans:
     'Inter', 'Kohinoor Devanagari', 'Noto Sans Devanagari', 'Nirmala UI', ui-sans-serif, system-ui, sans-serif;
 }
