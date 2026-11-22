@@ -162,6 +162,7 @@ export const toRoutine = (r: Row<typeof schema.routines>): Routine => ({
   lastRunAt: iso(r.lastRunAt),
   createdAt: r.createdAt.toISOString(),
   webhookToken: r.webhookToken,
+  webhookSecretSet: !!r.webhookSecret,
   missed: r.missed,
   carryReport: r.carryReport,
   inMain: r.inMain,

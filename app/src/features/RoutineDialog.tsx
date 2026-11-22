@@ -1,4 +1,8 @@
 import {
+  APP_EVENT_SOURCES,
+  appEventFilter,
+  appEventOf,
+  appMakesSecret,
   describeSchedule,
   parseCron,
   ROUTINE_APPROVAL_MAX_DAYS,
@@ -10,7 +14,7 @@ import {
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Terminal, Webhook as WebhookIcon } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch, type UseFormRegisterReturn } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
@@ -617,6 +621,13 @@ export function RoutineDialog({
             {routine && <Check routine={routine} />}
             {routine && <Webhook routine={routine} />}
             {routine?.webhookToken && (
+              <AppEvents
+                routine={routine}
+                filter={values.webhookFilter ?? ''}
+                onFilter={(v) => form.setValue('webhookFilter', v, { shouldDirty: true })}
+              />
+            )}
+            {routine?.webhookToken && (
               <Field label={t('routine.webhookFilter')}>
                 <Textarea
                   {...form.register('webhookFilter')}
@@ -1070,6 +1081,142 @@ function Webhook({ routine: given }: { routine: Routine }) {
             <li>{t('routine.githubStep4')}</li>
           </ol>
         </details>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Picks an app and one of its events, which writes the webhook filter for that event, with what to
+ * set in the app, and the signing secret for apps that make their own.
+ */
+export function AppEvents({
+  routine: given,
+  filter,
+  onFilter,
+}: {
+  routine: Routine;
+  filter: string;
+  onFilter: (filter: string) => void;
+}) {
+  const t = useT();
+  const qc = useQueryClient();
+  const { data: routines } = useRoutines();
+  const routine = routines?.find((r) => r.id === given.id) ?? given;
+  const picked = appEventOf(filter);
+  const source = APP_EVENT_SOURCES.find((s) => s.app === picked?.app);
+  const [secret, setSecret] = useState('');
+  const save = useMutation({
+    mutationFn: (value: string | null) => api.setWebhookSecret(routine.id, value),
+    onSuccess: (_r, value) => {
+      setSecret('');
+      toast.success(t(value ? 'routine.appSecretSaved' : 'routine.appSecretRemoved'));
+      return qc.invalidateQueries({ queryKey: ['routines'] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+  const pickApp = (app: string) => {
+    if (app === 'any') return onFilter('');
+    const first = APP_EVENT_SOURCES.find((s) => s.app === app)?.events[0];
+    if (first) onFilter(appEventFilter(app, first.id) ?? '');
+  };
+  const showSecret = (!!source && appMakesSecret(source.app)) || !!routine.webhookSecretSet;
+  return (
+    <div className="space-y-2 rounded-2xl bg-secondary/60 px-3 py-2">
+      <span className="block text-sm font-medium">{t('routine.appEvent')}</span>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Select value={picked?.app ?? (filter.trim() ? 'own' : 'any')} onValueChange={pickApp}>
+          <SelectTrigger className="w-full rounded-xl" aria-label={t('routine.appEventApp')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="any">{t('routine.appEventAny')}</SelectItem>
+            {!picked && filter.trim() && <SelectItem value="own">{t('routine.appEventOwn')}</SelectItem>}
+            {APP_EVENT_SOURCES.map((s) => (
+              <SelectItem key={s.app} value={s.app}>
+                {s.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {source && picked && (
+          <Select value={picked.event} onValueChange={(e) => onFilter(appEventFilter(source.app, e) ?? '')}>
+            <SelectTrigger className="w-full rounded-xl" aria-label={t('routine.appEventEvent')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {source.events.map((e) => (
+                <SelectItem key={e.id} value={e.id}>
+                  {t(`appEvent.${source.app}.${e.id}` as MessageKey)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">{t('routine.appEventHint')}</p>
+      {source && source.app !== 'github' && (
+        <p className="text-xs text-muted-foreground">
+          {t(`routine.appSetup.${source.app}` as MessageKey)}
+          {!appMakesSecret(source.app) && (
+            <>
+              {' '}
+              <button
+                type="button"
+                className="underline"
+                onClick={async () => {
+                  if (routine.webhookToken && (await copyText(routine.webhookToken)))
+                    toast.success(t('routine.githubSecretCopied'));
+                  else toast.error(t('message.copyFailed'));
+                }}
+              >
+                {t('routine.githubCopySecret')}
+              </button>
+            </>
+          )}
+        </p>
+      )}
+      {showSecret && (
+        <div className="space-y-1">
+          <Label className="text-xs">
+            {source ? t('routine.appSecret', { app: source.name }) : t('routine.appSecretAny')}
+          </Label>
+          <div className="flex items-center gap-2">
+            <Input
+              type="password"
+              autoComplete="off"
+              value={secret}
+              onChange={(e) => setSecret(e.target.value)}
+              placeholder={t('routine.appSecretPlaceholder')}
+              className="rounded-xl font-mono text-xs"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="rounded-full"
+              disabled={secret.trim().length < 8 || save.isPending}
+              onClick={() => save.mutate(secret.trim())}
+            >
+              {t('common.save')}
+            </Button>
+            {routine.webhookSecretSet && (
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                className="rounded-full"
+                disabled={save.isPending}
+                onClick={() => save.mutate(null)}
+              >
+                {t('common.remove')}
+              </Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t(routine.webhookSecretSet ? 'routine.appSecretSet' : 'routine.appSecretUnset')}
+          </p>
+        </div>
       )}
     </div>
   );

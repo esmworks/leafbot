@@ -209,8 +209,13 @@ export const Routine = z.object({
    * null when it has none.
    */
   webhookToken: z.string().nullable(),
+  /** Whether an app's own signing secret was pasted in for its calls. Missing on older servers. */
+  webhookSecretSet: z.boolean().optional(),
 });
 export type Routine = z.infer<typeof Routine>;
+
+/** An app's signing secret for a routine's webhook; null removes it. */
+export const RoutineWebhookSecret = z.object({ secret: z.string().trim().min(8).max(500).nullable() });
 
 export const RoutineCreate = z.object({
   botId: z.string(),

@@ -84,6 +84,7 @@ import {
   type PersonComputerState,
   ACP_AGENTS,
   type AcpAgentState,
+  RoutineWebhookSecret,
   PasswordManagerUpdate,
   VaultImport,
   VaultLoginCreate,
@@ -113,6 +114,7 @@ import {
 } from '@leafbot/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest, RouteShorthandOptions } from 'fastify';
 import { ACP_COMMANDS, onPath, shellPath } from './engine/acp';
+import { eventHeader } from './services/webhook-signatures';
 import { z } from 'zod';
 import { MIN_PASSWORD } from './account';
 import {
@@ -2242,6 +2244,9 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.delete('/api/routines/:id/webhook', async (req) =>
     s.routines.setWebhook(IdParams.parse(req.params).id, false),
   );
+  app.put('/api/routines/:id/webhook-secret', async (req) =>
+    s.routines.setWebhookSecret(IdParams.parse(req.params).id, RoutineWebhookSecret.parse(req.body).secret),
+  );
   const WebhookParams = z.object({ id: z.string().min(1).max(64), token: z.string().min(1).max(100) });
   const webhookHooks: RouteShorthandOptions = {
     // The secret is in the address, so it is checked before a byte of the body is read: a caller
@@ -2288,12 +2293,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       header('x-github-delivery') ??
       header('webhook-id') ??
       header('x-webhook-id');
-    // Code hosts name the kind of event in a header; GitHub also signs the body.
-    const event = header('x-github-event') ?? header('x-gitlab-event') ?? header('x-event-key');
-    const signature = header('x-hub-signature-256');
+    // Apps name the kind of event in a header, and most sign the body (see `checkSignature`).
     const run = await s.routines.runFromWebhook(p.id, p.token, payload.trim() || undefined, delivery, {
-      event,
-      signature,
+      event: eventHeader(header),
+      header,
       raw: (req as { rawBody?: Buffer }).rawBody,
     });
     if (run === false) throw new HttpError(404, 'error.notFound');

@@ -485,6 +485,8 @@ export const api = {
   rejectSkillChange: (id: string) => http.post<{ ok: true }>(`/api/skill-changes/${id}/reject`),
   enableWebhook: (id: string) => http.post<Routine>(`/api/routines/${id}/webhook`, {}),
   disableWebhook: (id: string) => http.del<Routine>(`/api/routines/${id}/webhook`),
+  setWebhookSecret: (id: string, secret: string | null) =>
+    http.put<Routine>(`/api/routines/${id}/webhook-secret`, { secret }),
   usage: (days: UsageRange, botId?: string) =>
     http.get<UsageReport>(`/api/usage?days=${days}${botId ? `&bot=${encodeURIComponent(botId)}` : ''}`),
   planUsage: () => http.get<{ plan: UsageReport['plan'] | null }>('/api/usage/plan'),

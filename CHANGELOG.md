@@ -31,6 +31,12 @@ version is 0.x, a minor release may change the data format or the API; the serve
   past reading that the agent asks about (a command, an edit, a fetch) comes as a card at every level, without "always
   allow". The bot's own tools (memory, files, apps) reach it through a local MCP server and go by the usual rules;
   steps the agent takes without asking are not stopped by the app.
+- A routine can start on an app's event: with the routine's webhook on, pick the app (GitHub, GitLab, Stripe, Shopify,
+  Linear, Sentry, Calendly or Typeform) and the event (an order paid, a payment failed, a pipeline failed, a form
+  answered…). This fills in the webhook filter and shows what to set in the app. Each app's signature is checked:
+  apps you give the routine's secret to are checked with it, and for apps that make their own secret (Stripe, Shopify,
+  Linear, Sentry) you paste it into the routine, after which only calls signed with it start the routine. Stripe and
+  Calendly calls signed more than five minutes earlier are turned away. Removing the webhook removes the pasted secret too.
 
 ## 0.8.0 — 2026-11-22
 
