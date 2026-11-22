@@ -119,6 +119,7 @@ export const fr: Partial<Catalog<MessageKey>> = {
     'Supprimer le groupe « {name} » ? Ses bots passent dans Sans groupe et perdent l’accès au dossier partagé du groupe.',
   'settings.tab.people': 'Personnes',
   'settings.title': 'Réglages',
+  'settings.partialLanguage': 'Pendant la traduction de cette langue, une partie du texte reste en anglais.',
   'settings.tab.general': 'Général',
   'settings.tab.connection': 'Connexion',
   'settings.tab.permissions': 'Autorisations',

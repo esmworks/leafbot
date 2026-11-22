@@ -120,6 +120,7 @@ export const ar: Partial<Catalog<MessageKey>> = {
     'حذف مجموعة «{name}»؟ تنتقل بوتاتها إلى «بلا مجموعة» وتفقد الوصول إلى مجلد المجموعة المشترك.',
   'settings.tab.people': 'الأشخاص',
   'settings.title': 'الإعدادات',
+  'settings.partialLanguage': 'أثناء ترجمة هذه اللغة، يبقى جزء من النص بالإنجليزية.',
   'settings.tab.general': 'عام',
   'settings.tab.connection': 'الاتصال',
   'settings.tab.permissions': 'الأذونات',

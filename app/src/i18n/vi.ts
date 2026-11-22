@@ -117,6 +117,7 @@ export const vi: Partial<Catalog<MessageKey>> = {
     'Xóa nhóm «{name}»? Các bot trong nhóm chuyển sang Không nhóm và mất quyền truy cập thư mục chung của nhóm.',
   'settings.tab.people': 'Người',
   'settings.title': 'Cài đặt',
+  'settings.partialLanguage': 'Trong khi ngôn ngữ này đang được dịch, một phần văn bản vẫn bằng tiếng Anh.',
   'settings.tab.general': 'Chung',
   'settings.tab.connection': 'Kết nối',
   'settings.tab.permissions': 'Quyền',

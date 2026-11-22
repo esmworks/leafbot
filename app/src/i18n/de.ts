@@ -1783,6 +1783,8 @@ export const de: Partial<Catalog<MessageKey>> = {
   'bot.reset': 'Zurücksetzen',
   'bot.imageHint': 'Das Bild wird auf 256×256 verkleinert.',
   'settings.title': 'Einstellungen',
+  'settings.partialLanguage':
+    'Während diese Sprache übersetzt wird, bleibt ein Teil des Textes auf Englisch.',
   'settings.tab.general': 'Allgemein',
   'settings.tab.connection': 'Verbindung',
   'settings.tab.permissions': 'Berechtigungen',

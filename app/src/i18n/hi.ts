@@ -116,6 +116,7 @@ export const hi: Partial<Catalog<MessageKey>> = {
     'समूह «{name}» हटाएँ? इसके बॉट समूह के बिना में चले जाएँगे और समूह के साझा फ़ोल्डर तक पहुँच खो देंगे।',
   'settings.tab.people': 'लोग',
   'settings.title': 'सेटिंग्स',
+  'settings.partialLanguage': 'इस भाषा के अनुवाद के दौरान कुछ पाठ अंग्रेज़ी में रहता है।',
   'settings.tab.general': 'सामान्य',
   'settings.tab.connection': 'कनेक्शन',
   'settings.tab.permissions': 'अनुमतियाँ',

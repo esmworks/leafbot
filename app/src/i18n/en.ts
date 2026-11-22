@@ -1795,6 +1795,7 @@ export const en: Catalog<MessageKey> = {
   'bot.imageHint': 'The image is scaled down to 256×256.',
 
   'settings.title': 'Settings',
+  'settings.partialLanguage': 'Some text still shows in English while this language is being translated.',
   'settings.tab.general': 'General',
   'settings.tab.connection': 'Connection',
   'settings.tab.permissions': 'Permissions',

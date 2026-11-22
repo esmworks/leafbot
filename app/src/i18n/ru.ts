@@ -120,6 +120,7 @@ export const ru: Partial<Catalog<MessageKey>> = {
     'Удалить группу «{name}»? Её боты перейдут в «Без группы» и потеряют доступ к общей папке группы.',
   'settings.tab.people': 'Люди',
   'settings.title': 'Настройки',
+  'settings.partialLanguage': 'Пока этот язык переводится, часть текста остаётся на английском.',
   'settings.tab.general': 'Общие',
   'settings.tab.connection': 'Подключение',
   'settings.tab.permissions': 'Разрешения',

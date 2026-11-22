@@ -67,16 +67,22 @@ interface LocaleState {
   /** BCP 47 tag for `Intl` and case mapping. */
   intl: string;
   t: T;
+  /** Keys that still show in English; undefined until the language's catalog has loaded. */
+  missing?: number;
   /** Set when the user picked a language before the server's setting could be saved (login page). */
   unsaved: boolean;
   setLocale(locale: Locale, opts?: { unsaved?: boolean }): void;
 }
 
-const state = (locale: Locale) => ({
-  locale,
-  intl: INTL_LOCALE[locale],
-  t: createTranslator(CATALOGS, locale),
-});
+const state = (locale: Locale) => {
+  const catalog = CATALOGS[locale];
+  return {
+    locale,
+    intl: INTL_LOCALE[locale],
+    t: createTranslator(CATALOGS, locale),
+    missing: catalog ? Object.keys(en).length - Object.keys(catalog).length : undefined,
+  };
+};
 
 export const useLocale = create<LocaleState>((set, get) => {
   /** Shows English until the language's own text arrives, then switches to it if it is still the choice. */

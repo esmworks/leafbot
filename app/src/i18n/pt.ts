@@ -118,6 +118,7 @@ export const pt: Partial<Catalog<MessageKey>> = {
     'Excluir o grupo “{name}”? Os bots dele vão para Sem grupo e perdem o acesso à pasta compartilhada do grupo.',
   'settings.tab.people': 'Pessoas',
   'settings.title': 'Configurações',
+  'settings.partialLanguage': 'Enquanto este idioma é traduzido, parte do texto continua em inglês.',
   'settings.tab.general': 'Geral',
   'settings.tab.connection': 'Conexão',
   'settings.tab.permissions': 'Permissões',

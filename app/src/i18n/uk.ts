@@ -120,6 +120,7 @@ export const uk: Partial<Catalog<MessageKey>> = {
     'Видалити групу «{name}»? Її боти перейдуть до «Без групи» й втратять доступ до спільної теки групи.',
   'settings.tab.people': 'Люди',
   'settings.title': 'Налаштування',
+  'settings.partialLanguage': 'Поки цю мову перекладають, частина тексту залишається англійською.',
   'settings.tab.general': 'Загальні',
   'settings.tab.connection': 'Підключення',
   'settings.tab.permissions': 'Дозволи',

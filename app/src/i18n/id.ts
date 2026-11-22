@@ -118,6 +118,7 @@ export const id: Partial<Catalog<MessageKey>> = {
     'Hapus grup «{name}»? Bot di dalamnya pindah ke Tanpa grup dan kehilangan akses ke folder bersama grup.',
   'settings.tab.people': 'Orang',
   'settings.title': 'Pengaturan',
+  'settings.partialLanguage': 'Selama bahasa ini diterjemahkan, sebagian teks masih dalam bahasa Inggris.',
   'settings.tab.general': 'Umum',
   'settings.tab.connection': 'Koneksi',
   'settings.tab.permissions': 'Izin',

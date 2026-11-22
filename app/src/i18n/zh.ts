@@ -114,6 +114,7 @@ export const zh: Partial<Catalog<MessageKey>> = {
     '删除分组「{name}」？其中的机器人会进入未分组，并失去对该分组共享文件夹的访问。',
   'settings.tab.people': '成员',
   'settings.title': '设置',
+  'settings.partialLanguage': '此语言翻译完成前，部分文字仍为英文。',
   'settings.tab.general': '常规',
   'settings.tab.connection': '连接',
   'settings.tab.permissions': '权限',

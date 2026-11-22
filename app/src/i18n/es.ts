@@ -119,6 +119,7 @@ export const es: Partial<Catalog<MessageKey>> = {
     '¿Eliminar el grupo «{name}»? Sus bots pasan a Sin grupo y pierden el acceso a la carpeta compartida del grupo.',
   'settings.tab.people': 'Personas',
   'settings.title': 'Ajustes',
+  'settings.partialLanguage': 'Mientras se traduce este idioma, parte del texto sigue en inglés.',
   'settings.tab.general': 'General',
   'settings.tab.connection': 'Conexión',
   'settings.tab.permissions': 'Permisos',

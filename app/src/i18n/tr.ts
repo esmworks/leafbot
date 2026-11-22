@@ -1760,6 +1760,7 @@ export const tr = {
 
   // Settings
   'settings.title': 'Ayarlar',
+  'settings.partialLanguage': 'Bu dil çevrilirken bazı metinler hâlâ İngilizce görünür.',
   'settings.tab.general': 'Genel',
   'settings.tab.connection': 'Bağlantı',
   'settings.tab.permissions': 'İzinler',

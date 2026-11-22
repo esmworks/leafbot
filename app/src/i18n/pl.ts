@@ -120,6 +120,7 @@ export const pl: Partial<Catalog<MessageKey>> = {
     'Skasować grupę „{name}”? Jej boty trafią do Bez grupy i stracą dostęp do wspólnego folderu grupy.',
   'settings.tab.people': 'Osoby',
   'settings.title': 'Ustawienia',
+  'settings.partialLanguage': 'Podczas tłumaczenia tego języka część tekstu pozostaje po angielsku.',
   'settings.tab.general': 'Ogólne',
   'settings.tab.connection': 'Połączenie',
   'settings.tab.permissions': 'Uprawnienia',

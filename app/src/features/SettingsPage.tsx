@@ -547,6 +547,7 @@ function General() {
   const theme = useTheme();
   const locale = useLocale((s) => s.locale);
   const setLocale = useLocale((s) => s.setLocale);
+  const missing = useLocale((s) => s.missing);
   const font = useFont((s) => s.font);
   const setFont = useFont((s) => s.set);
   const chatWidth = useChatWidth((s) => s.width);
@@ -657,6 +658,11 @@ function General() {
             </SelectContent>
           </Select>
         </Row>
+        {missing ? (
+          <p className="px-4 pb-3 text-xs leading-relaxed text-muted-foreground">
+            {t('settings.partialLanguage')}
+          </p>
+        ) : null}
       </Card>
       <Card title={t('general.behavior')}>
         <Row label={t('general.sendKey')} hint={t('general.sendKeyHint')}>
