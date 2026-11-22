@@ -45,6 +45,7 @@ import { carriesToken, scrubCanary, type CanaryHit } from '../services/canary';
 import { publicHost } from '../services/skill-link';
 import type { PlanItem, SubagentState } from '../engine/types';
 import { isUniqueViolation, newId, readableError, truncate } from '../util';
+import { submitsOnMac } from '../computer/person';
 import { markedOutside, outsideRead, outsideSource, resembledSite } from './outside';
 import { MAX_SOURCES } from '../services/canary';
 import { ownerWords, requestedBy } from './owner-words';
@@ -1581,12 +1582,10 @@ export class TurnManager {
         return { behavior: 'deny', message: t('turn.safetyFloor') };
       }
       // The person's own Mac: the first look or touch in a turn asks at every level, with no "always
-      // allow", since a bot sees whatever is on their screen and acts with their rights; once they
-      // said yes, the rest of this piece of work goes on without another card.
+      // allow", since a bot sees whatever is on their screen and acts with their rights. Once they
+      // said yes, looking, moving and plain typing go on in this piece of work without another
+      // card; a key or text that could run or send something asks each time (see below).
       const onMac = (ask.toolName.split('__').at(-1) ?? '').startsWith(PERSON_COMPUTER);
-      if (onMac && macApproval && !turn.rehearsalId) {
-        return { behavior: 'allow', let: { how: 'card', approvalId: macApproval } };
-      }
       // Reads and talking to the person are free at every level, after outside text too: that text
       // reaches the bot marked as data, and the steps that matter ask at every level.
       let free = readOnlyTools;
@@ -1620,6 +1619,16 @@ export class TurnManager {
       // this bot's level, not the turn's, so the card does not offer it, and another card's answer
       // does not pass this one.
       const capped = mode !== modeFor(level);
+      if (
+        onMac &&
+        macApproval &&
+        !turn.rehearsalId &&
+        mode !== 'readonly' &&
+        !askRuleMatches(rules, ask.toolName, ask.input) &&
+        !submitsOnMac(ask.toolName, ask.input)
+      ) {
+        return { behavior: 'allow', let: { how: 'card', approvalId: macApproval } };
+      }
       // A page address that imitates a site the person uses (a copy made to take a sign-in or a
       // payment) is theirs to open, at every level; the card says which site it looks like and
       // offers no "always allow".

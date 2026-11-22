@@ -215,6 +215,21 @@ export function keysSubmit(presses: KeyPress[]): boolean {
   return presses.some((p) => p.modifiers.some((m) => m !== 'shift') || p.code === KEY_CODES.return);
 }
 
+/**
+ * Whether a step on the person's Mac could run or send something: a key that submits or a
+ * shortcut, or typed text with a line break (which presses Return). Such a step is asked about
+ * each time, beyond the yes that let the bot use the Mac in this turn.
+ */
+export function submitsOnMac(tool: string, input: Record<string, unknown>): boolean {
+  if (tool.endsWith('person_computer_key')) {
+    const presses = typeof input.keys === 'string' ? keyPresses(input.keys) : null;
+    return !presses || keysSubmit(presses);
+  }
+  if (tool.endsWith('person_computer_type'))
+    return typeof input.text !== 'string' || /[\r\n]/.test(input.text);
+  return false;
+}
+
 /** What a bot does on the screen, in the coordinates of its last picture. */
 export type PersonAction =
   | { type: 'click'; x: number; y: number; button: 'left' | 'right' | 'middle'; count: number }
@@ -229,8 +244,14 @@ export interface PersonComputerDriver {
   close(): void;
 }
 
+/**
+ * The longest one request may take: typing a long text takes a few seconds; a helper that hangs
+ * is stopped, so the Mac is not held by a step that never ends.
+ */
+const REQUEST_MS = 30_000;
+
 /** Starts the helper program and keeps it running until closed. */
-export function helperDriver(path: string): PersonComputerDriver {
+export function helperDriver(path: string, timeoutMs = REQUEST_MS): PersonComputerDriver {
   let child: ChildProcessWithoutNullStreams | null = null;
   let next = 1;
   const waiting = new Map<number, (r: Record<string, unknown>) => void>();
@@ -256,6 +277,8 @@ export function helperDriver(path: string): PersonComputerDriver {
     };
     c.on('exit', fail);
     c.on('error', fail);
+    // Writing to a helper that has just ended fails here, not in the server.
+    c.stdin.on('error', fail);
     return c;
   };
 
@@ -264,10 +287,18 @@ export function helperDriver(path: string): PersonComputerDriver {
       const sent = chain.then(
         () =>
           new Promise<Record<string, unknown>>((resolve) => {
-            child ??= start();
+            const c = (child ??= start());
             const id = next++;
-            waiting.set(id, resolve);
-            child.stdin.write(`${JSON.stringify({ ...req, id })}\n`);
+            const timer = setTimeout(() => {
+              waiting.delete(id);
+              resolve({ ok: false, error: 'failed' });
+              c.kill();
+            }, timeoutMs);
+            waiting.set(id, (r) => {
+              clearTimeout(timer);
+              resolve(r);
+            });
+            c.stdin.write(`${JSON.stringify({ ...req, id })}\n`);
           }),
       );
       chain = sent.catch(() => undefined);

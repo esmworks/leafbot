@@ -619,6 +619,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   // A bot linked to a document reads it right away, so its text waits for the person at once.
   app.post('/api/bots', async (req) => {
     const body = BotCreate.parse(req.body);
+    // The Mac is the owner's: only they let a bot use it.
+    if (body.personComputer && me(req).role !== 'owner') throw new HttpError(403, 'error.ownerOnly');
     checkProjectDir(req, body.projectDir);
     await checkGroup(req, body.groupId);
     const bot = await s.bots.create(body, me(req).userId);

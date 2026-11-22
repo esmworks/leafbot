@@ -1958,11 +1958,14 @@ export class ToolFactory {
       // folder is; the desktop does not see it.
       tools.push(...(bot.projectDir ? desk.filter((x) => x.name !== 'run_command') : desk));
     }
-    // The person's own Mac, for a bot they allowed to use it: only in their own work (not a team
-    // chat, a guest's or someone else's), and not for a bot that may only read.
+    // The person's own Mac, for a bot they allowed to use it: only in work their own message
+    // started (not a routine, a mail, a webhook, a follow-up or another bot), in their own
+    // conversation (not a team chat, a guest's or someone else's), and not for a bot that may only
+    // read.
     if (
       this.ctx.personComputer &&
       bot.personComputer &&
+      turn.source === 'user' &&
       !team &&
       !turn.guest &&
       person === OWNER_ID &&

@@ -1,13 +1,19 @@
+import { execFileSync } from 'node:child_process';
+import { existsSync, mkdtempSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
-import type { Approval, Bot, Message, PersonComputerState, Thread } from '@leafbot/shared';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import type { Approval, Bot, Message, PersonComputerState, Routine, Thread } from '@leafbot/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  helperDriver,
   keyPresses,
   keysSubmit,
   PersonComputer,
   PersonComputerError,
   type PersonComputerDriver,
   shotSize,
+  submitsOnMac,
   toScreen,
 } from '../src/computer/person';
 import { testServer, waitFor, type TestServer } from './helpers';
@@ -70,6 +76,16 @@ describe('kişinin Mac’i: tuşlar ve koordinatlar', () => {
     expect(keysSubmit(keyPresses('Tab')!)).toBe(false);
   });
 
+  it('Mac’te gönderebilecek adımları ayırır', () => {
+    expect(submitsOnMac('mcp__leafbot__person_computer_key', { keys: 'Return' })).toBe(true);
+    expect(submitsOnMac('mcp__leafbot__person_computer_key', { keys: 'cmd+v' })).toBe(true);
+    expect(submitsOnMac('mcp__leafbot__person_computer_key', { keys: 'bilinmeyen' })).toBe(true);
+    expect(submitsOnMac('mcp__leafbot__person_computer_key', { keys: 'Tab' })).toBe(false);
+    expect(submitsOnMac('mcp__leafbot__person_computer_type', { text: 'ls\n' })).toBe(true);
+    expect(submitsOnMac('mcp__leafbot__person_computer_type', { text: 'merhaba' })).toBe(false);
+    expect(submitsOnMac('mcp__leafbot__person_computer_click', { x: 1, y: 1 })).toBe(false);
+  });
+
   it('ekranı şeklini koruyarak küçültür ve görüntüdeki noktayı ekrana geri çevirir', () => {
     const screen = { width: 1512, height: 982 };
     const shot = shotSize(screen);
@@ -119,6 +135,44 @@ describe('kişinin Mac’i: kullanım', () => {
     await expect(mac.use('b', async () => 1, now + 1000)).rejects.toMatchObject({ code: 'busy' });
     await expect(mac.use('a', async () => 2, now + 1000)).resolves.toBe(2);
     await expect(mac.use('b', async () => 3, Date.now() + 3 * 60_000)).resolves.toBe(3);
+  });
+});
+
+/** The helper the desktop build makes on a Mac with Swift; these look only, never post input. */
+const HELPER = join(__dirname, '..', '..', 'desktop', 'dist', 'person-computer');
+
+describe.runIf(process.platform === 'darwin')('kişinin Mac’i: gerçek yardımcı', () => {
+  it.runIf(existsSync(HELPER))('yardımcıdan durumu okur', async () => {
+    const driver = helperDriver(HELPER);
+    try {
+      const r = await driver.send({ op: 'status' });
+      expect(r.ok).toBe(true);
+      expect(Number(r.width)).toBeGreaterThan(0);
+      expect(typeof r.accessibility).toBe('boolean');
+      expect(await driver.send({ op: 'bilinmeyen' })).toMatchObject({ ok: false, error: 'badRequest' });
+    } finally {
+      driver.close();
+    }
+  });
+
+  it('çalışmayan ya da takılan yardımcıda hata döner, sunucu düşmez', async () => {
+    const dead = helperDriver('/nonexistent/person-computer');
+    await expect(dead.send({ op: 'status' })).resolves.toMatchObject({ ok: false });
+    dead.close();
+    // `tail` reads the request and answers nothing until its input ends: the request times out.
+    const hung = helperDriver('/usr/bin/tail', 200);
+    await expect(hung.send({ op: 'status' })).resolves.toMatchObject({ ok: false });
+    hung.close();
+  });
+
+  it('ekran görüntüsünü istenen boyuta küçültür', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pc-'));
+    const file = join(dir, 'a.png');
+    await writeFile(file, PNG);
+    execFileSync('/usr/bin/sips', ['-z', '5', '8', file], { stdio: 'ignore' });
+    const out = execFileSync('/usr/bin/sips', ['-g', 'pixelWidth', '-g', 'pixelHeight', file]).toString();
+    expect(out).toMatch(/pixelWidth: 8/);
+    expect(out).toMatch(/pixelHeight: 5/);
   });
 });
 
@@ -193,6 +247,40 @@ describe('kişinin Mac’i: botlar ve onay', () => {
     expect((await t.messages(thread.id)).at(-1)!.text).toContain('reddedildi');
   });
 
+  it('işten sonra gönderebilecek tuşu her seferinde ayrıca sorar', async () => {
+    const bot = await t.bot({ permissionMode: 'auto', personComputer: true });
+    const thread = await main(bot.id);
+    await t.send(
+      thread.id,
+      '[araç:person_computer_click {"x":1,"y":1}] [araç:person_computer_type {"text":"ls"}] [araç:person_computer_key {"keys":"Return"}]',
+    );
+    const first = await waitFor(async () => (await pending())[0]);
+    expect(first.toolName).toBe('mcp__leafbot__person_computer_click');
+    await t.api('POST', `/api/approvals/${first.id}`, { decision: 'allow' });
+    const second = await waitFor(async () => (await pending())[0]);
+    expect(second.toolName).toBe('mcp__leafbot__person_computer_key');
+    expect(helper.ops().map((o) => o.op)).toEqual(['click', 'type']);
+    await t.api('POST', `/api/approvals/${second.id}`, { decision: 'deny' });
+    await t.services.turns.idle();
+    expect(helper.ops().map((o) => o.op)).toEqual(['click', 'type']);
+  });
+
+  it('rutinde, yani kişinin kendi mesajı başlatmadığı işte açılmaz', async () => {
+    const bot = await t.bot({ permissionMode: 'auto', personComputer: true });
+    const routine = (
+      await t.api<Routine>('POST', '/api/routines', {
+        botId: bot.id,
+        name: 'Ekran',
+        prompt: '[araç:person_computer_screenshot]',
+        schedule: { type: 'weekly', days: [0], time: '18:00' },
+      })
+    ).body;
+    await t.api('POST', `/api/routines/${routine.id}/run`);
+    await t.services.turns.idle();
+    expect(toolNames()).not.toContain('person_computer_screenshot');
+    expect(helper.ops()).toEqual([]);
+  });
+
   it('izni yalnızca sahip açar', async () => {
     const bot = await t.bot({ permissionMode: 'auto' });
     const member = await t.person('ayse');
@@ -203,5 +291,9 @@ describe('kişinin Mac’i: botlar ve onay', () => {
     expect(shared.status).toBe(200);
     const r = await member.api('PATCH', `/api/bots/${bot.id}`, { personComputer: true });
     expect(r.status).toBe(403);
+    // Nor by making a new bot with it on; without it they may.
+    const made = await member.api('POST', '/api/bots', { name: 'Yeni', personComputer: true });
+    expect(made.status).toBe(403);
+    expect((await member.api('POST', '/api/bots', { name: 'Yeni' })).status).toBe(200);
   });
 });
