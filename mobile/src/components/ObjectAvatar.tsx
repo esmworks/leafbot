@@ -1,4 +1,4 @@
-import { activityOf, type BotActivity } from '@leafbot/app/src/lib/activity';
+import { activityOf, botState, type BotActivity } from '@leafbot/app/src/lib/activity';
 import { gazeOf, lookTarget, sharedClock, swayAt } from '@leafbot/app/src/lib/gaze';
 import { objectDefinition } from '@leafbot/app/src/lib/object-avatars';
 import { CELEBRATE_MS, finishes, OBJECT_EYES, objectLook, steered } from '@leafbot/app/src/lib/object-motion';
@@ -79,7 +79,7 @@ function useBotActivity(botId: string | undefined): BotActivity {
   const live = useLiveState(threadId);
   const stream = useStream(threadId);
   return activityOf({
-    state: live ?? summary?.state ?? 'idle',
+    state: botState(live, summary?.state),
     pendingApprovals: summary?.pendingApprovals ?? 0,
     streaming: !!stream,
     // The phone does not follow the bot's browser; a turn that browses shows as thinking.

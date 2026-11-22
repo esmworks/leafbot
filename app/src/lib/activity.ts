@@ -22,3 +22,12 @@ export function activityOf({ state, pendingApprovals, streaming, browsing }: Act
   if (browsing) return 'browsing';
   return streaming ? 'writing' : 'thinking';
 }
+
+/**
+ * A bot's state for its avatar: the live state of the conversation it opens to, or, while that one
+ * is idle, what was last fetched for all its conversations. A bot at work on a ticket or on another
+ * bot's request is busy though the conversation it opens to has just gone idle.
+ */
+export function botState(live: TurnState | undefined, fetched: TurnState | undefined): TurnState {
+  return live && live !== 'idle' ? live : (fetched ?? live ?? 'idle');
+}
