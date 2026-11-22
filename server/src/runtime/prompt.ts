@@ -226,6 +226,9 @@ export function buildSystemPrompt(opts: {
     t('prompt.ruleApproval'),
     t('prompt.ruleAsk'),
     t('prompt.ruleMemory'),
+    // A decision kept without its reason cannot be weighed when things change, and one not looked
+    // up before a question gets asked again, which the person reads as the bot not listening.
+    t('prompt.ruleDecisions'),
     t('prompt.rulePromises'),
     ...(opts.recall === false ? [] : [t('prompt.ruleRecall')]),
     t('prompt.ruleTryFirst'),
