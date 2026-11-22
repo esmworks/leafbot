@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { clampRate, pickVoice, speakable, speechLanguage } from './speech';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { api } from './api';
+import { clampRate, pickVoice, speakable, speakAndWait, speechLanguage, useSpeech } from './speech';
+
+vi.mock('./api', () => ({ api: { speech: vi.fn() } }));
 
 const voice = (name: string, lang: string, extra: Partial<SpeechSynthesisVoice> = {}) =>
   ({ name, lang, localService: true, default: false, voiceURI: name, ...extra }) as SpeechSynthesisVoice;
@@ -53,5 +56,55 @@ describe('sesli okuma', () => {
     expect(clampRate(0.1)).toBe(0.5);
     expect(clampRate(5)).toBe(2);
     expect(clampRate(Number.NaN)).toBe(1);
+  });
+});
+
+describe('sesli okumayı bekleme', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    useSpeech.setState({ speaking: null });
+  });
+
+  /** The system voice, read out until `finish` is called. */
+  function systemVoice() {
+    const said: { onend: (() => void) | null }[] = [];
+    vi.stubGlobal(
+      'SpeechSynthesisUtterance',
+      class {
+        onend: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+        constructor(public text: string) {}
+      },
+    );
+    vi.stubGlobal('speechSynthesis', {
+      getVoices: () => [voice('Yelda', 'tr-TR')],
+      speak: (u: { onend: (() => void) | null }) => said.push(u),
+      cancel: vi.fn(),
+    });
+    return { said, finish: () => said.at(-1)?.onend?.() };
+  }
+
+  it('sunucunun sesi bozulunca sistem sesine geçer ve okuma bitmeden bitmiş saymaz', async () => {
+    const voiceOut = systemVoice();
+    vi.mocked(api.speech).mockRejectedValue(new Error('down'));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let done = false;
+    const p = speakAndWait('m1', 'Merhaba', 'tr', true).then(() => (done = true));
+    await vi.waitFor(() => expect(voiceOut.said).toHaveLength(1));
+    expect(done).toBe(false);
+    expect(useSpeech.getState().speaking).toBe('m1');
+    voiceOut.finish();
+    await p;
+    expect(done).toBe(true);
+  });
+
+  it('bitti demeyen bir okumayı süresi dolunca keser', async () => {
+    vi.useFakeTimers();
+    systemVoice();
+    const p = speakAndWait('m2', 'Kısa', 'tr', false);
+    await vi.advanceTimersByTimeAsync(15_000);
+    await p;
+    expect(useSpeech.getState().speaking).toBeNull();
   });
 });

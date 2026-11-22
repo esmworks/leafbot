@@ -393,6 +393,8 @@ export const SendMessage = z
     replyTo: z.string().min(1).max(64).optional(),
     /** Written while the app had no connection, and sent once it was back. */
     offline: z.boolean().optional(),
+    /** Said aloud in a voice call: the answer is read aloud, so it is kept short and plain. */
+    spoken: z.boolean().optional(),
   })
   .refine((m) => m.text.length > 0 || m.files.length > 0, {
     message: 'validation.emptyMessage',

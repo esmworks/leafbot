@@ -222,7 +222,9 @@ export class Inbox {
       ? `${asOutsideData(t('outside.chatHistory'), input.history.trim(), t)}\n\n`
       : '';
     const said = `${history}${name ? `${name}: ` : ''}${written}`;
-    const prompt = await this.prompt(said, dir, files, answered);
+    // Said aloud in a call, and the answer will be read aloud: the bot is told to keep it speakable.
+    const spoken = extra.spoken === true ? `\n\n${t('inbox.spoken')}` : '';
+    const prompt = `${await this.prompt(said, dir, files, answered)}${spoken}`;
     const turn = await s.turns.enqueue({
       threadId,
       botId: bot.id,

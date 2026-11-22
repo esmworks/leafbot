@@ -218,15 +218,22 @@ export function toggleSpeech(id: string, markdown: string, locale: Locale, serve
       },
       (err) => {
         console.warn('Server speech failed; reading with the system voice', err);
-        if (useSpeech.getState().speaking === id) {
-          useSpeech.setState({ speaking: null });
-          toggleSpeech(id, markdown, locale, false);
-        }
+        // Straight on with the system voice: the reply stays the one being read, so whoever waits
+        // for it to end does not take the switch for its end.
+        if (useSpeech.getState().speaking === id) speakSystem(id, markdown, locale);
       },
     );
     return;
   }
-  if (!speechSupported()) return;
+  speakSystem(id, markdown, locale);
+}
+
+/** Reads a message with the system's voice for its language; ends at once where there is none. */
+function speakSystem(id: string, markdown: string, locale: Locale) {
+  if (!speechSupported()) {
+    if (useSpeech.getState().speaking === id) useSpeech.setState({ speaking: null });
+    return;
+  }
   const text = speakable(markdown);
   useSpeech.setState({ speaking: id });
   void systemVoices().then((voices) => {
@@ -244,5 +251,38 @@ export function toggleSpeech(id: string, markdown: string, locale: Locale, serve
     u.onend = done;
     u.onerror = done;
     window.speechSynthesis.speak(u);
+  });
+}
+
+/** Stops whatever is being read aloud. */
+export function stopSpeech() {
+  stopAll();
+  useSpeech.setState({ speaking: null });
+}
+
+/**
+ * The longest a reply may take to read before it counts as ended: some browsers never say a long
+ * reading ended, and a call waiting on it would wait for good.
+ */
+export const speechDeadline = (markdown: string) => Math.max(15_000, speakable(markdown).length * 120);
+
+/** Reads a message aloud and resolves once it has been read, was stopped, or ran past its deadline. */
+export function speakAndWait(id: string, markdown: string, locale: Locale, server = false): Promise<void> {
+  if (useSpeech.getState().speaking === id) stopSpeech();
+  toggleSpeech(id, markdown, locale, server);
+  if (useSpeech.getState().speaking !== id) return Promise.resolve();
+  return new Promise((resolve) => {
+    const end = () => {
+      clearTimeout(timer);
+      unsubscribe();
+      resolve();
+    };
+    const unsubscribe = useSpeech.subscribe((s) => {
+      if (s.speaking !== id) end();
+    });
+    const timer = setTimeout(() => {
+      if (useSpeech.getState().speaking === id) stopSpeech();
+      end();
+    }, speechDeadline(markdown));
   });
 }

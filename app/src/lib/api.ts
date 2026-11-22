@@ -536,6 +536,7 @@ export const api = {
     files: string[] = [],
     replyTo?: string,
     offline?: boolean,
+    spoken?: boolean,
   ) =>
     http.post<Message>(`/api/threads/${threadId}/messages`, {
       clientId,
@@ -543,6 +544,7 @@ export const api = {
       files,
       replyTo,
       ...(offline && { offline: true }),
+      ...(spoken && { spoken: true }),
     }),
   search: (q: string, opts: { threadId?: string; limit?: number } = {}) =>
     http.get<SearchHit[]>(
