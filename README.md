@@ -42,8 +42,8 @@ The interface is available in English and Turkish.
   Copilot plan.
 - **Live chat** — streamed replies, file attachments, stop at any time, and turns that pick up where they left off
   after a server restart. Unread marks, find in a conversation (⌘F), `/` commands, quick replies, a goal per
-  conversation, branching from a reply, Markdown export, sortable tables, Mermaid diagrams, and speaking a message
-  instead of typing it.
+  conversation, branching from a reply, Markdown export, sortable tables, Mermaid diagrams, speaking a message
+  instead of typing it, and a voice call where you talk and the bot answers aloud.
 - **People** — the owner and admins add people, each with their own password and role (admin or member). A bot is
   shared with everyone or some people, to talk with or to change; each person's conversations, profile, notes,
   connections and vault entries are theirs alone, admins included, and a bot works with what belongs to the person it

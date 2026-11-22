@@ -17,6 +17,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
   read. What the bot sees on the screen counts as outside text. One bot uses the Mac at a time. macOS asks once for
   Accessibility (mouse and keyboard) and Screen Recording (seeing other apps' windows); the switch says which is still
   missing and opens the prompts.
+- A voice call with a bot: the phone button next to the microphone starts it. You talk, and once you pause what you
+  said is sent; the bot's answer is read aloud and the call listens again. The bot knows the message came from a call
+  and keeps its answer short. It writes out speech with the server's speech-to-text service, where talking over the
+  answer stops it; without one it uses the browser's own recognition (Chrome, Safari), which waits until the answer
+  has been read. Answers are read with the server's voice or the system's.
 
 ## 0.8.0 — 2026-11-22
 

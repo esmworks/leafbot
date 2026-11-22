@@ -1198,12 +1198,15 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       const { message, created } = await s.rooms.post(id, RoomSend.parse(req.body), me(req).userId);
       return reply.code(created ? 201 : 200).send(message);
     }
-    const { offline, ...body } = SendMessage.parse(req.body);
+    const { offline, spoken, ...body } = SendMessage.parse(req.body);
     const { message, created } = await s.inbox.send(id, {
       ...body,
       userId: me(req).userId,
-      // Kept on the message, so the conversation shows it was held while the app was offline.
-      ...(offline && { props: { sentOffline: true } }),
+      // Kept on the message, so the conversation shows it was held while the app was offline, or
+      // said aloud in a call.
+      ...((offline || spoken) && {
+        props: { ...(offline && { sentOffline: true }), ...(spoken && { spoken: true }) },
+      }),
     });
     return reply.code(created ? 201 : 200).send(message);
   });

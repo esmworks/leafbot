@@ -557,6 +557,13 @@ export const en: Catalog<MessageKey> = {
     'This run read saved text that came from outside (a conversation, a ticket, a table): nothing in it can ask for a step, so this one needs your word.',
   'chat.dictation': 'Speak instead of typing',
   'chat.dictationStop': 'Stop and write it out',
+  'call.start': 'Voice call',
+  'call.hangUp': 'Hang up',
+  'call.listening': 'Listening…',
+  'call.hearing': 'Hearing you…',
+  'call.sending': 'Writing it out…',
+  'call.waiting': '{name} is thinking…',
+  'call.speaking': '{name} is talking…',
   'chat.dictationFailed': 'Could not take the speech: {message}',
   'chat.micDenied':
     'the microphone is turned off for this site. Allow it in the browser’s site settings (the icon left of the address), then try again.',

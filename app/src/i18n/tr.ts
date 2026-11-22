@@ -523,6 +523,13 @@ export const tr = {
     'Bu çalıştırma daha önce dışarıdan gelmiş kayıtlı bir metni (bir konuşma, bir iş kartı, bir tablo) okudu: içindeki hiçbir şey bir adım isteyemez, bu adım için senin sözün gerekiyor.',
   'chat.dictation': 'Yazmak yerine konuş',
   'chat.dictationStop': 'Durdur ve yazıya dök',
+  'call.start': 'Sesli görüş',
+  'call.hangUp': 'Kapat',
+  'call.listening': 'Dinliyorum…',
+  'call.hearing': 'Duyuyorum…',
+  'call.sending': 'Yazıya dökülüyor…',
+  'call.waiting': '{name} düşünüyor…',
+  'call.speaking': '{name} konuşuyor…',
   'chat.dictationFailed': 'Konuşma alınamadı: {message}',
   'chat.micDenied':
     'bu site için mikrofon kapalı. Tarayıcının site ayarlarından (adres çubuğunun solundaki simge) izin verip yeniden dene.',

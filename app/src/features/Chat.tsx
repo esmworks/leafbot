@@ -35,6 +35,8 @@ import {
   UsersRound,
   X,
   SmilePlus,
+  Phone,
+  PhoneOff,
 } from 'lucide-react';
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -60,6 +62,8 @@ import { api } from '@/lib/api';
 import { useBotActivityById, useThreadActivity } from '@/lib/botActivity';
 import { useLocale, useT } from '@/i18n';
 import { useDictation } from '@/lib/dictation';
+import { useServerVoice } from '@/lib/speech';
+import { useVoiceCall } from '@/lib/voiceCall';
 import { useLiveCards } from '@/lib/liveCards';
 import { newClientId, useFormat } from '@/lib/format';
 
@@ -1409,6 +1413,8 @@ function Composer({
       replyTo: Message | null;
       /** As the conversation shows it while it is on its way. */
       shown: Message;
+      /** Said aloud in a voice call. */
+      spoken?: boolean;
     }) =>
       api.send(
         threadId,
@@ -1416,6 +1422,8 @@ function Composer({
         m.text,
         m.files.map((f) => f.name),
         m.replyTo?.id,
+        undefined,
+        m.spoken,
       ),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['messages', threadId] }),
     onError: (e, m) => {
@@ -1499,10 +1507,58 @@ function Composer({
     onPending(shown);
     send.mutate({ clientId, text: value, files, replyTo, shown });
   };
+  // What is said in a voice call goes as a message of its own, beside whatever is typed.
+  const sendSpoken = (value: string) => {
+    const clientId = newClientId();
+    const shown: Message = {
+      id: clientId,
+      threadId,
+      role: 'user',
+      author: 'user',
+      text: value,
+      props: { spoken: true },
+      clientId,
+      turnId: null,
+      createdAt: new Date().toISOString(),
+    };
+    if (holdsFor(threadId)) return onHeld(shown, [], undefined);
+    onPending(shown);
+    send.mutate({ clientId, text: value, files: [], replyTo: null, shown, spoken: true });
+  };
+  const { data: callMessages = [] } = useMessages(threadId);
+  const serverVoice = useServerVoice();
+  const voiceCall = useVoiceCall({
+    locale,
+    busy,
+    messages: callMessages,
+    send: sendSpoken,
+    serverVoice,
+    onError: (error) =>
+      toast.error(t('chat.dictationFailed', { message: error.key ? t(error.key) : error.message })),
+  });
 
   return (
     <div className="px-3 pb-3 sm:px-6 sm:pb-4">
       <RoutineDialog botId={bot.id} open={routineOpen} onOpenChange={setRoutineOpen} />
+      {voiceCall.state !== 'off' && (
+        <div
+          role="status"
+          className="mx-auto mb-2 flex max-w-(--chat-width) items-center gap-3 rounded-2xl bg-secondary/70 px-4 py-2"
+        >
+          <span
+            aria-hidden
+            className="size-2.5 shrink-0 rounded-full bg-primary transition-transform"
+            style={{ transform: `scale(${1 + Math.min(voiceCall.level * 25, 1.4)})` }}
+          />
+          <span className="min-w-0 flex-1 truncate text-sm">
+            {t(`call.${voiceCall.state}`, { name: bot.name })}
+          </span>
+          <Button type="button" size="sm" variant="destructive" onClick={voiceCall.hangUp}>
+            <PhoneOff className="size-4" />
+            {t('call.hangUp')}
+          </Button>
+        </div>
+      )}
       {slashMenu && (
         <div className="relative mx-auto max-w-(--chat-width)">
           <div
@@ -1748,6 +1804,23 @@ function Composer({
             placeholder={replyTo ? t('chat.replyPlaceholder') : t('chat.placeholder', { name: bot.name })}
             className="scroll-thin max-h-60 min-w-0 flex-1 resize-none bg-transparent py-1.5 text-base outline-none sm:text-[15px] placeholder:text-muted-foreground"
           />
+          {voiceCall.supported && voiceCall.state === 'off' && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="ghost"
+                  className="size-9 shrink-0 rounded-full text-muted-foreground"
+                  onClick={voiceCall.start}
+                  aria-label={t('call.start')}
+                >
+                  <Phone className="size-[18px]" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t('call.start')}</TooltipContent>
+            </Tooltip>
+          )}
           {dictation.supported && (
             <Tooltip>
               <TooltipTrigger asChild>
