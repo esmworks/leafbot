@@ -331,7 +331,7 @@ describe('kayıtlı API anahtarları', () => {
       expect(svc.seen.at(-1)!.headers.authorization).toBe('Bearer yeni-anahtar-654321');
     });
 
-    it('bilgisayardaki git yalnız ekibin GitHub anahtarını alır; sunucuyu yöneten kartta ekibin yapabilir', async () => {
+    it('kartta yazılan GitHub anahtarı kişinindir, git onu yalnız onun işinde kullanır; sunucuyu yöneten ekibin yapabilir', async () => {
       const github = 'https://github.com';
       const bot = await shared('Gitçi');
       const ask = async (p: Person | null) => {
@@ -352,13 +352,15 @@ describe('kayıtlı API anahtarları', () => {
       await t.services.turns.idle();
       const told = (await ayse.api<{ text: string }[]>('GET', `/api/threads/${member.thread.id}/messages`))
         .body;
-      expect(told.at(-1)!.text).toContain('git bunu kullanmaz');
+      expect(told.at(-1)!.text).toContain('kişinin kendi anahtarı olarak');
+      // Git uses it in her own work only; the desktop's own key stays the team's.
       expect(await t.services.apiCredentials.gitToken(bot.id)).toBeNull();
+      expect(await t.services.apiCredentials.gitToken(bot.id, 'ayse')).toBe(KEY_VALUE);
 
       // One who looks after the server is asked whose it is; the team's goes to git.
       const admin = await ask(null);
       expect(admin.questions).toHaveLength(2);
-      expect(admin.questions[1]!.options[0]).toBe('Ekibin (git de kullansın)');
+      expect(admin.questions[1]!.options[0]).toBe('Ekibin (herkesin işinde)');
       await t.api('POST', `/api/approvals/${admin.card.id}`, {
         decision: 'allow',
         answer: JSON.stringify(['ghp_ekip-yeni-123456', admin.questions[1]!.options[0]]),
@@ -438,7 +440,7 @@ describe('bilgisayardaki git ve GitHub uygulaması', () => {
     return id;
   };
 
-  it('ekibin GitHub uygulaması bota açıksa git onun oturumunu kullanır; kişinin kendisininkini kullanmaz', async () => {
+  it('git ekibin GitHub uygulamasını herkes için, kişininkini yalnız onun işi için kullanır', async () => {
     const bot = await t.bot({ name: 'Gitçi' });
     const other = await t.bot({ name: 'Başka' });
     await t.person('ayse');
@@ -446,6 +448,9 @@ describe('bilgisayardaki git ve GitHub uygulaması', () => {
     expect(await t.services.connections.gitToken(bot.id)).toBeNull();
 
     // Open only to another bot, the team's sign-in is not this bot's either.
+    // Hers is used for her own work alone.
+    expect(await t.services.connections.gitToken(bot.id, 'ayse')).toBe('gho_ayseninki');
+    expect(await t.services.connections.gitToken(bot.id, 'mert')).toBeNull();
     const team = await github({ token: 'gho_ekibin', botIds: [other.id] });
     expect(await t.services.connections.gitToken(bot.id)).toBeNull();
     expect(await t.services.connections.gitToken(other.id)).toBe('gho_ekibin');

@@ -98,8 +98,9 @@ export function apiTools(opts: {
           if (pick !== typeNew) return t('tool.credentialSkipped');
         }
         const how = auth ?? { type: 'bearer' as const };
-        // Git on the bot's desktop uses only the team's GitHub key (see `gitToken`), so one who may
-        // keep the team's keys is asked on the same card whether this one is the team's.
+        // A GitHub key is used by git on the bot's desktop as well: in everyone's work when it is the
+        // team's, in the person's own when it is theirs. One who may keep the team's keys is asked
+        // on the same card which it is.
         const github = where.data === GITHUB_ORIGIN;
         const mayTeam = github && managesServer((await s.access.viewerOf(own)).role);
         const forTeam = t('tool.credentialForTeam');
@@ -155,7 +156,7 @@ export function apiTools(opts: {
         }
         const done = { key: name.data, origin: where.data };
         if (team) return t('tool.credentialSavedForGit', done);
-        return github ? t('tool.credentialSavedNotGit', done) : t('tool.credentialSaved', done);
+        return github ? t('tool.credentialSavedOwnGit', done) : t('tool.credentialSaved', done);
       },
       'internal',
     ),

@@ -4,6 +4,7 @@ import {
   bwrapArgs,
   checkSessionPath,
   collectBinds,
+  commandGitEnv,
   gitEnv,
   sessionEnv,
   type SandboxOptions,
@@ -189,5 +190,17 @@ describe('gitEnv', () => {
     expect(offline.GIT_CONFIG_COUNT).toBeUndefined();
     expect(offline.GIT_TERMINAL_PROMPT).toBe('0');
     expect(gitEnv(undefined)).toEqual({ GIT_TERMINAL_PROMPT: '0' });
+  });
+
+  it("a command that brings its own key sends git to its own address in place of the session's", () => {
+    const own = `http://127.0.0.1:4322/${'b'.repeat(64)}/`;
+    const env = { ...sessionEnv({ ...opts(start()), gitRelay: relay }), ...commandGitEnv(own) };
+    expect(env.GIT_CONFIG_COUNT).toBe('3');
+    for (const i of [0, 1, 2]) expect(env[`GIT_CONFIG_KEY_${i}`]).toBe(`url.${own}.insteadOf`);
+    expect(JSON.stringify(env)).not.toContain('a'.repeat(64));
+    // Anything but a relay address of this machine is not taken.
+    expect(commandGitEnv('https://evil.example/' + 'b'.repeat(64) + '/')).toBeNull();
+    expect(commandGitEnv(`http://127.0.0.1:4322/${'b'.repeat(64)}/x`)).toBeNull();
+    expect(commandGitEnv(undefined)).toBeNull();
   });
 });

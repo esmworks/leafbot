@@ -7,6 +7,7 @@
 // Only git's own smart HTTP requests go through, to github.com and nowhere else. A push that would
 // change a repository's default branch is refused here, whatever the bot was told: work reaches the
 // default branch through a pull request a person merges.
+import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 import type { Socket } from 'node:net';
@@ -42,6 +43,46 @@ const PASS_RESPONSE = [
   'pragma',
   'www-authenticate',
 ];
+
+/**
+ * GitHub keys given for one command each: the person a bot's step works for brings their own key,
+ * while the desktop is shared by everyone who talks with the bot. Each command's git reaches the
+ * relay at an address of its own, which works only while the command runs and only while its
+ * desktop is the same one; a later command, or a process the bot leaves behind, finds it gone.
+ */
+export class GitGrants {
+  private grants = new Map<string, { session: string; token: string }>();
+
+  /** A new relay key for a command of `session` whose git sends `token`. */
+  give(session: string, token: string): string {
+    const key = randomBytes(32).toString('hex');
+    this.grants.set(key, { session, token });
+    return key;
+  }
+
+  /** The key's GitHub key while `alive(session)` holds; undefined for an unknown or ended one. */
+  tokenFor(key: string, alive: (session: string) => boolean): string | undefined {
+    const g = this.grants.get(key);
+    if (!g) return undefined;
+    if (alive(g.session)) return g.token;
+    this.grants.delete(key);
+    return undefined;
+  }
+
+  /** The command ended: its address stops working. */
+  end(key: string): void {
+    this.grants.delete(key);
+  }
+
+  /** The desktop stopped: every address of its commands stops working. */
+  endSession(session: string): void {
+    for (const [key, g] of this.grants) if (g.session === session) this.grants.delete(key);
+  }
+
+  get size(): number {
+    return this.grants.size;
+  }
+}
 
 /** A git request through the relay: which session asks, for which repository, and what. */
 export interface GitTarget {

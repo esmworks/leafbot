@@ -449,16 +449,17 @@ export class ApiCredentialService {
    * The key git on the bot's desktop uses for GitHub: one of the team's saved for
    * `https://github.com` that the bot may use. With several, the one saved or changed last: it is the
    * one someone just typed because git failed, while an older one may have expired or been revoked.
-   * A person's own key is left out: the desktop is the bot's, everyone who talks with the bot works
-   * on it, and the relay holds one key for all their steps and background commands at once. Only
-   * the computer service's relay gets it, and sends it to GitHub alone, the origin it was saved for.
+   * With `owner`, that person's own key alone, for a command of a step that works for them; without,
+   * the team's, which the desktop keeps for everything else (the desktop is the bot's, and everyone
+   * who talks with it works on it). Only the computer service's relay gets it, and sends it to
+   * GitHub alone, the origin it was saved for.
    */
-  async gitToken(botId: string): Promise<string | null> {
+  async gitToken(botId: string, owner: string | null = null): Promise<string | null> {
     await this.ready();
     const rows = await this.ctx.db
       .select()
       .from(schema.apiCredentials)
-      .where(and(eq(schema.apiCredentials.origin, GITHUB_ORIGIN), isNull(schema.apiCredentials.userId)))
+      .where(and(eq(schema.apiCredentials.origin, GITHUB_ORIGIN), ownedBy(owner)))
       .orderBy(desc(schema.apiCredentials.updatedAt), asc(schema.apiCredentials.name));
     const row = rows.find((r) => !r.botIds || r.botIds.includes(botId));
     if (!row) return null;

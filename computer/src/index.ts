@@ -32,7 +32,7 @@ import {
   SOCKS_REPLY,
   upstreamProxy,
 } from '@leafbot/shared/egress';
-import { createGitRelay } from './git-relay';
+import { createGitRelay, GitGrants } from './git-relay';
 import { allocateDisplay, bearerToken, CdpDecoder, checkToken, encodeCdp } from './lib';
 import { bwrapArgs, checkSessionPath, collectBinds, type SandboxOptions } from './sandbox';
 
@@ -81,6 +81,11 @@ interface Session {
   relayKey: string;
   /** The GitHub key the server gave for this bot; held here only, never in the session. */
   gitToken: string | null;
+  /**
+   * Whether the session's git goes through the relay at all (the relay was up and the desktop may
+   * reach the internet); a command's own key is given only then.
+   */
+  gitOn: boolean;
   /**
    * Whether the session's browser leaves through the service's own SOCKS, which refuses private
    * addresses itself. The server skips its own per-request guard on such a browser — the guard
@@ -198,6 +203,7 @@ async function startSession(id: string, start: DesktopStart): Promise<DesktopSta
     cdpOpen: false,
     relayKey,
     gitToken: null,
+    gitOn: gitReady && start.internet,
     browserProxied: false,
   } as Session;
   sessions.set(id, placeholder);
@@ -251,6 +257,7 @@ async function startSession(id: string, start: DesktopStart): Promise<DesktopSta
       clearInterval(poll);
       clearTimeout(giveUp);
       for (const close of [...s.bridges]) close();
+      gitGrants.endSession(s.relayKey);
       if (sessions.get(id) === s) sessions.delete(id);
       rmSync(ctlDir, { recursive: true, force: true });
       log(`desktop ${id}: off`);
@@ -368,16 +375,17 @@ function parse<T>(
 }
 
 /**
- * A command's output names GitHub as git saw it, at the session's relay address; the bot gets
- * GitHub's own address back, and the relay key stays out of its notes and messages.
+ * A command's output names GitHub as git saw it, at the session's relay address or the command's
+ * own; the bot gets GitHub's own address back, and the relay keys stay out of its notes and
+ * messages.
  */
-function withoutRelay(s: Session, json: unknown): unknown {
+function withoutRelay(json: unknown): unknown {
   if (!json || typeof json !== 'object' || typeof (json as { output?: unknown }).output !== 'string')
     return json;
   const o = json as { output: string };
   return {
     ...o,
-    output: o.output.replaceAll(`http://127.0.0.1:${GIT_PORT}/${s.relayKey}/`, 'https://github.com/'),
+    output: o.output.replace(relayAddress, 'https://github.com/'),
   };
 }
 
@@ -391,7 +399,7 @@ async function forward(
 ): Promise<void> {
   try {
     const r = await helperCall(s, 'POST', path, body, timeoutMs);
-    send(res, r.status, withoutRelay(s, r.json));
+    send(res, r.status, withoutRelay(r.json));
   } catch (e) {
     throw new HttpError(502, 'failed', e instanceof Error ? e.message : 'helper unreachable');
   }
@@ -424,11 +432,33 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     case 'stop':
       return send(res, 200, await stopSession(id.data));
     case 'exec': {
-      const b = parse(DesktopExec, body);
-      return forward(res, running(id.data), '/exec', b, b.timeoutMs + 15_000);
+      const { git, ...b } = parse(DesktopExec, body);
+      const s = running(id.data);
+      const key = grantGit(s, git);
+      try {
+        return await forward(res, s, '/exec', { ...b, ...relayFor(key) }, b.timeoutMs + 15_000);
+      } finally {
+        if (key) gitGrants.end(key);
+      }
     }
-    case 'jobs-start':
-      return forward(res, running(id.data), '/jobs/start', parse(DesktopJobStart, body));
+    case 'jobs-start': {
+      const { git, ...b } = parse(DesktopJobStart, body);
+      const s = running(id.data);
+      const key = grantGit(s, git);
+      let r: { status: number; json: unknown };
+      try {
+        r = await helperCall(s, 'POST', '/jobs/start', { ...b, ...relayFor(key) });
+      } catch (e) {
+        if (key) gitGrants.end(key);
+        throw new HttpError(502, 'failed', e instanceof Error ? e.message : 'helper unreachable');
+      }
+      const job = (r.json as { id?: unknown; running?: unknown } | null) ?? {};
+      if (key) {
+        if (r.status === 200 && typeof job.id === 'string' && job.running === true) watchJob(s, job.id, key);
+        else gitGrants.end(key);
+      }
+      return send(res, r.status, withoutRelay(r.json));
+    }
     case 'jobs-status': {
       const q = parse(DesktopJobQuery, body);
       return forward(res, running(id.data), '/jobs/status', q, q.waitMs + 15_000);
@@ -635,11 +665,50 @@ socks.listen(SOCKS_PORT, '127.0.0.1', () => {
 // ---- git ---------------------------------------------------------------------------------------
 
 let gitReady = false;
+/** The keys of single commands, given for the person their step works for (see GitGrants). */
+const gitGrants = new GitGrants();
+const relayAddress = new RegExp(`http://127\\.0\\.0\\.1:${GIT_PORT}/[a-f0-9]{64}/`, 'g');
+const sessionAlive = (relayKey: string) => [...sessions.values()].some((s) => s.relayKey === relayKey);
+
+/** A relay key for one command that brings its own GitHub key; none when it brings none. */
+function grantGit(s: Session, git: { token: string | null } | undefined): string | undefined {
+  if (!git?.token || !s.gitOn) return undefined;
+  return gitGrants.give(s.relayKey, git.token);
+}
+
+/** What the helper is told: the address the command's git uses in place of the session's. */
+const relayFor = (key: string | undefined) =>
+  key ? { gitRelay: `http://127.0.0.1:${GIT_PORT}/${key}/` } : {};
+
+/**
+ * A background command keeps its key until it ends; the helper is asked now and then. Only a clear
+ * answer ends it (the job is over or unknown, or the desktop is gone): a status call that fails on
+ * the way must not cut a long clone off GitHub halfway.
+ */
+function watchJob(s: Session, jobId: string, key: string): void {
+  const timer = setInterval(() => {
+    if (!sessionAlive(s.relayKey)) return stop();
+    helperCall(s, 'POST', '/jobs/status', { id: jobId, waitMs: 0 }, 10_000).then(
+      (r) => {
+        if (r.status === 404 || (r.status === 200 && (r.json as { running?: unknown }).running !== true)) {
+          stop();
+        }
+      },
+      () => undefined,
+    );
+  }, 15_000);
+  timer.unref();
+  function stop() {
+    clearInterval(timer);
+    gitGrants.end(key);
+  }
+}
+
 const gitRelay = createServer(
   createGitRelay({
     tokenFor: (key) => {
       for (const s of sessions.values()) if (s.relayKey === key) return s.gitToken;
-      return undefined;
+      return gitGrants.tokenFor(key, sessionAlive);
     },
   }),
 );

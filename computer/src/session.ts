@@ -12,6 +12,7 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { DESKTOP_SIZE, DesktopAction, DesktopExec, DesktopJobQuery, DesktopJobStart } from '@leafbot/shared';
 import { clearForeignProfileLock, isOpenableUrl, Jobs, pngSize, TailBuffer, xdotoolArgs } from './lib';
+import { commandGitEnv } from './sandbox';
 
 const CTL = process.env.LEAFBOT_CTL ?? '/run/ctl';
 const HOME = process.env.HOME ?? '/tmp';
@@ -85,12 +86,22 @@ function readBody(req: IncomingMessage): Promise<string> {
 
 // ---- exec ----------------------------------------------------------------------------------
 
-function runCommand(command: string, cwd: string, timeoutMs: number) {
+/**
+ * The environment of one command: the session's, with git sent to the command's own relay address
+ * when the computer service gave one (a key brought by the person the step works for).
+ */
+function commandEnv(body: unknown): NodeJS.ProcessEnv | undefined {
+  const git = commandGitEnv((body as { gitRelay?: unknown } | null)?.gitRelay);
+  return git ? { ...process.env, ...git } : undefined;
+}
+
+function runCommand(command: string, cwd: string, timeoutMs: number, env?: NodeJS.ProcessEnv) {
   return new Promise<{ exitCode: number | null; output: string; truncated: boolean; timedOut: boolean }>(
     (resolve) => {
       const tail = new TailBuffer(MAX_OUTPUT);
       const child = spawn('bash', ['-lc', command], {
         cwd,
+        env,
         detached: true, // its own process group, so a timeout can kill everything it started
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -130,9 +141,10 @@ function runCommand(command: string, cwd: string, timeoutMs: number) {
 }
 
 /** Commands left running in the background, for builds and installs longer than one call. */
-const jobs = new Jobs((command, cwd) =>
+const jobs = new Jobs((command, cwd, env) =>
   spawn('bash', ['-lc', command], {
     cwd,
+    env,
     detached: true, // its own process group, so the whole job can be stopped
     stdio: ['ignore', 'pipe', 'pipe'],
   }),
@@ -235,13 +247,13 @@ const http = createHttpServer(async (req, res) => {
     if (path === '/exec') {
       const p = DesktopExec.safeParse(json);
       if (!p.success) return fail(res, 400, 'badRequest', p.error.message);
-      return send(res, 200, await runCommand(p.data.command, p.data.cwd, p.data.timeoutMs));
+      return send(res, 200, await runCommand(p.data.command, p.data.cwd, p.data.timeoutMs, commandEnv(json)));
     }
     if (path === '/jobs/start') {
       const p = DesktopJobStart.safeParse(json);
       if (!p.success) return fail(res, 400, 'badRequest', p.error.message);
       try {
-        return send(res, 200, await jobs.status(jobs.run(p.data.command, p.data.cwd)));
+        return send(res, 200, await jobs.status(jobs.run(p.data.command, p.data.cwd, commandEnv(json))));
       } catch (e) {
         return fail(res, 409, 'failed', e instanceof Error ? e.message : String(e));
       }

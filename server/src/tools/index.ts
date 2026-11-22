@@ -1959,7 +1959,16 @@ export class ToolFactory {
     if (this.ctx.computer && bot.internet) {
       // Commands run in the thread's own work folder, which the desktop sees at the same path.
       const cwd = workspacePaths(this.ctx.config.dataDir, bot.id, thread.id, bot.groupId).threadDir;
-      const desk = computerTools({ def, bot, t, computer: this.ctx.computer, cwd });
+      const desk = computerTools({
+        def,
+        bot,
+        t,
+        computer: this.ctx.computer,
+        cwd,
+        // A person's own GitHub only for work their own message started in their own conversation:
+        // a routine, a mail, a follow-up or work another bot handed on uses the team's.
+        own: !guest && turn.source === 'user' && turn.userId === own ? own : null,
+      });
       // A bot with its own project folder runs commands in this server's sandbox, where that
       // folder is; the desktop does not see it.
       tools.push(...(bot.projectDir ? desk.filter((x) => x.name !== 'run_command') : desk));

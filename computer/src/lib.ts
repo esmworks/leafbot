@@ -173,19 +173,19 @@ export class Jobs {
   private next = 1;
 
   constructor(
-    private readonly start: (command: string, cwd: string) => ChildProcess,
+    private readonly start: (command: string, cwd: string, env?: NodeJS.ProcessEnv) => ChildProcess,
     private readonly maxOutput = 100_000,
     private readonly maxRunning = 5,
   ) {}
 
-  run(command: string, cwd: string): string {
+  run(command: string, cwd: string, env?: NodeJS.ProcessEnv): string {
     const running = [...this.jobs.values()].filter((j) => !j.done).length;
     if (running >= this.maxRunning) throw new Error(`${running} background commands are running already`);
     // Finished jobs beyond the last few are forgotten.
     for (const [id, j] of this.jobs) if (j.done && this.jobs.size > 20) this.jobs.delete(id);
     const id = `j${this.next++}`;
     const tail = new TailBuffer(this.maxOutput);
-    const child = this.start(command, cwd);
+    const child = this.start(command, cwd, env);
     let resolveEnded!: () => void;
     const job = {
       tail,
