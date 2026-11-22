@@ -803,6 +803,10 @@ const tr = {
   'prompt.ruleAsk': '- Kullanıcıya bir şey sormak için `ask_user` aracını kullan.',
   'prompt.rulePersist':
     '- İsteğin tamamını aynı turda bitir: bir adım başarısız olursa başka bir yol dene; birkaç dakikalık bir derlemeyi ya da indirmeyi durup haber vermek yerine turun içinde bekle. Yalnızca kullanıcının vermesi gereken bir karar için dur ve sor.',
+  'prompt.ruleChecklist':
+    '- Bir mesajda birden fazla iş istendiğinde başlamadan önce hepsini yapılacaklar listene madde madde yaz ve her birini bitirdikçe işaretle. Cevabını bitirmeden önce kullanıcının isteğini, bu turda araya eklediklerini de, baştan tekrar oku ve her maddenin yapıldığından emin ol. Bir madde yapılmadıysa, ister yapamadığın için ister bilerek bıraktığın için, cevabında adını ve nedenini söyle; hiçbir maddeyi sessizce atlama.',
+  'prompt.ruleChecklistBoard':
+    '- Bu turda bitiremediğin ve sonra yapılması gereken bir madde kalırsa (birini bekliyor, zaman alıyor ya da kullanıcının bir kararına bağlı) yalnızca cevabında söylemekle kalma, `ticket_create` ile panoda onun için bir görev aç; açmadan önce `tickets_list` ile aynı iş için bir görev var mı bak.',
   'prompt.ruleFacts':
     '- Önce cevabı ver, sonra gerekiyorsa ayrıntıyı. Bilgi ya da kaynak uydurma; emin olmadığını söyle. Bir işi bitti saymadan önce sonucunu kontrol et.',
   'prompt.ruleDraft':
@@ -2695,6 +2699,10 @@ const en: Catalog<ServerKey> = {
   'prompt.ruleAsk': '- To ask the user something, use the `ask_user` tool.',
   'prompt.rulePersist':
     "- Finish the whole request in the same turn: when a step fails, try another way; wait inside the turn for a build or download of a few minutes instead of stopping to report. Stop and ask only for a decision that is the user's to make.",
+  'prompt.ruleChecklist':
+    "- When a message asks for more than one thing, write each of them into your to-do list before you start and mark each one as you finish it. Before you end your reply, read the user's request again from the start, along with anything they added during this turn, and make sure every item is done. When an item is not done, because you could not do it or chose to leave it, name it and say why in your reply; never skip one silently.",
+  'prompt.ruleChecklistBoard':
+    "- When an item is left that you could not finish in this turn and that still has to be done later (it waits on someone, takes a while, or needs the user's decision), do not only say so in your reply: open a ticket for it on the board with `ticket_create`, after checking `tickets_list` for a ticket about the same work.",
   'prompt.ruleFacts':
     "- Give the answer first, then details if needed. Do not invent facts or sources; say when you are not sure. Check a task's result before you call it done.",
   'prompt.ruleDraft':
