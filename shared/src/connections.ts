@@ -267,13 +267,19 @@ export interface CatalogEntry {
   scope?: string;
   /** Shown first, in "Suggested". */
   featured?: boolean;
+  /**
+   * Write tools whose calls the service hands to a form in their view for the person to send, and
+   * the argument that marks a call as sent: a bot's call carries it, so it runs at once. Whether the
+   * bot may make the call at all was already decided by its permission settings and cards.
+   */
+  botSubmits?: { arg: string; tools: readonly string[] };
 }
 
 type Row = [
   name: string,
   url: string,
   auth: ConnectionAuth,
-  extra?: Pick<CatalogEntry, 'tokenHelp' | 'client' | 'scope' | 'featured'>,
+  extra?: Pick<CatalogEntry, 'tokenHelp' | 'client' | 'scope' | 'featured' | 'botSubmits'>,
 ];
 
 const FEATURED = { featured: true } as const;
@@ -439,6 +445,12 @@ const ROWS: Record<CatalogCategory, Row[]> = {
       {
         client: { help: 'https://github.com/settings/applications/new' },
         scope: 'repo read:org read:user user:email notifications',
+        // Opening or changing a pull request or an issue would otherwise wait on a form in GitHub's
+        // view until the person presses Submit, though they already let the bot do it.
+        botSubmits: {
+          arg: '_ui_submitted',
+          tools: ['create_pull_request', 'update_pull_request', 'issue_write'],
+        },
         ...FEATURED,
       },
     ],
@@ -617,6 +629,20 @@ const byId = new Map(CONNECTION_CATALOG.map((e) => [e.id, e]));
 
 export function catalogEntry(id: string | null | undefined): CatalogEntry | undefined {
   return id ? byId.get(id) : undefined;
+}
+
+/**
+ * The arguments of a bot's call to a connection's tool: marked as a sent form where the service
+ * would otherwise wait for the person to send one (see `botSubmits`).
+ */
+export function botToolArgs(
+  conn: { url: string },
+  tool: string,
+  args: Record<string, unknown>,
+): Record<string, unknown> {
+  // By the address, not the entry a connection names: the mark means something only to that service.
+  const submits = CONNECTION_CATALOG.find((e) => e.botSubmits && e.url === conn.url)?.botSubmits;
+  return submits?.tools.includes(tool) ? { ...args, [submits.arg]: true } : args;
 }
 
 /**
