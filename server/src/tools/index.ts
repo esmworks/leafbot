@@ -2086,18 +2086,21 @@ export class ToolFactory {
     }
     // Listening to a call in the bot's browser: the other people's voices go to the speech-to-text
     // service, so only in work the person's own message started, in their own conversation, and
-    // not for a bot that may only read. Checking and stopping stay offered while a call is heard.
-    if (
+    // not for a bot that may only read. Checking and stopping stay offered in the conversation the
+    // call was started in while it is heard, whoever's work the turn is, so it can always be ended.
+    const listen =
       this.ctx.browser.available &&
       bot.internet &&
-      writer &&
+      !!writer &&
       turn.source === 'user' &&
       !team &&
       !turn.guest &&
       !turn.rehearsalId &&
-      bot.permissionMode !== 'readonly'
-    ) {
-      tools.push(...callTools({ def, t, calls: s.calls, bot, threadId: thread.id, person: writer }));
+      bot.permissionMode !== 'readonly';
+    if (listen || s.calls.listeningIn(bot.id, thread.id)) {
+      tools.push(
+        ...callTools({ def, t, calls: s.calls, bot, threadId: thread.id, person: writer ?? '', listen }),
+      );
     }
     if (bot.isManager && !team) {
       tools.push(

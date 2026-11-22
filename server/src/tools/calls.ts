@@ -32,23 +32,29 @@ export function callTools(opts: {
   bot: Bot;
   threadId: string;
   person: string;
+  /** Whether a call may be started here; otherwise only the one already heard is checked or stopped. */
+  listen: boolean;
 }): AppTool[] {
   const { def, t, calls, bot, threadId, person } = opts;
   return [
-    def('call_listen', {}, async () => {
-      try {
-        const { file } = await calls.start({ bot, threadId, userId: person });
-        return t('call.listening', { file });
-      } catch (err) {
-        if (err instanceof HttpError) return t(err.key, err.params);
-        throw err;
-      }
-    }),
+    ...(opts.listen
+      ? [
+          def('call_listen', {}, async () => {
+            try {
+              const { file } = await calls.start({ bot, threadId, userId: person });
+              return t('call.listening', { file });
+            } catch (err) {
+              if (err instanceof HttpError) return t(err.key, err.params);
+              throw err;
+            }
+          }),
+        ]
+      : []),
     def(
       'call_status',
       {},
       async () => {
-        const s = await calls.status(bot.id);
+        const s = await calls.status(bot.id, threadId);
         return s ? summaryText(s, t) : t('call.notListening');
       },
       'read',
@@ -57,7 +63,7 @@ export function callTools(opts: {
       'call_stop',
       {},
       async () => {
-        const s = await calls.stop(bot.id, 'bot');
+        const s = await calls.stop(bot.id, 'bot', threadId);
         return s ? summaryText(s, t) : t('call.notListening');
       },
       'internal',

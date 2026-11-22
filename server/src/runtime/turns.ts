@@ -2417,6 +2417,12 @@ export class TurnManager {
     if (this.stoppedByPerson.delete(turn.id) && !outcome.ok && outcome.kind === 'interrupted') {
       outcome = { ...outcome, message: t('turn.stoppedByUser'), byPerson: true };
     }
+    // A gap a stopped turn flagged goes with it: what it saw before it was cut off is not trusted.
+    if (!outcome.ok && outcome.kind === 'interrupted') {
+      await this.services.memoryFlags
+        .dropForTurn(turn.id)
+        .catch((err: unknown) => console.warn(`Dropping a stopped turn's flags failed: ${String(err)}`));
+    }
     // The silent reply on the last line, under what the bot wrote, is never shown. To a routine's
     // run it means there is nothing to report; in a conversation the person reads, such a run leaves
     // nothing, as a run that wrote only the silent reply does.

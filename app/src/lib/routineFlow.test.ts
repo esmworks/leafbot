@@ -1,4 +1,4 @@
-import { ROUTINE_STEP_MAX, type RoutineRun } from '@leafbot/shared';
+import { FLOW_LAYOUT_MAX, FlowLayout, ROUTINE_STEP_MAX, type RoutineRun } from '@leafbot/shared';
 import { describe, expect, it } from 'vitest';
 import {
   BOX_W,
@@ -10,6 +10,7 @@ import {
   placeBoxes,
   removeStep,
   runPart,
+  snap,
 } from './routineFlow';
 
 describe('routine flow changes', () => {
@@ -98,5 +99,14 @@ describe('routine flow changes', () => {
     expect(runPart(plain, null)).toMatchObject({ status: 'error', reason: 'Stopped at the wait' });
     expect(runPart(plain, 'a')).toBeUndefined();
     expect(runPart(null, null)).toBeUndefined();
+  });
+});
+
+describe('routine flow places', () => {
+  it('keeps a box where the server takes its place, however far it is dragged', () => {
+    expect(snap(-30)).toBe(0);
+    expect(snap(FLOW_LAYOUT_MAX + 5000)).toBe(FLOW_LAYOUT_MAX);
+    const kept = keepLayout({ a: { x: 99_999, y: 25_000 } }, ['a']);
+    expect(FlowLayout.safeParse(kept).success).toBe(true);
   });
 });

@@ -15,11 +15,14 @@ describe('görüşme dinleme', () => {
   let t: TestServer;
   let hear: ((audio: Buffer) => void) | null;
   let pageListens: boolean;
+  /** The page between two documents: there, but not listening until the next one loads. */
+  let loading: boolean;
   let unlistened: number;
   beforeEach(async () => {
     t = await testServer();
     hear = null;
     pageListens = true;
+    loading = false;
     unlistened = 0;
     const browser = t.services.ctx.browser;
     Object.defineProperty(browser, 'available', { value: true });
@@ -32,7 +35,12 @@ describe('görüşme dinleme', () => {
       unlistened++;
       hear = null;
     };
-    browser.listenState = async () => (pageListens ? { listening: true, tracks: 1, audio: 'running' } : null);
+    browser.listenState = async () =>
+      !pageListens
+        ? null
+        : loading
+          ? { listening: false, tracks: 0, audio: 'none' }
+          : { listening: true, tracks: 1, audio: 'running' };
     t.services.transcribe.available = async () => true;
     t.services.transcribe.transcribe = async (audio) => audio.toString('utf8');
   });
@@ -62,7 +70,7 @@ describe('görüşme dinleme', () => {
     hear!(Buffer.from(''));
     hear!(Buffer.from('Bütçe kararı cumaya kaldı.'));
     // The status waits for the recordings already heard to be written out.
-    const status = await t.services.calls.status(bot.id);
+    const status = await t.services.calls.status(bot.id, thread.id);
     expect(status!.lines).toBe(2);
     const file = join(
       workspacePaths(t.services.ctx.config.dataDir, bot.id, thread.id, null).threadDir,
@@ -103,6 +111,72 @@ describe('görüşme dinleme', () => {
     expect(woke.prompt).toMatch(/calls\/\d{4}-\d{2}-\d{2}-\d{4}\.md/);
     // A wake-up for a call is not the person's own message: listening again is not offered there.
     expect(toolNames()).not.toContain('call_listen');
+  });
+
+  it('başka bir sohbetten görüşme okunamaz ve durdurulamaz', async () => {
+    const bot = await t.bot({ permissionMode: 'auto' });
+    const thread = await main(bot.id);
+    await t.services.calls.start({ bot, threadId: thread.id, userId: OWNER_ID });
+    hear!(Buffer.from('Gizli konu.'));
+    expect(await t.services.calls.status(bot.id, 'baska-sohbet')).toBeNull();
+    expect(await t.services.calls.stop(bot.id, 'bot', 'baska-sohbet')).toBeNull();
+    expect(t.services.calls.listening(bot.id)).toBe(true);
+    expect((await t.services.calls.status(bot.id, thread.id))!.text).toContain('Gizli konu.');
+  });
+
+  it('sayfa yeni belgesini yüklerken dinleme bitmez; iki kontrol üst üste dinlemiyorsa biter', async () => {
+    const bot = await t.bot({ permissionMode: 'auto' });
+    const thread = await main(bot.id);
+    await t.services.calls.start({ bot, threadId: thread.id, userId: OWNER_ID });
+    loading = true;
+    await t.services.calls.check();
+    expect(t.services.calls.listening(bot.id)).toBe(true);
+    loading = false;
+    await t.services.calls.check();
+    loading = true;
+    await t.services.calls.check();
+    expect(t.services.calls.listening(bot.id)).toBe(true);
+    await t.services.calls.check();
+    expect(t.services.calls.listening(bot.id)).toBe(false);
+  });
+
+  it('aynı anda iki başlatmadan biri reddedilir, dinleyen görüşme kaybolmaz', async () => {
+    const bot = await t.bot({ permissionMode: 'auto' });
+    const thread = await main(bot.id);
+    const both = await Promise.allSettled([
+      t.services.calls.start({ bot, threadId: thread.id, userId: OWNER_ID }),
+      t.services.calls.start({ bot, threadId: thread.id, userId: OWNER_ID }),
+    ]);
+    expect(both.map((r) => r.status).sort()).toEqual(['fulfilled', 'rejected']);
+    expect(t.services.calls.listening(bot.id)).toBe(true);
+    hear!(Buffer.from('Duyuldu.'));
+    expect((await t.services.calls.status(bot.id, thread.id))!.lines).toBe(1);
+  });
+
+  it('aynı dakikada başlayan ikinci görüşme öncekinin dökümünü silmez', async () => {
+    const bot = await t.bot({ permissionMode: 'auto' });
+    const thread = await main(bot.id);
+    const first = await t.services.calls.start({ bot, threadId: thread.id, userId: OWNER_ID });
+    hear!(Buffer.from('İlk görüşme.'));
+    await t.services.calls.stop(bot.id, 'bot', thread.id);
+    const second = await t.services.calls.start({ bot, threadId: thread.id, userId: OWNER_ID });
+    expect(second.file).not.toBe(first.file);
+    const dir = workspacePaths(t.services.ctx.config.dataDir, bot.id, thread.id, null).threadDir;
+    expect(readFileSync(join(dir, first.file), 'utf8')).toContain('İlk görüşme.');
+  });
+
+  it('dinleme sürerken salt okunur olan bot görüşmeye bakabilir ve durdurabilir, yenisini başlatamaz', async () => {
+    const bot = await t.bot({ permissionMode: 'auto' });
+    const thread = await main(bot.id);
+    await t.services.calls.start({ bot, threadId: thread.id, userId: OWNER_ID });
+    await t.api('PATCH', `/api/bots/${bot.id}`, { permissionMode: 'readonly' });
+    await t.send(thread.id, 'merhaba');
+    await t.services.turns.idle();
+    expect(
+      toolNames()
+        .filter((n) => n.startsWith('call_'))
+        .sort(),
+    ).toEqual(['call_status', 'call_stop']);
   });
 
   it('uzun süre kimse konuşmazsa biter', async () => {

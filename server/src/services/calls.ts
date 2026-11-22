@@ -1,5 +1,5 @@
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { wallClock, type Bot } from '@leafbot/shared';
 import type { CaptureState } from '../browser/call-capture';
 import type { Ctx } from '../context';
@@ -42,6 +42,8 @@ interface Listening {
   /** Someone was heard in the page; then checks in a row with nobody, which end the call. */
   voices: boolean;
   empty: number;
+  /** Checks in a row that found the page not listening, as while it loads another page. */
+  away: number;
 }
 
 export interface CallSummary {
@@ -65,6 +67,8 @@ export interface CallSummary {
  */
 export class CallService {
   private calls = new Map<string, Listening>();
+  /** Bots whose listening is being set up, so that a second start at the same time is refused. */
+  private starting = new Set<string>();
   private sweep: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -78,6 +82,12 @@ export class CallService {
     return !!c && !c.stopping;
   }
 
+  /** Whether the bot listens to a call it started in this conversation. */
+  listeningIn(botId: string, threadId: string): boolean {
+    const c = this.calls.get(botId);
+    return !!c && !c.stopping && c.threadId === threadId;
+  }
+
   /** `segmentMs` shortens the recordings, for tests. */
   async start(o: {
     bot: Bot;
@@ -85,14 +95,42 @@ export class CallService {
     userId: string;
     segmentMs?: number;
   }): Promise<{ file: string }> {
-    if (this.calls.has(o.bot.id)) throw new HttpError(409, 'call.already');
+    if (this.calls.has(o.bot.id) || this.starting.has(o.bot.id)) throw new HttpError(409, 'call.already');
+    this.starting.add(o.bot.id);
+    try {
+      return await this.begin(o);
+    } finally {
+      this.starting.delete(o.bot.id);
+    }
+  }
+
+  private async begin(o: {
+    bot: Bot;
+    threadId: string;
+    userId: string;
+    segmentMs?: number;
+  }): Promise<{ file: string }> {
     if (!(await this.services.transcribe.available())) throw new HttpError(409, 'call.noSpeech');
     const settings = await this.services.settings.all(o.userId);
     const now = this.clock();
     const w = wallClock(now, settings.timezone);
     const two = (n: number) => String(n).padStart(2, '0');
-    const name = `calls/${w.year}-${two(w.month)}-${two(w.day)}-${two(w.hour)}${two(w.minute)}.md`;
     const dir = workspacePaths(this.ctx.config.dataDir, o.bot.id, o.threadId, o.bot.groupId).threadDir;
+    const stem = `calls/${w.year}-${two(w.month)}-${two(w.day)}-${two(w.hour)}${two(w.minute)}`;
+    await mkdir(join(dir, 'calls'), { recursive: true, mode: 0o700 });
+    const t = translator(settings.language ?? (await this.services.settings.locale()));
+    const title = `# ${t('call.transcriptTitle', { when: `${w.year}-${two(w.month)}-${two(w.day)} ${two(w.hour)}:${two(w.minute)}` })}\n\n`;
+    // Another call begun in the same minute gets a file of its own, never the earlier one's.
+    let name = '';
+    for (let n = 1; !name; n++) {
+      const next = n === 1 ? `${stem}.md` : `${stem}-${n}.md`;
+      try {
+        await writeFile(join(dir, next), title, { mode: 0o600, flag: 'wx' });
+        name = next;
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'EEXIST' || n >= 100) throw err;
+      }
+    }
     const file = join(dir, name);
     const call: Listening = {
       bot: o.bot,
@@ -100,6 +138,7 @@ export class CallService {
       userId: o.userId,
       voices: false,
       empty: 0,
+      away: 0,
       timezone: settings.timezone,
       file,
       name,
@@ -111,36 +150,35 @@ export class CallService {
     };
     this.calls.set(o.bot.id, call);
     try {
-      await mkdir(dirname(file), { recursive: true, mode: 0o700 });
-      const t = translator(settings.language ?? (await this.services.settings.locale()));
-      await writeFile(
-        file,
-        `# ${t('call.transcriptTitle', { when: `${w.year}-${two(w.month)}-${two(w.day)} ${two(w.hour)}:${two(w.minute)}` })}\n\n`,
-        { mode: 0o600 },
-      );
       await this.ctx.browser.listen(o.bot.id, (audio) => this.heard(o.bot.id, audio), o.segmentMs);
     } catch (err) {
-      this.calls.delete(o.bot.id);
+      if (this.calls.get(o.bot.id) === call) this.calls.delete(o.bot.id);
       throw err;
     }
     this.startSweep();
     return { file: name };
   }
 
-  /** What was written so far: the last lines of the transcript, for the bot to follow along. */
-  async status(botId: string): Promise<CallSummary | null> {
+  /**
+   * What was written so far: the last lines of the transcript, for the bot to follow along. Only
+   * in the conversation the call was started in: in another it is someone else's call.
+   */
+  async status(botId: string, threadId: string): Promise<CallSummary | null> {
     const c = this.calls.get(botId);
-    if (!c || c.stopping) return null;
+    if (!c || c.stopping || c.threadId !== threadId) return null;
     // What was heard before asking is in the answer.
     await c.chain;
     const state = await this.ctx.browser.listenState(botId).catch(() => null);
     return { ...(await this.summary(c, 'last')), state };
   }
 
-  /** Stops listening; once the last recording is written, says where the transcript is. */
-  async stop(botId: string, why: CallEnd): Promise<CallSummary | null> {
+  /**
+   * Stops listening; once the last recording is written, says where the transcript is. The bot
+   * stops only a call of the conversation it works in (`threadId`).
+   */
+  async stop(botId: string, why: CallEnd, threadId?: string): Promise<CallSummary | null> {
     const c = this.calls.get(botId);
-    if (!c) return null;
+    if (!c || (threadId !== undefined && c.threadId !== threadId)) return null;
     c.stopping ??= (async () => {
       // The page hands over its last recording while it stops: the call is still known until then.
       await this.ctx.browser.unlisten(botId).catch(() => {});
@@ -167,6 +205,10 @@ export class CallService {
     for (const [botId, c] of [...this.calls]) {
       if (c.stopping) continue;
       const state = await this.ctx.browser.listenState(botId).catch(() => null);
+      // A page not listening may be loading the next one, as joining a call does; it starts
+      // listening again once loaded. Not listening for two checks in a row, it left.
+      c.away = state && !state.listening ? c.away + 1 : 0;
+      if (state && !state.listening && c.away < 2) continue;
       if (state?.tracks) c.voices = true;
       // Nobody left in the call for two checks in a row, after someone was: the call is over.
       c.empty = c.voices && state && !state.tracks ? c.empty + 1 : 0;

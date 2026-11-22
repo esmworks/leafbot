@@ -150,9 +150,14 @@ export type RoutineStepKind = RoutineStep['kind'];
  * their id, and `start` and `prompt` for what starts the routine and its own instruction. Only the
  * view reads it; a box missing from it is placed beside the one before.
  */
+/** The furthest right or down a box of the flow view may sit. */
+export const FLOW_LAYOUT_MAX = 20_000;
 export const FlowLayout = z.record(
   z.string().min(1).max(64),
-  z.object({ x: z.number().int().min(0).max(20_000), y: z.number().int().min(0).max(20_000) }),
+  z.object({
+    x: z.number().int().min(0).max(FLOW_LAYOUT_MAX),
+    y: z.number().int().min(0).max(FLOW_LAYOUT_MAX),
+  }),
 );
 export type FlowLayout = z.infer<typeof FlowLayout>;
 
