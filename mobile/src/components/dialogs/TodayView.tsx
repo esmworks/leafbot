@@ -8,6 +8,7 @@ import {
   CanarySection,
   PromisesSection,
   RoutineSuggestionsSection,
+  SkillSuggestionsSection,
   SecondYesSection,
 } from '@/components/dialogs/TodaySections';
 import { Loading, Page } from '@/components/page';
@@ -68,6 +69,7 @@ export function TodayView() {
           <SecondYesSection />
           <PromisesSection />
           <RoutineSuggestionsSection />
+          <SkillSuggestionsSection />
           <Block
             title={t('today.waiting')}
             empty={t('today.waitingNone')}

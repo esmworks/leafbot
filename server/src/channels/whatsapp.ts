@@ -2963,8 +2963,13 @@ export class WhatsAppChannel {
     const t = await this.services.settings.translator();
     // A routine's report is written in the routine's conversation and copied to the main one; the
     // copy is the one sent, so it arrives once.
-    const report = m.props.routineReport === true;
-    const headed = () => `📋 **${String(m.props.routineName ?? '') || t('channel.routine')}**\n\n${m.text}`;
+    // So is something the bot kept track of coming up: it is said once, wherever the person talks from.
+    const followUp = m.props.followUp === true;
+    const report = m.props.routineReport === true || followUp;
+    const headed = () =>
+      followUp
+        ? `🔔 ${m.text}`
+        : `📋 **${String(m.props.routineName ?? '') || t('channel.routine')}**\n\n${m.text}`;
     // Turned off, routine reports stay in the app wherever the person talks from.
     if (report && settings.notices === false) return;
     if (!here) {

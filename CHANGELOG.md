@@ -5,8 +5,68 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ## Unreleased
 
+### Added
+
+- Follow-ups: the bot's own calendar, kept apart from the routines. A routine is the person's standing job, shown in
+  the bot's list and set up by them or on their yes; a follow-up is the bot keeping track ("on Sunday morning, bring
+  up Monday's visit"). After each turn whose words or answer name a day or a time, one call to the small model reads
+  them beside what is already kept and adds what is coming up for the person (a visit, a meeting, a deadline, a
+  delivery, a payment), moves what was put off and drops what was called off, wherever the bot learned it: in the
+  chat, in a mail it read, in a routine's report. Bots can also add one themselves. Nobody is asked, and nothing shows
+  among the routines; asked, a bot lists what it keeps track of and drops what the person does not want.
+- A follow-up is the person's: the same thing learned by two bots, or from two mails, is kept once. The server, not the
+  model, picks when to bring it up: the morning before at the person's reminder time, else that morning, else two
+  hours before, always in the day and before the thing; with no time left, not at all when the person is talking
+  about it right then, otherwise as soon as it is day. When it comes up the bot that learned it gets a turn in its
+  conversation with the person, reads the related mail again, looks whether the calendar has it and tells them with
+  the context, offering to add it or to prepare. That turn works for nobody who asked just now and carries the mark
+  of a mail it came from, so it sends, adds or changes nothing without a card: a planted mail can at most have the bot
+  bring something up. Nothing still ahead is dropped because it could not come up in time: a paused bot or a spent
+  limit makes it wait, a night makes it wait for the morning, and when its bot is gone the bot the person last wrote
+  to tells them. It is dropped only once the thing itself is over. A follow-up reaches the person in Telegram and
+  WhatsApp too, as a routine's report does, wherever they last wrote from.
+- The memory is tidied once a week. Bots write notes one conversation at a time, so the same fact ends up in several
+  notes and an old note stays beside the newer one that contradicts it. Each set of notes that changed since it was
+  last looked at (a bot's own, a person's notes about themselves, a place's) is read whole with one call to the small
+  model of the bot that wrote them: notes that repeat are merged, of two that disagree the newer one or the person's
+  own stays, and plans whose date has plainly passed are deleted. Notes the person wrote or pinned are read but never
+  changed, a merge never joins notes about different sites or true until different dates, and one pass deletes at most
+  about a third of a set. Every change shows in the memory history as the weekly tidy-up's.
+- The tidy-up also reads a note that came from a page against the page as it is now, once a month per note and at most
+  ten pages a pass, a week after the note was written. When the page now plainly says otherwise about the same thing
+  (a new price, date or address), the note gets its new value in about as many words and keeps its page; a page that
+  cannot be read or says nothing clear leaves the note as it was. Pages are read by the server over https, never on
+  this computer or the private network, and only for bots allowed on the internet.
+- Skill suggestions. Every turn now keeps a short list of the steps it took, secrets taken out. Once a week the
+  many-step tasks a person asked a bot for over the last weeks are grouped; a kind of task asked at least three times
+  on two days, done in three or more working steps each time and covered by none of the bot's skills, is written up as
+  a skill by one call to the bot's small model, from the steps that worked and what the person wrote right after the
+  answer. Today shows it with its name, description and instructions to edit; "Add skill" makes it and turns it on for
+  the bot, "Not this" closes it for good. Only someone who may change the bot can add it.
+- The usage page shows what the memory tidy-up and the skill suggestions spent on their calls over the period, beside
+  the other background checks: the sets of notes and source pages read and the notes changed, and the tasks written
+  into skills and the suggestions made. A bot picked above narrows them to the calls on its account.
+
 ### Changed
 
+- The reminders of a person's promises, of a bot's own promises and of the tasks in approved meeting minutes are
+  follow-ups instead of one-time routines, so they no longer fill the bot's list of routines, and a person who may
+  only talk with the bot gets them too. Bots are told to keep something to bring up later as a follow-up, not a
+  routine. Reminders set before keep running as the routines they are.
+- Bots save to memory without asking. A note a bot writes in the conversation of someone who may only talk with it,
+  and the meeting note such a person sends it, are kept at once instead of waiting for the bot's owner, who was asked
+  to judge facts from conversations they were not in. They show in the memory screen and its history like any other
+  note; a conversation a stranger with no account spoke in still writes none. Bots are told not to ask whether to
+  remember something, and in the conversation of someone who may only talk with the bot both the bot and the memory
+  review are told to keep anything about that person in their own notes, since the bot's notes reach everyone else
+  who uses it.
+- The spending limits count what the server spends in the background on a bot's account, not only its turns: the
+  routine pre-check, the promise safety net, the routine, work and skill suggestions, the memory tidy-up, the memory
+  review, conversation titles, meeting minutes and the reading of turns for follow-ups. They are spent from the same
+  account, so a limit that left them out let the month run over. Once a limit is reached, those calls wait as the
+  turns do; minutes that cannot be written for it say so and can be tried again. What the memory review, the titles
+  and the minutes cost was not kept before: it is now, and the usage page lists it by kind under "Other background
+  calls". Its totals by bot and model stay the turns'.
 - Bots use the board on their own. Before, they worked on tickets only when the person gave them one: they handed
   work to each other by message and kept their steps in a list of their own, so the board stayed empty. Now a bot
   opens a ticket when asked for work that will not be finished in one reply, or when told to put something on the

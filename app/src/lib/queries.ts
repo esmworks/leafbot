@@ -78,6 +78,7 @@ export const useMailSender = (connectionId: string | undefined) =>
 export const useMemory = () => useQuery({ queryKey: ['memory'], queryFn: api.memory });
 // Under `memory`, so a change to any note brings the list up to date.
 export const useStaleMemory = () => useQuery({ queryKey: ['memory', 'stale'], queryFn: api.staleMemory });
+
 /** The turns of a conversation the person may take back: those that changed something. */
 export const useTurnChanges = (threadId: string) =>
   useQuery({
@@ -92,6 +93,8 @@ export const usePromises = (enabled = true) =>
 /** Routines offered because the person keeps asking a bot for the same thing by hand. */
 export const useRoutineSuggestions = (enabled = true) =>
   useQuery({ queryKey: ['routine-suggestions'], queryFn: api.routineSuggestions, enabled });
+export const useSkillSuggestions = (enabled = true) =>
+  useQuery({ queryKey: ['skill-suggestions'], queryFn: api.skillSuggestions, enabled });
 export const useRoutines = () => useQuery({ queryKey: ['routines'], queryFn: api.routines });
 export const useSkills = () => useQuery({ queryKey: ['skills'], queryFn: api.skills });
 export const useUsage = (days: UsageRange, botId?: string) =>

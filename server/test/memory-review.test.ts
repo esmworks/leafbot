@@ -51,6 +51,10 @@ describe('hafıza gözden geçirmesi: konuşmadan kalıcı bilgi çıkarma', () 
     // The history keeps who wrote it, as for the bot's own notes.
     const hist = (await t.api<{ actor: string; action: string }[]>('GET', '/api/memory-history')).body;
     expect(hist).toContainEqual(expect.objectContaining({ actor: `bot:${bot.id}`, action: 'create' }));
+    // What the review cost is kept, for the usage page and the spending limits.
+    expect(await db().select().from(schema.backgroundCalls)).toMatchObject([
+      { botId: bot.id, kind: 'memoryReview', costUsd: 0.001 },
+    ]);
   });
 
   it('varsayılan 20 tur; kapalıyken ve hafızası kapalı botta hiç çalışmaz', async () => {

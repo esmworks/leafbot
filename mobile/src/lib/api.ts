@@ -27,6 +27,8 @@ import type {
   PersonInfo,
   RoutineSuggestion,
   RoutineSuggestionAccept,
+  SkillSuggestion,
+  SkillSuggestionAccept,
   Group,
   Memory,
   MemoryChange,
@@ -339,6 +341,11 @@ export function apiFor(origin: string) {
       http.post<Routine>(`/api/routine-suggestions/${id}/accept`, input),
     dismissRoutineSuggestion: (id: string) =>
       http.post<{ ok: true }>(`/api/routine-suggestions/${id}/dismiss`, {}),
+    skillSuggestions: () => http.get<SkillSuggestion[]>('/api/skill-suggestions'),
+    acceptSkillSuggestion: (id: string, input: SkillSuggestionAccept) =>
+      http.post<Skill>(`/api/skill-suggestions/${id}/accept`, input),
+    dismissSkillSuggestion: (id: string) =>
+      http.post<{ ok: true }>(`/api/skill-suggestions/${id}/dismiss`, {}),
     /** Who is on this server, to name who asked and who said the first yes. */
     people: () => http.get<PersonInfo[]>('/api/people'),
     /** Pins a message above its conversation; null takes the pin away. */

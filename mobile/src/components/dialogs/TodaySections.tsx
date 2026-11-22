@@ -1,4 +1,4 @@
-import type { CanaryAlarm, Pledge, RoutineSuggestion, SecondYes } from '@leafbot/shared';
+import type { CanaryAlarm, Pledge, RoutineSuggestion, SecondYes, SkillSuggestion } from '@leafbot/shared';
 import { INTL_LOCALE } from '@leafbot/shared/i18n';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
@@ -19,6 +19,7 @@ import {
   usePromises,
   useRoutineSuggestions,
   useSecondYes,
+  useSkillSuggestions,
   useSettings,
 } from '@/lib/queries';
 import { useApi, useServer } from '@/lib/server';
@@ -382,6 +383,111 @@ export function RoutineSuggestionsSection() {
     <Group title={t('routineSuggest.title')}>
       {suggestions.map((s) => (
         <SuggestionCard key={s.id} s={s} />
+      ))}
+    </Group>
+  );
+}
+
+/** One skill suggestion: the kind of task, the skill to read and edit, and the two answers. */
+function SkillCard({ s }: { s: SkillSuggestion }) {
+  const c = useColors();
+  const api = useApi();
+  const { data: bots = [] } = useBots();
+  const bot = bots.find((b) => b.id === s.botId);
+  const [name, setName] = useState(s.name);
+  const [description, setDescription] = useState(s.description);
+  const [body, setBody] = useState(s.body);
+  const refresh = useRefresher('skill-suggestions', 'skills');
+  const fail = (e: unknown) => {
+    toastError(e);
+    refresh();
+  };
+  const botName = bot?.name ?? t('common.bot');
+  const create = useMutation({
+    mutationFn: () =>
+      api.acceptSkillSuggestion(s.id, {
+        name: name.trim() || s.name,
+        description: description.trim() || s.description,
+        body: body.trim() || s.body,
+      }),
+    onSuccess: (skill) => {
+      toast(t('skillSuggest.created', { name: skill.name, bot: botName }));
+      refresh();
+    },
+    onError: fail,
+  });
+  const dismiss = useMutation({
+    mutationFn: () => api.dismissSkillSuggestion(s.id),
+    onSuccess: refresh,
+    onError: fail,
+  });
+  const busy = create.isPending || dismiss.isPending;
+  return (
+    <View style={styles.card}>
+      <View style={styles.head}>
+        {bot ? <Avatar name={bot.name} color={bot.color} avatar={bot.avatar} size={24} /> : null}
+        <View style={styles.grow}>
+          <Text style={[styles.strong, { color: c.foreground }]}>{s.description}</Text>
+          <Text style={[styles.small, { color: c.mutedForeground }]}>
+            {t('skillSuggest.line', { bot: botName, count: s.requests, days: s.days.length })}
+          </Text>
+        </View>
+      </View>
+      {s.canCreate ? (
+        <>
+          <Field
+            value={name}
+            onChangeText={setName}
+            autoCapitalize="none"
+            accessibilityLabel={t('skillSuggest.name')}
+          />
+          <Field
+            value={description}
+            onChangeText={setDescription}
+            accessibilityLabel={t('skillSuggest.description')}
+          />
+          <Field
+            value={body}
+            onChangeText={setBody}
+            multiline
+            accessibilityLabel={t('skillSuggest.body')}
+            style={styles.area}
+          />
+        </>
+      ) : (
+        <Text style={[styles.small, { color: c.mutedForeground }]}>
+          {t('skillSuggest.askOwner', { bot: botName })}
+        </Text>
+      )}
+      <View style={styles.actions}>
+        <PillButton
+          label={t('skillSuggest.dismiss')}
+          variant="ghost"
+          disabled={busy}
+          onPress={() => dismiss.mutate()}
+        />
+        {s.canCreate ? (
+          <PillButton
+            label={t('skillSuggest.create')}
+            variant="primary"
+            disabled={!body.trim() || busy}
+            busy={create.isPending}
+            onPress={() => create.mutate()}
+          />
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+/** Many-step tasks the person keeps asking a bot for, offered as skills. */
+export function SkillSuggestionsSection() {
+  const { data: suggestions = [] } = useSkillSuggestions();
+  if (!suggestions.length) return null;
+  return (
+    <Group title={t('skillSuggest.title')}>
+      {suggestions.map((s) => (
+        <SkillCard key={s.id} s={s} />
       ))}
     </Group>
   );

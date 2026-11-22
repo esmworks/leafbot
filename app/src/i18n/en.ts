@@ -149,9 +149,10 @@ export const en: Catalog<MessageKey> = {
   'meeting.remindOn': '{bot} reminds on the day',
   'meeting.remindOff': 'No reminder',
   'meeting.remindPast': 'The day has passed; no reminder is set',
-  'meeting.remindNoBot': 'No bot in the room you may change; no reminder can be set',
+  'meeting.remindNoBot': 'No bot in the room you may talk with; no reminder can be set',
   'meeting.reminders': 'Reminders',
-  'meeting.remindersHint': 'Each is a one-time routine among the bot’s routines; change or delete it there.',
+  'meeting.remindersHint':
+    'Each is a follow-up the bot keeps, not a routine; it does not show among the routines. Ask the bot what it keeps track of, or tell it to drop one.',
   'meeting.reminderCount': '{count} reminders set',
   'meeting.recipients': 'Which bots should know?',
   'meeting.recipientsHint':
@@ -243,10 +244,12 @@ export const en: Catalog<MessageKey> = {
   'message.showMarkdown': 'Show as Markdown',
   'message.showFormatted': 'Show formatted',
   'usage.month': 'This month',
-  'usage.monthOf': 'of a {limit} limit; turns wait for next month once it is reached',
+  'usage.monthOf':
+    'of a {limit} limit, background calls included; turns and background work wait for next month once it is reached',
   'usage.noLimit': 'No monthly limit',
   'usage.day': 'Today',
-  'usage.dayOf': 'of a {limit} limit; turns wait for tomorrow once it is reached',
+  'usage.dayOf':
+    'of a {limit} limit, background calls included; turns and background work wait for tomorrow once it is reached',
   'usage.noDayLimit': 'No daily limit',
   'usage.limit': 'Limit ($)',
   'usage.downloadCsv': 'Download every turn as CSV',
@@ -274,7 +277,7 @@ export const en: Catalog<MessageKey> = {
   'usage.promises': 'Promise safety net',
   'usage.promises.on': 'Promises a bot makes are kept',
   'usage.promises.hint':
-    "After a reply that sounds like a promise to do something later, with no routine set, one short request on the bot's own account checks it. A promise with a time gets a one-time routine, shown under the reply with a way to cancel it.",
+    "After a reply that sounds like a promise to do something later, with no routine set, one short request on the bot's own account checks it. A promise with a time gets a follow-up the bot keeps (not a routine), shown under the reply with a way to cancel it.",
   'usage.promises.checks': {
     one: '1 reply checked; the check cost {cost}; promises found: {found}',
     other: '{count} replies checked; the checks cost {cost}; promises found: {found}',
@@ -301,10 +304,40 @@ export const en: Catalog<MessageKey> = {
   'routineSuggest.setting.on': 'Suggest routines for what I keep asking',
   'routineSuggest.setting.hint':
     "Once a day, your own messages to bots from the last weeks are looked at for a request you made again and again. Today then offers to make it a routine; one short request on the bot's own account writes it. Nobody else sees your messages or the suggestions.",
+  'skillSuggest.title': 'Tasks that could be skills',
+  'skillSuggest.line': {
+    one: 'You asked {bot} for this once, on {days} day, and it took several steps. A skill was written from how it did it and what you corrected.',
+    other:
+      'You asked {bot} for this {count} times, on {days} different days, and it took several steps each time. A skill was written from how it did it and what you corrected.',
+  },
+  'skillSuggest.name': 'Skill name',
+  'skillSuggest.description': 'When it is used',
+  'skillSuggest.body': 'What the skill tells the bot',
+  'skillSuggest.create': 'Add skill',
+  'skillSuggest.dismiss': 'Not this',
+  'skillSuggest.created': 'Skill "{name}" added and turned on for {bot}',
+  'skillSuggest.askOwner': 'Ask the owner of {bot} to keep this as a skill.',
   'usage.suggestions': 'Routine suggestions',
   'usage.suggestions.checks': {
     one: '1 request written into a routine; it cost {cost}; suggestions made: {found}',
     other: '{count} requests written into routines; they cost {cost}; suggestions made: {found}',
+  },
+  'usage.tidy': 'Weekly memory tidy-up',
+  'usage.tidy.checks':
+    '{sets} sets of notes and {sources} source pages read; it cost {cost}; notes changed: {changed}',
+  'usage.skillSuggestions': 'Skill suggestions',
+  'usage.skillSuggestions.checks': {
+    one: '1 task written into a skill; it cost {cost}; suggestions made: {found}',
+    other: '{count} tasks written into skills; they cost {cost}; suggestions made: {found}',
+  },
+  'usage.background': 'Other background calls',
+  'usage.background.memoryReview': 'Learning from conversations',
+  'usage.background.title': 'Conversation titles',
+  'usage.background.minutes': 'Meeting minutes',
+  'usage.background.followUps': 'Keeping track of what is coming up',
+  'usage.background.line': {
+    one: '1 call; it cost {cost}',
+    other: '{count} calls; they cost {cost}',
   },
   'usage.offers': 'Work offers',
   'usage.offers.checks': {
@@ -437,7 +470,7 @@ export const en: Catalog<MessageKey> = {
   'promise.due': 'due',
   'promise.overdue': 'overdue since',
   'promise.waitingFor': 'waiting for: {condition}',
-  'promise.scheduled': 'a routine is set',
+  'promise.scheduled': 'a reminder is set',
   'promise.remindAt': 'Remind me of my own promises at',
   'today.expiredMemory': {
     one: '{count} memory note has expired',
@@ -2726,9 +2759,10 @@ export const en: Catalog<MessageKey> = {
   'memory.history.notKept': 'the text is not kept',
   'memory.learn': 'Learn from conversations',
   'memory.learnHint':
-    'Every few conversations a bot looks back and keeps lasting facts as notes. What it wants to save to the shared notes waits for your approval in the list above.',
+    'Every few conversations a bot looks back and keeps lasting facts as notes itself, without asking you. What it writes shows in the list above and in the history.',
   'memory.learnEvery': 'How often to look back',
   'memory.learnEveryChoice': 'Every {count} turns',
+  'memory.history.tidy': 'Weekly tidy-up',
   'projects.title': 'Coding agents’ folders on this computer',
   'projects.hint':
     'Claude Code and Codex have worked in these folders. A bot made from one works in that folder. Only the tools’ lists of folders are read, never their conversations.',

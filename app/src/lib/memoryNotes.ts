@@ -94,6 +94,7 @@ export function historyWho(
   const { actor } = line;
   if (actor.startsWith('bot:')) return bots.find((b) => b.id === actor.slice(4))?.name ?? t('common.bot');
   if (actor === 'bot') return t('common.bot');
+  if (actor === 'tidy') return t('memory.history.tidy');
   if (actor.startsWith('user:') && actor.slice(5) === me) return t('memory.history.you');
   // A note added by hand used to name no one; one in the asker's own notes was theirs.
   if (actor === 'user' && me && line.owner === `user:${me}`) return t('memory.history.you');

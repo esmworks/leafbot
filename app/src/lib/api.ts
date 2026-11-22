@@ -6,6 +6,8 @@ import type {
   TurnChanges,
   RoutineSuggestion,
   RoutineSuggestionAccept,
+  SkillSuggestion,
+  SkillSuggestionAccept,
   DoctorCheckId,
   DoctorReport,
   ReplayResult,
@@ -787,6 +789,10 @@ export const api = {
     http.post<Routine>(`/api/routine-suggestions/${id}/accept`, input),
   dismissRoutineSuggestion: (id: string) =>
     http.post<{ ok: true }>(`/api/routine-suggestions/${id}/dismiss`, {}),
+  skillSuggestions: () => http.get<SkillSuggestion[]>('/api/skill-suggestions'),
+  acceptSkillSuggestion: (id: string, input: SkillSuggestionAccept) =>
+    http.post<Skill>(`/api/skill-suggestions/${id}/accept`, input),
+  dismissSkillSuggestion: (id: string) => http.post<{ ok: true }>(`/api/skill-suggestions/${id}/dismiss`, {}),
   /** The turns of a conversation with something to put back, with how many changes each made. */
   turnChangesPending: (threadId: string) =>
     http.get<Record<string, number>>(`/api/threads/${threadId}/turn-changes`),

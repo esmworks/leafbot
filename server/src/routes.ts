@@ -53,6 +53,7 @@ import {
   pickLocale,
   RoutineCreate,
   RoutineSuggestionAccept,
+  SkillSuggestionAccept,
   RoutineUpdate,
   RehearsalStart,
   RoomCreate,
@@ -1793,6 +1794,18 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.post('/api/routine-suggestions/:id/dismiss', async (req) =>
     s.routineSuggestions.dismiss(IdParams.parse(req.params).id, me(req).userId),
   );
+  // Skills suggested from many-step tasks the person keeps asking for: their own, never anyone else's.
+  app.get('/api/skill-suggestions', async (req) => s.skillSuggestions.list(me(req)));
+  app.post('/api/skill-suggestions/:id/accept', async (req) =>
+    s.skillSuggestions.accept(
+      IdParams.parse(req.params).id,
+      me(req),
+      SkillSuggestionAccept.parse(req.body ?? {}),
+    ),
+  );
+  app.post('/api/skill-suggestions/:id/dismiss', async (req) =>
+    s.skillSuggestions.dismiss(IdParams.parse(req.params).id, me(req).userId),
+  );
   app.post('/api/api-keys/import', async (req) => {
     const { team, ...body } = ApiKeyImport.parse(req.body);
     const owner = ownerFor(req, team ?? managesServer(me(req).role));
@@ -2040,8 +2053,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.get('/api/memory-history', async (req) => {
     return s.memory.history(100, await memoryReach(req));
   });
-  // Memory changes waiting for a person: a bot asked while nobody watched, or someone who may only
-  // talk with the bot asked for a change to its notes.
+  // Memory changes still waiting from before every change was made at once; none waits now.
   app.get('/api/memory-changes', async (req) => s.memory.pending(await memoryReach(req)));
   app.post('/api/memory-changes/:id/accept', async (req) => {
     const id = IdParams.parse(req.params).id;

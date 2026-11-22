@@ -171,6 +171,32 @@ describe('toplantı tutanağı', () => {
     expect(q!.status).toBe('declined');
   });
 
+  it('tutanağın maliyeti kaydedilir; yazacak botun sınırı doluysa yazılmaz ve nedeni söylenir', async () => {
+    const r = await room();
+    const m = (await t.api<Meeting>('POST', `/api/rooms/${r.id}/meetings`)).body;
+    await say(r.id, 'Bütçeyi konuşalım');
+    // The server already spent more this month than its limit allows.
+    await t.db.db
+      .insert(schema.backgroundCalls)
+      .values({ id: 'onceki-cagri', botId: bora.id, kind: 'title', costUsd: 1, createdAt: new Date() });
+    await t.api('PATCH', '/api/settings', { monthlyLimitUsd: 0.5 });
+    const before = t.engine.completions.length;
+    await call(r.id, m.id, 'end');
+    await written();
+    const [failed] = await meetings(r.id);
+    expect(failed).toMatchObject({ status: 'failed' });
+    expect(failed!.error).toContain('harcama sınırı');
+    expect(t.engine.completions).toHaveLength(before);
+
+    await t.api('PATCH', '/api/settings', { monthlyLimitUsd: 0 });
+    t.engine.completer = () => minutes();
+    await call(r.id, m.id, 'retry');
+    await written();
+    expect((await meetings(r.id))[0]!.status).toBe('draft');
+    const calls = await t.db.db.select().from(schema.backgroundCalls);
+    expect(calls.filter((c) => c.kind === 'minutes')).toMatchObject([{ costUsd: 0.001 }]);
+  });
+
   it('yazılamayan tutanak yeniden denenir; taslaktan toplantıya dönülür', async () => {
     const r = await room();
     const m = (await t.api<Meeting>('POST', `/api/rooms/${r.id}/meetings`)).body;
@@ -255,7 +281,7 @@ describe('toplantı tutanağı', () => {
     expect((await call(r.id, m.id, 'save', { minutes: approved, botIds: [ada.id] })).status).toBe(409);
   });
 
-  it('yalnızca konuşabildiği botun notu sahibinin onayını bekler; başkası odanın tutanaklarını göremez', async () => {
+  it('yalnızca konuşabildiği botun notu hemen botun kendi notu olur; başkası odanın tutanaklarını göremez', async () => {
     await t.api('PUT', `/api/bots/${ada.id}/access`, { everyone: 'chat', people: {} });
     const ayse = await t.person('ayse');
     const r = await ayse.api<Room>('POST', '/api/rooms', { title: 'Ayşe', botIds: [ada.id] });
@@ -271,10 +297,13 @@ describe('toplantı tutanağı', () => {
       minutes: draft.minutes,
       botIds: [ada.id],
     });
-    expect(saved.body.sentTo).toEqual([{ botId: ada.id, waiting: true }]);
-    const waiting = (await t.api<MemoryChange[]>('GET', '/api/memory-changes')).body;
-    expect(waiting).toHaveLength(1);
-    expect(waiting[0]).toMatchObject({ botId: ada.id, origin: { kind: 'person' } });
+    expect(saved.body.sentTo).toEqual([{ botId: ada.id, waiting: false }]);
+    expect((await t.api<MemoryChange[]>('GET', '/api/memory-changes')).body).toEqual([]);
+    // Kept as the bot's own note, not as words the owner wrote: a bot note may be wrong.
+    const [note] = await t.services.memory.list({ scope: 'bot', botId: ada.id });
+    expect(note).toMatchObject({ source: `bot:${ada.id}` });
+    const hist = (await t.api<{ actor: string; action: string }[]>('GET', '/api/memory-history')).body;
+    expect(hist).toContainEqual(expect.objectContaining({ actor: 'user:ayse', action: 'create' }));
 
     const ali = await t.person('ali');
     expect((await ali.api('GET', `/api/rooms/${r.body.id}/meetings`)).status).toBeGreaterThanOrEqual(403);
@@ -469,8 +498,9 @@ describe('toplantı tutanağı', () => {
     })),
   });
   const routines = () => t.db.db.select().from(schema.routines);
+  const followUps = () => t.db.db.select().from(schema.followUps).orderBy(schema.followUps.dueAt);
 
-  it('son günü olan işlere hatırlatma kurulur: işi üstlenen bot kendi işine, kişinin işine odanın botu bakar', async () => {
+  it('son günü olan işlere takip kurulur: işi üstlenen bot kendi işine, kişinin işine odanın botu bakar', async () => {
     const r = await room();
     const m = await drafted(r.id);
     const saved = await call(r.id, m.id, 'save', {
@@ -490,43 +520,41 @@ describe('toplantı tutanağı', () => {
       }),
       expect.objectContaining({ botId: ada.id, task: 'Bütçeyi onayla', date: '2026-11-27', time: '08:30' }),
     ]);
-    const made = await routines();
+    // Follow-ups the bot keeps, not routines in its list.
+    expect(await routines()).toEqual([]);
+    const made = await followUps();
     expect(made).toHaveLength(2);
-    const own = made.find((x) => x.id === saved.body.reminders[0]!.routineId)!;
-    expect(own).toMatchObject({
-      botId: ada.id,
-      name: 'Hatırlatma: Basın bültenini yaz',
-      schedule: { type: 'once', date: '2026-11-25', time: '08:30' },
-      timezone: 'Europe/Istanbul',
-      inMain: true,
-      enabled: true,
-    });
-    expect(own.prompt).toContain('şu işi üstlendin: Basın bültenini yaz');
-    const other = made.find((x) => x.id === saved.body.reminders[1]!.routineId)!;
-    expect(other.prompt).toContain('bu işi Erhan üstlendi: Bütçeyi onayla');
-    expect(other.prompt).toContain('Kişiye bu işi kısaca hatırlat');
+    const own = made.find((x) => x.id === saved.body.reminders[0]!.followUpId)!;
+    expect(own).toMatchObject({ botId: ada.id, userId: 'owner', kind: 'meeting', status: 'open' });
+    // 08:30 in Istanbul.
+    expect(own.dueAt.toISOString()).toBe('2026-11-25T05:30:00.000Z');
+    expect(own.text).toContain('şu işi üstlendin: Basın bültenini yaz');
+    const other = made.find((x) => x.id === saved.body.reminders[1]!.followUpId)!;
+    expect(other.text).toContain('bu işi Erhan üstlendi: Bütçeyi onayla');
+    expect(other.text).toContain('Kişiye bu işi kısaca hatırlat');
   });
 
-  it('çalışıp kapanmış eski hatırlatmalar yenisi kurulurken silinir', async () => {
+  it('takip günü gelince botun kişiyle konuştuğu sohbette tur olarak gelir; bir kez', async () => {
     const r = await room();
-    const first = await drafted(r.id);
-    const one = await call(r.id, first.id, 'save', { minutes: approved(), botIds: [], reminders: [0] });
-    const spent = one.body.reminders[0]!.routineId;
-    await t.db.db
-      .update(schema.routines)
-      .set({ enabled: false, lastRunAt: new Date() })
-      .where(eq(schema.routines.id, spent));
-    await longAgo(r.id);
-    const [asked] = await meetings(r.id).then((all) => all.filter((x) => x.status === 'asked'));
-    if (asked) await call(r.id, asked.id, 'answer', { answer: 'no' });
-    const second = await drafted(r.id);
-    const two = await call(r.id, second.id, 'save', { minutes: approved(), botIds: [], reminders: [1] });
-    const left = (await routines()).map((x) => x.id);
-    expect(left).toEqual([two.body.reminders[0]!.routineId]);
-    expect(left).not.toContain(spent);
+    const m = await drafted(r.id);
+    const saved = await call(r.id, m.id, 'save', { minutes: approved(), botIds: [], reminders: [0] });
+    const id = saved.body.reminders[0]!.followUpId!;
+    await t.services.followUps.tick();
+    expect((await followUps())[0]!.status).toBe('open');
+    t.now.value = new Date('2026-11-25T07:00:00.000Z');
+    await t.services.followUps.tick();
+    await t.services.followUps.tick();
+    const [f] = await followUps();
+    expect(f).toMatchObject({ id, status: 'fired' });
+    const main = (await t.api<{ id: string }>('GET', `/api/bots/${ada.id}/main-thread`)).body;
+    const turns = await t.db.db.select().from(schema.turns).where(eq(schema.turns.source, 'followup'));
+    expect(turns).toHaveLength(1);
+    expect(turns[0]).toMatchObject({ id: f!.turnId, threadId: main.id, botId: ada.id, userId: 'owner' });
+    expect(turns[0]!.prompt).toContain('Basın bültenini yaz');
+    await t.services.turns.idle();
   });
 
-  it('değiştiremediği botlar için hatırlatma kurulmaz', async () => {
+  it('yalnızca konuşabildiği botlar için de takip kurulur: takip botu değiştirmez', async () => {
     await t.api('PUT', `/api/bots/${ada.id}/access`, { everyone: 'chat', people: {} });
     const ayse = await t.person('ayse');
     const r = await ayse.api<Room>('POST', '/api/rooms', { title: 'Ayşe', botIds: [ada.id] });
@@ -542,8 +570,9 @@ describe('toplantı tutanağı', () => {
       reminders: [0, 1],
     });
     expect(saved.status).toBe(200);
-    expect(saved.body.reminders).toEqual([]);
+    expect(saved.body.reminders).toHaveLength(2);
     expect(await routines()).toEqual([]);
+    expect((await followUps()).map((f) => f.userId)).toEqual(['ayse', 'ayse']);
   });
 
   it('modelin cevabı hoşgörüyle okunur', () => {

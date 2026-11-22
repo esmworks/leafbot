@@ -11,6 +11,7 @@ import {
   whatsappMessages,
 } from '../src/channels/format';
 import { schema } from '../src/db';
+import { translator } from '../src/i18n';
 import { testServer, waitFor, type TestServer } from './helpers';
 
 const TOKEN = '123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw0';
@@ -291,6 +292,36 @@ describe('Telegram', () => {
     await t.services.turns.idle();
     await new Promise((res) => setTimeout(res, 100));
     expect(reports()).toHaveLength(1);
+  });
+
+  it("takip zamanı gelince haber kişi en son uygulamadan yazmış olsa da Telegram'a bir kez gider", async () => {
+    const { bot, code } = await setUp();
+    await pair(code);
+    tg.write('ilk');
+    await waitFor(async () => tg.sent().find((c) => String(c.body.text).includes('ilk')));
+    await t.services.turns.idle();
+    // The person then writes in the app, not in Telegram.
+    const main = (await t.api<{ id: string }>('GET', `/api/bots/${bot.id}/main-thread`)).body;
+    await t.send(main.id, 'uygulamadan selam');
+    await t.services.turns.idle();
+    await t.services.followUps.add({
+      bot,
+      userId: 'owner',
+      threadId: main.id,
+      text: 'Öztürk Bey yarın fabrikaya geliyor',
+      eventAt: new Date(t.now.value.getTime() + 26 * 3600_000),
+      eventHasTime: true,
+      dueAt: new Date(t.now.value.getTime() + 60_000),
+      t: translator('tr'),
+    });
+    t.now.value = new Date(t.now.value.getTime() + 2 * 60_000);
+    await t.services.followUps.tick();
+    await t.services.turns.idle();
+    const told = () => tg.sent().filter((c) => String(c.body.text).includes('Öztürk Bey yarın'));
+    await waitFor(async () => told().length > 0);
+    await new Promise((res) => setTimeout(res, 100));
+    expect(told()).toHaveLength(1);
+    expect(String(told()[0]!.body.text)).toContain('🔔');
   });
 
   it('izin kartını düğmelerle gönderir; düğmeye basmak kartı yanıtlar', async () => {

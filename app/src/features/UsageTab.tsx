@@ -88,6 +88,9 @@ export function UsageTab() {
       <PromiseNet net={data?.promises} />
       <SuggestionNet net={data?.suggestions} />
       <OfferNet net={data?.offers} />
+      <TidyNet net={data?.tidy} />
+      <SkillNet net={data?.skillSuggestions} />
+      <BackgroundNet calls={data?.background} />
       <Parallel parallel={data?.parallel} />
       <Storage />
       <Button variant="secondary" size="sm" className="rounded-full" asChild>
@@ -247,6 +250,61 @@ function OfferNet({ net }: { net?: UsageReport['offers'] }) {
       <div className="px-4 py-3 text-sm text-muted-foreground tabular-nums">
         {t('usage.offers.checks', { count: net.checks, cost: f.usd(net.costUsd), found: net.found })}
       </div>
+    </Card>
+  );
+}
+
+/** The memory tidy-up's calls over the period: sets of notes and pages read, what they cost, notes changed. */
+function TidyNet({ net }: { net?: UsageReport['tidy'] }) {
+  const t = useT();
+  const f = useFormat();
+  if (!net) return null;
+  return (
+    <Card title={t('usage.tidy')}>
+      <div className="px-4 py-3 text-sm text-muted-foreground tabular-nums">
+        {t('usage.tidy.checks', {
+          sets: net.sets,
+          sources: net.sources,
+          cost: f.usd(net.costUsd),
+          changed: net.changed,
+        })}
+      </div>
+    </Card>
+  );
+}
+
+/** The calls the skill suggestions made to the small model over the period, and what they cost. */
+function SkillNet({ net }: { net?: UsageReport['skillSuggestions'] }) {
+  const t = useT();
+  const f = useFormat();
+  if (!net) return null;
+  return (
+    <Card title={t('usage.skillSuggestions')}>
+      <div className="px-4 py-3 text-sm text-muted-foreground tabular-nums">
+        {t('usage.skillSuggestions.checks', {
+          count: net.checks,
+          cost: f.usd(net.costUsd),
+          found: net.found,
+        })}
+      </div>
+    </Card>
+  );
+}
+
+/** The other background calls over the period, one line per kind: how many, and what they cost. */
+function BackgroundNet({ calls }: { calls?: UsageReport['background'] }) {
+  const t = useT();
+  const f = useFormat();
+  if (!calls?.length) return null;
+  return (
+    <Card title={t('usage.background')}>
+      {calls.map((c) => (
+        <Row
+          key={c.kind}
+          label={t(`usage.background.${c.kind}`)}
+          hint={t('usage.background.line', { count: c.calls, cost: f.usd(c.costUsd) })}
+        />
+      ))}
     </Card>
   );
 }
