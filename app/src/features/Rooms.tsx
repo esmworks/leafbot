@@ -54,7 +54,7 @@ import { useBots, useMessages, useRooms } from '@/lib/queries';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { useFitHeight } from '@/lib/fitHeight';
-import { Field } from './RoutineDialog';
+import { Field } from './RoutinePage';
 import { AssistantCard, MessageItem, replyExcerpt, Working } from './MessageItem';
 import { MeetingBar, MeetingCard, MinutesDialog, showMinutes, useStartMeeting } from './Meetings';
 

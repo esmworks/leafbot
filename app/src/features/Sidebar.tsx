@@ -565,9 +565,7 @@ function StateDot({ summary }: { summary?: BotSummary }) {
     const open = (e: React.SyntheticEvent) => {
       if (!routineId) return;
       e.stopPropagation();
-      const ui = useUi.getState();
-      ui.openChat(summary.botId);
-      ui.openRoutine({ botId: summary.botId, routineId });
+      useUi.getState().openRoutine({ botId: summary.botId, routineId, showRuns: true });
     };
     return (
       <span

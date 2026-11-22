@@ -55,7 +55,6 @@ import { BotSuggestions } from './BotSteps';
 import { BotTables } from './BotTables';
 import { InstructionsDocNotice } from './InstructionsDoc';
 import { AppLogo, openTo, useToggleBot } from './Connections';
-import { RoutineDialog } from './RoutineDialog';
 
 const PANEL_TAB_KEY = 'leafbot.panelTab';
 
@@ -156,8 +155,7 @@ function Upcoming({ bot }: { bot: Bot }) {
   const { data: summaries = [] } = useSummaries();
   // Servers older than the field send no ids.
   const failed = new Set(summaries.find((s) => s.botId === bot.id)?.failedRoutines ?? []);
-  const [editing, setEditing] = useState<Routine | undefined>();
-  const [open, setOpen] = useState(false);
+  const openRoutine = useUi((s) => s.openRoutine);
   const qc = useQueryClient();
   const toggle = useMutation({
     mutationFn: (r: Routine) => api.updateRoutine(r.id, { enabled: !r.enabled }),
@@ -180,10 +178,7 @@ function Upcoming({ bot }: { bot: Bot }) {
           size="sm"
           variant="ghost"
           className="rounded-full"
-          onClick={() => {
-            setEditing(undefined);
-            setOpen(true);
-          }}
+          onClick={() => openRoutine({ botId: bot.id, routineId: null })}
         >
           <Plus /> {t('panel.addRoutine')}
         </Button>
@@ -203,10 +198,7 @@ function Upcoming({ bot }: { bot: Bot }) {
             )}
             <button
               className="min-w-0 flex-1 text-left"
-              onClick={() => {
-                setEditing(r);
-                setOpen(true);
-              }}
+              onClick={() => openRoutine({ botId: bot.id, routineId: r.id, showRuns: failed.has(r.id) })}
             >
               <div className="truncate text-sm font-medium">{r.name}</div>
               <div className="truncate text-[13px] text-muted-foreground">
@@ -236,13 +228,6 @@ function Upcoming({ bot }: { bot: Bot }) {
           </div>
         ))}
       </div>
-      <RoutineDialog
-        botId={bot.id}
-        routine={editing}
-        open={open}
-        onOpenChange={setOpen}
-        showRuns={!!editing && failed.has(editing.id)}
-      />
     </section>
   );
 }

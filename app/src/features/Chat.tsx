@@ -109,7 +109,6 @@ import {
   type StagedFile,
 } from './Attachments';
 import { FindBar } from './FindBar';
-import { RoutineDialog } from './RoutineDialog';
 import { AssistantCard, CardDock, MessageItem, replyExcerpt, Working } from './MessageItem';
 
 export function Chat({ bot }: { bot: Bot }) {
@@ -1296,7 +1295,6 @@ function Composer({
 
   // A text of just `/` and letters lists what the box can do itself, without asking the bot.
   const { panelBeside } = useLayout();
-  const [routineOpen, setRoutineOpen] = useState(false);
   const exportConversation = useExportConversation(bot);
   const slash = slashQuery(text);
   // The bot's skills come after the commands: picking one names it in the message, as `$` does.
@@ -1334,7 +1332,7 @@ function Composer({
         .catch((e: Error) => toast.error(e.message));
     else if (c === 'find') ui.setFindOpen(true);
     else if (c === 'stop') stop.mutate();
-    else if (c === 'routine') setRoutineOpen(true);
+    else if (c === 'routine') useUi.getState().openRoutine({ botId: bot.id, routineId: null });
     else if (c === 'memory') ui.openSettings('memory');
     else if (c === 'export') void exportConversation(threadId);
     else if (c === 'shortcuts') ui.setShortcutsOpen(true);
@@ -1539,7 +1537,6 @@ function Composer({
 
   return (
     <div className="px-3 pb-3 sm:px-6 sm:pb-4">
-      <RoutineDialog botId={bot.id} open={routineOpen} onOpenChange={setRoutineOpen} />
       {voiceCall.state !== 'off' && (
         <div
           role="status"

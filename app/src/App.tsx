@@ -9,7 +9,7 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { CreateAccount } from '@/features/AccountSetup';
-import { BotDialog } from '@/features/BotDialog';
+import { BotDialog, NewBotPage } from '@/features/BotDialog';
 import { AppsDialog } from '@/features/Connections';
 import { ComputerDialog } from '@/features/Computer';
 import { FilePreview } from '@/features/FilePreview';
@@ -23,7 +23,7 @@ import { SettingsPage } from '@/features/SettingsPage';
 import { ShortcutsDialog } from '@/features/ShortcutsDialog';
 import { TodayDialog } from '@/features/TodayDialog';
 import { BoardDialog } from '@/features/board/BoardDialog';
-import { OpenedRoutineDialog } from '@/features/RoutineDialog';
+import { RoutinePage, useOpenedRoutine } from '@/features/RoutinePage';
 import { QuickPanel } from '@/features/QuickPanel';
 import { Sidebar } from '@/features/Sidebar';
 import { useLocale, useT } from '@/i18n';
@@ -195,6 +195,9 @@ function Workspace() {
     if (roomId && rooms && !roomsFetching && !rooms.some((r) => r.id === roomId))
       useUi.getState().openRoom(null);
   }, [roomId, rooms, roomsFetching]);
+  // A routine open in place of the bot's chat: its flow needs the room the chat and panel take.
+  const routine = useOpenedRoutine();
+  const newBot = useUi((s) => s.newBot);
   // A link to one conversation (…?thread=<id>) opens it, once the person is signed in.
   useEffect(() => {
     const linked = takeLinkedThread();
@@ -220,14 +223,23 @@ function Workspace() {
   }, [bot?.color]);
 
   // A phone shows the list or the chat, never both; the chat needs a bot to show.
-  const pane = phone ? (bot || room ? phonePane : 'list') : null;
+  const pane = phone ? (bot || room || routine || newBot ? phonePane : 'list') : null;
 
   return (
     <>
       <div className="workspace flex h-full overflow-hidden" inert={settingsOpen}>
         {pane !== 'chat' && <Sidebar />}
         <main className={cn('safe-pane min-w-0 flex-1 bg-background', pane === 'list' ? 'hidden' : 'flex')}>
-          {room ? (
+          {newBot ? (
+            <NewBotPage preset={newBot.preset} />
+          ) : routine ? (
+            <RoutinePage
+              key={`${routine.botId}:${routine.routine?.id ?? 'new'}`}
+              botId={routine.botId}
+              routine={routine.routine}
+              showRuns={routine.showRuns}
+            />
+          ) : room ? (
             <RoomView key={room.id} room={room} />
           ) : bot ? (
             <>
@@ -279,7 +291,6 @@ function Workspace() {
         <ShortcutsDialog />
         <TodayDialog />
         <BoardDialog />
-        <OpenedRoutineDialog />
         <AppsDialog />
       </div>
       <SettingsPage />
