@@ -74,6 +74,7 @@ export function UsageSection() {
       <PromiseNet net={data?.promises} />
       <TidyNet net={data?.tidy} />
       <SkillNet net={data?.skillSuggestions} />
+      <BackgroundNet calls={data?.background} />
       <Parallel parallel={data?.parallel} />
       <Storage />
       <PillButton
@@ -427,6 +428,24 @@ function SkillNet({ net }: { net?: UsageReport['skillSuggestions'] }) {
           })}
         </Hint>
       </Pad>
+    </Section>
+  );
+}
+
+/** The other background calls over the period, one line per kind, as on the web. */
+function BackgroundNet({ calls }: { calls?: UsageReport['background'] }) {
+  if (!calls?.length) return null;
+  return (
+    <Section title={t('usage.background')}>
+      <Rows>
+        {calls.map((c) => (
+          <Row
+            key={c.kind}
+            label={t(`usage.background.${c.kind}`)}
+            detail={t('usage.background.line', { count: c.calls, cost: usd(c.costUsd) })}
+          />
+        ))}
+      </Rows>
     </Section>
   );
 }

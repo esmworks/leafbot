@@ -41,9 +41,12 @@ version is 0.x, a minor release may change the data format or the API; the serve
   note; a conversation a stranger with no account spoke in still writes none. Bots are also told not to ask whether
   to remember something, and to write what is about the person in that person's own notes.
 - The spending limits count what the server spends in the background on a bot's account, not only its turns: the
-  routine pre-check, the promise safety net, the routine, work and skill suggestions and the memory tidy-up. They are
-  spent from the same account, so a limit that left them out let the month run over. Once a limit is reached, those
-  calls, and the memory review, wait as the turns do. The usage page's totals by bot and model stay the turns'.
+  routine pre-check, the promise safety net, the routine, work and skill suggestions, the memory tidy-up, the memory
+  review, conversation titles and meeting minutes. They are spent from the same account, so a limit that left them out
+  let the month run over. Once a limit is reached, those calls wait as the turns do; minutes that cannot be written
+  for it say so and can be tried again. What the memory review, the titles and the minutes cost was not kept before:
+  it is now, and the usage page lists it by kind under "Other background calls". Its totals by bot and model stay the
+  turns'.
 
 ## 0.7.1 — 2026-11-21
 

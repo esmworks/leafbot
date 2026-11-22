@@ -277,8 +277,9 @@ export class MemoryReviewService {
     const controller = new AbortController();
     this.current = controller;
     let text: string;
+    let costUsd: number | null;
     try {
-      ({ text } = await engine.complete!({
+      ({ text, costUsd } = await engine.complete!({
         model: bot.model || (bot.engine === 'claude' ? defaultModel : '') || this.ctx.config.claudeModel,
         ...request,
         signal: controller.signal,
@@ -287,6 +288,7 @@ export class MemoryReviewService {
     } finally {
       this.current = null;
     }
+    await this.services.usage.background(bot.id, 'memoryReview', costUsd);
     if (controller.signal.aborted) return;
     const shown = new Map(notes.filter((n) => request.shown.has(n.id)).map((n) => [n.id, n]));
     const changed = await this.apply(parseOperations(text), {

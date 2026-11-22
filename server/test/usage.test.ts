@@ -209,6 +209,39 @@ describe('kullanım raporu', () => {
     expect(t.engine.completions).toHaveLength(before + 1);
   });
 
+  it('not çıkarma, başlık ve tutanak çağrıları raporda türüne göre görünür ve sınıra sayılır', async () => {
+    const a = await t.bot({ name: 'Katip' });
+    const at = new Date('2026-11-14T09:00:00.000Z');
+    const call = (kind: 'memoryReview' | 'title' | 'minutes', costUsd: number) => ({
+      id: `b-${Math.random()}`,
+      botId: a.id,
+      kind,
+      costUsd,
+      createdAt: at,
+    });
+    await t.db.db
+      .insert(schema.backgroundCalls)
+      .values([
+        call('title', 0.1),
+        call('memoryReview', 0.2),
+        call('memoryReview', 0.2),
+        call('minutes', 0.5),
+      ]);
+    const report = (await t.api<UsageReport>('GET', '/api/usage?days=7')).body;
+    expect(report.background).toEqual([
+      { kind: 'memoryReview', calls: 2, costUsd: expect.closeTo(0.4, 6) },
+      { kind: 'title', calls: 1, costUsd: expect.closeTo(0.1, 6) },
+      { kind: 'minutes', calls: 1, costUsd: expect.closeTo(0.5, 6) },
+    ]);
+    expect(report.month!.costUsd).toBeCloseTo(1, 6);
+    expect(report.total.costUsd).toBe(0);
+    await t.api('PATCH', '/api/settings', { monthlyLimitUsd: 0.9 });
+    const thread = (await t.api<Thread>('GET', `/api/bots/${a.id}/main-thread`)).body;
+    await t.send(thread.id, 'merhaba');
+    await t.services.turns.idle();
+    expect((await t.messages(thread.id)).at(-1)!.role).toBe('error');
+  });
+
   it('başarısız biten turun harcaması da aylık toplama ve sınıra sayılır', async () => {
     const a = await t.bot({ name: 'Katip' });
     const thread = (await t.api<Thread>('GET', `/api/bots/${a.id}/main-thread`)).body;

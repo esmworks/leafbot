@@ -104,8 +104,9 @@ export class TitleService {
     this.controllers.add(controller);
     const timer = setTimeout(() => controller.abort(), WAIT_MS);
     let text: string;
+    let costUsd: number | null;
     try {
-      ({ text } = await engine.complete({
+      ({ text, costUsd } = await engine.complete({
         model:
           bot.model || (bot.engine === 'claude' ? settings.defaultModel : '') || this.ctx.config.claudeModel,
         system: t('title.system'),
@@ -122,6 +123,7 @@ export class TitleService {
       clearTimeout(timer);
       this.controllers.delete(controller);
     }
+    await this.services.usage.background(bot.id, 'title', costUsd);
     const title = cleanTitle(text);
     if (!title || controller.signal.aborted) return;
     // Only if the person has not named it meanwhile.

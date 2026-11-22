@@ -90,6 +90,7 @@ export function UsageTab() {
       <OfferNet net={data?.offers} />
       <TidyNet net={data?.tidy} />
       <SkillNet net={data?.skillSuggestions} />
+      <BackgroundNet calls={data?.background} />
       <Parallel parallel={data?.parallel} />
       <Storage />
       <Button variant="secondary" size="sm" className="rounded-full" asChild>
@@ -286,6 +287,24 @@ function SkillNet({ net }: { net?: UsageReport['skillSuggestions'] }) {
           found: net.found,
         })}
       </div>
+    </Card>
+  );
+}
+
+/** The other background calls over the period, one line per kind: how many, and what they cost. */
+function BackgroundNet({ calls }: { calls?: UsageReport['background'] }) {
+  const t = useT();
+  const f = useFormat();
+  if (!calls?.length) return null;
+  return (
+    <Card title={t('usage.background')}>
+      {calls.map((c) => (
+        <Row
+          key={c.kind}
+          label={t(`usage.background.${c.kind}`)}
+          hint={t('usage.background.line', { count: c.calls, cost: f.usd(c.costUsd) })}
+        />
+      ))}
     </Card>
   );
 }

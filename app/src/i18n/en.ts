@@ -332,6 +332,14 @@ export const en: Catalog<MessageKey> = {
     one: '1 task written into a skill; it cost {cost}; suggestions made: {found}',
     other: '{count} tasks written into skills; they cost {cost}; suggestions made: {found}',
   },
+  'usage.background': 'Other background calls',
+  'usage.background.memoryReview': 'Learning from conversations',
+  'usage.background.title': 'Conversation titles',
+  'usage.background.minutes': 'Meeting minutes',
+  'usage.background.line': {
+    one: '1 call; it cost {cost}',
+    other: '{count} calls; they cost {cost}',
+  },
   'usage.offers': 'Work offers',
   'usage.offers.checks': {
     one: '1 look at a conversation; it cost {cost}; offers made: {found}',

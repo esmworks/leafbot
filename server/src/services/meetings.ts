@@ -104,7 +104,7 @@ export const dayIn = (at: Date, timeZone: string) =>
 
 /** Minutes that cannot be written, with the reason the person reads. */
 class MinutesError extends Error {
-  constructor(readonly key: 'meeting.failedNoEngine' | 'meeting.failedAnswer') {
+  constructor(readonly key: 'meeting.failedNoEngine' | 'meeting.failedAnswer' | 'meeting.failedLimit') {
     super(key);
   }
 }
@@ -586,6 +586,8 @@ export class MeetingService {
     if (!lines.length) return null;
     const writer = members.find((b) => this.engineFor(b).complete);
     if (!writer) throw new MinutesError('meeting.failedNoEngine');
+    // The minutes are spent from the writer's account: a spent limit stops them as it stops turns.
+    if (await this.services.usage.reached(writer)) throw new MinutesError('meeting.failedLimit');
     const engine = this.engineFor(writer);
     const settings = await this.services.settings.all(userId ?? undefined);
     const model =
@@ -620,7 +622,14 @@ export class MeetingService {
       const controller = new AbortController();
       this.current = { meetingId: row.id, controller };
       try {
-        const { text } = await engine.complete!({ model, system, user, signal: controller.signal, locale });
+        const { text, costUsd } = await engine.complete!({
+          model,
+          system,
+          user,
+          signal: controller.signal,
+          locale,
+        });
+        await this.services.usage.background(writer.id, 'minutes', costUsd);
         if (controller.signal.aborted) throw new Error('stopped');
         return text;
       } finally {

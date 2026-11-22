@@ -1603,6 +1603,19 @@ export const UsageReport = z.object({
       changed: z.number().int(),
     })
     .optional(),
+  /**
+   * The other calls the server made to the bots' models in the background over the period, by kind
+   * (the memory review, conversation titles, meeting minutes), when there were any.
+   */
+  background: z
+    .array(
+      z.object({
+        kind: z.enum(['memoryReview', 'title', 'minutes']),
+        calls: z.number().int(),
+        costUsd: z.number(),
+      }),
+    )
+    .optional(),
   /** The skill suggestions' calls over the period, when there were any: calls, cost, skills written. */
   skillSuggestions: z
     .object({ checks: z.number().int(), costUsd: z.number(), found: z.number().int() })

@@ -1,5 +1,6 @@
 import type { Thread } from '@leafbot/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { schema } from '../src/db';
 import { cleanTitle } from '../src/services/titles';
 import { testServer, type TestServer } from './helpers';
 
@@ -27,6 +28,9 @@ describe('sohbet başlığını model yazar', () => {
     const asked = t.engine.completions.filter((r) => r.system.includes('başlık'));
     expect(asked).toHaveLength(1);
     expect(asked[0]!.user).toContain('faturasında');
+    // What the naming cost is kept, for the usage page and the spending limits.
+    const calls = await t.db.db.select().from(schema.backgroundCalls);
+    expect(calls.filter((c) => c.kind === 'title')).toMatchObject([{ botId: bot.id, costUsd: 0.001 }]);
 
     t.engine.completer = () => 'Başka başlık';
     await t.send(th.id, 'devam');

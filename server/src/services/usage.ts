@@ -12,6 +12,8 @@ import { and, asc, desc, eq, gte, inArray, isNotNull, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { Ctx } from '../context';
 import { schema } from '../db';
+import { BACKGROUND_CALLS } from '../db/schema';
+import { newId } from '../util';
 import type { SettingsService } from './settings';
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -69,6 +71,21 @@ export class UsageService {
     private settings: SettingsService,
     private clock: () => Date = () => new Date(),
   ) {}
+
+  /**
+   * Keeps what one background call on a bot's model cost (the memory review, a title, a meeting's
+   * minutes). A cost that cannot be kept is only logged: the work it paid for is done either way.
+   */
+  async background(
+    botId: string,
+    kind: (typeof BACKGROUND_CALLS)[number],
+    costUsd: number | null,
+  ): Promise<void> {
+    await this.ctx.db
+      .insert(schema.backgroundCalls)
+      .values({ id: newId(), botId, kind, costUsd, createdAt: this.clock() })
+      .catch((err: unknown) => console.warn(`Could not keep a background call's cost: ${String(err)}`));
+  }
 
   /** Today, from midnight in the owner's time zone: each bot's finished turns, and the routines run. */
   /** Today's work; with `botIds`, only those bots'. */
@@ -222,8 +239,8 @@ export class UsageService {
   /**
    * What the bots spent since `since`; with `botId`, only that bot's. The finished turns, and the
    * calls the server makes on a bot's account in the background (the routine pre-check, the promise
-   * safety net, the routine, work and skill suggestions, the memory tidy-up): each is spent from the
-   * same account, so each counts toward the limits.
+   * safety net, the routine, work and skill suggestions, the memory tidy-up and review, titles and
+   * meeting minutes): each is spent from the same account, so each counts toward the limits.
    */
   private async spentSince(since: Date, botId?: string): Promise<number> {
     const rows = await this.ctx.db
@@ -248,7 +265,8 @@ export class UsageService {
         | typeof schema.routineSuggestionChecks
         | typeof schema.workOfferChecks
         | typeof schema.skillSuggestionChecks
-        | typeof schema.memoryTidyChecks,
+        | typeof schema.memoryTidyChecks
+        | typeof schema.backgroundCalls,
     ) => {
       const [row] = await this.ctx.db
         .select({ total: sql<number | null>`sum(${table.costUsd})` })
@@ -273,6 +291,7 @@ export class UsageService {
       sumOf(schema.workOfferChecks),
       sumOf(schema.skillSuggestionChecks),
       sumOf(schema.memoryTidyChecks),
+      sumOf(schema.backgroundCalls),
     ]);
     return parts.reduce((a, b) => a + b, Number(gate?.total ?? 0));
   }
@@ -421,6 +440,7 @@ export class UsageService {
       offers: await this.offerNet(since, new Set(keys), timezone, botId),
       tidy: await this.tidyNet(since, new Set(keys), timezone, botId),
       skillSuggestions: await this.skillNet(since, new Set(keys), timezone, botId),
+      background: await this.backgroundNet(since, new Set(keys), timezone, botId),
     };
   }
 
@@ -619,5 +639,40 @@ export class UsageService {
       if (r.found) sum.found++;
     }
     return sum.checks ? sum : undefined;
+  }
+
+  /** The other background calls over the period, by kind: how many and what they cost. */
+  private async backgroundNet(
+    since: Date,
+    days: Set<string>,
+    timezone: string,
+    botId?: string,
+  ): Promise<UsageReport['background']> {
+    const rows = await this.ctx.db
+      .select({
+        at: schema.backgroundCalls.createdAt,
+        kind: schema.backgroundCalls.kind,
+        costUsd: schema.backgroundCalls.costUsd,
+      })
+      .from(schema.backgroundCalls)
+      .where(
+        and(
+          gte(schema.backgroundCalls.createdAt, since),
+          botId ? eq(schema.backgroundCalls.botId, botId) : undefined,
+        ),
+      );
+    const byKind = new Map<
+      string,
+      { kind: (typeof BACKGROUND_CALLS)[number]; calls: number; costUsd: number }
+    >();
+    for (const r of rows) {
+      if (!days.has(dayKey(r.at, timezone))) continue;
+      const sum = byKind.get(r.kind) ?? { kind: r.kind, calls: 0, costUsd: 0 };
+      sum.calls++;
+      sum.costUsd += r.costUsd ?? 0;
+      byKind.set(r.kind, sum);
+    }
+    const out = BACKGROUND_CALLS.flatMap((k) => byKind.get(k) ?? []);
+    return out.length ? out : undefined;
   }
 }

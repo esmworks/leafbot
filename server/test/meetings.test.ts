@@ -171,6 +171,32 @@ describe('toplantı tutanağı', () => {
     expect(q!.status).toBe('declined');
   });
 
+  it('tutanağın maliyeti kaydedilir; yazacak botun sınırı doluysa yazılmaz ve nedeni söylenir', async () => {
+    const r = await room();
+    const m = (await t.api<Meeting>('POST', `/api/rooms/${r.id}/meetings`)).body;
+    await say(r.id, 'Bütçeyi konuşalım');
+    // The server already spent more this month than its limit allows.
+    await t.db.db
+      .insert(schema.backgroundCalls)
+      .values({ id: 'onceki-cagri', botId: bora.id, kind: 'title', costUsd: 1, createdAt: new Date() });
+    await t.api('PATCH', '/api/settings', { monthlyLimitUsd: 0.5 });
+    const before = t.engine.completions.length;
+    await call(r.id, m.id, 'end');
+    await written();
+    const [failed] = await meetings(r.id);
+    expect(failed).toMatchObject({ status: 'failed' });
+    expect(failed!.error).toContain('harcama sınırı');
+    expect(t.engine.completions).toHaveLength(before);
+
+    await t.api('PATCH', '/api/settings', { monthlyLimitUsd: 0 });
+    t.engine.completer = () => minutes();
+    await call(r.id, m.id, 'retry');
+    await written();
+    expect((await meetings(r.id))[0]!.status).toBe('draft');
+    const calls = await t.db.db.select().from(schema.backgroundCalls);
+    expect(calls.filter((c) => c.kind === 'minutes')).toMatchObject([{ costUsd: 0.001 }]);
+  });
+
   it('yazılamayan tutanak yeniden denenir; taslaktan toplantıya dönülür', async () => {
     const r = await room();
     const m = (await t.api<Meeting>('POST', `/api/rooms/${r.id}/meetings`)).body;

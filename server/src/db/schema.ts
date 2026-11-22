@@ -1830,6 +1830,28 @@ export const memoryTidyChecks = pgTable(
   (t) => [index('memory_tidy_checks_created_idx').on(t.createdAt)],
 );
 
+/** The kinds of background call kept in `background_calls`. */
+export const BACKGROUND_CALLS = ['memoryReview', 'title', 'minutes'] as const;
+
+/**
+ * One call the server made to a bot's model in the background that has no table of its own: the
+ * memory review of a conversation, a conversation's title, a meeting's minutes. What it cost, so it
+ * shows on the usage page and counts toward the spending limits.
+ */
+export const backgroundCalls = pgTable(
+  'background_calls',
+  {
+    id: text('id').primaryKey(),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: BACKGROUND_CALLS }).notNull(),
+    costUsd: real('cost_usd'),
+    createdAt: created(),
+  },
+  (t) => [index('background_calls_created_idx').on(t.createdAt)],
+);
+
 /** One look of the routine suggestions at a group of requests: what the small-model call cost. */
 /** Each look the work offers took at a conversation after an answer: what it cost and whether it offered. */
 export const workOfferChecks = pgTable(
