@@ -8,6 +8,7 @@ import { RealtimeProvider } from '@/lib/realtime';
 import { ServerProvider } from '@/lib/server';
 import { Overlays } from '@/components/overlay';
 import { useColors, useIsDark } from '@/lib/theme';
+import { useAppUpdates } from '@/lib/updates';
 
 /** Data seen on screen refreshes when the app comes back from the background, as a browser tab does. */
 function useRefetchOnForeground() {
@@ -20,6 +21,7 @@ function useRefetchOnForeground() {
 
 export default function RootLayout() {
   useRefetchOnForeground();
+  useAppUpdates();
   const c = useColors();
   const dark = useIsDark();
   const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false } } }));

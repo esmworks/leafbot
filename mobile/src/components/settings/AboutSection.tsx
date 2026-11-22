@@ -1,12 +1,16 @@
 import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
+import { useUpdates } from 'expo-updates';
 import * as WebBrowser from 'expo-web-browser';
 import { Platform, StyleSheet, Text, View } from 'react-native';
+import { toast } from '@/components/overlay';
 import { Row, Section } from '@/components/page';
 import { Pad, Rows } from './common/controls';
-import { t } from '@/i18n';
+import { locale, t } from '@/i18n';
+import { formatters } from '@/lib/format';
 import { useInfo } from '@/lib/queries';
 import { useColors } from '@/lib/theme';
+import { checkForUpdate, restartIntoUpdate, updatesOn } from '@/lib/updates';
 // The app's own icon, the same picture the web app shows here.
 import LOGO from '../../../assets/logo.png';
 
@@ -26,6 +30,56 @@ function issueUrl(version: string | undefined): string {
     '',
   ].join('\n');
   return `${REPO_URL}/issues/new?body=${encodeURIComponent(body)}`;
+}
+
+const fmt = formatters(locale, t);
+
+/**
+ * Which build of the app's code is running, and a way to take a new one now rather than wait for
+ * the next start. A copy that takes no updates says so instead of offering a button that cannot work.
+ */
+function UpdatesSection() {
+  const { currentlyRunning, isChecking, isDownloading, isUpdatePending } = useUpdates();
+  if (!updatesOn) {
+    return (
+      <Section title={t('update.title')}>
+        <Row label={t('update.running')} detail={t('update.off')} value={t('update.builtIn')} />
+      </Section>
+    );
+  }
+  const running =
+    currentlyRunning.isEmbeddedLaunch || !currentlyRunning.createdAt
+      ? t('update.builtIn')
+      : t('update.from', { day: fmt.dayLabel(currentlyRunning.createdAt.toISOString()) });
+  const check = () =>
+    void checkForUpdate().then(
+      (found) => !found && toast(t('update.none')),
+      (e: unknown) =>
+        toast(t('update.failed', { error: e instanceof Error ? e.message : String(e) }), { tone: 'error' }),
+    );
+  return (
+    <Section title={t('update.title')} footer={t('update.hint')}>
+      <Rows>
+        <Row label={t('update.running')} value={running} />
+        {isUpdatePending ? (
+          <Row
+            icon="refresh-cw"
+            label={t('update.restart')}
+            detail={t('update.restartHint')}
+            onPress={restartIntoUpdate}
+          />
+        ) : (
+          <Row
+            icon="download"
+            label={t('update.check')}
+            onPress={check}
+            busy={isChecking || isDownloading}
+            disabled={isChecking || isDownloading}
+          />
+        )}
+      </Rows>
+    </Section>
+  );
 }
 
 /** The "about" settings section's content, under the section's own title bar. */
@@ -52,6 +106,7 @@ export function AboutSection() {
           </Text>
         </View>
       </View>
+      <UpdatesSection />
       <Section title={t('about.license')}>
         <Pad gap={8}>
           <Text style={[styles.text, { color: c.foreground }]}>{t('about.copyright')}</Text>

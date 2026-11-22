@@ -7,7 +7,8 @@
     "production": {
       "node": "24.22.1",
       "pnpm": "11.9.0",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "channel": "production"
     }
   },
   "submit": {

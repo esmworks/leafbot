@@ -256,6 +256,14 @@ Under Settings → General → This phone, you can let your bots read the phone'
 see where it is. Each is off until turned on there, and works while the app is open and connected; the first read in a
 piece of work asks on a card.
 
+A release build takes new versions of the app's JavaScript without going through the store. They come from the EAS
+project named in `mobile/app.local.json` (`owner` and `projectId`, kept out of git): `pnpm --filter @leafbot/mobile
+update` publishes the current code to the `production` channel that store builds listen on. The app looks for one when it
+opens and again when it comes back to the front (at most once an hour), uses it from the next start and offers to restart
+into it; Settings → About shows which one is running. An update reaches only builds of the same version (`version` in
+`mobile/app.json`); a change that needs new native code, such as a new Expo module, needs a new version and a store
+build. A build without a project takes no updates.
+
 A server on the internet is reached over HTTPS: an address typed without `http://` or `https://` falls back to plain
 http only for this device, the local network (private addresses, `.local`, single-word names) and a Tailscale tailnet,
 and an `http://` address on the internet is used only after a warning. iOS allows plain http only on the local network.
