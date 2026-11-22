@@ -316,6 +316,53 @@ describe('botun bilgisayarı', () => {
     expect(gits(offline.id)).toEqual([null]);
   });
 
+  it('kişinin kendi GitHub anahtarı yalnız onun konuşmasındaki komuta gider; masaüstü ekibinkiyle kalır', async () => {
+    const bot = await t.bot({ name: 'Kişisel', permissionMode: 'auto' });
+    const execs = () =>
+      fake.calls.filter((c) => c.id === bot.id && (c.op === 'exec' || c.op === 'jobs-start'));
+    const gits = () => fake.calls.filter((c) => c.id === bot.id && c.op === 'git').map((c) => c.body.token);
+    await t.services.apiCredentials.create(
+      { name: 'github_ekip', origin: 'https://github.com', value: 'github_pat_ekibin_0123456789' },
+      null,
+    );
+    await t.services.apiCredentials.create(
+      { name: 'github_benim', origin: 'https://github.com', value: 'github_pat_benim_0123456789' },
+      'owner',
+    );
+    const run = async (threadId: string, input: Record<string, unknown>) => {
+      await t.send(threadId, `[araç:run_command ${JSON.stringify(input)}]`);
+      await t.services.turns.idle();
+      return execs().at(-1)!.body;
+    };
+
+    // In the person's own conversation, each command brings their key, a background one too.
+    const mine = await main(bot.id);
+    expect((await run(mine.id, { command: 'git fetch' })).git).toEqual({
+      token: 'github_pat_benim_0123456789',
+    });
+    expect((await run(mine.id, { command: 'git clone x', background: true })).git).toEqual({
+      token: 'github_pat_benim_0123456789',
+    });
+    // The desktop itself keeps the team's, for everything else that runs on it.
+    expect(gits().at(-1)).toBe('github_pat_ekibin_0123456789');
+
+    // A team conversation brings none, so its git goes with the team's.
+    const team = await t.services.threads.create(bot.id, { kind: 'team', userId: null, title: 'Ekip' });
+    expect((await run(team.id, { command: 'git pull' })).git).toBeUndefined();
+
+    // Nor does work another bot handed on, even in the person's own conversation.
+    await t.services.turns.enqueue({
+      threadId: mine.id,
+      botId: bot.id,
+      source: 'bot',
+      prompt: `[araç:run_command ${JSON.stringify({ command: 'git push' })}]`,
+    });
+    await t.services.turns.idle();
+    const handed = execs().at(-1)!.body;
+    expect(handed.command).toBe('git push');
+    expect(handed.git).toBeUndefined();
+  });
+
   it('uzun komutu arka planda başlatır; bitene kadar masaüstü uyumaz, durumu sonra sorulur', async () => {
     const bot = await t.bot({ permissionMode: 'auto' });
     const thread = await main(bot.id);

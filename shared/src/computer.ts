@@ -67,6 +67,12 @@ export const DesktopExec = z.object({
   command: z.string().min(1).max(100_000),
   cwd: z.string().startsWith('/').max(500),
   timeoutMs: z.number().int().min(1000).max(600_000).default(120_000),
+  /**
+   * The GitHub key this command's git uses, for the person the step works for; left out, the
+   * desktop's own. Held by the computer service for as long as the command runs, never in the
+   * session.
+   */
+  git: DesktopGit.optional(),
 });
 export type DesktopExec = z.input<typeof DesktopExec>;
 
@@ -83,6 +89,8 @@ export type DesktopExecResult = z.infer<typeof DesktopExecResult>;
 export const DesktopJobStart = z.object({
   command: z.string().min(1).max(100_000),
   cwd: z.string().startsWith('/').max(500),
+  /** As for `DesktopExec`: held until the background command ends. */
+  git: DesktopGit.optional(),
 });
 export type DesktopJobStart = z.infer<typeof DesktopJobStart>;
 

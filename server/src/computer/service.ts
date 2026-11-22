@@ -28,8 +28,11 @@ export interface ComputerOptions {
   idleMs: number;
   /** Folders, language and home for a bot's desktop, worked out when it starts. */
   prepare(botId: string): Promise<DesktopStart>;
-  /** The GitHub key git on the bot's desktop may use, read again before each of its steps. */
-  gitToken?(botId: string): Promise<string | null>;
+  /**
+   * The GitHub key git on the bot's desktop may use, read again before each of its steps: the
+   * team's; with `owner`, that person's own alone.
+   */
+  gitToken?(botId: string, owner?: string | null): Promise<string | null>;
 }
 
 /**
@@ -256,6 +259,21 @@ export class ComputerService {
         if (!spare) throw err;
         await this.stop(spare[0]);
       }
+    }
+  }
+
+  /**
+   * The GitHub key a command brings for the person its step works for: their own key or GitHub
+   * app. Undefined when they have none, and the command's git uses the desktop's (the team's).
+   */
+  async personGit(botId: string, userId: string): Promise<{ token: string } | undefined> {
+    if (!this.opts.gitToken) return undefined;
+    try {
+      const token = await this.opts.gitToken(botId, userId);
+      return token ? { token } : undefined;
+    } catch (err) {
+      console.warn('computer git key', err instanceof Error ? err.message : err);
+      return undefined;
     }
   }
 

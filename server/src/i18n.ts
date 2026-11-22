@@ -855,13 +855,13 @@ const tr = {
     'Anahtar "{key}" adıyla kaydedildi; artık api_request ile {origin} adresine istek gönderebilirsin.',
   'tool.credentialOwnerQuestion': 'Bu anahtar kimin olsun?',
   'tool.credentialOwnerContext':
-    'Botun bilgisayarındaki git yalnızca ekibin GitHub anahtarını ya da ekibin GitHub uygulamasını kullanır; bilgisayar botundur ve onunla konuşan herkesin işinde çalışır. Yalnızca sizin olursa bot onu yalnız sizin işinizde, api_request ile kullanır.',
-  'tool.credentialForTeam': 'Ekibin (git de kullansın)',
+    'Ekibin olursa bot onu herkesin işinde kullanır; bilgisayarındaki git de dahil, GitHub’da yapılanlar bu hesapla görünür. Yalnızca sizin olursa yalnız sizin kendi konuşmanızda sizin istediğiniz işte kullanır, git de dahil.',
+  'tool.credentialForTeam': 'Ekibin (herkesin işinde)',
   'tool.credentialForMe': 'Yalnızca benim',
   'tool.credentialSavedForGit':
-    'Anahtar ekibin anahtarı olarak "{key}" adıyla kaydedildi. Bilgisayarındaki git GitHub isteklerine artık bunu ekler; api_request ile {origin} adresine de kullanabilirsin.',
-  'tool.credentialSavedNotGit':
-    'Anahtar "{key}" adıyla kişinin kendi anahtarı olarak kaydedildi; api_request ile {origin} adresine kullanabilirsin. Bilgisayarındaki git bunu kullanmaz; yalnızca ekibin GitHub anahtarını ya da ekibin GitHub uygulamasını kullanır. Git için sunucuyu yöneten biri bu anahtarı ekibin yapmalı (Ayarlar → Kasa → API anahtarları, anahtarı düzenle) ya da GitHub uygulamasını Uygulamalar’da ekibin yapmalı; kişiye bunu söyle.',
+    'Anahtar ekibin anahtarı olarak "{key}" adıyla kaydedildi. Bilgisayarındaki git, kişinin kendi anahtarı olmayan her işte GitHub isteklerine bunu ekler; api_request ile {origin} adresine de kullanabilirsin.',
+  'tool.credentialSavedOwnGit':
+    'Anahtar "{key}" adıyla kişinin kendi anahtarı olarak kaydedildi. Bu kişinin kendi konuşmasındaki işte api_request ile {origin} adresine kullanabilirsin; kişinin kendi mesajıyla istediği işte bilgisayarında çalıştırdığın komutların git’i de bunu ekler. Ekip konuşmalarında, rutinlerde, başka bir botun devrettiği işte ve başkalarının işinde git onu kullanmaz.',
   'tool.apiRedirect': 'Yönlendirme: {location} (izlenmedi; anahtar oraya gitmez)',
   'tool.apiCut': '(Yanıt uzun olduğu için kesildi.)',
   'tool.apiRefused.noKey':
@@ -1222,7 +1222,7 @@ const tr = {
   'tool.command_status':
     'run_command ile arka planda başlatılan komutun durumunu ve son çıktısını sor (kimliğiyle). wait_seconds kadar bitmesini bekleyebilir.',
   'tool.run_command':
-    'Kendi bilgisayarının terminalinde bir bash komutu çalıştır (çalışma klasöründe). python3, openpyxl, python-docx, LibreOffice (soffice --headless --convert-to pdf), git ve node (pnpm ile yarn corepack üzerinden) kurulu. Git GitHub’a sunucu üzerinden çıkar: özel bir depo için sunucu isteklere ekibin origin’i https://github.com olan kayıtlı anahtarını, o yoksa sana açık ekibin GitHub uygulamasının oturumunu kendisi ekler; sen değeri görmezsin. Kişinin kendi anahtarını ya da kendi GitHub uygulamasını eklemez: bilgisayar senindir ve seninle konuşan herkesin işinde çalışır. GitHub uygulaması kişinin kendisine aitse kişiden onu Uygulamalar’da ekibin yapmasını iste; hiçbiri yoksa credential_request ile anahtar iste (origin: https://github.com; ör. key: github_git, label: depoya Contents okuma/yazma izni olan fine-grained GitHub tokenı); sunucuyu yöneten biri kartta onu ekibin anahtarı olarak kaydedebilir. Deponun varsayılan dalına push reddedilir: bir dala push et, pull request’i GitHub uygulamasıyla aç. Git kullanıcı adı okuyamadığını söylerse anahtar yoktur ya da o depoya erişimi yoktur. Çıktı ve çıkış kodu döner; uzun işler için timeout_seconds ver. 10 dakikadan uzun sürebilecek işlerde (derleme, kurulum) background: true ver ve command_status ile izle.',
+    'Kendi bilgisayarının terminalinde bir bash komutu çalıştır (çalışma klasöründe). python3, openpyxl, python-docx, LibreOffice (soffice --headless --convert-to pdf), git ve node (pnpm ile yarn corepack üzerinden) kurulu. Git GitHub’a sunucu üzerinden çıkar ve özel bir depo için GitHub kimliğini sunucu isteklere kendisi ekler; sen değeri görmezsin. Bir kişinin kendi konuşmasında kendi mesajıyla istediği işte, o kişinin origin’i https://github.com olan kendi anahtarını ya da sana açık kendi GitHub uygulamasını yalnız o komut için ekler; kişinin kendisininki yoksa ve ekip konuşmalarında, rutinlerde, başka bir botun devrettiği işte ekibinkini ekler. Hiçbiri yoksa credential_request ile anahtar iste (origin: https://github.com; ör. key: github_git, label: depoya Contents okuma/yazma izni olan fine-grained GitHub tokenı); sunucuyu yöneten biri kartta onu ekibin anahtarı olarak kaydedebilir. Deponun varsayılan dalına push reddedilir: bir dala push et, pull request’i GitHub uygulamasıyla aç. Git kullanıcı adı okuyamadığını söylerse anahtar yoktur ya da o depoya erişimi yoktur. Çıktı ve çıkış kodu döner; uzun işler için timeout_seconds ver. 10 dakikadan uzun sürebilecek işlerde (derleme, kurulum) background: true ver ve command_status ile izle.',
   'tool.person_computer_screenshot':
     "Kişinin kendi Mac'inin ana ekranının görüntüsünü al. Bu senin bilgisayarın değil, onun gerçek bilgisayarı: açık uygulamaları, dosyaları ve oturumları onun. Yalnızca istediği iş için kullan. Koordinatlar bu görüntüdeki piksel (soldan, üstten).",
   'tool.person_computer_click':
@@ -2681,13 +2681,13 @@ const en: Catalog<ServerKey> = {
     'The key was saved as "{key}"; you can now send requests to {origin} with api_request.',
   'tool.credentialOwnerQuestion': 'Whose key should this be?',
   'tool.credentialOwnerContext':
-    "Git on the bot's computer uses only the team's GitHub key or the team's GitHub app: the computer is the bot's and works for everyone who talks with it. If it is yours alone, the bot uses it only in your work, with api_request.",
-  'tool.credentialForTeam': "The team's (git uses it too)",
+    "If it is the team's, the bot uses it in everyone's work, git on its computer included, and what it does on GitHub shows as this account. If it is yours alone, it uses it only in work you ask for in your own conversation, git included.",
+  'tool.credentialForTeam': "The team's (in everyone's work)",
   'tool.credentialForMe': 'Mine alone',
   'tool.credentialSavedForGit':
-    'The key was saved as the team\'s key "{key}". Git on your computer now adds it to its GitHub requests; you can also use it for {origin} with api_request.',
-  'tool.credentialSavedNotGit':
-    "The key was saved as \"{key}\", the person's own; you can use it for {origin} with api_request. Git on your computer does not use it: it uses only the team's GitHub key or the team's GitHub app. For git, someone who looks after the server has to make this key the team's (Settings → Vault → API keys, edit the key) or make the GitHub app the team's in Apps; tell the person so.",
+    'The key was saved as the team\'s key "{key}". Git on your computer adds it to its GitHub requests in all work without a key of the person\'s own; you can also use it for {origin} with api_request.',
+  'tool.credentialSavedOwnGit':
+    "The key was saved as \"{key}\", the person's own. In work in this person's own conversation you can use it for {origin} with api_request, and in work they ask for with their own message, git in the commands you run on your computer adds it too. Git does not use it in team conversations, routines, work another bot handed on or anyone else's work.",
   'tool.apiRedirect': 'Redirect: {location} (not followed; the key does not go there)',
   'tool.apiCut': '(The response was cut because it is long.)',
   'tool.apiRefused.noKey':
@@ -3046,7 +3046,7 @@ const en: Catalog<ServerKey> = {
   'tool.command_status':
     'Ask for the state and latest output of a command started in the background with run_command (by its id). It can wait wait_seconds for it to end.',
   'tool.run_command':
-    "Run a bash command in your own computer's terminal (in the work folder). python3, openpyxl, python-docx, LibreOffice (soffice --headless --convert-to pdf), git and node (pnpm and yarn through corepack) are installed. Git reaches GitHub through the server: for a private repository, the server adds the team's saved key whose origin is https://github.com to the requests itself, or, without one, the sign-in of the team's GitHub app open to you; you never see the value. It does not add a person's own key or own GitHub app: the computer is yours and works for everyone who talks with you. If the GitHub app is the person's own, ask them to make it the team's in Apps; if there is neither, ask for a key with credential_request (origin: https://github.com; e.g. key: github_git, label: a fine-grained GitHub token with Contents read/write on the repository); someone who looks after the server can save it as the team's key on the card. A push to the repository's default branch is refused: push a branch and open the pull request with the GitHub app. If git says it cannot read a username, there is no key or it has no access to that repository. Returns the output and the exit code; give timeout_seconds for long jobs. For work that may take longer than 10 minutes (a build, an install), give background: true and follow it with command_status.",
+    "Run a bash command in your own computer's terminal (in the work folder). python3, openpyxl, python-docx, LibreOffice (soffice --headless --convert-to pdf), git and node (pnpm and yarn through corepack) are installed. Git reaches GitHub through the server, which adds a GitHub identity to the requests of a private repository itself; you never see the value. In work a person asked for with their own message in their own conversation it adds, for that command alone, their own key whose origin is https://github.com or their own GitHub app open to you; without one of theirs, and in team conversations, routines and work another bot handed on, it adds the team's. If there is none, ask for a key with credential_request (origin: https://github.com; e.g. key: github_git, label: a fine-grained GitHub token with Contents read/write on the repository); someone who looks after the server can save it as the team's key on the card. A push to the repository's default branch is refused: push a branch and open the pull request with the GitHub app. If git says it cannot read a username, there is no key or it has no access to that repository. Returns the output and the exit code; give timeout_seconds for long jobs. For work that may take longer than 10 minutes (a build, an install), give background: true and follow it with command_status.",
   'tool.person_computer_screenshot':
     "Take a picture of the main screen of the person's own Mac. This is not your computer but their real one: the open apps, files and sign-ins are theirs. Use it only for the work they asked for. Coordinates are pixels in this picture (from the left and the top).",
   'tool.person_computer_click':

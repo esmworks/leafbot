@@ -4,6 +4,8 @@ import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   createGitRelay,
+  GitGrants,
+  RELAY_KEY,
   defaultBranch,
   parsePushCommands,
   parseRelayRequest,
@@ -280,5 +282,34 @@ describe('the relay', () => {
     expect(res.headers.location).toBe(
       `http://127.0.0.1:${r.port}/${KEY}/esm/new.git/info/refs?service=git-upload-pack`,
     );
+  });
+});
+
+describe('tek komutluk anahtarlar', () => {
+  it('komut sürerken ve masaüstü aynıyken çalışır; sonra çalışmaz', () => {
+    const grants = new GitGrants();
+    let alive = new Set(['oturum-a', 'oturum-b']);
+    const isAlive = (s: string) => alive.has(s);
+    const a = grants.give('oturum-a', 'ghp_ayse');
+    const b = grants.give('oturum-b', 'ghp_mert');
+    expect(a).toMatch(RELAY_KEY);
+    expect(a).not.toBe(b);
+    expect(grants.tokenFor(a, isAlive)).toBe('ghp_ayse');
+    expect(grants.tokenFor(b, isAlive)).toBe('ghp_mert');
+    expect(grants.tokenFor('f'.repeat(64), isAlive)).toBeUndefined();
+
+    // The command ended: its address is gone, the other one's stays.
+    grants.end(a);
+    expect(grants.tokenFor(a, isAlive)).toBeUndefined();
+    expect(grants.tokenFor(b, isAlive)).toBe('ghp_mert');
+
+    // The desktop restarted under another session: an address of the old one no longer works.
+    alive = new Set(['oturum-c']);
+    expect(grants.tokenFor(b, isAlive)).toBeUndefined();
+    expect(grants.size).toBe(0);
+
+    const c = grants.give('oturum-c', 'ghp_x');
+    grants.endSession('oturum-c');
+    expect(grants.tokenFor(c, () => true)).toBeUndefined();
   });
 });

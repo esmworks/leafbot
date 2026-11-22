@@ -67,8 +67,13 @@ export function computerTools(opts: {
   computer: ComputerService;
   /** Where commands run: the thread's work folder. */
   cwd: string;
+  /**
+   * The person whose own message started this work in their own conversation, whose own GitHub
+   * key or app the commands' git uses; null otherwise, and git uses the team's.
+   */
+  own?: string | null;
 }): AppTool[] {
-  const { def, bot, t, computer, cwd } = opts;
+  const { def, bot, t, computer, cwd, own } = opts;
   const readOnly = bot.permissionMode === 'readonly';
 
   const guard = async (fn: (c: ComputerClient) => Promise<ToolResult>): Promise<ToolResult> => {
@@ -170,12 +175,19 @@ export function computerTools(opts: {
       },
       async (a) =>
         guard(async (c) => {
+          // Only for this command: the desktop goes on with the team's key for everyone else.
+          const git = own ? await computer.personGit(bot.id, own) : undefined;
           if (a.background) {
-            const job = await c.startJob(bot.id, { command: a.command, cwd });
+            const job = await c.startJob(bot.id, { command: a.command, cwd, ...(git && { git }) });
             computer.keepAwake(bot.id, BACKGROUND_MAX_MS);
             return t('computer.jobStarted', { id: job.id });
           }
-          const r = await c.exec(bot.id, { command: a.command, cwd, timeoutMs: a.timeout_seconds * 1000 });
+          const r = await c.exec(bot.id, {
+            command: a.command,
+            cwd,
+            timeoutMs: a.timeout_seconds * 1000,
+            ...(git && { git }),
+          });
           const notes = [
             r.timedOut ? t('computer.timedOut', { seconds: a.timeout_seconds }) : null,
             r.truncated ? t('computer.truncated') : null,

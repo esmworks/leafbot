@@ -156,11 +156,11 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
           };
         },
         // A bot with the internet off keeps git off GitHub too, though its desktop's browser is online.
-        // The team's GitHub key comes first: it may be narrower than the GitHub app's sign-in.
-        gitToken: async (botId) =>
+        // A GitHub key comes before the GitHub app's sign-in of the same owner: it may be narrower.
+        gitToken: async (botId, owner = null) =>
           (await services.bots.get(botId)).internet
-            ? ((await services.apiCredentials.gitToken(botId)) ??
-              (await services.connections.gitToken(botId)))
+            ? ((await services.apiCredentials.gitToken(botId, owner)) ??
+              (await services.connections.gitToken(botId, owner)))
             : null,
       })
     : null;

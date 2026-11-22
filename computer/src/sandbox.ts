@@ -68,6 +68,16 @@ export function gitEnv(relay: string | undefined): Record<string, string> {
   return env;
 }
 
+/**
+ * The git settings of one command that brings its own GitHub key: the session's, sent to the
+ * command's own relay address. Null for anything that is not such an address.
+ */
+export function commandGitEnv(relay: unknown): Record<string, string> | null {
+  if (typeof relay !== 'string' || !/^http:\/\/127\.0\.0\.1:\d{1,5}\/[a-f0-9]{64}\/$/.test(relay))
+    return null;
+  return gitEnv(relay);
+}
+
 /** The environment of everything in the session. Nothing else from the controller leaks in. */
 export function sessionEnv(o: SandboxOptions): Record<string, string> {
   const { home, workdir, locale } = o.start;

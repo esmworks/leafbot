@@ -826,13 +826,13 @@ export class ConnectionService {
   }
 
   /**
-   * The sign-in of the team's GitHub app open to the bot, for git on its desktop when the team
-   * keeps no GitHub key: a person who connected GitHub need not make a token for git as well. A
-   * person's own connection is left out for the reason a person's own key is (see
-   * `ApiCredentialService.gitToken`). With several, the one changed last. Only the computer
-   * service's relay gets it, and sends it to github.com alone.
+   * The sign-in of a GitHub app open to the bot, for git on its desktop when there is no GitHub key
+   * of the same owner: a person who connected GitHub need not make a token for git as well. With
+   * `owner`, that person's own app, for a command of a step that works for them; without, the
+   * team's (see `ApiCredentialService.gitToken`). With several, the one changed last. Only the
+   * computer service's relay gets it, and sends it to github.com alone.
    */
-  async gitToken(botId: string): Promise<string | null> {
+  async gitToken(botId: string, owner: string | null = null): Promise<string | null> {
     const github = catalogEntry(GITHUB_CATALOG_ID);
     const chosen = this.ctx.db
       .select({ id: schema.botConnections.connectionId })
@@ -845,7 +845,7 @@ export class ConnectionService {
         and(
           eq(schema.connections.status, 'connected'),
           eq(schema.connections.auth, 'oauth'),
-          isNull(schema.connections.userId),
+          owner ? eq(schema.connections.userId, owner) : isNull(schema.connections.userId),
           or(
             eq(schema.connections.catalogId, GITHUB_CATALOG_ID),
             eq(schema.connections.url, github?.url ?? ''),
