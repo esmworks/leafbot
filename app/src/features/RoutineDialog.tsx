@@ -13,7 +13,7 @@ import {
 } from '@leafbot/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Terminal, Webhook as WebhookIcon } from 'lucide-react';
+import { List, Terminal, Webhook as WebhookIcon, Workflow } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch, type UseFormRegisterReturn } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -42,6 +42,7 @@ import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { MissingApps } from './MissingApps';
 import { PromptHistory } from './PromptHistory';
+import { RoutineFlow } from './RoutineFlow';
 import { RoutineRehearsal } from './RoutineRehearsal';
 import { RunSteps, StepsEditor, TemplatePicker, type StepForm } from './RoutineSteps';
 
@@ -238,6 +239,8 @@ export function RoutineDialog({
   const { data: claudeModels = [] } = useClaudeModels(open && claude);
   const form = useForm<Form>({ resolver: zodResolver(Form), values: fromRoutine(routine) });
   const values = useWatch({ control: form.control }) as Form;
+  // The steps as a list or drawn as a flow; both edit the same steps.
+  const [view, setView] = useState<'list' | 'flow'>('list');
   // The Slack field is offered once the server has a Slack app.
   const { data: slack } = useQuery({ queryKey: ['slack-link'], queryFn: api.slackLink });
   // Opening a routine whose latest run failed is seeing it: the bot's mark for it goes out until
@@ -302,6 +305,19 @@ export function RoutineDialog({
   });
   const err = form.formState.errors;
   const type = values.type;
+  const setSteps = (next: StepForm[]) =>
+    form.setValue('steps', next, { shouldDirty: true, shouldValidate: form.formState.isSubmitted });
+  /** What starts the routine, as the flow's first box says it. */
+  const triggers = [
+    describeSchedule(toSchedule({ ...fromRoutine(), ...values }), locale),
+    ...(values.onStartup ? [t('flow.onStartup')] : []),
+    ...(routine?.webhookToken ? [t('flow.webhook')] : []),
+    ...(values.emailTrigger ? [t('flow.email')] : []),
+    ...(values.whatsappGroup || values.whatsappPeople ? [t('flow.whatsapp')] : []),
+    ...(values.tableTrigger ? [t('flow.table')] : []),
+    ...(values.slackReaction?.trim() ? [t('flow.slackReaction')] : []),
+    ...(values.watchUrl?.trim() ? [t('flow.watch')] : []),
+  ];
   const stepErrors = (values.steps ?? []).map((_, i) => {
     const e = err.steps?.[i] as
       { prompt?: { message?: string }; question?: { message?: string } } | undefined;
@@ -311,7 +327,13 @@ export function RoutineDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Title and buttons stay put; only the form between them scrolls. */}
-      <DialogContent className="screen-edges flex max-h-[min(880px,90vh)] flex-col gap-0 overflow-hidden rounded-3xl p-0 sm:max-w-lg phone:h-dvh phone:max-h-none phone:max-w-full phone:rounded-none phone:border-0">
+      <DialogContent
+        className={cn(
+          'screen-edges flex max-h-[min(880px,90vh)] flex-col gap-0 overflow-hidden rounded-3xl p-0 phone:h-dvh phone:max-h-none phone:max-w-full phone:rounded-none phone:border-0',
+          // The flow needs room for its canvas and the panel beside it.
+          view === 'flow' ? 'sm:max-w-4xl' : 'sm:max-w-lg',
+        )}
+      >
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>{routine ? t('routine.edit') : t('routine.new')}</DialogTitle>
         </DialogHeader>
@@ -354,18 +376,54 @@ export function RoutineDialog({
               )}
               {routine && <RoutineRehearsal routine={routine} prompt={values.prompt ?? ''} />}
             </Field>
-            <StepsEditor
-              steps={values.steps ?? []}
-              onChange={(next) =>
-                form.setValue('steps', next, {
-                  shouldDirty: true,
-                  shouldValidate: form.formState.isSubmitted,
-                })
-              }
-              errors={stepErrors}
-              modelListId="routine-model-options"
-              modelPlaceholder={t('routine.stepModelPlaceholder')}
-            />
+            <div className="flex justify-end">
+              <div
+                role="group"
+                aria-label={t('routine.view')}
+                className="inline-flex rounded-xl border p-0.5"
+              >
+                {(['list', 'flow'] as const).map((v) => (
+                  <Button
+                    key={v}
+                    type="button"
+                    size="sm"
+                    variant={view === v ? 'secondary' : 'ghost'}
+                    className="h-7 rounded-lg px-2.5 text-xs"
+                    aria-pressed={view === v}
+                    onClick={() => setView(v)}
+                  >
+                    {v === 'list' ? <List className="size-3.5" /> : <Workflow className="size-3.5" />}
+                    {t(`routine.view.${v}`)}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            {view === 'flow' ? (
+              <RoutineFlow
+                triggers={triggers}
+                prompt={values.prompt ?? ''}
+                onPrompt={(next) =>
+                  form.setValue('prompt', next, {
+                    shouldDirty: true,
+                    shouldValidate: form.formState.isSubmitted,
+                  })
+                }
+                promptError={err.prompt?.message}
+                steps={values.steps ?? []}
+                onSteps={setSteps}
+                errors={stepErrors}
+                modelListId="routine-model-options"
+                modelPlaceholder={t('routine.stepModelPlaceholder')}
+              />
+            ) : (
+              <StepsEditor
+                steps={values.steps ?? []}
+                onChange={setSteps}
+                errors={stepErrors}
+                modelListId="routine-model-options"
+                modelPlaceholder={t('routine.stepModelPlaceholder')}
+              />
+            )}
             <div className="grid grid-cols-2 gap-3">
               <Field label={t('routine.when')}>
                 <Select value={type} onValueChange={(v) => form.setValue('type', v as Form['type'])}>
