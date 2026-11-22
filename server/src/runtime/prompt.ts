@@ -2,6 +2,7 @@ import { cutAt, truncate } from '../util';
 import {
   describeSchedule,
   INTL_LOCALE,
+  LANGUAGE_NAMES,
   type Bot,
   type Locale,
   type Memory,
@@ -235,7 +236,8 @@ export function buildSystemPrompt(opts: {
     t('prompt.ruleFormat'),
     t('prompt.ruleReact'),
     ...(opts.browser ? [t('prompt.ruleBrowser')] : []),
-    t('prompt.ruleLanguage'),
+    // German has no prompt text of its own; the English one names the language to answer in.
+    t('prompt.ruleLanguage', { language: LANGUAGE_NAMES[opts.locale] }),
   );
   return lines.join('\n');
 }

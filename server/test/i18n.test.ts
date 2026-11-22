@@ -15,7 +15,7 @@ describe('dil', () => {
 
   it('dil seçilene kadar boştur; yalnızca desteklenen diller kaydedilir', async () => {
     expect((await t.api<{ language?: string }>('GET', '/api/settings')).body.language).toBeUndefined();
-    expect((await t.api('PATCH', '/api/settings', { language: 'de' })).status).toBe(400);
+    expect((await t.api('PATCH', '/api/settings', { language: 'fr' })).status).toBe(400);
     expect((await english()).status).toBe(200);
     expect((await t.api<{ language?: string }>('GET', '/api/settings')).body.language).toBe('en');
   });
@@ -35,6 +35,8 @@ describe('dil', () => {
     });
     expect((await get({ 'accept-language': 'tr-TR' })).error).toBe('Bot bulunamadı');
     expect((await get({})).error).toBe('Bot bulunamadı');
+    // The server's own text is not in German; a German page reads it in English, not Turkish.
+    expect((await get({ 'accept-language': 'de-DE' })).error).toBe('Bot not found');
     await english();
     expect((await get({})).error).toBe('Bot not found');
     expect((await get({ 'accept-language': 'de-DE' })).error).toBe('Bot not found');
@@ -67,6 +69,20 @@ describe('dil', () => {
     await t.api('POST', `/api/threads/${thread.id}/stop`);
     await t.services.turns.idle();
     expect((await t.messages(thread.id)).at(-1)!.text).toBe('Stopped.');
+  });
+
+  it('Almanca: sunucu metni İngilizce kalır, bot Almanca yanıt vermesi söylenir', async () => {
+    expect((await t.api('PATCH', '/api/settings', { language: 'de' })).status).toBe(200);
+    const bot = await t.bot({ name: 'Katip' });
+    const thread = await main(bot.id);
+    await t.send(thread.id, '[izin:Bash {"command":"npm test"}]');
+    const card = await waitFor(
+      async () => (await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body[0],
+    );
+    expect(card.summary).toBe('Katip wants to run a command on the computer.');
+    const prompt = t.engine.requests.at(-1)!.systemPrompt;
+    expect(prompt).toContain('You are an assistant bot named "Katip".');
+    expect(prompt).toContain('Reply in German unless the user writes in another language.');
   });
 
   it('İngilizce sunucu: botlar arası iş satırları ve araç sonuçları İngilizce', async () => {

@@ -146,7 +146,8 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
           return {
             // The desktop's browser needs the internet; each command still asks per the bot's rules.
             internet: true,
-            locale: await serverLocale(ctx),
+            // The desktop image holds Turkish and English; other languages see it in English.
+            locale: (await serverLocale(ctx)) === 'tr' ? 'tr' : 'en',
             home,
             workdir: files,
             // A read-only bot's folders are read-only on its desktop too (its home stays writable

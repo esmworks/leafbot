@@ -1,4 +1,4 @@
-import type { TodayReport } from '@leafbot/shared';
+import { INTL_LOCALE, type TodayReport } from '@leafbot/shared';
 import Feather from '@expo/vector-icons/Feather';
 import { useEffect, type ReactNode } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -18,7 +18,7 @@ import { useBots, useSummaries, useToday } from '@/lib/queries';
 import { useColors } from '@/lib/theme';
 
 const fmt = formatters(locale, t);
-const usd = new Intl.NumberFormat(locale === 'tr' ? 'tr-TR' : 'en-US', {
+const usd = new Intl.NumberFormat(INTL_LOCALE[locale], {
   style: 'currency',
   currency: 'USD',
 });

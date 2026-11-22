@@ -7,6 +7,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- German. Pick "Deutsch" on the sign-in page or under Settings › General; the phone app follows the phone's language.
+  The web app downloads the German text only when it is picked. Bots are told to answer in German; what the server
+  itself writes (approval sentences, error messages, system lines in chats) stays in English. A text added after the
+  translation shows in English until it is translated.
 - A bot can use your own Mac: look at the screen, click, type and press shortcuts, for work in apps that only run
   there. Turn on "Can use my Mac" in the bot's settings; only the server's owner sees it, and only in the desktop app
   on macOS, where the server runs on that Mac. The first look or touch in each piece of work asks on a card, whatever

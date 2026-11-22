@@ -17,10 +17,12 @@ const PACKAGES = ['app/src', 'server/src', 'shared/src', 'desktop/src', 'compute
 const ALLOWED = new Map<string, string>([
   ['app/src/i18n/tr.ts', 'Turkish catalog'],
   ['app/src/i18n/en.ts', 'English catalog'],
+  ['app/src/i18n/de.ts', 'German catalog'],
   ['server/src/i18n.ts', 'server catalogs'],
   ['desktop/src/i18n.ts', 'desktop catalogs'],
   ['mobile/src/i18n/tr.ts', 'Turkish catalog of the phone app'],
   ['mobile/src/i18n/en.ts', 'English catalog of the phone app'],
+  ['mobile/src/i18n/de.ts', 'German catalog of the phone app'],
   ['mobile/src/i18n/parts/sidebar.ts', 'part of the phone app catalogs'],
   ['mobile/src/i18n/parts/chat.ts', 'part of the phone app catalogs'],
   ['mobile/src/i18n/parts/message.ts', 'part of the phone app catalogs'],

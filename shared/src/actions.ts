@@ -484,6 +484,8 @@ export function describeAction(
     service?: string;
   },
 ): ActionText {
+  // Action sentences are written in Turkish and English; other languages read the English ones.
+  const lang: Locale = (opts.locale ?? DEFAULT_LOCALE) === 'tr' ? 'tr' : 'en';
   const name = toolName.startsWith('mcp__leafbot__') ? toolName.slice('mcp__leafbot__'.length) : toolName;
   // Only a known connection's tool is named by its service; any other stays a plain "tool".
   const remote = opts.service ? connectionToolParts(toolName) : null;
@@ -497,9 +499,9 @@ export function describeAction(
         ? `${shown.slice(0, 599)}…`
         : shown
       : null
-    : detailFor(name, input, opts.locale ?? DEFAULT_LOCALE);
+    : detailFor(name, input, lang);
   const { bot } = opts;
-  if ((opts.locale ?? DEFAULT_LOCALE) === 'en') {
+  if (lang === 'en') {
     const [want, same, general = same] = phrase.en;
     return {
       want: `${bot} wants to ${want}.`,

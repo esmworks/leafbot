@@ -14,7 +14,8 @@ Leaf Bot lets you build a small team of AI bots, each with its own instructions,
 permissions. Bots run on a server you control — on your own computer through the desktop app, or on a Linux host in
 Docker — and you chat with them from the desktop app or a browser.
 
-The interface is available in English and Turkish.
+The interface is available in English, Turkish and German. Messages the server writes, such as error messages and
+approval sentences, are in English or Turkish.
 
 <p align="center">
   <img src="docs/screenshots/chat.png" alt="Chatting with a research bot that compares standing desks in a table" width="900">

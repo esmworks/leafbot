@@ -8,6 +8,7 @@ import {
   type RoutineSuggestion,
   type RoutineSuggestionAccept,
   type Schedule,
+  LANGUAGE_NAMES,
 } from '@leafbot/shared';
 import { and, asc, eq, gte, isNull } from 'drizzle-orm';
 import type { Ctx } from '../context';
@@ -53,7 +54,7 @@ const HOUR_SPREAD_MIN = 90;
 /** Vectors are asked for this many texts at a time. */
 const EMBED_BATCH = 32;
 
-const LANGUAGE: Record<Locale, string> = { tr: 'Turkish', en: 'English' };
+const LANGUAGE = LANGUAGE_NAMES;
 
 /** Keeps the data from closing or opening a tag of its own inside the request. */
 const data = (s: string) => s.replace(/</g, '\\u003c');

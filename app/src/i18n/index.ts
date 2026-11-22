@@ -3,6 +3,7 @@ import {
   INTL_LOCALE,
   isLocale,
   pickLocale,
+  type Catalog,
   type Locale,
   type Translate,
 } from '@leafbot/shared';
@@ -15,7 +16,15 @@ export type { MessageKey };
 export type T = Translate<MessageKey>;
 
 const KEY = 'leafbot.locale';
-const CATALOGS = { tr, en };
+type Messages = Partial<Catalog<MessageKey>>;
+
+/** Turkish and English are whole and always here; what another language lacks shows in English. */
+const CATALOGS: Partial<Record<Locale, Messages>> = { tr, en };
+
+/** Other languages load only when picked, so those who never use them do not download them. */
+const LOADERS: Partial<Record<Locale, () => Promise<Messages>>> = {
+  de: () => import('./de').then((m) => m.de),
+};
 
 /** Saved choice in this browser, else the browser's languages, else the default. */
 function initial(): Locale {
@@ -54,15 +63,30 @@ const state = (locale: Locale) => ({
   t: createTranslator(CATALOGS, locale),
 });
 
-export const useLocale = create<LocaleState>((set) => {
+export const useLocale = create<LocaleState>((set, get) => {
+  /** Shows English until the language's own text arrives, then switches to it if it is still the choice. */
+  const load = (locale: Locale) => {
+    const loader = LOADERS[locale];
+    if (!loader || CATALOGS[locale]) return;
+    void loader()
+      .then((messages) => {
+        CATALOGS[locale] = messages;
+        if (get().locale === locale) set(state(locale));
+      })
+      .catch(() => {
+        // Offline or a stale build: the English text stays.
+      });
+  };
   const locale = initial();
   apply(locale);
+  load(locale);
   return {
     ...state(locale),
     unsaved: false,
     setLocale: (next, opts) => {
       apply(next);
       set({ ...state(next), unsaved: !!opts?.unsaved });
+      load(next);
     },
   };
 });
