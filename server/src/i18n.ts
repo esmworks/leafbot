@@ -285,6 +285,8 @@ const tr = {
   'error.routineCheckTool':
     'Rutinin denetimi, bu bota açık bir uygulamanın açık ve yalnız okuyan bir aracı olmalı',
   'error.routineLimit': 'Bir botun en çok {max} rutini olabilir',
+  'error.routineNoWebhook':
+    'Önce rutinin webhook adresini oluşturun; anahtar o adrese gelen çağrılar içindir',
   'error.rehearsalNotYours':
     'Bir rutini yalnızca onu kuran kişi prova edebilir. Botu değiştirebilen başka biri yalnızca kendi yazdığı talimatı prova edebilir.',
   'error.rehearsalRunning': 'Bu rutinin bir provası zaten sürüyor',
@@ -2108,6 +2110,8 @@ const en: Catalog<ServerKey> = {
   'error.routineCheckTool':
     "A routine's check must be a tool that only reads, switched on, of an app open to this bot",
   'error.routineLimit': 'A bot can have at most {max} routines',
+  'error.routineNoWebhook':
+    "Make the routine's webhook address first; the secret is for calls to that address",
   'error.rehearsalNotYours':
     'Only the person who set a routine up can rehearse it. Anyone else who may change the bot can only rehearse instructions they typed themselves.',
   'error.rehearsalRunning': 'A rehearsal of this routine is already going',

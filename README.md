@@ -57,7 +57,8 @@ The interface is available in English and Turkish.
   merged and, of two that disagree, the newer one or the one the person wrote stays; a note taken from a page is read
   against the page again and corrected when it changed. A kind of many-step task asked for again and again is offered
   on Today as a skill, written from the steps that worked and what the person corrected. Routines run on a schedule
-  (including cron and day/hour windows), when the server starts, from a filtered webhook, when a row of a bot's table
+  (including cron and day/hour windows), when the server starts, from a filtered webhook or an app's event (GitHub,
+  GitLab, Stripe, Shopify, Linear, Sentry, Calendly, Typeform, each with its signature checked), when a row of a bot's table
   is ready, or only when a watched page or a connected app's answer changes; they can build on their last report and
   run in the main conversation.
 - **Follow-ups** — each bot keeps its own calendar apart from the routines: whatever it learns is coming up (a visit

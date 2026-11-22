@@ -1497,6 +1497,62 @@ export const en: Catalog<MessageKey> = {
   'routine.githubSecretCopied': 'Secret copied',
   'routine.githubStep4':
     'Pick the events. GitHub’s first test call does not run the routine. Narrow it with the filter: event=pull_request, action=opened.',
+  'routine.appEvent': 'Start on an app event',
+  'routine.appEventApp': 'App',
+  'routine.appEventAny': 'Any call',
+  'routine.appEventOwn': 'Own filter',
+  'routine.appEventEvent': 'Event',
+  'routine.appEventHint':
+    'Fills in the filter below for that event. The steps tell you what to set in the app.',
+  'routine.appSecret': 'Signing secret from {app}',
+  'routine.appSecretAny': "The app's signing secret",
+  'routine.appSecretPlaceholder': 'Paste it here',
+  'routine.appSecretSet': 'Secret saved. Only calls signed with it start the routine.',
+  'routine.appSecretUnset':
+    'Until the secret is pasted in, anyone who knows the address can start the routine.',
+  'routine.appSecretSaved': 'Secret saved',
+  'routine.appSecretRemoved': 'Secret removed',
+  'routine.appSetup.gitlab':
+    'In the project open Settings → Webhooks → Add new webhook, paste the address above as URL, paste the routine’s secret as Secret token, and tick the events you want.',
+  'routine.appSetup.stripe':
+    'In Stripe open Developers → Webhooks → Add endpoint, paste the address above and pick the event. Then copy the endpoint’s signing secret (whsec_…) and paste it below.',
+  'routine.appSetup.shopify':
+    'In Shopify admin open Settings → Notifications → Webhooks → Create webhook, pick the event, choose JSON and paste the address above. Then paste the signing key shown under the webhook list below.',
+  'routine.appSetup.linear':
+    'In Linear open Settings → API → Webhooks → New webhook, paste the address above and tick Issues or Comments. Then paste the webhook’s signing secret below.',
+  'routine.appSetup.sentry':
+    'In Sentry open Settings → Developer Settings → Custom Integrations → Create New Integration (internal), paste the address above as Webhook URL and turn on Issue or Alert Rule Action. Then paste its Client Secret below.',
+  'routine.appSetup.calendly':
+    'Calendly makes webhooks through its API on a paid plan: create a webhook subscription with the address above as url and the routine’s secret as signing_key.',
+  'routine.appSetup.typeform':
+    'In the form open Connect → Webhooks → Add a webhook and paste the address above. Under Edit, set the routine’s secret as Secret.',
+  'appEvent.github.issueOpened': 'Issue opened',
+  'appEvent.github.issueComment': 'Comment on an issue or pull request',
+  'appEvent.github.prOpened': 'Pull request opened',
+  'appEvent.github.prMerged': 'Pull request merged',
+  'appEvent.github.push': 'Code pushed',
+  'appEvent.github.release': 'Release published',
+  'appEvent.github.workflowFailed': 'Workflow failed',
+  'appEvent.gitlab.issueOpened': 'Issue opened',
+  'appEvent.gitlab.mrOpened': 'Merge request opened',
+  'appEvent.gitlab.mrMerged': 'Merge request merged',
+  'appEvent.gitlab.push': 'Code pushed',
+  'appEvent.gitlab.pipelineFailed': 'Pipeline failed',
+  'appEvent.stripe.paymentSucceeded': 'Payment succeeded',
+  'appEvent.stripe.paymentFailed': 'Payment failed',
+  'appEvent.stripe.checkoutCompleted': 'Checkout completed',
+  'appEvent.stripe.subscriptionCanceled': 'Subscription canceled',
+  'appEvent.stripe.invoiceFailed': 'Invoice payment failed',
+  'appEvent.shopify.orderCreated': 'Order placed',
+  'appEvent.shopify.orderPaid': 'Order paid',
+  'appEvent.shopify.customerCreated': 'New customer',
+  'appEvent.linear.issueCreated': 'Issue created',
+  'appEvent.linear.commentCreated': 'Comment added',
+  'appEvent.sentry.issueCreated': 'New issue',
+  'appEvent.sentry.alertTriggered': 'Alert triggered',
+  'appEvent.calendly.inviteeCreated': 'Meeting booked',
+  'appEvent.calendly.inviteeCanceled': 'Meeting canceled',
+  'appEvent.typeform.formResponse': 'Form answered',
   'routine.webhookCopied': 'Webhook address copied',
   'routine.steps': 'Steps',
   'routine.stepsHint':

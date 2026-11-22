@@ -557,6 +557,11 @@ export const routines = pgTable('routines', {
   createdAt: created(),
   /** Secret of the routine's webhook address; null when it has none. */
   webhookToken: text('webhook_token'),
+  /**
+   * The signing secret an app made for its calls (Stripe, Shopify, Linear, Sentry), pasted in by
+   * the person; with it, a call must carry that app's valid signature. Never sent back to the app.
+   */
+  webhookSecret: text('webhook_secret'),
   /** A run that came due while the server was off: run it once when back, or skip it. */
   missed: text('missed', { enum: ['run', 'skip'] })
     .notNull()

@@ -286,6 +286,7 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'POST /api/routines/:id/run': edit('routine'),
   'POST /api/routines/:id/webhook': edit('routine'),
   'DELETE /api/routines/:id/webhook': edit('routine'),
+  'PUT /api/routines/:id/webhook-secret': edit('routine'),
   'GET /api/routines/:id/runs': edit('routine'),
   'POST /api/routines/:id/runs/:runId/retry': edit('routine'),
   'POST /api/routines/:id/runs/:runId/end-wait': edit('routine'),

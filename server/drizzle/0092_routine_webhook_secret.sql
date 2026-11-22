@@ -1,0 +1,1 @@
+ALTER TABLE "routines" ADD COLUMN "webhook_secret" text;

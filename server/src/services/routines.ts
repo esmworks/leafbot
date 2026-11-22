@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Bot, BotEmail, BotTable, OutsideTrigger, RoutineUpdate, TableRow } from '@leafbot/shared';
 import {
   APPROVAL_TIMED_OUT,
@@ -49,6 +49,7 @@ import { schema } from '../db';
 import type { Engine, GateRequest, GateVerdict, TurnOutcome } from '../engine/types';
 import type { TurnRow } from '../runtime/turns';
 import { cutAt, errorText, HttpError, isUniqueViolation, newId, notFound, truncate } from '../util';
+import { checkSignature, signatureAllows } from './webhook-signatures';
 import { toRoutine, toRun } from './mappers';
 import { botStepAt, handedOn, snapshotSteps, stepList, varsWanted } from './routine-steps';
 import { fetchPublicText } from './skill-link';
@@ -821,9 +822,36 @@ export class RoutineService {
   async setWebhook(id: string, on: boolean): Promise<Routine> {
     await this.get(id);
     const token = on ? randomBytes(24).toString('base64url') : null;
-    await this.ctx.db.update(schema.routines).set({ webhookToken: token }).where(eq(schema.routines.id, id));
+    // A new address keeps the app's own secret, which the app did not change; no address, no secret.
+    await this.ctx.db
+      .update(schema.routines)
+      .set({ webhookToken: token, ...(!on && { webhookSecret: null }) })
+      .where(eq(schema.routines.id, id));
     this.ctx.bus.refresh({ scope: 'routines' });
     return this.get(id);
+  }
+
+  /** Keeps the signing secret an app made for its calls, or removes it (`null`). */
+  async setWebhookSecret(id: string, secret: string | null): Promise<Routine> {
+    const routine = await this.get(id);
+    if (secret && !routine.webhookToken) throw new HttpError(400, 'error.routineNoWebhook');
+    // Sealed with the vault key and bound to the routine, so a copy of the database does not reveal it.
+    const sealed = secret ? this.services.vault.seal(secret, webhookSecretBinding(id)) : null;
+    await this.ctx.db
+      .update(schema.routines)
+      .set({ webhookSecret: sealed })
+      .where(eq(schema.routines.id, id));
+    this.ctx.bus.refresh({ scope: 'routines' });
+    return this.get(id);
+  }
+
+  /** The app's secret as saved; null when it cannot be opened (the vault key changed), so calls are refused. */
+  private openWebhookSecret(id: string, sealed: string): string | null {
+    try {
+      return this.services.vault.open(sealed, webhookSecretBinding(id));
+    } catch {
+      return null;
+    }
   }
 
   /**
@@ -847,14 +875,15 @@ export class RoutineService {
     /** The sender's id for this delivery, when it gives one; a delivery sent again runs once. */
     deliveryId?: string,
     /**
-     * What a code host says about the call: the kind of event (`push`, `pull_request`), and its
-     * signature of the raw body (GitHub's `X-Hub-Signature-256`, keyed with the routine's secret).
+     * What the sending app says about the call: the kind of event (`push`, `orders/create`), and
+     * the call's headers and raw body, for its signature (see `checkSignature`).
      */
-    via: { event?: string; signature?: string; raw?: Buffer } = {},
+    via: { event?: string; header?: (name: string) => string | undefined; raw?: Buffer } = {},
   ): Promise<RoutineRun | null | false | 'filtered' | 'duplicate' | 'busy' | 'ping' | 'signature'> {
     const [row] = await this.ctx.db
       .select({
         token: schema.routines.webhookToken,
+        secret: schema.routines.webhookSecret,
         enabled: schema.routines.enabled,
         filter: schema.routines.webhookFilter,
         post: schema.routines.webhookPost,
@@ -864,12 +893,13 @@ export class RoutineService {
       .where(eq(schema.routines.id, id))
       .limit(1);
     if (!row?.token || !row.enabled || !sameSecret(row.token, token)) return false;
-    // A signed call must be signed with the routine's secret, so a changed body is turned away.
-    if (
-      via.signature !== undefined &&
-      !validSignature(via.signature, row.token, via.raw ?? Buffer.from(payload ?? ''))
-    )
-      return 'signature';
+    // A signed call must be signed with the right secret, so a changed body is turned away; once the
+    // app's own secret was pasted in, an unsigned call is turned away too.
+    const signed = checkSignature(via.header ?? (() => undefined), via.raw ?? Buffer.from(payload ?? ''), {
+      token: row.token,
+      secret: row.secret ? this.openWebhookSecret(id, row.secret) : null,
+    });
+    if (!signatureAllows(signed, !!row.secret)) return 'signature';
     // GitHub's first call only checks that the address answers.
     if (via.event === 'ping') return 'ping';
     // A run waiting for this call takes it first, whatever the routine's own filter starts runs on:
@@ -3125,14 +3155,8 @@ const MAX_READS = 4;
  */
 const resumeFrom = sql`coalesce(${schema.routines.resumeAt}, ${schema.routines.nextRunAt})`;
 
-/** Whether `signature` (`sha256=<hex>`) is the HMAC of `raw` with `secret`. */
-export function validSignature(signature: string, secret: string, raw: Buffer): boolean {
-  const m = /^sha256=([0-9a-f]{64})$/i.exec(signature.trim());
-  if (!m) return false;
-  const want = createHmac('sha256', secret).update(raw).digest();
-  const got = Buffer.from(m[1]!, 'hex');
-  return got.length === want.length && timingSafeEqual(got, want);
-}
+/** What an app's webhook secret is bound to when sealed: its routine. */
+const webhookSecretBinding = (id: string) => ['routine_webhook_secret', id] as const;
 
 /** A JSON body with the event's kind added as `event`, for the filter; other bodies as they are. */
 function withEvent(body: string, event?: string): string {
