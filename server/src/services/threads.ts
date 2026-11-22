@@ -842,13 +842,18 @@ export class ThreadService {
     const threads = await this.ctx.db
       .select()
       .from(schema.threads)
-      .where(and(inArray(schema.threads.kind, ['user', 'routine', 'bot', 'api', 'team']), scope?.seen))
+      // A ticket's conversation counts only for whether the bot is at work: its text is read on the
+      // board, not in the sidebar.
+      .where(
+        and(inArray(schema.threads.kind, ['user', 'routine', 'bot', 'api', 'team', 'ticket']), scope?.seen),
+      )
       .orderBy(desc(schema.threads.updatedAt));
     const ids = threads.map((t) => t.id);
+    const shown = threads.filter((t) => t.kind !== 'ticket').map((t) => t.id);
     const [states, previews, replies] = await Promise.all([
       this.states(ids),
-      this.previews(ids),
-      this.lastReplies(ids),
+      this.previews(shown),
+      this.lastReplies(shown),
     ]);
     const pending = await this.ctx.db
       .select({

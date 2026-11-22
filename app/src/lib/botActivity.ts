@@ -1,10 +1,10 @@
 import type { BotSummary, TurnState } from '@leafbot/shared';
-import { activityOf, type BotActivity } from './activity';
+import { activityOf, botState, type BotActivity } from './activity';
 import { useBrowsers } from './browser';
 import { useSummaries } from './queries';
 import { useUi } from './store';
 
-export { activityOf, type ActivityInput, type BotActivity } from './activity';
+export { activityOf, botState, type ActivityInput, type BotActivity } from './activity';
 
 /** The activity of a bot in one thread, from the live events; `fallback` is the state last fetched. */
 export function useThreadActivity(
@@ -21,7 +21,16 @@ export function useThreadActivity(
 
 /** The activity of a bot from its sidebar summary and the live events. */
 export function useBotActivity(botId: string, summary?: BotSummary): BotActivity {
-  return useThreadActivity(botId, summary?.threadId, summary?.state, summary?.pendingApprovals);
+  const threadId = summary?.threadId;
+  const live = useUi((s) => (threadId ? s.states[threadId] : undefined));
+  const streaming = useUi((s) => !!threadId && !!s.writing[threadId]);
+  const browsing = useBrowsers((s) => s.states[botId]?.status === 'bot');
+  return activityOf({
+    state: botState(live, summary?.state),
+    pendingApprovals: summary?.pendingApprovals ?? 0,
+    streaming,
+    browsing,
+  });
 }
 
 /** Same as useBotActivity, for places that have only the bot. */

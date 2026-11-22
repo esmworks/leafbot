@@ -1,9 +1,9 @@
-import type { Thread, Ticket } from '@leafbot/shared';
+import type { BotSummary, Thread, Ticket } from '@leafbot/shared';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mcpServers } from '../src/engine/claude';
-import { testServer, type TestServer } from './helpers';
+import { testServer, waitFor, type TestServer } from './helpers';
 
 describe('görev panosu', () => {
   let t: TestServer;
@@ -81,6 +81,25 @@ describe('görev panosu', () => {
     await t.api('PATCH', `/api/tickets/${feedback.id}`, { status: 'in_progress' });
     await t.services.turns.idle();
     expect((await ticket(feedback.id)).status).toBe('in_review');
+  });
+
+  it('görev üstünde çalışan bot kenar çubuğunda çalışıyor görünür; görevin yazısı önizlemeye girmez', async () => {
+    const bot = await t.bot({ name: 'İnceleyici' });
+    const summary = async () =>
+      (await t.api<BotSummary[]>('GET', '/api/summaries')).body.find((x) => x.botId === bot.id)!;
+    const made = await t.api<Ticket>('POST', '/api/tickets', {
+      title: 'PR incele',
+      description: '[bekle:300] İnceleme bitti.',
+      assigneeBotId: bot.id,
+    });
+    expect(made.status).toBe(200);
+    // The work runs in the ticket's conversation, not the one the bot opens to.
+    await waitFor(async () => (await summary()).state === 'running');
+    await t.services.turns.idle();
+    const after = await summary();
+    expect(after.state).toBe('idle');
+    expect(after.preview).toBeNull();
+    expect(after.repliedAt).toBeNull();
   });
 
   it('görevler sütunda verilen sırada durur; başka sütuna geçen görev en üste gelir', async () => {
