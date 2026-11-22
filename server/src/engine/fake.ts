@@ -27,6 +27,7 @@ import {
  *                        `file_path` and `content`, or `Edit` with `file_path`, `old_string`, `new_string`)
  *   [bekle:ms]           wait (stops early on interrupt)
  *   [uzun-araç:ms]       a shell command that runs this long (stops early on interrupt)
+ *   [söz:words]          write these words (no spaces) at once, as the text of a step between tools
  *   [hata]               fail with an engine error
  *   [meşgul-sonra]       after the directives before it, fail as an overloaded server
  *   [kesik]              after the directives before it, cut the reply off on the turn's first run
@@ -239,7 +240,7 @@ export class FakeEngine implements Engine {
     const spent = cost ? Number(cost[1]) : 0;
     const parts: string[] = [];
     const directive =
-      /\[(izin|araç|dosya|uzun-araç|bekle|hata|özet|meşgul-sonra|sınır-sonra|kesik|kesik-hep|çöktü|çöktü-hep)(?::([^\s\]]+))?(?:\s+(\{.*?\}))?\](?=\s|$)/g;
+      /\[(izin|araç|dosya|uzun-araç|söz|bekle|hata|özet|meşgul-sonra|sınır-sonra|kesik|kesik-hep|çöktü|çöktü-hep)(?::([^\s\]]+))?(?:\s+(\{.*?\}))?\](?=\s|$)/g;
     for (const m of req.prompt.matchAll(directive)) {
       const [, kind, name, json] = m;
       if (req.signal.aborted) break;
@@ -317,6 +318,10 @@ export class FakeEngine implements Engine {
       }
       if (kind === 'özet') {
         req.onCompacted?.();
+        continue;
+      }
+      if (kind === 'söz') {
+        req.onText(name ?? '');
         continue;
       }
       const input = json ? (JSON.parse(json) as Record<string, unknown>) : {};
