@@ -306,7 +306,7 @@ export function StepFields({
  * The buttons of a run's approval step, under it in the routine's list: the same card the run's
  * conversation shows, answered from here.
  */
-function ApprovalAnswer({ approvalId, routineId }: { approvalId: string; routineId: string }) {
+export function ApprovalAnswer({ approvalId, routineId }: { approvalId: string; routineId: string }) {
   const t = useT();
   const qc = useQueryClient();
   const card = useApprovals().data?.find((a) => a.id === approvalId);
@@ -465,7 +465,7 @@ function WaitFields({
 }
 
 /** Ends a run's wait now; the run goes on as if its time had come. */
-function EndWait({ run }: { run: RoutineRun }) {
+export function EndWait({ run }: { run: RoutineRun }) {
   const t = useT();
   const qc = useQueryClient();
   const end = useMutation({

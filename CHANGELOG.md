@@ -7,6 +7,13 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A routine's steps can be shown as a flow: boxes on a canvas for what starts it, its instruction and each step,
+  joined by lines in the order they run. Each box is edited where it is, the first one with the schedule and the time
+  of the next run. Boxes are placed by dragging their title or with the arrow keys, and the places are saved with the
+  routine; the order changes from a box's menu or with Alt and an arrow key, and a step is added on a line. While a
+  run goes, each box shows how its part of the latest run went and what it ended with, and an approval waiting there
+  can be answered from the box. "Try" on a box rehearses its instruction without doing anything; a step is tried on
+  its own, without what the step before it ended with. Steps still run one after another: a flow has no branches.
 - A bot can listen to a call it joins in its browser and write it out. Ask it to join a Jitsi, Google Meet or
   Microsoft Teams link: it opens the page, joins with its usual browser steps under a name that says it takes notes,
   and listens once you agree on a card, which comes every time and has no "always allow", since the other people's

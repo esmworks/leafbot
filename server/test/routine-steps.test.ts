@@ -43,6 +43,8 @@ describe('a routine with steps', () => {
       ['agent', 'done'],
       ['agent', 'done'],
     ]);
+    // Each step of the run says which step it was, so the flow view shows it on that step's box.
+    expect(run!.steps?.map((s) => s.stepId)).toEqual([undefined, 'a', 'b']);
     const asked = t.engine.requests.filter((q) => q.prompt.includes('Akış'));
     expect(asked).toHaveLength(3);
     // The second step reads what the first one ended with; the last runs on its own model.
@@ -129,6 +131,21 @@ describe('a routine with steps', () => {
     const asked = t.engine.requests.map((q) => q.prompt).join('\n');
     expect(asked).toContain('eski adım');
     expect(asked).not.toContain('yeni adım');
+  });
+
+  it('keeps where the flow view placed its boxes, without a new line in its history', async () => {
+    const bot = await t.bot();
+    const r = await make(bot.id, 'ilk iş', [{ id: 'a', kind: 'agent', prompt: 'ikinci iş' }]);
+    expect(r.flowLayout).toBeNull();
+    const layout = { start: { x: 24, y: 24 }, prompt: { x: 360, y: 24 }, a: { x: 24, y: 320 } };
+    const saved = await t.api<Routine>('PATCH', `/api/routines/${r.id}`, { flowLayout: layout });
+    expect(saved.status).toBe(200);
+    expect(saved.body.flowLayout).toEqual(layout);
+    expect((await t.services.routines.get(r.id)).flowLayout).toEqual(layout);
+    expect(await t.services.routines.revisions(r.id)).toHaveLength(1);
+    // A place off the canvas is turned down.
+    const wrong = await t.api('PATCH', `/api/routines/${r.id}`, { flowLayout: { a: { x: -5, y: 0 } } });
+    expect(wrong.status).toBe(400);
   });
 
   it('leaves a routine without steps as it was', async () => {

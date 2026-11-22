@@ -18,11 +18,30 @@ const NONE = 'none';
  * for a routine something else starts, with what started one of its last runs. The result lists
  * what the bot would have done and what it really did (only reading).
  */
-export function RoutineRehearsal({ routine, prompt }: { routine: Routine; prompt: string }) {
+export function RoutineRehearsal({
+  routine,
+  prompt,
+  open: given,
+  onOpenChange,
+  note,
+}: {
+  routine: Routine;
+  prompt: string;
+  /** Opened from outside (the flow's boxes), instead of by its own button only. */
+  open?: boolean;
+  onOpenChange?(open: boolean): void;
+  /** A line on what is tried, when it is not the routine's own instruction. */
+  note?: string;
+}) {
   const t = useT();
   const f = useFormat();
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
+  const [own, setOwn] = useState(false);
+  const open = given ?? own;
+  const setOpen = (v: boolean) => {
+    setOwn(v);
+    onOpenChange?.(v);
+  };
   const [chosen, setChosen] = useState<string | null>(null);
   const [replay, setReplay] = useState<string | null>(null);
   const { data: rehearsals = [] } = useQuery({
@@ -77,8 +96,9 @@ export function RoutineRehearsal({ routine, prompt }: { routine: Routine; prompt
       {open && (
         <div className="space-y-3 rounded-2xl border p-3">
           <p className="text-sm text-muted-foreground">{t('rehearsal.hint')}</p>
+          {/* A step's own instruction is neither the saved one nor a draft of it: the note says what it is. */}
           <p className="text-xs text-muted-foreground">
-            {draft ? t('rehearsal.draftNote') : t('rehearsal.savedNote')}
+            {note ?? (draft ? t('rehearsal.draftNote') : t('rehearsal.savedNote'))}
           </p>
           {offersReplay && (
             <div className="space-y-1.5">

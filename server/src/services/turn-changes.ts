@@ -597,6 +597,7 @@ export const ROUTINE_KEYS = [
   'whatsappPeople',
   'tableTrigger',
   'tableFilter',
+  'flowLayout',
 ];
 export const routineShape = (r: object) => pick(r as Json, ROUTINE_KEYS);
 export const skillShape = (k: { description: string; body: string }) => ({

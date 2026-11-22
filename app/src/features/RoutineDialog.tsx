@@ -4,10 +4,12 @@ import {
   appEventOf,
   appMakesSecret,
   describeSchedule,
+  nextRun,
   parseCron,
   ROUTINE_APPROVAL_MAX_DAYS,
   ROUTINE_WAIT_MAX_MINUTES,
   SHORT_DAY_NAMES,
+  type FlowLayout,
   type Routine,
   type Schedule,
 } from '@leafbot/shared';
@@ -15,7 +17,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { List, Terminal, Webhook as WebhookIcon, Workflow } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { useForm, useWatch, type UseFormRegisterReturn } from 'react-hook-form';
+import { useForm, useWatch, type UseFormRegisterReturn, type UseFormReturn } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -39,6 +41,7 @@ import {
   useSummaries,
 } from '@/lib/queries';
 import { useUi } from '@/lib/store';
+import { keepLayout } from '@/lib/routineFlow';
 import { cn } from '@/lib/utils';
 import { MissingApps } from './MissingApps';
 import { PromptHistory } from './PromptHistory';
@@ -144,6 +147,9 @@ const Form = z.object({
 });
 type Form = z.infer<typeof Form>;
 
+/** A run still under way, whose boxes change as it goes. */
+const GOING = new Set(['running', 'waiting', 'queued']);
+
 function toSchedule(f: Form): Schedule {
   switch (f.type) {
     case 'hourly':
@@ -231,7 +237,7 @@ export function RoutineDialog({
   showRuns?: boolean;
 }) {
   const t = useT();
-  const locale = useLocale((s) => s.locale);
+  const { dayLabel } = useFormat();
   const qc = useQueryClient();
   const { data: settings } = useSettings();
   const { data: bots = [] } = useBots();
@@ -241,6 +247,23 @@ export function RoutineDialog({
   const values = useWatch({ control: form.control }) as Form;
   // The steps as a list or drawn as a flow; both edit the same steps.
   const [view, setView] = useState<'list' | 'flow'>('list');
+  // Where the flow's boxes sit; saved with the routine.
+  // Opened again, or on another routine, it starts from the saved places.
+  const [layout, setLayout] = useState<FlowLayout | null>(routine?.flowLayout ?? null);
+  const layoutFor = `${open}:${routine?.id ?? ''}`;
+  const [layoutOf, setLayoutOf] = useState(layoutFor);
+  if (layoutOf !== layoutFor) {
+    setLayoutOf(layoutFor);
+    setLayout(routine?.flowLayout ?? null);
+  }
+  // What a box's "Try" hands the rehearsal: its own instruction, and whether it is a step's.
+  const [tried, setTried] = useState<{ prompt: string; step: boolean } | null>(null);
+  const [trying, setTrying] = useState(false);
+  // The rehearsal sits under the canvas: a box's "Try" brings it into sight.
+  const rehearsal = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (trying) rehearsal.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [trying, tried]);
   // The Slack field is offered once the server has a Slack app.
   const { data: slack } = useQuery({ queryKey: ['slack-link'], queryFn: api.slackLink });
   // Opening a routine whose latest run failed is seeing it: the bot's mark for it goes out until
@@ -251,6 +274,22 @@ export function RoutineDialog({
   useEffect(() => {
     if (open && failed && routineId) void api.routineFailureSeen(routineId).catch(() => undefined);
   }, [open, failed, routineId]);
+  // The latest run, shown on the flow's boxes; asked again while it goes.
+  const { data: runs = [] } = useQuery({
+    queryKey: ['routine-runs', routineId],
+    queryFn: () => api.routineRuns(routineId!),
+    enabled: !!routineId && open && view === 'flow',
+    refetchInterval: (q) => (q.state.data?.[0] && GOING.has(q.state.data[0].status) ? 2000 : false),
+  });
+  const latestRun = runs[0] ?? null;
+  const runNow = useMutation({
+    mutationFn: () => api.runRoutine(routine!.id),
+    onSuccess: () => {
+      toast.success(t('flow.started'));
+      void qc.invalidateQueries({ queryKey: ['routine-runs', routine!.id] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
   const save = useMutation({
     mutationFn: (f: Form) => {
       const body = {
@@ -282,6 +321,7 @@ export function RoutineDialog({
         tableTrigger: f.tableTrigger || null,
         tableFilter: f.tableFilter.trim(),
         model: f.model.trim(),
+        flowLayout: layout && keepLayout(layout, ['start', 'prompt', ...f.steps.map((x) => x.id)]),
       };
       return routine
         ? api.updateRoutine(routine.id, body)
@@ -307,9 +347,8 @@ export function RoutineDialog({
   const type = values.type;
   const setSteps = (next: StepForm[]) =>
     form.setValue('steps', next, { shouldDirty: true, shouldValidate: form.formState.isSubmitted });
-  /** What starts the routine, as the flow's first box says it. */
+  /** What else starts the routine, besides its schedule, as the flow's first box says it. */
   const triggers = [
-    describeSchedule(toSchedule({ ...fromRoutine(), ...values }), locale),
     ...(values.onStartup ? [t('flow.onStartup')] : []),
     ...(routine?.webhookToken ? [t('flow.webhook')] : []),
     ...(values.emailTrigger ? [t('flow.email')] : []),
@@ -318,6 +357,22 @@ export function RoutineDialog({
     ...(values.slackReaction?.trim() ? [t('flow.slackReaction')] : []),
     ...(values.watchUrl?.trim() ? [t('flow.watch')] : []),
   ];
+  /** When it runs next: worked out from the schedule as it is in the form. */
+  const when = (() => {
+    if (routine && !routine.enabled) return t('flow.paused');
+    let next: Date | null = null;
+    try {
+      next = nextRun(
+        toSchedule({ ...fromRoutine(), ...values }),
+        routine?.timezone ?? settings?.timezone ?? 'Europe/Istanbul',
+        new Date(),
+        routine?.lastRunAt ? new Date(routine.lastRunAt) : null,
+      );
+    } catch {
+      next = null;
+    }
+    return next ? t('flow.nextRun', { when: dayLabel(next.toISOString()) }) : t('flow.noNextRun');
+  })();
   const stepErrors = (values.steps ?? []).map((_, i) => {
     const e = err.steps?.[i] as
       { prompt?: { message?: string }; question?: { message?: string } } | undefined;
@@ -331,7 +386,7 @@ export function RoutineDialog({
         className={cn(
           'screen-edges flex max-h-[min(880px,90vh)] flex-col gap-0 overflow-hidden rounded-3xl p-0 phone:h-dvh phone:max-h-none phone:max-w-full phone:rounded-none phone:border-0',
           // The flow needs room for its canvas and the panel beside it.
-          view === 'flow' ? 'sm:max-w-4xl' : 'sm:max-w-lg',
+          view === 'flow' ? 'sm:max-w-6xl' : 'sm:max-w-lg',
         )}
       >
         <DialogHeader className="px-6 pt-6 pb-4">
@@ -357,25 +412,6 @@ export function RoutineDialog({
                 className="rounded-xl"
               />
             </Field>
-            <Field label={t('routine.prompt')} error={err.prompt?.message}>
-              <Textarea
-                {...form.register('prompt')}
-                rows={4}
-                placeholder={t('routine.promptPlaceholder')}
-                className="scroll-thin max-h-72 overflow-y-auto rounded-xl"
-              />
-              <MissingApps text={values.prompt ?? ''} botId={botId} />
-              {routine && (
-                <PromptHistory
-                  routineId={routine.id}
-                  current={values.prompt ?? ''}
-                  onRestore={(prompt) =>
-                    form.setValue('prompt', prompt, { shouldDirty: true, shouldValidate: true })
-                  }
-                />
-              )}
-              {routine && <RoutineRehearsal routine={routine} prompt={values.prompt ?? ''} />}
-            </Field>
             <div className="flex justify-end">
               <div
                 role="group"
@@ -398,156 +434,95 @@ export function RoutineDialog({
                 ))}
               </div>
             </div>
-            {view === 'flow' ? (
-              <RoutineFlow
-                triggers={triggers}
-                prompt={values.prompt ?? ''}
-                onPrompt={(next) =>
-                  form.setValue('prompt', next, {
-                    shouldDirty: true,
-                    shouldValidate: form.formState.isSubmitted,
-                  })
-                }
-                promptError={err.prompt?.message}
-                steps={values.steps ?? []}
-                onSteps={setSteps}
-                errors={stepErrors}
-                modelListId="routine-model-options"
-                modelPlaceholder={t('routine.stepModelPlaceholder')}
-              />
-            ) : (
-              <StepsEditor
-                steps={values.steps ?? []}
-                onChange={setSteps}
-                errors={stepErrors}
-                modelListId="routine-model-options"
-                modelPlaceholder={t('routine.stepModelPlaceholder')}
-              />
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <Field label={t('routine.when')}>
-                <Select value={type} onValueChange={(v) => form.setValue('type', v as Form['type'])}>
-                  <SelectTrigger className="w-full rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(
-                      [
-                        'daily',
-                        'weekdays',
-                        'weekly',
-                        'monthly',
-                        'hourly',
-                        'interval',
-                        'cron',
-                        'once',
-                      ] as const
-                    ).map((v) => (
-                      <SelectItem key={v} value={v}>
-                        {t(`routine.type.${v}`)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-              {type === 'once' && (
-                <Field label={t('routine.date')} error={err.date?.message}>
-                  <Input type="date" {...form.register('date')} className="rounded-xl" />
-                </Field>
-              )}
-              {(type === 'daily' ||
-                type === 'weekdays' ||
-                type === 'weekly' ||
-                type === 'monthly' ||
-                type === 'once') && (
-                <Field label={t('routine.time')} error={err.time?.message}>
-                  <Input type="time" {...form.register('time')} className="rounded-xl" />
-                </Field>
-              )}
-              {type === 'hourly' && (
-                <Field label={t('routine.minute')}>
-                  <Input
-                    type="number"
-                    min={0}
-                    max={59}
-                    {...form.register('minute', { valueAsNumber: true })}
-                    className="rounded-xl"
+            {view === 'list' ? (
+              <>
+                <Field label={t('routine.prompt')} error={err.prompt?.message}>
+                  <Textarea
+                    {...form.register('prompt')}
+                    rows={4}
+                    placeholder={t('routine.promptPlaceholder')}
+                    className="scroll-thin max-h-72 overflow-y-auto rounded-xl"
                   />
-                </Field>
-              )}
-              {type === 'interval' && (
-                <Field label={t('routine.everyMinutes')} error={err.minutes?.message}>
-                  <Input
-                    type="number"
-                    min={5}
-                    {...form.register('minutes', { valueAsNumber: true })}
-                    className="rounded-xl"
-                  />
-                </Field>
-              )}
-            </div>
-            {type === 'cron' && (
-              <Field label={t('routine.cronExpr')} error={err.expr?.message}>
-                <Input {...form.register('expr')} className="rounded-xl font-mono" spellCheck={false} />
-                <p className="mt-1 text-xs text-muted-foreground">{t('routine.cronHint')}</p>
-              </Field>
-            )}
-            {type === 'interval' && (
-              <label className="flex items-center gap-3 rounded-2xl bg-secondary/60 px-3 py-2">
-                <span className="min-w-0 flex-1 text-sm">{t('routine.limited')}</span>
-                <Switch checked={values.limited} onCheckedChange={(v) => form.setValue('limited', v)} />
-              </label>
-            )}
-            {type === 'interval' && values.limited && (
-              <div className="grid grid-cols-2 gap-3">
-                <Field label={t('routine.from')} error={err.from?.message}>
-                  <Input type="time" {...form.register('from')} className="rounded-xl" />
-                </Field>
-                <Field label={t('routine.to')} error={err.to?.message}>
-                  <Input type="time" {...form.register('to')} className="rounded-xl" />
-                </Field>
-              </div>
-            )}
-            {(type === 'weekly' || (type === 'interval' && values.limited)) && (
-              <div className="flex gap-1.5">
-                {SHORT_DAY_NAMES[locale].map((d, i) => {
-                  const on = values.days?.includes(i);
-                  return (
-                    <button
-                      type="button"
-                      key={d}
-                      onClick={() =>
-                        form.setValue(
-                          'days',
-                          on ? values.days.filter((x) => x !== i) : [...(values.days ?? []), i],
-                        )
+                  <MissingApps text={values.prompt ?? ''} botId={botId} />
+                  {routine && (
+                    <PromptHistory
+                      routineId={routine.id}
+                      current={values.prompt ?? ''}
+                      onRestore={(prompt) =>
+                        form.setValue('prompt', prompt, { shouldDirty: true, shouldValidate: true })
                       }
-                      className={cn(
-                        'h-9 flex-1 rounded-full text-sm transition-colors',
-                        on ? 'bg-primary text-primary-foreground' : 'bg-secondary hover:bg-accent',
-                      )}
-                    >
-                      {d}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-            {type === 'monthly' && (
-              <Field label={t('routine.dayOfMonth')}>
-                <Input
-                  type="number"
-                  min={1}
-                  max={31}
-                  {...form.register('day', { valueAsNumber: true })}
-                  className="rounded-xl"
+                    />
+                  )}
+                  {routine && <RoutineRehearsal routine={routine} prompt={values.prompt ?? ''} />}
+                </Field>
+                <StepsEditor
+                  steps={values.steps ?? []}
+                  onChange={setSteps}
+                  errors={stepErrors}
+                  modelListId="routine-model-options"
+                  modelPlaceholder={t('routine.stepModelPlaceholder')}
                 />
-              </Field>
+                <ScheduleFields form={form} values={values} />
+              </>
+            ) : (
+              <>
+                <RoutineFlow
+                  triggers={triggers}
+                  schedule={<ScheduleFields form={form} values={values} />}
+                  when={when}
+                  run={latestRun}
+                  onRunNow={routine ? () => runNow.mutate() : undefined}
+                  runBlocked={form.formState.isDirty ? t('flow.saveFirst') : undefined}
+                  onTry={
+                    routine
+                      ? (text, step) => {
+                          setTried({ prompt: text, step });
+                          setTrying(true);
+                        }
+                      : undefined
+                  }
+                  prompt={values.prompt ?? ''}
+                  onPrompt={(next) =>
+                    form.setValue('prompt', next, {
+                      shouldDirty: true,
+                      shouldValidate: form.formState.isSubmitted,
+                    })
+                  }
+                  promptError={err.prompt?.message}
+                  steps={values.steps ?? []}
+                  onSteps={setSteps}
+                  errors={stepErrors}
+                  modelListId="routine-model-options"
+                  modelPlaceholder={t('routine.stepModelPlaceholder')}
+                  layout={layout}
+                  onLayout={setLayout}
+                />
+                <MissingApps text={values.prompt ?? ''} botId={botId} />
+                {routine && (
+                  <PromptHistory
+                    routineId={routine.id}
+                    current={values.prompt ?? ''}
+                    onRestore={(prompt) =>
+                      form.setValue('prompt', prompt, { shouldDirty: true, shouldValidate: true })
+                    }
+                  />
+                )}
+                {routine && (
+                  <div ref={rehearsal}>
+                    <RoutineRehearsal
+                      routine={routine}
+                      prompt={tried?.prompt ?? values.prompt ?? ''}
+                      open={trying}
+                      onOpenChange={(v) => {
+                        setTrying(v);
+                        if (!v) setTried(null);
+                      }}
+                      note={tried?.step ? t('flow.tryStep') : undefined}
+                    />
+                  </div>
+                )}
+              </>
             )}
-            <p className="text-sm text-muted-foreground">
-              {describeSchedule(toSchedule({ ...fromRoutine(), ...values }), locale)} ·{' '}
-              {settings?.timezone ?? 'Europe/Istanbul'}
-            </p>
             {type !== 'interval' && (
               <Field label={t('routine.missed')}>
                 <Select
@@ -731,7 +706,7 @@ export function RoutineDialog({
               <RecentRuns
                 routineId={routine.id}
                 botId={botId}
-                reveal={showRuns}
+                reveal={showRuns && view === 'list'}
                 onOpen={() => onOpenChange(false)}
               />
             )}
@@ -762,6 +737,131 @@ export function RoutineDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** When the routine runs: the kind of schedule and its times and days, with what that comes to. */
+function ScheduleFields({ form, values }: { form: UseFormReturn<Form>; values: Form }) {
+  const t = useT();
+  const locale = useLocale((s) => s.locale);
+  const { data: settings } = useSettings();
+  const err = form.formState.errors;
+  const type = values.type;
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={t('routine.when')}>
+          <Select value={type} onValueChange={(v) => form.setValue('type', v as Form['type'])}>
+            <SelectTrigger className="w-full rounded-xl">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {(
+                ['daily', 'weekdays', 'weekly', 'monthly', 'hourly', 'interval', 'cron', 'once'] as const
+              ).map((v) => (
+                <SelectItem key={v} value={v}>
+                  {t(`routine.type.${v}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        {type === 'once' && (
+          <Field label={t('routine.date')} error={err.date?.message}>
+            <Input type="date" {...form.register('date')} className="rounded-xl" />
+          </Field>
+        )}
+        {(type === 'daily' ||
+          type === 'weekdays' ||
+          type === 'weekly' ||
+          type === 'monthly' ||
+          type === 'once') && (
+          <Field label={t('routine.time')} error={err.time?.message}>
+            <Input type="time" {...form.register('time')} className="rounded-xl" />
+          </Field>
+        )}
+        {type === 'hourly' && (
+          <Field label={t('routine.minute')}>
+            <Input
+              type="number"
+              min={0}
+              max={59}
+              {...form.register('minute', { valueAsNumber: true })}
+              className="rounded-xl"
+            />
+          </Field>
+        )}
+        {type === 'interval' && (
+          <Field label={t('routine.everyMinutes')} error={err.minutes?.message}>
+            <Input
+              type="number"
+              min={5}
+              {...form.register('minutes', { valueAsNumber: true })}
+              className="rounded-xl"
+            />
+          </Field>
+        )}
+      </div>
+      {type === 'cron' && (
+        <Field label={t('routine.cronExpr')} error={err.expr?.message}>
+          <Input {...form.register('expr')} className="rounded-xl font-mono" spellCheck={false} />
+          <p className="mt-1 text-xs text-muted-foreground">{t('routine.cronHint')}</p>
+        </Field>
+      )}
+      {type === 'interval' && (
+        <label className="flex items-center gap-3 rounded-2xl bg-secondary/60 px-3 py-2">
+          <span className="min-w-0 flex-1 text-sm">{t('routine.limited')}</span>
+          <Switch checked={values.limited} onCheckedChange={(v) => form.setValue('limited', v)} />
+        </label>
+      )}
+      {type === 'interval' && values.limited && (
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={t('routine.from')} error={err.from?.message}>
+            <Input type="time" {...form.register('from')} className="rounded-xl" />
+          </Field>
+          <Field label={t('routine.to')} error={err.to?.message}>
+            <Input type="time" {...form.register('to')} className="rounded-xl" />
+          </Field>
+        </div>
+      )}
+      {(type === 'weekly' || (type === 'interval' && values.limited)) && (
+        <div className="flex gap-1.5">
+          {SHORT_DAY_NAMES[locale].map((d, i) => {
+            const on = values.days?.includes(i);
+            return (
+              <button
+                type="button"
+                key={d}
+                onClick={() =>
+                  form.setValue('days', on ? values.days.filter((x) => x !== i) : [...(values.days ?? []), i])
+                }
+                className={cn(
+                  'h-9 flex-1 rounded-full text-sm transition-colors',
+                  on ? 'bg-primary text-primary-foreground' : 'bg-secondary hover:bg-accent',
+                )}
+              >
+                {d}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {type === 'monthly' && (
+        <Field label={t('routine.dayOfMonth')}>
+          <Input
+            type="number"
+            min={1}
+            max={31}
+            {...form.register('day', { valueAsNumber: true })}
+            className="rounded-xl"
+          />
+        </Field>
+      )}
+      <p className="text-sm text-muted-foreground">
+        {describeSchedule(toSchedule({ ...fromRoutine(), ...values }), locale)} ·{' '}
+        {settings?.timezone ?? 'Europe/Istanbul'}
+      </p>
+    </>
   );
 }
 

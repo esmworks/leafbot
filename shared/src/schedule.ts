@@ -145,6 +145,17 @@ export const RoutineStep = z.discriminatedUnion('kind', [
 export type RoutineStep = z.infer<typeof RoutineStep>;
 export type RoutineStepKind = RoutineStep['kind'];
 
+/**
+ * Where each box of a routine's flow view sits on its canvas, in pixels from the top left: steps by
+ * their id, and `start` and `prompt` for what starts the routine and its own instruction. Only the
+ * view reads it; a box missing from it is placed beside the one before.
+ */
+export const FlowLayout = z.record(
+  z.string().min(1).max(64),
+  z.object({ x: z.number().int().min(0).max(20_000), y: z.number().int().min(0).max(20_000) }),
+);
+export type FlowLayout = z.infer<typeof FlowLayout>;
+
 export const Routine = z.object({
   /** The person whose work it runs as; null for the bot's owner. Missing on older servers. */
   createdByUserId: z.string().nullable().optional(),
@@ -211,6 +222,8 @@ export const Routine = z.object({
   webhookToken: z.string().nullable(),
   /** Whether an app's own signing secret was pasted in for its calls. Missing on older servers. */
   webhookSecretSet: z.boolean().optional(),
+  /** Where its flow view's boxes were placed; null until someone moves one. Missing on older servers. */
+  flowLayout: FlowLayout.nullable().optional(),
 });
 export type Routine = z.infer<typeof Routine>;
 
@@ -307,6 +320,8 @@ export const RoutineCreate = z.object({
   tableTrigger: z.string().min(1).max(64).nullable().default(null),
   /** `column=value`, `column!=value`, `column~=text` or `column` lines; a new row must meet all of them. */
   tableFilter: z.string().max(2000).default(''),
+  /** Where its flow view's boxes sit; null places them in order. */
+  flowLayout: FlowLayout.nullable().default(null),
 });
 export type RoutineCreate = z.infer<typeof RoutineCreate>;
 export const RoutineUpdate = patchOf(RoutineCreate.omit({ botId: true }));
@@ -366,6 +381,11 @@ export const RoutineStepRun = z.object({
   position: z.number().int().min(0),
   /** `prompt` for the routine's own instruction, otherwise the step's kind. */
   kind: z.string(),
+  /**
+   * The id of the step, as the run had it; missing for the instruction and on older servers. A
+   * step taken out and another put in its place since has another id, so it is not shown this run.
+   */
+  stepId: z.string().optional(),
   status: RoutineStepRunStatus,
   /** What the step ended with, cut short: the bot's answer, or the person's. */
   output: z.string().nullable(),

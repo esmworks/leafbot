@@ -812,6 +812,7 @@ export class ToolFactory {
               whatsappPeople: false,
               tableTrigger: watched?.id ?? null,
               tableFilter: a.table_filter ?? '',
+              flowLayout: null,
             },
             person,
           );

@@ -78,10 +78,12 @@ export function stepList(steps: readonly RoutineStep[], rows: readonly StepRow[]
   const at = new Map(rows.map((r) => [r.position, r]));
   return Array.from({ length: steps.length + 1 }, (_, position) => {
     const row = at.get(position);
+    const id = position > 0 ? steps[position - 1]?.id : undefined;
     if (!row) {
       return {
         position,
         kind: kindAt(steps, position),
+        ...(id && { stepId: id }),
         status: 'pending' as const,
         output: null,
         reason: null,
@@ -93,6 +95,7 @@ export function stepList(steps: readonly RoutineStep[], rows: readonly StepRow[]
     return {
       position,
       kind: row.kind,
+      ...(id && { stepId: id }),
       status: row.status,
       output: output && output.length > SHOWN_OUTPUT ? `${output.slice(0, SHOWN_OUTPUT)}…` : output,
       reason: row.reason,
