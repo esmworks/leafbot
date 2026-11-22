@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import {
   MAX_CONNECTIONS,
+  botToolArgs,
   catalogEntry,
   connectionSlug,
   headerNameAllowed,
@@ -1262,17 +1263,20 @@ export class ConnectionService {
         if (!current || current.status !== 'connected') {
           return t('connection.unavailable', { name: row.name });
         }
+        // A call the service would hand to a form in its view goes out as already sent from it.
+        const sent = tool.local ? args : botToolArgs(current, tool.name, args);
         try {
           const result = tool.local
             ? await runGmailTool(this.target(current), tool.name, args, signal)
             : await callTool(
                 this.target(current),
                 tool.name,
-                args,
+                sent,
                 signal,
                 elicit && ((form) => elicit(form, row.name)),
               );
-          if (tool.ui && current.showApps && showApp && !result.isError) {
+          // That view is the form itself: shown after the call, sending it would make the change twice.
+          if (tool.ui && current.showApps && showApp && !result.isError && sent === args) {
             // The tool's own view joins the conversation; the bot's answer does not wait on it.
             void this.appResource(current, tool.ui)
               .then((page) =>
