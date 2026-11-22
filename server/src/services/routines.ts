@@ -2441,7 +2441,9 @@ export class RoutineService {
       .orderBy(desc(schema.messages.createdAt))
       .limit(QUIET_LOOKBACK);
     const own = recent.filter((m) => m.props.routineRunId === runId);
-    if (!own.length) return;
+    // One that carries what started the run, a mail or a page, is what a later session reads it
+    // from: it stays.
+    if (!own.length || own.some((m) => m.props.payload || m.props.outside)) return;
     const [left] = await this.ctx.db
       .select({ id: schema.messages.id })
       .from(schema.messages)
