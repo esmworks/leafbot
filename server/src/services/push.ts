@@ -12,7 +12,7 @@ import {
   type PushDeviceSet,
   type TurnEvent,
 } from '@leafbot/shared';
-import { eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 import { hashSession } from '../auth';
 import type { Ctx } from '../context';
 import { schema } from '../db';
@@ -139,12 +139,9 @@ export class PushService {
   async watchActivity(
     threadId: string,
     input: LiveActivitySet,
-    state: TurnEvent['state'],
+    stateOf: () => Promise<TurnEvent['state']>,
   ): Promise<{ pushing: boolean; over?: boolean }> {
     if (!(await this.credentials())) return { pushing: false };
-    // A short reply can be over before the phone has Apple's token: it ends the card itself.
-    const phase = phaseOf(state);
-    if (!phase) return { pushing: true, over: true };
     const [row] = await this.ctx.db
       .select({ name: schema.bots.name })
       .from(schema.threads)
@@ -154,23 +151,41 @@ export class PushService {
     const t = translator(input.locale);
     const token = input.token.toLowerCase();
     const now = Date.now();
-    const kept = (this.activities.get(threadId) ?? []).filter(
-      (a) => a.token !== token && now - a.startedAt < ACTIVITY_LIFE_MS,
-    );
-    kept.push({
+    // Activities past Apple's limit are gone on the phones too, in every conversation.
+    for (const [id, list] of this.activities) {
+      const live = list.filter((a) => now - a.startedAt < ACTIVITY_LIFE_MS);
+      if (live.length) this.activities.set(id, live);
+      else this.activities.delete(id);
+    }
+    // The phone's own start, unless it is in the future or older than an activity can be.
+    const since =
+      input.since && input.since <= now && now - input.since < ACTIVITY_LIFE_MS ? input.since : null;
+    const list = this.activities.get(threadId) ?? [];
+    // Apple may give a running activity a new token; the phone sends it with the same start, and
+    // it takes the old token's place instead of being a second activity.
+    const before = list.find((a) => a.token === token || (since !== null && a.startedAt === since));
+    const entry: Activity = {
       token,
-      sandbox: null,
+      // A new token comes from the same build, so from the same one of Apple's services.
+      sandbox: before?.sandbox ?? null,
       locale: input.locale,
       bot: row?.name ?? t('push.bot'),
-      // The phone's own start, unless it is in the future or older than an activity can be.
-      startedAt:
-        input.since && input.since <= now && now - input.since < ACTIVITY_LIFE_MS ? input.since : now,
-      phase: 'working',
-      failed: false,
-    });
-    this.activities.set(threadId, kept.slice(-ACTIVITIES_PER_THREAD));
+      startedAt: since ?? before?.startedAt ?? now,
+      phase: before?.phase ?? 'working',
+      failed: before?.failed ?? false,
+    };
+    this.activities.set(threadId, [...list.filter((a) => a !== before), entry].slice(-ACTIVITIES_PER_THREAD));
+    // The work is read only once the activity is kept: a turn that ends from now on finds it and
+    // ends it, and one that ended before is seen here.
+    const state = await stateOf();
+    const phase = phaseOf(state);
+    if (!phase) {
+      // A short reply can be over before the phone has Apple's token: it ends the card itself.
+      this.dropActivity(threadId, token);
+      return { pushing: true, over: true };
+    }
     // Already waiting for the person: the card says so at once.
-    if (phase !== 'working') await this.activityTurn({ threadId, botId: '', state });
+    if (phase !== entry.phase) await this.activityTurn({ threadId, botId: '', state });
     return { pushing: true };
   }
 
@@ -180,21 +195,42 @@ export class PushService {
     for (const a of this.activities.get(e.threadId) ?? []) a.failed = true;
   }
 
+  /** How the conversation's last turn ended: a stop or a failure shows as such, not as done. */
+  private async lastEnd(threadId: string): Promise<'done' | 'failed' | 'stopped'> {
+    const [last] = await this.ctx.db
+      .select({ status: schema.turns.status })
+      .from(schema.turns)
+      .where(
+        and(
+          eq(schema.turns.threadId, threadId),
+          isNotNull(schema.turns.finishedAt),
+          // The server's own upkeep after the work is not the work.
+          ne(schema.turns.source, 'upkeep'),
+        ),
+      )
+      .orderBy(desc(schema.turns.finishedAt))
+      .limit(1)
+      .catch(() => []);
+    if (last?.status === 'error') return 'failed';
+    if (last?.status === 'interrupted') return 'stopped';
+    return 'done';
+  }
+
   /** Moves a conversation's activities along with its work, and ends them when it is over. */
   async activityTurn(e: TurnEvent): Promise<void> {
     const list = this.activities.get(e.threadId);
     if (!list?.length) return;
     const phase = phaseOf(e.state);
+    if (!phase) this.activities.delete(e.threadId);
+    const end = phase ? null : await this.lastEnd(e.threadId);
     const now = Date.now();
     const seconds = Math.floor(now / 1000);
-    if (!phase) this.activities.delete(e.threadId);
     await Promise.all(
       list.map(async (a) => {
         if (now - a.startedAt >= ACTIVITY_LIFE_MS) return this.dropActivity(e.threadId, a.token);
         // The same phase again (a second tool, a second card) changes nothing on the lock screen.
         if (phase && phase === a.phase) return;
-        const ended: LiveActivityPhase = a.failed ? 'failed' : 'done';
-        const shown = phase ?? ended;
+        const shown: LiveActivityPhase = phase ?? (a.failed ? 'failed' : (end ?? 'done'));
         a.phase = shown;
         const t = translator(a.locale);
         const props: LiveActivityProps = {
@@ -209,7 +245,7 @@ export class PushService {
           contentState: { name: LIVE_ACTIVITY_NAME, props: JSON.stringify(props) },
           ...(phase
             ? { staleDate: seconds + ACTIVITY_STALE_S }
-            : { dismissalDate: seconds + (a.failed ? ACTIVITY_FAILED_S : ACTIVITY_DONE_S) }),
+            : { dismissalDate: seconds + (shown === 'failed' ? ACTIVITY_FAILED_S : ACTIVITY_DONE_S) }),
         };
         const result = await this.sendActivity(a, update);
         if (result === 'gone') this.dropActivity(e.threadId, a.token);

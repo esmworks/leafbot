@@ -191,6 +191,20 @@ describe('görüşme dinleme', () => {
     expect(t.engine.requests.at(-1)!.prompt).toContain('uzun süre kimse konuşmadı');
   });
 
+  it('konuşma servisi kayıtları yazıya dökemese de görüşme sessiz sayılmaz', async () => {
+    const bot = await t.bot({ permissionMode: 'auto' });
+    const thread = await main(bot.id);
+    await t.services.calls.start({ bot, threadId: thread.id, userId: OWNER_ID });
+    t.services.transcribe.transcribe = async () => {
+      throw new Error('down');
+    };
+    t.now.value = new Date(t.now.value.getTime() + CALL_QUIET_MS - 60_000);
+    hear!(Buffer.from('Duyulmayan söz.'));
+    expect((await t.services.calls.status(bot.id, thread.id))!.missed).toBe(1);
+    await t.services.calls.check(t.now.value.getTime() + 2 * 60_000);
+    expect(t.services.calls.listening(bot.id)).toBe(true);
+  });
+
   it('konuşma servisi yoksa dinlemez; yalnız kişinin kendi işinde sunulur', async () => {
     t.services.transcribe.available = async () => false;
     const bot = await t.bot({ permissionMode: 'auto' });

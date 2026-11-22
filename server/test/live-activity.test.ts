@@ -1,7 +1,9 @@
 import { generateKeyPairSync } from 'node:crypto';
 import type { Thread } from '@leafbot/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { schema } from '../src/db';
 import type { ApnsRequest, ApnsResponse } from '../src/services/apns';
+import { newId } from '../src/util';
 import { testServer, type TestServer } from './helpers';
 
 const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
@@ -35,9 +37,9 @@ describe('kilit ekranındaki iş', () => {
     });
   /** As the route does while the bot is at work. */
   const watch = (
-    body: { locale?: 'tr' | 'en'; since?: number } = {},
+    body: { token?: string; locale?: 'tr' | 'en'; since?: number } = {},
     state: 'running' | 'waiting' = 'running',
-  ) => t.services.push.watchActivity(thread.id, { token: TOKEN, locale: 'tr', ...body }, state);
+  ) => t.services.push.watchActivity(thread.id, { token: TOKEN, locale: 'tr', ...body }, async () => state);
   const turn = (state: 'running' | 'waiting' | 'idle' | 'queued') =>
     t.services.push.activityTurn({ threadId: thread.id, botId: thread.botId, state });
   const aps = (req: ApnsRequest) => (JSON.parse(req.body) as { aps: Record<string, unknown> }).aps;
@@ -98,6 +100,49 @@ describe('kilit ekranındaki iş', () => {
     t.services.push.activityNotice({ kind: 'error', botId: thread.botId, threadId: thread.id, text: 'x' });
     await turn('idle');
     expect(props(sent[0]!)).toMatchObject({ bot: 'Yazıcı', state: 'Ran into a problem', phase: 'failed' });
+  });
+
+  it('iş kart kaydedilirken biterse kart yine kapanır', async () => {
+    await t.api('PUT', '/api/push/apns', APNS);
+    // The turn ends while the server reads the work's state: the activity is already kept, so the
+    // end reaches it instead of it being left showing work that never moves.
+    const r = await t.services.push.watchActivity(thread.id, { token: TOKEN, locale: 'tr' }, async () => {
+      await turn('idle');
+      return 'idle';
+    });
+    expect(r).toEqual({ pushing: true, over: true });
+    expect(sent).toHaveLength(1);
+    expect(aps(sent[0]!)).toMatchObject({ event: 'end' });
+    await turn('waiting');
+    expect(sent).toHaveLength(1);
+  });
+
+  it('Apple jetonu yenilerse yenisi eskisinin yerine geçer', async () => {
+    await t.api('PUT', '/api/push/apns', APNS);
+    const since = Date.now() - 60_000;
+    await watch({ since });
+    const fresh = 'ef'.repeat(40);
+    await watch({ since, token: fresh });
+    await turn('waiting');
+    expect(sent.map((r) => r.token)).toEqual([fresh]);
+    expect(props(sent[0]!).since).toBe(since);
+  });
+
+  it('kişinin durdurduğu iş "durduruldu" diye biter', async () => {
+    await t.api('PUT', '/api/push/apns', APNS);
+    await watch();
+    await t.db.db.insert(schema.turns).values({
+      id: newId(),
+      threadId: thread.id,
+      botId: thread.botId,
+      source: 'user',
+      status: 'interrupted',
+      prompt: 'dur',
+      startedAt: new Date(),
+      finishedAt: new Date(),
+    });
+    await turn('idle');
+    expect(props(sent[0]!)).toMatchObject({ state: 'Durduruldu', phase: 'stopped' });
   });
 
   it('telefonda kapanmış kartı bırakır, test servisinin jetonunu öğrenir', async () => {
