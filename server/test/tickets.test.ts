@@ -89,7 +89,7 @@ describe('görev panosu', () => {
       (await t.api<BotSummary[]>('GET', '/api/summaries')).body.find((x) => x.botId === bot.id)!;
     const made = await t.api<Ticket>('POST', '/api/tickets', {
       title: 'PR incele',
-      description: '[bekle:300] İnceleme bitti.',
+      description: '[bekle:3000] İnceleme bitti.',
       assigneeBotId: bot.id,
     });
     expect(made.status).toBe(200);

@@ -32,9 +32,11 @@ describe('botun durumu', () => {
     // A ticket's or another bot's request runs outside the conversation the bot opens to.
     expect(botState('idle', 'running')).toBe('running');
     expect(botState(undefined, 'queued')).toBe('queued');
+    // A message queued in the main chat does not hide work going on elsewhere.
+    expect(botState('queued', 'running')).toBe('running');
   });
 
-  it('ana sohbetin canlı durumu çekilenin önüne geçer', () => {
+  it('ikisinden güçlü olanı seçer', () => {
     expect(botState('running', 'idle')).toBe('running');
     expect(botState('waiting', 'running')).toBe('waiting');
     expect(botState(undefined, undefined)).toBe('idle');

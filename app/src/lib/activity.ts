@@ -23,11 +23,17 @@ export function activityOf({ state, pendingApprovals, streaming, browsing }: Act
   return streaming ? 'writing' : 'thinking';
 }
 
+/** How much a state says about a bot at work; the stronger of two wins. */
+const WEIGHT: Record<TurnState, number> = { idle: 0, queued: 1, running: 2, waiting: 3 };
+
 /**
- * A bot's state for its avatar: the live state of the conversation it opens to, or, while that one
- * is idle, what was last fetched for all its conversations. A bot at work on a ticket or on another
- * bot's request is busy though the conversation it opens to has just gone idle.
+ * A bot's state for its avatar and its dot: the stronger of the live state of the conversation it
+ * opens to and what was last fetched for all its conversations. A bot at work on a ticket or on
+ * another bot's request is busy though the conversation it opens to is idle or only has a message
+ * queued.
  */
 export function botState(live: TurnState | undefined, fetched: TurnState | undefined): TurnState {
-  return live && live !== 'idle' ? live : (fetched ?? live ?? 'idle');
+  const a = live ?? 'idle';
+  const b = fetched ?? 'idle';
+  return WEIGHT[b] > WEIGHT[a] ? b : a;
 }
