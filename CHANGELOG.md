@@ -67,6 +67,14 @@ version is 0.x, a minor release may change the data format or the API; the serve
   turns do; minutes that cannot be written for it say so and can be tried again. What the memory review, the titles
   and the minutes cost was not kept before: it is now, and the usage page lists it by kind under "Other background
   calls". Its totals by bot and model stay the turns'.
+- Bots use the board on their own. Before, they worked on tickets only when the person gave them one: they handed
+  work to each other by message and kept their steps in a list of their own, so the board stayed empty. Now a bot
+  opens a ticket when asked for work that will not be finished in one reply, or when told to put something on the
+  board, and checks first that the same work has no ticket yet. Work it gives another bot to follow up goes on the
+  board too, assigned to that bot; a quick question still goes by message. It keeps the tickets it works on up to date
+  with their status and a short comment, and knows which open tickets are its own. This happens only in a person's
+  own conversations, not in team chats, WhatsApp or guest chats, and not for a bot whose tool selection leaves the
+  board out.
 
 ## 0.7.1 — 2026-11-21
 

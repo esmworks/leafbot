@@ -692,6 +692,37 @@ describe('rutinler', () => {
     await runAgain(r.id);
     await t.services.turns.idle();
     expect(await t.messages(main.id)).toHaveLength(before);
+
+    // Nothing to report said with a reason above it: the reason stays in the routine's own
+    // conversation, without the silent reply, and nothing reaches the main one.
+    await t.api('PATCH', `/api/routines/${r.id}`, { prompt: '[sessiz-son]' });
+    const quiet = (await runAgain(r.id))!;
+    await t.services.turns.idle();
+    expect(await t.messages(main.id)).toHaveLength(before);
+    expect((await t.messages(quiet.threadId!)).at(-1)).toMatchObject({
+      role: 'assistant',
+      text: 'Değişiklik yok.',
+    });
+  });
+
+  it('ana sohbette sessiz biten rutin çalışması talimatını orada bırakmaz', async () => {
+    const a = await t.bot({ name: 'Ali' });
+    const main = (await t.api<Thread>('GET', `/api/bots/${a.id}/main-thread`)).body;
+    await t.send(main.id, 'merhaba');
+    await t.services.turns.idle();
+    const r = await routine(a.id);
+    await t.api('PATCH', `/api/routines/${r.id}`, { inMain: true, prompt: '[sessiz-son]' });
+    const before = await t.messages(main.id);
+    const run = (await t.api<RoutineRun>('POST', `/api/routines/${r.id}/run`, {})).body;
+    await t.services.turns.idle();
+    expect(run.threadId).toBe(main.id);
+    expect(await t.messages(main.id)).toEqual(before);
+    expect((await runs(r.id)).find((x) => x.id === run.id)?.status).toBe('done');
+
+    await t.api('PATCH', `/api/routines/${r.id}`, { prompt: '[sessiz]' });
+    await runAgain(r.id);
+    await t.services.turns.idle();
+    expect(await t.messages(main.id)).toEqual(before);
   });
 
   it('ana sohbetten kendi sohbetine dönen rutin ana sohbeti kendi sohbeti saymaz', async () => {
