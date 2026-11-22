@@ -7,6 +7,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- The phone app takes new versions of its code without a store release, from the EAS project it is released from. It
+  looks when it opens and when it comes back to the front, at most once an hour, uses an update from the next start and
+  offers to restart into it at once. Settings → About shows which version is running and checks on request. An update
+  reaches only builds of the same app version, so changes that need new native code still go through the store.
 - A routine's steps can be shown as a flow: boxes on a canvas for what starts it, its instruction and each step,
   joined by lines in the order they run. Each box is edited where it is, the first one with the schedule and the time
   of the next run. Boxes are placed by dragging their title or with the arrow keys, and the places are saved with the
