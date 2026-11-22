@@ -1453,6 +1453,8 @@ export const memoryFlags = pgTable(
     turnId: text('turn_id'),
     /** How many times the same gap was raised: a gap met again and again comes first. */
     count: integer('count').notNull().default(1),
+    /** The later turns that met the same gap: undoing one of them counts it once less. */
+    againTurns: jsonb('again_turns').$type<string[]>().notNull().default([]),
     status: text('status', { enum: ['open', 'proposed', 'resolved', 'dismissed', 'expired'] })
       .notNull()
       .default('open'),

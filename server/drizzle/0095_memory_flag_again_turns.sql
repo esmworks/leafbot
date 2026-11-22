@@ -1,0 +1,1 @@
+ALTER TABLE "memory_flags" ADD COLUMN "again_turns" jsonb DEFAULT '[]'::jsonb NOT NULL;

@@ -401,12 +401,6 @@ export class MemoryReviewService {
       }),
       ...(o.flags.length ? [t('memoryReview.flagsRule')] : []),
     ].join('\n\n');
-    const flagsShown = new Set<string>();
-    const flagLines = o.flags.map((f) => {
-      flagsShown.add(f.id);
-      const target = f.memoryId ? ` note=${f.memoryId}` : '';
-      return `[${f.id}] (${f.kind}${target}) ${data(truncate(f.about, NOTE_CHARS))}${f.seen ? ` | ${data(truncate(f.seen, NOTE_CHARS))}` : ''}`;
-    });
     const shown = new Set<string>();
     let used = 0;
     const lines: string[] = [];
@@ -417,6 +411,16 @@ export class MemoryReviewService {
       shown.add(n.id);
       lines.push(line);
     }
+    // A gap about a note is offered only with the note: the answer goes into it, and only a note
+    // the review was shown may change.
+    const flagsShown = new Set<string>();
+    const flagLines = o.flags
+      .filter((f) => !f.memoryId || shown.has(f.memoryId))
+      .map((f) => {
+        flagsShown.add(f.id);
+        const target = f.memoryId ? ` note=${f.memoryId}` : '';
+        return `[${f.id}] (${f.kind}${target}) ${data(truncate(f.about, NOTE_CHARS))}${f.seen ? ` | ${data(truncate(f.seen, NOTE_CHARS))}` : ''}`;
+      });
     // The newest messages that fit; an older one is dropped whole.
     const kept: string[] = [];
     let size = 0;
@@ -541,6 +545,11 @@ export class MemoryReviewService {
     const content = op.content.trim();
     if (!flag || !content || content.length > 2000) return false;
     const clean = redactSecrets(content, c.t('memory.redacted')).text;
+    // The person said the note is right as it is: nothing to change, and the gap is closed.
+    if (flag.memoryId && c.shown.get(flag.memoryId)?.content === clean) {
+      await this.services.memoryFlags.settle(flag.id, 'review', clean);
+      return false;
+    }
     const done = flag.memoryId
       ? await this.applyOne({ op: 'update', scope: flag.scope, id: flag.memoryId, content: clean }, c)
       : await this.applyOne({ op: 'write', scope: flag.scope, content: clean }, c);
