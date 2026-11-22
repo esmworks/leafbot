@@ -519,6 +519,18 @@ const tr = {
   'engine.noApiKey':
     '{provider} için API anahtarı yok, planla açılmış bir oturum da yok (ya da süresi dolmuş). Ayarlar → Bağlantı bölümünden ekleyin ya da yeniden oturum açın.',
   'engine.stepLimit': 'Adım sınırına ({max}) ulaşıldı; tur durduruldu.',
+  'engine.acpUnknown': '"{agent}" bilinen bir kodlama ajanı değil.',
+  'engine.acpMissing':
+    '{agent} bu bilgisayarda kurulu değil ya da başlatılamadı ({detail}). Kurup bir kez kendi başına açarak giriş yapın.',
+  'engine.acpLogin':
+    '{agent} giriş istiyor. Bu bilgisayarda bir kez kendi başına açıp giriş yapın, sonra yeniden deneyin.',
+  'engine.acpFailed': '{agent} bir hatayla durdu: {detail}',
+  'engine.acpRefused': '{agent} bu isteği yapmayı reddetti.',
+  'engine.acpLimit': '{agent} kendi adım ya da uzunluk sınırına ulaştı; tur durduruldu.',
+  'engine.acpOwnerOnly':
+    'Bu bot bilgisayardaki bir kodlama ajanıyla çalışıyor; yalnızca sunucunun sahibinin kendi mesajlarını yürütür. Rutin, posta, webhook, ekip sohbeti ya da başka biri için çalışmaz.',
+  'engine.acpOff':
+    'Kodlama ajanları yalnızca sunucu sahibin kendi bilgisayarında çalışırken kullanılabilir (masaüstü uygulaması).',
   'engine.modelError': 'Model hatası',
   'engine.noResponse': 'Model yanıt vermedi',
   'engine.providerKey':
@@ -1176,6 +1188,8 @@ const tr = {
   'tool.modelsClaude':
     '- claude: model boş bırakılabilir (varsayılan) ya da opus, sonnet, haiku veya tam model kimliği verilebilir.',
   'tool.modelsNoKeys': '- pi: API anahtarı kayıtlı sağlayıcı yok.',
+  'tool.acpOwnerOnly':
+    'Bir botu bilgisayardaki bir kodlama ajanına geçirmeyi ya da ajanını değiştirmeyi yalnızca sunucunun sahibi, botun ayarlarından yapabilir.',
   'tool.unknownModel':
     '{model} kullanılabilir bir model değil; models_list ile bak (pi için sağlayıcı/model).',
   'tool.noModelKey': '{provider} için API anahtarı kayıtlı değil.',
@@ -2321,6 +2335,18 @@ const en: Catalog<ServerKey> = {
   'engine.noApiKey':
     'No API key for {provider}, and no sign-in with a plan (or it ran out). Add one, or sign in again, under Settings → Connection.',
   'engine.stepLimit': 'Step limit ({max}) reached; the turn was stopped.',
+  'engine.acpUnknown': '"{agent}" is not a known coding agent.',
+  'engine.acpMissing':
+    '{agent} is not installed on this computer or could not start ({detail}). Install it and open it once on its own to sign in.',
+  'engine.acpLogin':
+    '{agent} wants you to sign in. Open it once on its own on this computer, sign in, then try again.',
+  'engine.acpFailed': '{agent} stopped with an error: {detail}',
+  'engine.acpRefused': '{agent} refused to do this.',
+  'engine.acpLimit': '{agent} reached its own step or length limit; the turn was stopped.',
+  'engine.acpOwnerOnly':
+    "This bot runs on a coding agent on the computer; it carries out only the server owner's own messages. It does not run for a routine, a mail, a webhook, a team chat or anyone else.",
+  'engine.acpOff':
+    "Coding agents can be used only while the server runs on the owner's own computer (the desktop app).",
   'engine.modelError': 'Model error',
   'engine.noResponse': 'The model did not respond',
   'engine.providerKey': '{provider} did not accept the API key; check it in Settings → Connection → API keys',
@@ -2974,6 +3000,8 @@ const en: Catalog<ServerKey> = {
   'tool.modelsClaude':
     '- claude: model may be left empty (the default), or opus, sonnet, haiku or a full model id.',
   'tool.modelsNoKeys': '- pi: no provider has an API key saved.',
+  'tool.acpOwnerOnly':
+    "Only the server's owner can put a bot on a coding agent of the computer or change its agent, in the bot's settings.",
   'tool.unknownModel': '{model} is not an available model; check models_list (provider/model for pi).',
   'tool.noModelKey': 'No API key is saved for {provider}.',
   'tool.bot_update':

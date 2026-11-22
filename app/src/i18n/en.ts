@@ -1665,6 +1665,13 @@ export const en: Catalog<MessageKey> = {
   'bot.engine.pi': 'Another provider (API key)',
   'bot.engineHint.claude': 'Uses the Claude connection under Settings → Connection.',
   'bot.engineHint.pi': "No command line; file tools are limited to the bot's folder.",
+  'bot.engine.acp': '{name} on this computer',
+  'bot.engine.acpMissing': '{name} on this computer (not installed)',
+  'bot.engineHint.acp':
+    "Runs {name}'s own tool with its own sign-in, files and commands, outside the bot's protected folder. It carries out only your own messages, and the steps it asks about come to you as cards.",
+  'bot.acpModel': '{name} picks its model in its own settings.',
+  'bot.acpMissing':
+    '{name} is not installed on this computer. Install it and open it once on its own to sign in.',
   'bot.connection': 'Connection',
   'bot.connectionHint': 'Connect OpenAI, Gemini, xAI and other providers under Settings → Connection.',
   'bot.model': 'Model',

@@ -46,6 +46,7 @@ import { publicHost } from '../services/skill-link';
 import type { PlanItem, SubagentState } from '../engine/types';
 import { isUniqueViolation, newId, readableError, truncate } from '../util';
 import { submitsOnMac } from '../computer/person';
+import { refusingEngine } from '../engine/acp';
 import { markedOutside, outsideRead, outsideSource, resembledSite } from './outside';
 import { MAX_SOURCES } from '../services/canary';
 import { ownerWords, requestedBy } from './owner-words';
@@ -1845,7 +1846,20 @@ export class TurnManager {
         : answer;
     };
 
-    const engine = this.engineFor(bot);
+    // A coding agent on the computer runs outside the bot's sandbox, with the owner's own logins:
+    // only the owner's own words in their own conversation start it, nothing a routine, a mail, a
+    // webhook, another bot, a team or a guest brought.
+    const engine =
+      bot.engine === 'acp' &&
+      !(
+        own === OWNER_ID &&
+        thread.kind === 'user' &&
+        turn.source === 'user' &&
+        !turn.guest &&
+        !turn.rehearsalId
+      )
+        ? refusingEngine('engine.acpOwnerOnly')
+        : this.engineFor(bot);
     const roomPrompt = (fresh: boolean) =>
       this.services.rooms.prompt({ roomId: thread.id, bot, turn, fresh, t, note });
     const started = turn.startedAt ?? turn.createdAt;

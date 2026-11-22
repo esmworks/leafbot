@@ -19,6 +19,7 @@ import {
   type ApiSource,
   type Bot,
   type BotLevel,
+  type EngineKind,
   type Memory,
   outsideIn,
   type OutsideTrigger,
@@ -2013,7 +2014,9 @@ export class ToolFactory {
       });
     };
     /** Why a bot cannot run on this engine and model, or null when it can. */
-    const modelProblem = async (engine: 'claude' | 'pi', model: string): Promise<string | null> => {
+    const modelProblem = async (engine: EngineKind, model: string): Promise<string | null> => {
+      // Running on a coding agent of the computer is the owner's choice alone (see the bot routes).
+      if (engine === 'acp') return t('tool.acpOwnerOnly');
       if (engine === 'claude') return model.includes('/') ? t('tool.unknownModel', { model }) : null;
       const cut = model.indexOf('/');
       const [provider, id] = [model.slice(0, Math.max(cut, 0)), model.slice(cut + 1)];

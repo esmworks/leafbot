@@ -1631,6 +1631,12 @@ export const tr = {
   'bot.engine.pi': 'Başka sağlayıcı (API anahtarı)',
   'bot.engineHint.claude': 'Ayarlar → Bağlantı bölümündeki Claude bağlantısını kullanır.',
   'bot.engineHint.pi': 'Komut satırı yok; dosya araçları botun klasörüyle sınırlı.',
+  'bot.engine.acp': 'Bu bilgisayardaki {name}',
+  'bot.engine.acpMissing': 'Bu bilgisayardaki {name} (kurulu değil)',
+  'bot.engineHint.acp':
+    '{name} aracını kendi girişi, kendi dosya ve komut araçlarıyla, botun korunan klasörünün dışında çalıştırır. Yalnızca senin kendi mesajlarını yürütür; sorduğu adımlar sana kart olarak gelir.',
+  'bot.acpModel': 'Modeli {name} kendi ayarlarından seçer.',
+  'bot.acpMissing': '{name} bu bilgisayarda kurulu değil. Kurup bir kez kendi başına açarak giriş yapın.',
   'bot.connection': 'Bağlantı',
   'bot.connectionHint': 'OpenAI, Gemini, xAI ve diğer sağlayıcıları Ayarlar → Bağlantı bölümünden bağlayın.',
   'bot.model': 'Model',

@@ -7,6 +7,8 @@ import {
   ToolSelection,
   type Bot,
   type Effort,
+  type EngineKind,
+  ACP_AGENTS,
 } from '@leafbot/shared';
 import { availableStarters, starterBot, type StarterId } from '@leafbot/app/src/features/onboarding/profile';
 import Feather from '@expo/vector-icons/Feather';
@@ -63,12 +65,12 @@ interface Form {
   toolsExclude: string;
   internet: boolean;
   projectDir: string;
-  engine: 'claude' | 'pi';
+  engine: EngineKind;
   /** The model for Claude; `provider/model` for the other engine. */
   model: string;
 }
 
-function initial(bot: Bot | undefined, start: { engine: 'claude' | 'pi'; model: string }): Form {
+function initial(bot: Bot | undefined, start: { engine: EngineKind; model: string }): Form {
   return {
     name: bot?.name ?? '',
     description: bot?.description ?? '',
@@ -388,42 +390,56 @@ function BotFormPage({ bot }: { bot?: Bot }) {
         />
       </FormField>
 
-      <Section>
-        <Rows>
-          <ChoiceRow
-            label={t('bot.engine')}
-            detail={t(pi ? 'bot.engineHint.pi' : 'bot.engineHint.claude')}
-            value={v.engine}
-            options={[
-              { value: 'claude', label: t('bot.engine.claude') },
-              { value: 'pi', label: t('bot.engine.pi') },
-            ]}
-            onChange={(e) => setV((f) => ({ ...f, engine: e, model: '', effort: '' }))}
-          />
-          <Pad gap={16}>
-            <Text style={[styles.sectionLabel, { color: c.foreground }]}>{t('bot.model')}</Text>
-            {pi ? (
-              <PiModelPicker value={v.model} onChange={(m) => set('model', m)} />
-            ) : (
-              <ModelDefaults
-                value={{ model: v.model, effort: v.effort }}
-                onChange={(m) => setV((f) => ({ ...f, model: m.model, effort: m.effort }))}
-              />
-            )}
-            {tried && modelError ? <Note tone="error">{t(modelError)}</Note> : null}
-            {keyMissing ? <Note>{t('bot.keyMissing')}</Note> : null}
-            {claudeLoggedOut ? <Note>{t('bot.claudeLoggedOut')}</Note> : null}
-          </Pad>
-          {pi ? (
-            <ChoiceRow
-              label={t('model.effort')}
-              value={v.effort || DEFAULT_EFFORT}
-              options={efforts}
-              onChange={(e) => set('effort', e === DEFAULT_EFFORT ? '' : (e as Effort))}
+      {v.engine === 'acp' ? (
+        // A coding agent on the server's computer is chosen in the desktop app, where it runs.
+        <Section>
+          <Rows>
+            <Row
+              label={t('bot.engine.acp', { name: ACP_AGENTS.find((a) => a.id === v.model)?.name ?? v.model })}
+              detail={t('bot.engineHint.acp', {
+                name: ACP_AGENTS.find((a) => a.id === v.model)?.name ?? v.model,
+              })}
             />
-          ) : null}
-        </Rows>
-      </Section>
+          </Rows>
+        </Section>
+      ) : (
+        <Section>
+          <Rows>
+            <ChoiceRow
+              label={t('bot.engine')}
+              detail={t(pi ? 'bot.engineHint.pi' : 'bot.engineHint.claude')}
+              value={v.engine}
+              options={[
+                { value: 'claude', label: t('bot.engine.claude') },
+                { value: 'pi', label: t('bot.engine.pi') },
+              ]}
+              onChange={(e) => setV((f) => ({ ...f, engine: e, model: '', effort: '' }))}
+            />
+            <Pad gap={16}>
+              <Text style={[styles.sectionLabel, { color: c.foreground }]}>{t('bot.model')}</Text>
+              {pi ? (
+                <PiModelPicker value={v.model} onChange={(m) => set('model', m)} />
+              ) : (
+                <ModelDefaults
+                  value={{ model: v.model, effort: v.effort }}
+                  onChange={(m) => setV((f) => ({ ...f, model: m.model, effort: m.effort }))}
+                />
+              )}
+              {tried && modelError ? <Note tone="error">{t(modelError)}</Note> : null}
+              {keyMissing ? <Note>{t('bot.keyMissing')}</Note> : null}
+              {claudeLoggedOut ? <Note>{t('bot.claudeLoggedOut')}</Note> : null}
+            </Pad>
+            {pi ? (
+              <ChoiceRow
+                label={t('model.effort')}
+                value={v.effort || DEFAULT_EFFORT}
+                options={efforts}
+                onChange={(e) => set('effort', e === DEFAULT_EFFORT ? '' : (e as Effort))}
+              />
+            ) : null}
+          </Rows>
+        </Section>
+      )}
 
       <Section>
         <Row

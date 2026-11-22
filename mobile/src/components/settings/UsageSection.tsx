@@ -493,7 +493,13 @@ function Report({
           <UsageLine
             key={`${m.engine}:${m.model}`}
             name={m.model || (m.engine ? t('usage.defaultModel') : t('usage.unknownModel'))}
-            note={m.engine ? t(`bot.engine.${m.engine}`) : null}
+            note={
+              m.engine === 'acp'
+                ? t('bot.engine.acp', { name: m.model ?? '' })
+                : m.engine
+                  ? t(`bot.engine.${m.engine}`)
+                  : null
+            }
             turns={m.turns}
             cost={m.costUsd}
             share={share(m.costUsd)}

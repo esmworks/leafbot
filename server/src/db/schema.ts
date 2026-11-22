@@ -38,7 +38,7 @@ export const bots = pgTable('bots', {
   name: text('name').notNull(),
   description: text('description').notNull().default(''),
   instructions: text('instructions').notNull().default(''),
-  engine: text('engine', { enum: ['claude', 'pi'] })
+  engine: text('engine', { enum: ['claude', 'pi', 'acp'] })
     .notNull()
     .default('claude'),
   model: text('model').notNull().default(''),
@@ -318,7 +318,7 @@ export const turns = pgTable(
     error: text('error'),
     costUsd: real('cost_usd'),
     /** The engine and model the turn ran on, for the usage report; null until it starts. */
-    engine: text('engine', { enum: ['claude', 'pi'] }),
+    engine: text('engine', { enum: ['claude', 'pi', 'acp'] }),
     model: text('model'),
     /**
      * Outside text the turn read, or was handed by the turn that started it (another bot's request
