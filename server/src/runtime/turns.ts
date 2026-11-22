@@ -1595,6 +1595,9 @@ export class TurnManager {
       // The person's own phone (their calendar, contacts, where they are): the first read in a turn
       // asks at every level, with no "always allow", since it is their private data and not the bot's.
       const onPhone = (ask.toolName.split('__').at(-1) ?? '').startsWith(PERSON_PHONE);
+      // Listening to a call sends other people's voices to the speech-to-text service: asked every
+      // time at every level, with no "always allow"; they are the person's to agree to.
+      const onCall = ask.toolName.split('__').at(-1) === 'call_listen';
       // A coding agent's own step runs outside the bot's sandbox, with the person's rights, and the
       // app knows of it only what the agent says: none of the shortcuts that rely on the sandbox
       // apply, and anything past reading asks at every level, with no "always allow". Its calls to
@@ -1791,7 +1794,8 @@ export class TurnManager {
         readOnlyTools: free,
         guest: locked,
       });
-      const verdict = (copied || onMac || onPhone || agentAct) && decided === 'allow' ? 'ask' : decided;
+      const verdict =
+        (copied || onMac || onPhone || onCall || agentAct) && decided === 'allow' ? 'ask' : decided;
       if (verdict === 'allow') {
         // A read goes without a line in the bot's list of what it changed.
         if (free.has(ask.toolName) || READ_ONLY_TOOLS.has(ask.toolName)) return { behavior: 'allow' };
@@ -1844,7 +1848,7 @@ export class TurnManager {
         timeoutMs: present ? undefined : this.ctx.config.unattendedApprovalMs,
         // A copy of a site gets no "always allow", nor an answer from another card's rule; nor does
         // the person's Mac.
-        outside: locked || capped || !!copied || onMac || onPhone || agentAct,
+        outside: locked || capped || !!copied || onMac || onPhone || onCall || agentAct,
         second,
         onCreated: async (a) => {
           await threads.addMessage({
@@ -1856,7 +1860,7 @@ export class TurnManager {
               approvalId: a.id,
               ...held,
               ...(second ? { needsSecond: true } : {}),
-              ...(locked || capped || onMac || onPhone || agentAct ? { noAlways: true } : {}),
+              ...(locked || capped || onMac || onPhone || onCall || agentAct ? { noAlways: true } : {}),
               ...(copied ? { resembles: copied.charAt(0).toUpperCase() + copied.slice(1) } : {}),
             },
             turnId: turn.id,

@@ -1,3 +1,4 @@
+import { CALL_BINDING, CALL_CAPTURE_SCRIPT, type CaptureState } from './call-capture';
 import { watchPage, type PageLog } from './logs';
 import { addTyping, DESCRIBE, MAX_STEPS, type Target, type TeachStep } from './teach';
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -169,6 +170,8 @@ export interface Frame {
 
 /** How much slower the tabs the bot is not on run. */
 const BACKGROUND_CPU_RATE = 4;
+/** How long the page takes to hand over its last recording after listening stops. */
+const LAST_RECORDING_MS = 1500;
 
 /** The function a page calls, through the wall below, to say it asked for a passkey. */
 const PASSKEY_BINDING = '__leafbotPasskey';
@@ -271,6 +274,16 @@ interface Live {
   lesson: TeachStep[] | null;
   /** Each tab's requests and console messages since it opened (see `logs.ts`). */
   logs: WeakMap<Page, PageLog>;
+  /** The call the bot listens to in one of its tabs (see `call-capture.ts`), and what takes its audio. */
+  call: {
+    page: Page;
+    onAudio: (audio: Buffer) => void;
+    /** Starts the page script again after the tab loads another page, as joining a call may. */
+    rearm: () => void;
+    release?: () => void;
+  } | null;
+  /** The page script and binding for listening are in this browser; added on the first call only. */
+  callReady: boolean;
 }
 
 /** A question a page asked with alert, confirm or prompt, and how it was answered. */
@@ -859,10 +872,67 @@ export class BrowserManager {
     const l = this.live.get(botId);
     if (!l) return;
     this.live.delete(botId);
+    if (l.call) {
+      l.call.page.off('load', l.call.rearm);
+      l.call.release?.();
+    }
+    l.call = null;
     await this.stopCast(l);
     if (l.remote) await l.remote.close().catch(() => {});
     else await l.context.close().catch(() => {});
     this.emitState(l);
+  }
+
+  /**
+   * Starts taking the audio of the call open in the bot's current tab; `onAudio` gets each
+   * recording. The page script and its binding go in only now, for the rest of this browser's life:
+   * both are marks a site could see, so a bot that never listens to a call never has them.
+   * While it listens, the browser and its computer are not closed for being idle.
+   */
+  async listen(botId: string, onAudio: (audio: Buffer) => void, segmentMs?: number) {
+    const live = await this.get(botId);
+    if (live.call) throw new BrowserError('busy');
+    if (!live.callReady) {
+      await live.context.exposeBinding(CALL_BINDING, (source, audio: unknown) => {
+        const call = this.live.get(botId)?.call;
+        if (call && source.page === call.page && typeof audio === 'string')
+          call.onAudio(Buffer.from(audio, 'base64'));
+      });
+      await live.context.addInitScript(CALL_CAPTURE_SCRIPT);
+      live.callReady = true;
+    }
+    const page = live.page;
+    const start = `window.__leafbotCall && window.__leafbotCall.start(${segmentMs ?? 0})`;
+    await page.evaluate(CALL_CAPTURE_SCRIPT);
+    await page.evaluate(start);
+    const rearm = () => {
+      if (this.live.get(botId)?.call?.page === page) void page.evaluate(start).catch(() => {});
+    };
+    page.on('load', rearm);
+    live.call = { page, onAudio, rearm, release: this.opts.hold?.(botId) };
+  }
+
+  /** Stops listening; the recording under way is still handed over before this returns. */
+  async unlisten(botId: string) {
+    const live = this.live.get(botId);
+    const call = live?.call;
+    if (!live || !call) return;
+    call.page.off('load', call.rearm);
+    await call.page.evaluate('window.__leafbotCall && window.__leafbotCall.stop()').catch(() => {});
+    // The page sends the last recording once the recorder has closed it, a moment after stopping.
+    await new Promise((r) => setTimeout(r, LAST_RECORDING_MS));
+    if (live.call === call) live.call = null;
+    call.release?.();
+    live.lastUsed = Date.now();
+  }
+
+  /** How listening goes; null once the tab or the browser is gone. */
+  async listenState(botId: string): Promise<CaptureState | null> {
+    const call = this.live.get(botId)?.call;
+    if (!call || call.page.isClosed()) return null;
+    return (await call.page
+      .evaluate('window.__leafbotCall ? window.__leafbotCall.state() : null')
+      .catch(() => null)) as CaptureState | null;
   }
 
   /**
@@ -1136,6 +1206,8 @@ export class BrowserManager {
       closing: new WeakSet(),
       speed: new WeakMap(),
       logs: new WeakMap(),
+      call: null,
+      callReady: false,
     };
     // A desktop's browser that leaves through the service's own SOCKS skips the per-request guard:
     // the SOCKS refuses private addresses itself, and the guard would only cost that browser its
@@ -1252,7 +1324,8 @@ export class BrowserManager {
     live.page = page;
     // A tab out of sight still runs its page's scripts and timers; slowed down, it leaves the
     // computer to the tab the bot works in. The tab in front runs at full speed again.
-    void this.throttle(live, before, BACKGROUND_CPU_RATE);
+    // A call being listened to keeps its speed: slowed down, its recordings would break up.
+    if (live.call?.page !== before) void this.throttle(live, before, BACKGROUND_CPU_RATE);
     void this.throttle(live, page, 1);
     live.title = null;
     void page
@@ -1326,7 +1399,7 @@ export class BrowserManager {
     if (this.live.size < this.opts.max) return;
     const idle = [...this.live.values()]
       // Someone watching does not keep it: a view left open would hold the browser for good.
-      .filter((l) => !l.busy && !l.userControl && !l.saving.size)
+      .filter((l) => !l.busy && !l.userControl && !l.saving.size && !l.call)
       .sort((a, b) => a.lastUsed - b.lastUsed);
     if (!idle[0]) throw new BrowserError('full');
     await this.close(idle[0].botId);
@@ -1338,8 +1411,8 @@ export class BrowserManager {
       const now = Date.now();
       for (const l of this.live.values()) {
         // A view left open does not keep an idle browser; a person holding control does, and so
-        // does a download still coming in.
-        if (l.busy || l.userControl || l.saving.size) continue;
+        // do a download still coming in and a call being listened to.
+        if (l.busy || l.userControl || l.saving.size || l.call) continue;
         if (now - l.lastUsed > this.opts.idleMs) void this.close(l.botId);
       }
     }, 60_000);
