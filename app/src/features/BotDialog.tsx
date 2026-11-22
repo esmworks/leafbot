@@ -1,5 +1,4 @@
 import {
-  CHECK_IN_STEPS,
   BRAND_COLOR,
   DEFAULT_AVATAR,
   EFFORTS,
@@ -90,7 +89,6 @@ const Form = z
     toolsAllow: z.string().max(80_000),
     toolsExclude: z.string().max(80_000),
     internet: z.boolean(),
-    checkInHours: z.number(),
     projectDir: z.string().max(1000),
     instructionsUrl: z
       .string()
@@ -130,7 +128,6 @@ function initial(bot?: Bot, start: BotEngine = { engine: 'claude', model: '' }):
     toolsAllow: bot?.toolSelection.allow.join('\n') ?? '',
     toolsExclude: bot?.toolSelection.exclude.join('\n') ?? '',
     internet: bot?.internet ?? true,
-    checkInHours: bot?.checkInHours ?? 0,
     projectDir: bot?.projectDir ?? '',
     instructionsUrl: bot?.instructionsUrl ?? '',
     engine: bot?.engine ?? start.engine,
@@ -302,8 +299,6 @@ function BotForm({
           exclude: selectorLines(f.toolsExclude),
         },
         internet: f.internet,
-        // A server older than check-ins takes none.
-        ...(bot?.checkInHours !== undefined || !bot ? { checkInHours: f.checkInHours } : {}),
         projectDir: f.projectDir.trim() || null,
         engine: f.engine,
         model: f.engine === 'pi' ? `${f.provider}/${f.model}` : f.model,
@@ -521,27 +516,6 @@ function BotForm({
                 onCheckedChange={(c) => form.setValue('internet', c, { shouldDirty: true })}
               />
             </label>
-            <div className="flex items-center justify-between gap-4 rounded-2xl bg-secondary/60 px-4 py-3">
-              <span>
-                <span className="block text-sm font-medium">{t('bot.checkIn')}</span>
-                <span className="block text-xs text-muted-foreground">{t('bot.checkInHint')}</span>
-              </span>
-              <Select
-                value={String(v.checkInHours)}
-                onValueChange={(h) => form.setValue('checkInHours', Number(h), { shouldDirty: true })}
-              >
-                <SelectTrigger className="w-40 shrink-0 rounded-full" aria-label={t('bot.checkIn')}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CHECK_IN_STEPS.map((h) => (
-                    <SelectItem key={h} value={String(h)}>
-                      {h ? t('bot.checkInEvery', { count: h }) : t('bot.checkInOff')}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <label className="flex items-center justify-between gap-4 rounded-2xl bg-secondary/60 px-4 py-3">
               <span>
                 <span className="block text-sm font-medium">{t('bot.manager')}</span>

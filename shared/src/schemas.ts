@@ -79,9 +79,6 @@ export const BotAccess = z.object({
 });
 export type BotAccess = z.infer<typeof BotAccess>;
 
-/** The hours of quiet a bot can be set to check in after; 0 is off. */
-export const CHECK_IN_STEPS = [0, 3, 6, 12, 24] as const;
-
 export const Bot = z.object({
   id: Id,
   name: z.string(),
@@ -103,8 +100,6 @@ export const Bot = z.object({
   projectDir: z.string().nullable(),
   /** Whether the bot reads and keeps memory; off, it sees none and gets no memory tools. */
   memory: z.boolean(),
-  /** Hours of quiet after which the bot checks in by itself; 0 is off. Missing on older servers. */
-  checkInHours: z.number().int().optional(),
   /** Effort for this Claude bot; empty uses the setting for all bots. */
   effort: z.string(),
   /** Which tools the bot gets (see `ToolSelection`). */
@@ -233,11 +228,6 @@ export const BotCreate = z.object({
   internet: z.boolean().default(true),
   projectDir: z.string().max(1000).nullable().default(null),
   memory: z.boolean().default(true),
-  checkInHours: z
-    .number()
-    .int()
-    .refine((n) => (CHECK_IN_STEPS as readonly number[]).includes(n))
-    .default(0),
   effort: z.union([z.enum(['low', 'medium', 'high', 'xhigh', 'max']), z.literal('')]).default(''),
   /** Which tools the bot gets; by default every tool its settings allow. */
   toolSelection: ToolSelection.default(ALL_TOOLS),

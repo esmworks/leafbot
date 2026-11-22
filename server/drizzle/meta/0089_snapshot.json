@@ -1,5 +1,5 @@
 {
-  "id": "90c6ba07-ac73-46b0-b6c0-302a71951315",
+  "id": "af8d56bc-3e21-4ff8-bd18-8eff5e449192",
   "prevId": "e5ffbad6-6197-40bd-b61d-6a33010d3882",
   "version": "7",
   "dialect": "postgresql",
@@ -1187,13 +1187,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": true
-        },
-        "check_in_hours": {
-          "name": "check_in_hours",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
         },
         "effort": {
           "name": "effort",

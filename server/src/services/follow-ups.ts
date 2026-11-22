@@ -1,5 +1,5 @@
-import { wallClock, type Bot, type FollowUp, type OutsideTrigger } from '@leafbot/shared';
-import { and, asc, desc, eq, gt, gte, inArray, lt, lte, max } from 'drizzle-orm';
+import type { Bot, FollowUp, OutsideTrigger } from '@leafbot/shared';
+import { and, asc, eq, inArray, lt, lte } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import { translator, type T } from '../i18n';
@@ -22,14 +22,6 @@ const KEEP_MS = 30 * 86_400_000;
 const SAME_WORDS = 0.8;
 const TEXT_MAX = 500;
 const CONTEXT_MAX = 500;
-/** How often the conversations are looked over for a check-in that is due. */
-const CHECK_IN_LOOK_MS = 10 * 60_000;
-/** A check-in comes only in the day, in the person's time zone: from this hour, before that one. */
-const CHECK_IN_FROM = 8;
-const CHECK_IN_UNTIL = 21;
-/** Only someone who wrote to the bot in this long is checked in on. */
-const CHECK_IN_ACTIVE_MS = 30 * 86_400_000;
-const checkInKey = (botId: string, userId: string) => `checkIn.at.${botId}.${userId}`;
 
 const toFollowUp = (r: Row): FollowUp => ({
   id: r.id,
@@ -55,7 +47,6 @@ const toFollowUp = (r: Row): FollowUp => ({
 export class FollowUpService {
   private timer: ReturnType<typeof setInterval> | null = null;
   private ticking: Promise<void> | null = null;
-  private lookedForCheckIns = 0;
 
   constructor(
     private ctx: Ctx,
@@ -241,85 +232,6 @@ export class FollowUpService {
       if (await this.fire(row, bot)) fired++;
     }
     if (fired) this.changed();
-    if (now.getTime() - this.lookedForCheckIns >= CHECK_IN_LOOK_MS) {
-      this.lookedForCheckIns = now.getTime();
-      await this.checkIns(now);
-    }
-  }
-
-  /**
-   * Check-ins: a bot set to it, after hours of quiet in a person's conversation with it, looks at
-   * what it can reach (their mail, their calendar, its follow-ups) for something coming up worth
-   * telling, and tells them, or says nothing at all. Only in the day of the person's time zone, for
-   * someone who wrote to it lately, at most once per the bot's hours, and never while a turn of that
-   * conversation is waiting or running. Its turn works for nobody who asked just now, so it changes
-   * nothing without a card.
-   */
-  private async checkIns(now: Date): Promise<void> {
-    const bots = (await this.services.bots.list()).filter((b) => (b.checkInHours ?? 0) > 0 && !b.archivedAt);
-    for (const bot of bots) {
-      if ((await this.services.bots.isPaused(bot)) || (await this.services.usage.reached(bot))) continue;
-      const quietMs = bot.checkInHours! * 3600_000;
-      const people = await this.ctx.db
-        .select({ userId: schema.threads.userId, at: max(schema.messages.createdAt) })
-        .from(schema.threads)
-        .innerJoin(schema.messages, eq(schema.messages.threadId, schema.threads.id))
-        .where(
-          and(
-            eq(schema.threads.botId, bot.id),
-            eq(schema.threads.kind, 'user'),
-            eq(schema.messages.role, 'user'),
-            eq(schema.messages.author, 'user'),
-            gte(schema.messages.createdAt, new Date(now.getTime() - CHECK_IN_ACTIVE_MS)),
-          ),
-        )
-        .groupBy(schema.threads.userId);
-      for (const { userId } of people) {
-        if (!userId) continue;
-        if (
-          (await this.services.access.level(await this.services.access.viewerOf(userId), bot.id)) === 'none'
-        )
-          continue;
-        const settings = await this.services.settings.all(userId);
-        const hour = wallClock(now, settings.timezone).hour;
-        if (hour < CHECK_IN_FROM || hour >= CHECK_IN_UNTIL) continue;
-        const [last] = await this.ctx.db
-          .select()
-          .from(schema.kv)
-          .where(eq(schema.kv.key, checkInKey(bot.id, userId)));
-        const lastAt = typeof last?.value === 'string' ? Date.parse(last.value) : 0;
-        if (now.getTime() - lastAt < quietMs) continue;
-        const thread = await this.services.threads.main(bot.id, userId);
-        const since = new Date(now.getTime() - quietMs);
-        const [recent] = await this.ctx.db
-          .select({ id: schema.messages.id })
-          .from(schema.messages)
-          .where(and(eq(schema.messages.threadId, thread.id), gt(schema.messages.createdAt, since)))
-          .orderBy(desc(schema.messages.createdAt))
-          .limit(1);
-        if (recent) continue;
-        const [busy] = await this.ctx.db
-          .select({ id: schema.turns.id })
-          .from(schema.turns)
-          .where(
-            and(eq(schema.turns.threadId, thread.id), inArray(schema.turns.status, ['queued', 'running'])),
-          )
-          .limit(1);
-        if (busy) continue;
-        await this.ctx.db
-          .insert(schema.kv)
-          .values({ key: checkInKey(bot.id, userId), value: now.toISOString() })
-          .onConflictDoUpdate({ target: schema.kv.key, set: { value: now.toISOString() } });
-        const t = translator(settings.language ?? (await this.services.settings.locale()));
-        await this.services.turns.enqueue({
-          threadId: thread.id,
-          botId: bot.id,
-          source: 'followup',
-          prompt: t('checkIn.prompt', { hours: bot.checkInHours! }),
-          userId,
-        });
-      }
-    }
   }
 
   /** Starts the turn that brings a follow-up up; whether it was this look's to start. */

@@ -2060,7 +2060,6 @@ export class ToolFactory {
               internet: false,
               projectDir: null,
               memory: true,
-              checkInHours: 0,
               effort: '',
               toolSelection: ALL_TOOLS,
               instructionsUrl: null,

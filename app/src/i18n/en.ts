@@ -1643,14 +1643,6 @@ export const en: Catalog<MessageKey> = {
   'bot.projectDirPlaceholder': '/Users/…/project',
   'bot.projectDirHint': 'The bot works in this folder; if empty, it uses its own.',
   'bot.internet': 'Internet access',
-  'bot.checkIn': 'Check in by itself',
-  'bot.checkInHint':
-    'After this long without talking, the bot looks at your mail, calendar and what it keeps track of; if something important is coming up in the next days it writes, otherwise it writes nothing. Only in the day (08:00–21:00) and as far as its connected apps allow. Each look is a turn and counts toward the spending limits.',
-  'bot.checkInOff': 'Off',
-  'bot.checkInEvery': {
-    one: 'After {count} hour of quiet',
-    other: 'After {count} hours of quiet',
-  },
   'bot.internetHint':
     'When on, the bot searches the web, reads pages, and uses its own browser and computer. When off, it can do none of these.',
   'bot.manager': 'Manager bot',

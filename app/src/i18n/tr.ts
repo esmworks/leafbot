@@ -1609,11 +1609,6 @@ export const tr = {
   'bot.projectDirPlaceholder': '/Users/…/proje',
   'bot.projectDirHint': 'Bot bu klasörde çalışır; boşsa kendi klasörünü kullanır.',
   'bot.internet': 'İnternet erişimi',
-  'bot.checkIn': 'Kendiliğinden haber ver',
-  'bot.checkInHint':
-    'Bu kadar süre konuşmadığınızda bot mailine, takvimine ve takip ettiklerine bakar; önümüzdeki günlerde önemli bir şey varsa yazar, yoksa hiçbir şey yazmaz. Yalnızca gündüz (08:00–21:00) ve bağlı uygulamalarının izin verdiği kadar. Her bakış bir turdur ve harcama sınırına sayılır.',
-  'bot.checkInOff': 'Kapalı',
-  'bot.checkInEvery': '{count} saat sessizlikte',
   'bot.internetHint':
     'Açıkken bot internette arama yapar, sayfa okur, kendi tarayıcısını ve bilgisayarını kullanır. Kapalıyken bunların hiçbirini yapamaz.',
   'bot.manager': 'Yönetici bot',

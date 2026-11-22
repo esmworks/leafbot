@@ -60,11 +60,6 @@ export const bots = pgTable('bots', {
   projectDir: text('project_dir'),
   /** Whether the bot reads and keeps memory; off, it works from each conversation alone. */
   memory: boolean('memory').notNull().default(true),
-  /**
-   * Hours of quiet in a person's conversation after which the bot looks at their mail and calendar
-   * by itself and tells them what is coming up, if anything; 0 is off.
-   */
-  checkInHours: integer('check_in_hours').notNull().default(0),
   /** How hard a Claude bot thinks; empty takes the server-wide setting. */
   effort: text('effort').notNull().default(''),
   /** Which tools the bot gets (`ToolSelection`); null for every tool. */

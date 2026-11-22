@@ -1,6 +1,5 @@
 -- Reminders a bot keeps for itself, apart from the routines: no card before one is set, and no line in
--- the list of routines. A promise points at the one that brings it up. A bot can also check in by
--- itself after hours of quiet.
+-- the list of routines. A promise points at the one that brings it up.
 CREATE TABLE "follow_ups" (
 	"id" text PRIMARY KEY NOT NULL,
 	"bot_id" text NOT NULL,
@@ -18,7 +17,6 @@ CREATE TABLE "follow_ups" (
 	"fired_at" timestamp with time zone
 );
 --> statement-breakpoint
-ALTER TABLE "bots" ADD COLUMN "check_in_hours" integer DEFAULT 0 NOT NULL;--> statement-breakpoint
 ALTER TABLE "promises" ADD COLUMN "follow_up_id" text;--> statement-breakpoint
 ALTER TABLE "follow_ups" ADD CONSTRAINT "follow_ups_bot_id_bots_id_fk" FOREIGN KEY ("bot_id") REFERENCES "public"."bots"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "follow_ups" ADD CONSTRAINT "follow_ups_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
