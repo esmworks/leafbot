@@ -44,6 +44,7 @@ import { replayHandOver, replaySteps } from '../browser/replay';
 import { browserTools, type AskCard, type AskLogin } from './browser';
 import { computerTools } from './computer';
 import { personComputerTools } from './person-computer';
+import { personPhoneTools } from './person-phone';
 import { handFiles, pageImageTool, sendFileTool, showPageTool } from './files';
 import { imageTool } from './images';
 import { videoTool } from './videos';
@@ -347,7 +348,10 @@ export type ToolName =
   | 'person_computer_type'
   | 'person_computer_key'
   | 'person_computer_scroll'
-  | 'person_computer_drag';
+  | 'person_computer_drag'
+  | 'person_phone_calendar'
+  | 'person_phone_contacts'
+  | 'person_phone_location';
 
 /**
  * Puts questions to the person on a card in the turn's conversation and waits for the answers,
@@ -395,6 +399,7 @@ export class ToolFactory {
   constructor(
     private ctx: Ctx,
     private services: Services,
+    private clock: () => Date = () => new Date(),
   ) {}
 
   forTurn(opts: {
@@ -1973,6 +1978,31 @@ export class ToolFactory {
       bot.permissionMode !== 'readonly'
     ) {
       tools.push(...personComputerTools({ def, botId: bot.id, t, computer: this.ctx.personComputer }));
+    }
+    // The person's own phone, for what they switched on in the phone app: only in work their own
+    // message started, in their own conversation, and not for a bot that may only read (it would
+    // not be asked, and their phone is theirs to answer for). A guest has no phone here.
+    // The phone is the one of the person who wrote the message, and the conversation must be theirs.
+    const writer = turn.userId && (!thread.userId || thread.userId === turn.userId) ? turn.userId : null;
+    const phoneKinds = this.ctx.phones && writer ? this.ctx.phones.kinds(writer) : null;
+    if (
+      phoneKinds?.size &&
+      turn.source === 'user' &&
+      !team &&
+      !turn.guest &&
+      !turn.rehearsalId &&
+      bot.permissionMode !== 'readonly'
+    ) {
+      tools.push(
+        ...personPhoneTools({
+          def,
+          t,
+          phones: this.ctx.phones!,
+          person: writer!,
+          kinds: phoneKinds,
+          now: this.clock,
+        }),
+      );
     }
     if (bot.isManager && !team) {
       tools.push(

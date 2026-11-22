@@ -163,7 +163,7 @@ export class Services {
     this.skills = new SkillService(ctx);
     this.jobs = new JobService(ctx, this);
     this.routines = new RoutineService(ctx, this, engineFor, clock);
-    this.tools = new ToolFactory(ctx, this);
+    this.tools = new ToolFactory(ctx, this, clock);
     this.turns = new TurnManager(ctx, this, engineFor);
     this.turns.onFinished((t, o) => this.jobs.onTurnFinished(t, o));
     this.turns.onFinished((t, o) => this.routines.onTurnFinished(t, o));
