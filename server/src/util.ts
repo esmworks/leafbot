@@ -31,6 +31,7 @@ export type NotFoundKind =
   | 'room'
   | 'message'
   | 'memory'
+  | 'memoryFlag'
   | 'routine'
   | 'approval'
   | 'job'

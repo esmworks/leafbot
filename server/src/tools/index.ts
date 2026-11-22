@@ -57,6 +57,7 @@ import { tableTools } from './tables';
 import { ticketTools } from './tickets';
 import { FollowUpsFull, MAX_OPEN_FOLLOW_UPS, readMoment } from '../services/follow-ups';
 import { placeOf, ROOM_NOTES_PER_PLACE, sourceOf } from '../services/memory';
+import { FLAGS_PER_TURN, OPEN_FLAGS_PER_BOT } from '../services/memory-flags';
 import { redactSecrets } from '../services/secrets';
 import { siteOf } from '../services/vault';
 import { workspacePaths } from '../workspace';
@@ -144,7 +145,13 @@ export function sourceAddress(from: string): string | null | undefined {
   }
 }
 
-const MEMORY_TOOLS = new Set<string>(['memory_search', 'memory_write', 'memory_update', 'memory_forget']);
+const MEMORY_TOOLS = new Set<string>([
+  'memory_search',
+  'memory_write',
+  'memory_update',
+  'memory_forget',
+  'memory_flag',
+]);
 const MANAGER_MEMORY_TOOLS = new Set<string>(['memory_search', 'memory_update', 'memory_forget']);
 /**
  * Tools a team conversation does without: each reaches what is one person's (their apps, their
@@ -179,6 +186,8 @@ const TEAM_OFF = new Set<string>([
  * goes on for the person the turn acts for, with all they may do.
  */
 const GUEST_OFF = new Set<string>([
+  // A flag asks the person to fill a gap; a stranger's question is no gap in what the bot knows.
+  'memory_flag',
   'ticket_create',
   'ticket_update',
   'skill_save',
@@ -322,6 +331,7 @@ export type ToolName =
   | 'memory_write'
   | 'memory_update'
   | 'memory_forget'
+  | 'memory_flag'
   | 'bots_list'
   | 'open_conversation'
   | 'bot_send'
@@ -1449,6 +1459,62 @@ export class ToolFactory {
             ? `${gone} ${t('tool.memoryForgotOther', { bot: owners.get(m.botId)! })}`
             : gone;
         },
+        'internal',
+      ),
+      def(
+        'memory_flag',
+        {
+          kind: z.enum(['missing', 'wrong']),
+          about: z.string().trim().min(1).max(300),
+          seen: z.string().trim().max(1000).optional(),
+          note: z.string().max(100).optional(),
+          skill: z.string().max(64).optional(),
+          where: z.string().max(2000).optional(),
+        },
+        async ({ kind, about, seen, note, skill, where }) => {
+          // A chat the bot answers for the person is someone else's words, as the review keeps it.
+          if (opts.contact) return t('tool.flagNotHere');
+          const sourceUrl = where?.trim() ? sourceAddress(where) : null;
+          if (sourceUrl === undefined) return t('tool.memoryBadSource', { from: where! });
+          let memoryId: string | null = null;
+          if (note) {
+            const m = await s.memory.get(note).catch(() => null);
+            const here = await place();
+            if (
+              !m ||
+              (team && m.scope === 'user') ||
+              !s.memory.canEdit(m, (await memoryOwners()).keys(), person, here ? [here] : [])
+            )
+              return t('tool.memoryNotYours');
+            memoryId = m.id;
+          }
+          let skillId: string | null = null;
+          if (skill) {
+            const found = skills.find((k) => k.name === skill);
+            if (!found) return t('tool.flagNoSkill', { name: skill });
+            skillId = found.id;
+          }
+          if (kind === 'wrong' && !memoryId && !skillId) return t('tool.flagWrongNeedsTarget');
+          const clean = (text: string) => redactSecrets(text, t('memory.redacted')).text;
+          const done = await s.memoryFlags.raise({
+            kind,
+            about: clean(about),
+            seen: seen ? clean(seen) : null,
+            memoryId,
+            skillId,
+            sourceUrl,
+            botId: bot.id,
+            userId: person,
+            place: await place(),
+            outside: turn.outside ?? reads(),
+            threadId: thread.id,
+            turnId: turn.id,
+          });
+          if (done.status === 'turnFull') return t('tool.flagTurnFull', { max: FLAGS_PER_TURN });
+          if (done.status === 'botFull') return t('tool.flagBotFull', { max: OPEN_FLAGS_PER_BOT });
+          return done.status === 'again' ? t('tool.flagAgain') : t('tool.flagRaised');
+        },
+        // It changes no note: it only asks whoever knows to fill the gap, on the memory screen.
         'internal',
       ),
       def(

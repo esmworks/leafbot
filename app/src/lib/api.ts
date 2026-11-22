@@ -54,6 +54,7 @@ import type {
   MailSender,
   Memory,
   MemoryChange,
+  MemoryFlag,
   MemoryHistoryLine,
   Message,
   PermissionRule,
@@ -689,6 +690,11 @@ export const api = {
   memoryChanges: () => http.get<MemoryChange[]>('/api/memory-changes'),
   acceptMemoryChange: (id: string) => http.post<{ ok: true }>(`/api/memory-changes/${id}/accept`, {}),
   rejectMemoryChange: (id: string) => http.del<{ ok: true }>(`/api/memory-changes/${id}`),
+  /** Gaps bots found in what they know and could not fill themselves. */
+  memoryFlags: () => http.get<MemoryFlag[]>('/api/memory/flags'),
+  answerMemoryFlag: (id: string, text: string) =>
+    http.post<{ ok: true }>(`/api/memory/flags/${id}/answer`, { text }),
+  dismissMemoryFlag: (id: string) => http.post<{ ok: true }>(`/api/memory/flags/${id}/dismiss`, {}),
 
   routines: () => http.get<Routine[]>('/api/routines'),
   createRoutine: (r: unknown) => http.post<Routine>('/api/routines', r),

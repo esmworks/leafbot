@@ -7,6 +7,16 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A bot can say what it does not know. When it notices during a task that a fact it needs is missing from its memory,
+  or that a note or skill disagrees with what it just saw, and it does not know the right answer, it leaves a flag
+  instead of guessing. Flags show under Settings › Memory as "Missing knowledge", most often raised first, and on Today
+  as a count. Your answer becomes your own note (or the flagged note's new words, or a change to the skill, which waits
+  for the skill's owner when that is someone else), so the gap is filled once for every later task. A flag also closes
+  by itself when the note it is about changes, when you say the answer in a later conversation the memory review
+  reads, or when a page the bot named plainly answers it: that answer waits for your yes as a memory change. A flag
+  raised after the bot read outside text (a mail, a web page) is shown as such and is never settled without you. One
+  turn leaves at most three flags and a bot at most 50 open ones; a flag raised once and left for 60 days goes, and
+  taking a turn back takes its flags too. Bots with memory turned off, and people with no account here, have none.
 - A bot can listen to a call it joins in its browser and write it out. Ask it to join a Jitsi, Google Meet or
   Microsoft Teams link: it opens the page, joins with its usual browser steps under a name that says it takes notes,
   and listens once you agree on a card, which comes every time and has no "always allow", since the other people's

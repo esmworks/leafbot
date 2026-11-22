@@ -345,6 +345,8 @@ export class TurnChangeService {
       .returning({ id: schema.turnChanges.id });
     if (!claimed.length) throw new HttpError(409, 'error.turnUndone');
     const mine = new Set(claimed.map((c) => c.id));
+    // A gap the turn flagged goes with it: what the taken-back turn saw is not trusted either.
+    await this.services.memoryFlags.dropForTurn(turnId);
     const items: TurnChangeItem[] = [];
     for (const row of rows.filter((r) => mine.has(r.id))) {
       let outcome: TurnChangeOutcome;

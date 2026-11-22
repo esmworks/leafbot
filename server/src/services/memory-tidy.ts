@@ -6,6 +6,7 @@ import { schema } from '../db';
 import type { Engine } from '../engine/types';
 import { translator, type T } from '../i18n';
 import { HttpError, newId, truncate } from '../util';
+import type { FlagRow } from './memory-flags';
 import { pageText } from './routines';
 import { redactSecrets } from './secrets';
 import { fetchPublic, type PublicResponse } from './skill-link';
@@ -55,6 +56,18 @@ export function parseVerdict(text: string): { verdict: 'same' | 'changed' | 'unc
     // Read as unclear below.
   }
   return { verdict: 'unclear' };
+}
+
+/** The answer the model read on a flag's page, or null when the page does not plainly give one. */
+export function parseFlagAnswer(text: string): string | null {
+  const json = text.match(/\{[\s\S]*\}/)?.[0];
+  if (!json) return null;
+  try {
+    const v = JSON.parse(json) as { answer?: unknown };
+    return typeof v.answer === 'string' && v.answer.trim() ? v.answer.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 /** The readable text of what a page served, or null for what is not text (a picture, a file). */
@@ -241,6 +254,14 @@ export class MemoryTidyService {
     const sources = await this.checkSources(now, settings.defaultModel);
     sum.checked = sources.checked;
     sum.updated += sources.updated;
+    // Flags are looked at every pass, not with the sets: a gap in a set that does not change (or is
+    // too small to tidy) would otherwise wait for good.
+    await this.checkFlagPages(settings.defaultModel).catch((err: unknown) =>
+      console.warn(`Memory flag pages failed: ${String(err)}`),
+    );
+    await this.services.memoryFlags
+      .expire()
+      .catch((err: unknown) => console.warn(`Memory flag expiry failed: ${String(err)}`));
     if (sum.sets || sum.checked) this.ctx.bus.refresh({ scope: 'memory' });
     return sum;
   }
@@ -294,20 +315,9 @@ export class MemoryTidyService {
 
   /** One note against its page; whether its words were changed. */
   private async checkSource(m: Memory, bot: Bot, defaultModel: string): Promise<boolean> {
-    let url: URL;
-    try {
-      url = new URL(m.sourceUrl!);
-    } catch {
-      return false;
-    }
-    if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
-    // Read over https only: the read is the server's, and it does not go out in the clear.
-    url.protocol = 'https:';
-    url.hash = '';
-    const text = servedText(
-      await this.readPage(url).catch(() => ({ body: Buffer.from(''), contentType: 'none' })),
-    );
-    if (!text) return false;
+    const page = await this.pageText(m.sourceUrl!);
+    if (!page) return false;
+    const { url, text } = page;
     const locale =
       (await this.services.settings.all(m.scope === 'user' ? (m.userId ?? undefined) : undefined)).language ??
       (await this.services.settings.locale());
@@ -331,6 +341,103 @@ export class MemoryTidyService {
     const changed = await this.correct(m, parseVerdict(answer), t);
     await this.spent(bot.id, 'source', costUsd, changed ? 1 : 0);
     return changed;
+  }
+
+  /** A page's readable text, read over https; null for an address or a page that gives none. */
+  private async pageText(raw: string): Promise<{ url: URL; text: string } | null> {
+    let url: URL;
+    try {
+      url = new URL(raw);
+    } catch {
+      return null;
+    }
+    if (url.protocol !== 'https:' && url.protocol !== 'http:') return null;
+    // Read over https only: the read is the server's, and it does not go out in the clear.
+    url.protocol = 'https:';
+    url.hash = '';
+    const text = servedText(
+      await this.readPage(url).catch(() => ({ body: Buffer.from(''), contentType: 'none' })),
+    );
+    return text ? { url, text } : null;
+  }
+
+  /**
+   * Reads the page a bot named when it flagged a gap, once per flag, and when the page plainly
+   * answers it leaves the answer as a memory change for the person: the bot chose the page, which
+   * may be wrong or written to mislead, and a note goes into every later prompt. A flag raised
+   * after outside text is never read (see `withUnreadPage`), nor one about a note the person wrote
+   * or pinned, nor one of a bot kept off the internet.
+   */
+  private async checkFlagPages(defaultModel: string): Promise<number> {
+    let proposed = 0;
+    for (const f of await this.services.memoryFlags.withUnreadPage(SOURCES_PER_PASS)) {
+      if (this.stopped) break;
+      const bot = await this.services.bots.get(f.botId).catch(() => null);
+      if (!bot || !bot.memory || bot.archivedAt || !bot.internet || !this.engineFor(bot).complete) continue;
+      if (await this.services.usage.reached(bot)) continue;
+      // Marked first: a page that fails is not read again.
+      await this.services.memoryFlags.checked(f.id);
+      try {
+        if (await this.checkFlagPage(f, bot, defaultModel)) proposed++;
+      } catch (err) {
+        console.warn(`Memory flag page check of ${f.id} failed: ${(err as Error).message}`);
+      }
+    }
+    return proposed;
+  }
+
+  private async checkFlagPage(f: FlagRow, bot: Bot, defaultModel: string): Promise<boolean> {
+    const note = f.memoryId ? await this.services.memory.get(f.memoryId).catch(() => null) : null;
+    if (note && theirs(note)) return false;
+    const page = await this.pageText(f.sourceUrl!);
+    if (!page) return false;
+    const locale =
+      (await this.services.settings.all(f.userId ?? undefined)).language ??
+      (await this.services.settings.locale());
+    const t = translator(locale);
+    const controller = new AbortController();
+    this.current.add(controller);
+    let answer: string;
+    let costUsd: number | null;
+    try {
+      ({ text: answer, costUsd } = await this.engineFor(bot).complete!({
+        model: bot.model || (bot.engine === 'claude' ? defaultModel : '') || this.ctx.config.claudeModel,
+        system: t('memoryTidy.flagSystem', { today: this.clock().toISOString().slice(0, 10) }),
+        user: [
+          `<gap kind="${f.kind}">${data(f.about)}</gap>`,
+          ...(f.seen ? [`<seen>${data(f.seen)}</seen>`] : []),
+          ...(note ? [`<note>${data(note.content)}</note>`] : []),
+          `<page url="${data(page.url.href).replace(/"/g, '%22')}">${data(truncate(page.text, PAGE_CHARS))}</page>`,
+        ].join('\n'),
+        signal: controller.signal,
+        locale,
+      }));
+    } finally {
+      this.current.delete(controller);
+    }
+    if (controller.signal.aborted) return false;
+    await this.spent(bot.id, 'source', costUsd, 0);
+    const found = parseFlagAnswer(answer);
+    if (!found || found.length > 2000) return false;
+    const content = redactSecrets(found, t('memory.redacted')).text;
+    const change = await this.services.memory.propose({
+      action: note ? 'update' : 'write',
+      memoryId: note?.id ?? null,
+      scope: f.scope,
+      botId: f.scope === 'bot' ? f.botId : null,
+      place: f.place,
+      site: null,
+      content,
+      before: note?.content ?? null,
+      proposedBy: f.botId,
+      origin: { kind: 'flag', name: bot.name },
+      userId: f.userId,
+      threadId: f.threadId,
+      sourceUrl: page.url.href,
+      validUntil: null,
+    });
+    await this.services.memoryFlags.proposed(f.id, change.id);
+    return true;
   }
 
   /** Gives a note the new words the model read on its page, when they are fit to take. */

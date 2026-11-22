@@ -797,6 +797,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       expiredMemory: (await s.memory.expired(new Date(), notes)).length,
       pendingMemory: (await s.memory.pending(notes)).length,
       pendingSkills: (await s.skills.changes(skillReach(req))).length,
+      openFlags: await s.memoryFlags.openCount(notes),
       canaryAlarms: await s.canary.open(me(req).userId),
     };
   });
@@ -2135,6 +2136,18 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const id = IdParams.parse(req.params).id;
     await ownChange(req, id);
     await s.memory.reject(id);
+    return { ok: true };
+  });
+  // Gaps bots found in what they know and could not fill; the person answers or puts them aside.
+  app.get('/api/memory/flags', async (req) => s.memoryFlags.list(await memoryReach(req)));
+  app.post('/api/memory/flags/:id/answer', async (req) => {
+    const id = IdParams.parse(req.params).id;
+    const { text } = z.object({ text: z.string().trim().min(1).max(2000) }).parse(req.body);
+    await s.memoryFlags.answer(id, text, await memoryReach(req));
+    return { ok: true };
+  });
+  app.post('/api/memory/flags/:id/dismiss', async (req) => {
+    await s.memoryFlags.dismiss(IdParams.parse(req.params).id, await memoryReach(req));
     return { ok: true };
   });
   // Notes no bot uses any more, offered to the user to keep or delete.

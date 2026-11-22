@@ -31,6 +31,7 @@ import { noteKey } from './secrets';
 import { siteMatches } from './vault';
 import { MIN_SCORE, type EmbeddingService } from './embeddings';
 import { OWNER_ID } from '../users';
+import { settleChangeFlags, settleNoteFlags } from './memory-flags';
 
 /** A note whose words hold the query ranks this much above one only near it in meaning. */
 const WORD_MATCH_BONUS = 0.25;
@@ -470,11 +471,13 @@ export class MemoryService {
       if (exists && row.action === 'forget') await this.remove(row.memoryId, actor);
     }
     await this.ctx.db.delete(schema.memoryChanges).where(eq(schema.memoryChanges.id, id));
+    await settleChangeFlags(this.ctx.db, id, true);
     this.ctx.bus.refresh({ scope: 'memory' });
   }
 
   async reject(id: string): Promise<void> {
     await this.ctx.db.delete(schema.memoryChanges).where(eq(schema.memoryChanges.id, id));
+    await settleChangeFlags(this.ctx.db, id, false);
     this.ctx.bus.refresh({ scope: 'memory' });
   }
 
@@ -642,6 +645,7 @@ export class MemoryService {
       .returning();
     const owner = noteOwner(before);
     if (content !== undefined) await this.log(id, 'update', before.content, row!.content, actor, owner);
+    if (content !== undefined && content !== before.content) await settleNoteFlags(this.ctx.db, [id]);
     if (pinned !== undefined && pinned !== !!before.pinned)
       await this.log(id, pinned ? 'pin' : 'unpin', null, null, actor, owner);
     this.ctx.bus.refresh({ scope: 'memory' });
@@ -706,6 +710,12 @@ export class MemoryService {
    * its words too (the lines stay, so the history still shows that the note existed).
    */
   private async removeWhere(where: SQL, actor: string): Promise<{ count: number }> {
+    // Read first: a flag about a note keeps no link to it once it is gone.
+    const going = await this.ctx.db.select({ id: schema.memories.id }).from(schema.memories).where(where);
+    await settleNoteFlags(
+      this.ctx.db,
+      going.map((m) => m.id),
+    );
     const rows = await this.ctx.db.transaction(async (tx) => {
       const gone = await tx.delete(schema.memories).where(where).returning();
       if (gone.length) {
