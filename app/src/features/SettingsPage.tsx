@@ -54,6 +54,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useLocale, useT, type MessageKey } from '@/i18n';
+import { SERVER_TABS } from '@/lib/commands';
 import { api } from '@/lib/api';
 import { deviceName } from '@/lib/device';
 import { useFormat } from '@/lib/format';
@@ -136,9 +137,6 @@ import {
   useHasProvider,
   useSavePiModel,
 } from './ProviderConnect';
-
-/** Sections only those who look after the server use: what they change is the server's. */
-const SERVER_TABS = new Set<SettingsTab>(['channels', 'services', 'groups', 'import', 'usage']);
 
 const TABS: { id: SettingsTab; icon: React.ReactNode }[] = [
   { id: 'profile', icon: <UserRound /> },

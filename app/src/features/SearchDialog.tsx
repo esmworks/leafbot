@@ -1,17 +1,21 @@
 import type { Bot, SearchHit } from '@leafbot/shared';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, Search } from 'lucide-react';
+import { CornerDownLeft, Loader2, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { BotAvatar } from '@/components/BotAvatar';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { useLocale, useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { useBots } from '@/lib/queries';
+import { matchCommands, paletteCommands, type PaletteCommand } from '@/lib/commands';
+import { useBots, useManagesServer, useSession } from '@/lib/queries';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
-type Result = { kind: 'bot'; bot: Bot } | { kind: 'message'; hit: SearchHit; bot: Bot | undefined };
+type Result =
+  | { kind: 'command'; command: PaletteCommand; bot?: undefined }
+  | { kind: 'bot'; bot: Bot }
+  | { kind: 'message'; hit: SearchHit; bot: Bot | undefined };
 
 /** Waits for typing to pause before the query reaches the server. */
 function useDebounced<T>(value: T, ms: number): T {
@@ -23,7 +27,10 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
-/** ⌘K / Ctrl+K: finds bots by name and messages by their text, and opens what is picked. */
+/**
+ * ⌘K / Ctrl+K: finds what to do (open a place, a settings section, change the theme), bots by name
+ * and messages by their text, and opens what is picked.
+ */
 export function SearchDialog() {
   const open = useUi((s) => s.searchOpen);
   const setOpen = useUi((s) => s.openSearch);
@@ -65,12 +72,16 @@ function SearchBody({ onDone }: { onDone(): void }) {
     staleTime: 10_000,
   });
   const byId = useMemo(() => new Map(bots.map((b) => [b.id, b])), [bots]);
+  const manages = useManagesServer();
+  const known = !!useSession().data?.user;
+  const commands = useMemo(() => paletteCommands(t, { manages, known }), [t, manages, known]);
   const results: Result[] = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase(intl);
     const named = needle
       ? bots.filter((b) => b.name.toLocaleLowerCase(intl).includes(needle)).slice(0, 5)
       : [];
     return [
+      ...matchCommands(commands, query, intl).map((command) => ({ kind: 'command' as const, command })),
       ...named.map((bot) => ({ kind: 'bot' as const, bot })),
       ...(q.length >= 2 ? hits : []).map((hit) => ({
         kind: 'message' as const,
@@ -78,10 +89,16 @@ function SearchBody({ onDone }: { onDone(): void }) {
         bot: byId.get(hit.botId),
       })),
     ];
-  }, [bots, byId, hits, intl, q, query]);
+  }, [bots, byId, commands, hits, intl, q, query]);
 
   const pick = (r: Result) => {
     const ui = useUi.getState();
+    if (r.kind === 'command') {
+      // The palette closes first, so a dialog the command opens is not closed with it.
+      onDone();
+      r.command.run();
+      return;
+    }
     if (r.kind === 'bot') {
       ui.openChat(r.bot.id);
     } else {
@@ -141,7 +158,13 @@ function SearchBody({ onDone }: { onDone(): void }) {
           const bot = r.bot;
           return (
             <button
-              key={r.kind === 'bot' ? `b:${r.bot.id}` : `m:${r.hit.messageId}`}
+              key={
+                r.kind === 'command'
+                  ? `c:${r.command.id}`
+                  : r.kind === 'bot'
+                    ? `b:${r.bot.id}`
+                    : `m:${r.hit.messageId}`
+              }
               type="button"
               role="option"
               aria-selected={i === active}
@@ -152,12 +175,20 @@ function SearchBody({ onDone }: { onDone(): void }) {
                 i === active && 'bg-accent',
               )}
             >
-              {bot ? (
+              {r.kind === 'command' ? (
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-secondary text-muted-foreground">
+                  <CornerDownLeft className="size-3.5" />
+                </span>
+              ) : bot ? (
                 <BotAvatar avatar={bot.avatar} color={bot.color} seed={bot.id} size={28} />
               ) : (
                 <span className="size-7 shrink-0 rounded-full bg-secondary" />
               )}
-              {r.kind === 'bot' ? (
+              {r.kind === 'command' ? (
+                <div className="min-w-0 flex-1 self-center truncate text-sm font-medium">
+                  {r.command.label}
+                </div>
+              ) : r.kind === 'bot' ? (
                 <div className="min-w-0 flex-1 self-center">
                   <div className="truncate text-sm font-medium">{r.bot.name}</div>
                   {r.bot.description && (
