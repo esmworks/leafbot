@@ -15,7 +15,7 @@ import {
 } from '@leafbot/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, List, Terminal, Webhook as WebhookIcon, Workflow } from 'lucide-react';
+import { ChevronLeft, List, Pencil, Terminal, Webhook as WebhookIcon, Workflow } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch, type UseFormRegisterReturn, type UseFormReturn } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -579,9 +579,28 @@ export function RoutinePage({
         >
           <ChevronLeft className="size-5" />
         </Button>
-        <h1 className="min-w-0 flex-1 truncate text-base font-semibold">
-          {values.name?.trim() || (routine ? t('routine.edit') : t('routine.new'))}
-        </h1>
+        <RoutineName form={form} name={values.name} />
+        <div
+          role="group"
+          aria-label={t('routine.view')}
+          className="inline-flex shrink-0 rounded-xl border p-0.5"
+        >
+          {(['list', 'flow'] as const).map((v) => (
+            <Button
+              key={v}
+              type="button"
+              size="sm"
+              variant={view === v ? 'secondary' : 'ghost'}
+              className="h-7 rounded-lg px-2.5 text-xs"
+              aria-pressed={view === v}
+              aria-label={t(`routine.view.${v}`)}
+              onClick={() => setView(v)}
+            >
+              {v === 'list' ? <List className="size-3.5" /> : <Workflow className="size-3.5" />}
+              <span className="phone:hidden">{t(`routine.view.${v}`)}</span>
+            </Button>
+          ))}
+        </div>
         {routine && (
           <Button
             type="button"
@@ -601,6 +620,12 @@ export function RoutinePage({
       <div className="scroll-thin relative min-h-0 flex-1 overflow-y-auto overscroll-contain">
         {/* A list reads best as a narrow column; the flow takes the whole width. */}
         <div className={cn('mx-auto space-y-4 px-4 py-6 sm:px-6', view === 'list' && 'max-w-2xl')}>
+          {/* No room beside the name on a phone, so its message comes first under the bar. */}
+          {err.name?.message && (
+            <p role="alert" className="hidden text-sm text-destructive phone:block">
+              {t(err.name.message as MessageKey)}
+            </p>
+          )}
           {!routine && (
             <TemplatePicker
               onPick={(tpl) => {
@@ -612,31 +637,6 @@ export function RoutinePage({
               }}
             />
           )}
-          <Field label={t('routine.name')} error={err.name?.message}>
-            <Input
-              {...form.register('name')}
-              placeholder={t('routine.namePlaceholder')}
-              className="rounded-xl"
-            />
-          </Field>
-          <div className="flex justify-end">
-            <div role="group" aria-label={t('routine.view')} className="inline-flex rounded-xl border p-0.5">
-              {(['list', 'flow'] as const).map((v) => (
-                <Button
-                  key={v}
-                  type="button"
-                  size="sm"
-                  variant={view === v ? 'secondary' : 'ghost'}
-                  className="h-7 rounded-lg px-2.5 text-xs"
-                  aria-pressed={view === v}
-                  onClick={() => setView(v)}
-                >
-                  {v === 'list' ? <List className="size-3.5" /> : <Workflow className="size-3.5" />}
-                  {t(`routine.view.${v}`)}
-                </Button>
-              ))}
-            </div>
-          </div>
           {view === 'list' ? (
             <>
               <Field label={t('routine.prompt')} error={err.prompt?.message}>
@@ -936,6 +936,73 @@ function RecentRuns({ routineId, botId, reveal }: { routineId: string; botId: st
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/**
+ * The routine's name as the page title, changed in place with the pencil beside it, so the form
+ * below starts with what the routine does. A new routine opens with the name ready to type.
+ */
+function RoutineName({ form, name }: { form: UseFormReturn<Form>; name?: string }) {
+  const t = useT();
+  const error = form.formState.errors.name?.message;
+  const [editing, setEditing] = useState(!name?.trim());
+  const field = form.register('name');
+  const done = () => {
+    if (form.getValues('name')?.trim()) setEditing(false);
+  };
+
+  // A save turned down for a missing name keeps the box open to type it.
+  if (!editing && !error) {
+    return (
+      <div className="flex min-w-0 flex-1 items-center gap-1">
+        <h1 className="min-w-0 truncate text-base font-semibold" onDoubleClick={() => setEditing(true)}>
+          {name}
+        </h1>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          className="size-8 shrink-0 rounded-full text-muted-foreground"
+          onClick={() => setEditing(true)}
+          aria-label={t('routine.rename')}
+        >
+          <Pencil className="size-3.5" />
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex min-w-0 flex-1 items-center gap-2">
+      <Input
+        {...field}
+        autoFocus
+        aria-label={t('routine.name')}
+        aria-invalid={!!error}
+        placeholder={t('routine.namePlaceholder')}
+        className="h-9 max-w-md min-w-32 flex-1 rounded-xl text-base font-semibold"
+        onBlur={(e) => {
+          void field.onBlur(e);
+          done();
+        }}
+        onKeyDown={(e) => {
+          // Enter keeps the name instead of saving the whole routine; Escape takes back the typing.
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            done();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            form.resetField('name');
+            done();
+          }
+        }}
+      />
+      {error && (
+        <p role="alert" className="min-w-0 truncate text-sm text-destructive phone:hidden">
+          {t(error as MessageKey)}
+        </p>
+      )}
     </div>
   );
 }

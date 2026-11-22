@@ -1672,6 +1672,7 @@ export const de: Partial<Catalog<MessageKey>> = {
   'routine.missed.run': 'Einmal ausführen, sobald er wieder da ist',
   'routine.missed.skip': 'Überspringen und auf das nächste Mal warten',
   'routine.name': 'Name',
+  'routine.rename': 'Umbenennen',
   'routine.nameRequired': 'Name ist erforderlich',
   'routine.namePlaceholder': 'Morgenzusammenfassung',
   'routine.prompt': 'Was soll sie tun?',

@@ -1646,6 +1646,7 @@ export const tr = {
   'routine.missed.run': 'Açılınca bir kez çalıştır',
   'routine.missed.skip': 'Atla, bir sonrakini bekle',
   'routine.name': 'Ad',
+  'routine.rename': 'Adı değiştir',
   'routine.nameRequired': 'Ad gerekli',
   'routine.namePlaceholder': 'Sabah özeti',
   'routine.prompt': 'Ne yapsın?',

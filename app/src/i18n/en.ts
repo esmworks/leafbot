@@ -1682,6 +1682,7 @@ export const en: Catalog<MessageKey> = {
   'routine.missed.run': 'Run it once when it is back',
   'routine.missed.skip': 'Skip it and wait for the next time',
   'routine.name': 'Name',
+  'routine.rename': 'Rename',
   'routine.nameRequired': 'Name is required',
   'routine.namePlaceholder': 'Morning summary',
   'routine.prompt': 'What should it do?',
