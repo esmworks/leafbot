@@ -31,6 +31,10 @@ export const tr = {
   'update.restartHint': 'İnen güncelleme hemen kullanılsın.',
   'update.off': 'Bu kopya güncellemeleri yalnız mağazadan alır.',
   'update.failed': 'Güncelleme denetlenemedi: {error}',
+  'liveActivity.title': 'Süren işi kilit ekranında göster',
+  'liveActivity.hint':
+    'Mesaj gönderdiğiniz botun ne yaptığı, uygulama kapalıyken de kilit ekranında görünür.',
+  'activity.working': 'Çalışıyor',
 };
 
 export const en: Record<keyof typeof tr, string> = {
@@ -65,4 +69,8 @@ export const en: Record<keyof typeof tr, string> = {
   'update.restartHint': 'Use the update that came down now.',
   'update.off': 'This copy takes updates only from the store.',
   'update.failed': 'Could not check for updates: {error}',
+  'liveActivity.title': 'Show work on the Lock Screen',
+  'liveActivity.hint':
+    'What the bot you messaged is doing shows on the Lock Screen, even while the app is closed.',
+  'activity.working': 'Working',
 };

@@ -134,6 +134,48 @@ export interface ApnsAlert {
   data: Record<string, string>;
 }
 
+/** A change to a Live Activity on the lock screen: new content, or its end. */
+export interface ApnsActivity {
+  event: 'update' | 'end';
+  /** Unix seconds; Apple drops an update older than one it already has. */
+  timestamp: number;
+  /** The state the phone's layout reads: the name it is registered under and its props as JSON. */
+  contentState: { name: string; props: string };
+  /** After this the phone dims the activity as out of date, if nothing newer has come. */
+  staleDate?: number;
+  /** For an end: when the phone takes it off the lock screen. */
+  dismissalDate?: number;
+}
+
+/** The request Apple expects for a Live Activity, sent to that activity's own token. */
+export function activityRequest(
+  token: string,
+  sandbox: boolean,
+  auth: string,
+  topic: string,
+  a: ApnsActivity,
+) {
+  return {
+    token,
+    sandbox,
+    headers: {
+      authorization: `bearer ${auth}`,
+      'apns-topic': `${topic}.push-type.liveactivity`,
+      'apns-push-type': 'liveactivity',
+      'apns-priority': '10',
+    },
+    body: JSON.stringify({
+      aps: {
+        timestamp: a.timestamp,
+        event: a.event,
+        'content-state': a.contentState,
+        ...(a.staleDate !== undefined && { 'stale-date': a.staleDate }),
+        ...(a.dismissalDate !== undefined && { 'dismissal-date': a.dismissalDate }),
+      },
+    }),
+  } satisfies ApnsRequest;
+}
+
 /** The request Apple expects for a visible notification. */
 export function alertRequest(token: string, sandbox: boolean, auth: string, topic: string, a: ApnsAlert) {
   return {
