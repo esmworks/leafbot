@@ -19,6 +19,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft,
+  ChevronLeft,
   ChevronRight,
   Copy,
   ExternalLink,
@@ -36,7 +37,6 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { BotAvatar } from '@/components/BotAvatar';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
@@ -155,9 +155,11 @@ export function useToggleBot() {
   };
 }
 
-/** The apps window: services to connect, the connections made, and each one's tools and bots. */
-export function AppsDialog() {
-  const t = useT();
+/**
+ * The apps page: services to connect, the connections made, and each one's tools and bots. It
+ * covers the main area while open; what was there stays as it was under it.
+ */
+export function AppsPage() {
   const apps = useUi((s) => s.apps);
   const openApps = useUi((s) => s.openApps);
   const [chosen, setView] = useState<View>({ kind: 'browse' });
@@ -168,26 +170,15 @@ export function AppsDialog() {
     if (apps?.connectionId) openApps({ botId: apps.botId });
     setView({ kind: 'browse' });
   };
-  const close = (open: boolean) => {
-    if (open) return;
-    openApps(null);
-    setView({ kind: 'browse' });
-  };
   return (
-    <Dialog open={!!apps} onOpenChange={close}>
-      <DialogContent
-        // Escape in a field that undoes its own edit (an account's new name) only undoes that.
-        onEscapeKeyDown={(e) => {
-          if (
-            document.activeElement instanceof HTMLElement &&
-            'escapeLocal' in document.activeElement.dataset
-          )
-            e.preventDefault();
-        }}
-        className="screen-edges flex h-[min(760px,90vh)] flex-col gap-0 overflow-hidden rounded-3xl p-0 sm:max-w-3xl phone:h-dvh phone:max-h-none phone:max-w-full phone:rounded-none phone:border-0"
-      >
+    <section className="flex min-h-0 min-w-0 flex-1 justify-center">
+      <div className="flex min-h-0 w-full max-w-3xl flex-col">
         {view.kind === 'browse' && (
-          <Browse onView={setView} initialQuery={catalogEntry(apps?.catalogId)?.name ?? ''} />
+          <Browse
+            onView={setView}
+            onClose={() => openApps(null)}
+            initialQuery={catalogEntry(apps?.catalogId)?.name ?? ''}
+          />
         )}
         {view.kind === 'setup' && (
           <Setup
@@ -209,13 +200,21 @@ export function AppsDialog() {
             onAddAccount={(entry, sibling) => setView({ kind: 'setup', entry, sibling })}
           />
         )}
-        {!apps && <DialogTitle className="sr-only">{t('apps.title')}</DialogTitle>}
-      </DialogContent>
-    </Dialog>
+      </div>
+    </section>
   );
 }
 
-function Browse({ onView, initialQuery = '' }: { onView(v: View): void; initialQuery?: string }) {
+function Browse({
+  onView,
+  onClose,
+  initialQuery = '',
+}: {
+  onView(v: View): void;
+  /** Leaves the apps page for what was under it. */
+  onClose(): void;
+  initialQuery?: string;
+}) {
   const t = useT();
   const { data: connections = [] } = useConnections();
   const [query, setQuery] = useState(initialQuery);
@@ -300,12 +299,21 @@ function Browse({ onView, initialQuery = '' }: { onView(v: View): void; initialQ
 
   return (
     <>
-      <div className="flex items-center gap-3 px-5 sm:px-8 pt-5 pb-4 sm:pt-7">
-        <DialogTitle className="text-xl">{t('apps.title')}</DialogTitle>
+      <div className="window-drag flex items-center gap-2 px-3 pt-3 pb-4 sm:px-6">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="shrink-0 rounded-full"
+          onClick={onClose}
+          aria-label={t('common.back')}
+        >
+          <ChevronLeft className="size-5" />
+        </Button>
+        <h1 className="text-xl font-semibold">{t('apps.title')}</h1>
         {connectedCount > 0 && (
           <button
             onClick={() => setFilter('connected')}
-            className="mr-8 ml-auto flex items-center gap-2 rounded-full px-2 py-1 text-sm text-muted-foreground hover:bg-accent"
+            className="ml-auto flex items-center gap-2 rounded-full px-2 py-1 text-sm text-muted-foreground hover:bg-accent"
           >
             <span className="flex -space-x-2">
               {services.slice(0, 4).map((s) => (
@@ -317,7 +325,7 @@ function Browse({ onView, initialQuery = '' }: { onView(v: View): void; initialQ
           </button>
         )}
       </div>
-      <DialogDescription className="sr-only">{t('apps.subtitle')}</DialogDescription>
+      <p className="sr-only">{t('apps.subtitle')}</p>
       <div className="flex gap-2 px-5 sm:px-8">
         <div className="relative flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -352,7 +360,7 @@ function Browse({ onView, initialQuery = '' }: { onView(v: View): void; initialQ
           ))}
         </div>
       )}
-      <div className="scroll-thin flex-1 overflow-y-auto px-5 sm:px-8 pt-2 pb-8">
+      <div className="scroll-thin relative flex-1 overflow-y-auto px-5 sm:px-8 pt-2 pb-8">
         {shownServices.length > 0 && (
           <Section title={t('apps.yours')}>
             {shownServices.map((s) => {
@@ -470,7 +478,7 @@ function Header({
 }) {
   const t = useT();
   return (
-    <div className="flex items-center gap-3 border-b px-6 py-4">
+    <div className="window-drag flex items-center gap-3 border-b px-6 py-4">
       <Button
         variant="ghost"
         size="icon"
@@ -481,9 +489,9 @@ function Header({
         <ArrowLeft />
       </Button>
       <AppLogo id={logo} name={title} size={36} />
-      <div className="min-w-0 flex-1 pr-8">
-        <DialogTitle className="truncate text-base">{title}</DialogTitle>
-        {sub && <DialogDescription className="truncate text-xs">{sub}</DialogDescription>}
+      <div className="min-w-0 flex-1">
+        <h1 className="truncate text-base font-semibold">{title}</h1>
+        {sub && <p className="truncate text-xs text-muted-foreground">{sub}</p>}
       </div>
     </div>
   );
@@ -672,7 +680,10 @@ function Setup({
         title={entry?.name ?? t('apps.customTitle')}
         sub={entry ? new URL(entry.url).host : t('apps.customHint')}
       />
-      <form onSubmit={submit} className="scroll-thin flex-1 space-y-5 overflow-y-auto px-5 sm:px-8 py-6">
+      <form
+        onSubmit={submit}
+        className="scroll-thin relative flex-1 space-y-5 overflow-y-auto px-5 sm:px-8 py-6"
+      >
         {another && (
           <Field label={t('apps.accountName')} hint={t('apps.accountNameHint', { name: entry.name })}>
             <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} autoFocus />
@@ -938,7 +949,7 @@ function Detail({
         title={entry && accounts.length ? entry.name : c.name}
         sub={c.url}
       />
-      <div className="scroll-thin flex-1 space-y-6 overflow-y-auto px-5 sm:px-8 py-6">
+      <div className="scroll-thin relative flex-1 space-y-6 overflow-y-auto px-5 sm:px-8 py-6">
         {entry && accounts.length > 0 && (
           <Accounts accounts={accounts} current={c.id} onOpen={onOpen} onAdd={() => onAddAccount(entry, c)} />
         )}

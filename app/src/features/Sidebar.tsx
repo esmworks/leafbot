@@ -84,7 +84,7 @@ function SidebarPanel({
   const { data: summaries = [] } = useSummaries();
   const { data: settings } = useSettings();
   const [searching, setSearching] = useState(false);
-  const openBotDialog = useUi((s) => s.openBotDialog);
+  const openBotPage = useUi((s) => s.openBotPage);
   const openSettings = useUi((s) => s.openSettings);
   const openApps = useUi((s) => s.openApps);
   const connected = useUi((s) => s.connected);
@@ -176,7 +176,7 @@ function SidebarPanel({
         <div className="grid grid-cols-2 place-items-center gap-1 border-t px-1.5 py-2.5">
           <RoundButton
             label={t('sidebar.newBot')}
-            onClick={() => openBotDialog({ mode: 'create' })}
+            onClick={() => openBotPage({ mode: 'create' })}
             variant="ghost"
             side="right"
           >
@@ -276,7 +276,7 @@ function SidebarPanel({
             <RoundButton label={t('sidebar.search')} onClick={() => setSearching(true)}>
               <Search />
             </RoundButton>
-            <RoundButton label={t('sidebar.newBot')} onClick={() => openBotDialog({ mode: 'create' })}>
+            <RoundButton label={t('sidebar.newBot')} onClick={() => openBotPage({ mode: 'create' })}>
               <Plus />
             </RoundButton>
           </>
@@ -350,7 +350,7 @@ function SidebarPanel({
               <Button
                 variant="secondary"
                 className="rounded-full"
-                onClick={() => openBotDialog({ mode: 'create' })}
+                onClick={() => openBotPage({ mode: 'create' })}
               >
                 <Plus /> {t('sidebar.createFirst')}
               </Button>

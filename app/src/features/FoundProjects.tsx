@@ -15,7 +15,7 @@ export function FoundProjects() {
   const t = useT();
   const f = useFormat();
   const openSettings = useUi((s) => s.openSettings);
-  const openBotDialog = useUi((s) => s.openBotDialog);
+  const openBotPage = useUi((s) => s.openBotPage);
   const { data } = useQuery({ queryKey: ['setup-projects'], queryFn: api.setupProjects });
   const projects = data?.projects ?? [];
   if (!data?.available || !projects.length) return null;
@@ -40,7 +40,7 @@ export function FoundProjects() {
               className="shrink-0 rounded-full"
               onClick={() => {
                 openSettings(null);
-                openBotDialog({ mode: 'create', preset: { name: p.name, projectDir: p.path } });
+                openBotPage({ mode: 'create', preset: { name: p.name, projectDir: p.path } });
               }}
             >
               <Plus className="size-4" /> {t('projects.makeBot')}

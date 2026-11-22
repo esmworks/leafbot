@@ -60,7 +60,7 @@ export function paletteCommands(t: T, opts: { manages: boolean; known: boolean }
       id: 'new-bot',
       label: t('sidebar.newBot'),
       words: t('palette.newBotWords'),
-      run: () => ui().openBotDialog({ mode: 'create' }),
+      run: () => ui().openBotPage({ mode: 'create' }),
     },
     { id: 'today', label: t('today.title'), words: '', run: () => ui().setTodayOpen(true) },
     { id: 'board', label: t('board.title'), words: '', run: () => ui().setBoardOpen(true) },

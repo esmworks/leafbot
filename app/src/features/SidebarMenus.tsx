@@ -58,7 +58,7 @@ export function BotMenu({ bot, children }: { bot: Bot; children: React.ReactElem
   const qc = useQueryClient();
   const { data: groups = [] } = useGroups();
   const moveBot = useMoveBot();
-  const openBotDialog = useUi((s) => s.openBotDialog);
+  const openBotPage = useUi((s) => s.openBotPage);
   const selectBot = useUi((s) => s.selectBot);
   const muted = useNotify((s) => isMuted(s.mutes, bot.id));
   const mute = useNotify((s) => s.mute);
@@ -228,7 +228,7 @@ export function BotMenu({ bot, children }: { bot: Bot; children: React.ReactElem
           <ContextMenuItem
             onSelect={() => {
               dialogNext.current = true;
-              openBotDialog({ mode: 'edit', botId: bot.id });
+              openBotPage({ mode: 'edit', botId: bot.id });
             }}
           >
             <Settings2 /> {t('sidebarMenu.settings')}
@@ -369,7 +369,7 @@ export function SidebarMenu({ children }: { children: React.ReactElement }) {
   const qc = useQueryClient();
   const { data: summaries = [] } = useSummaries();
   const anyUnread = useSeen((s) => summaries.some((x) => isUnread(x, s.seen)));
-  const openBotDialog = useUi((s) => s.openBotDialog);
+  const openBotPage = useUi((s) => s.openBotPage);
   const [naming, setNaming] = useState<Naming>(null);
   const dialogNext = useRef(false);
   const manages = useManagesServer();
@@ -395,7 +395,7 @@ export function SidebarMenu({ children }: { children: React.ReactElement }) {
           <ContextMenuItem
             onSelect={() => {
               dialogNext.current = true;
-              openBotDialog({ mode: 'create' });
+              openBotPage({ mode: 'create' });
             }}
           >
             <Plus /> {t('sidebar.newBot')}

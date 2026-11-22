@@ -11,7 +11,7 @@ export function settingsMatch(query: string, haystack: string): boolean {
 }
 
 /**
- * What a search in the settings finds in the apps window: the window itself by its keywords, or
+ * What a search in the settings finds in the apps page: the page itself by its keywords, or
  * an app by name (the catalog's and the person's own connections). `catalogId` is the catalog app
  * the typed text names, so the window can open on it; null when it only matched a keyword.
  */

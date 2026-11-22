@@ -4,6 +4,8 @@ import {
   ArrowUp,
   FlaskConical,
   Loader2,
+  Maximize2,
+  Minimize2,
   MoreHorizontal,
   Play,
   Plus,
@@ -85,6 +87,7 @@ export function RoutineFlow({
   modelPlaceholder,
   layout,
   onLayout,
+  fullScreenBar,
 }: {
   /** What else starts the routine, besides its schedule. */
   triggers: string[];
@@ -109,6 +112,8 @@ export function RoutineFlow({
   modelPlaceholder: string;
   layout: FlowLayout | null;
   onLayout(next: FlowLayout): void;
+  /** What the bar over a canvas covering the window shows besides its own button (title, save). */
+  fullScreenBar?: ReactNode;
 }) {
   const t = useT();
   const locale = useLocale((s) => s.locale);
@@ -128,6 +133,19 @@ export function RoutineFlow({
     watch.observe(el);
     return () => watch.disconnect();
   }, []);
+
+  // The canvas can cover the whole window, for a long routine; Escape brings it back, unless it
+  // closes a menu or a list open over the canvas.
+  const [fullScreen, setFullScreen] = useState(false);
+  useEffect(() => {
+    if (!fullScreen) return;
+    const onKey = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape' || document.querySelector('[data-radix-popper-content-wrapper]')) return;
+      setFullScreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [fullScreen]);
 
   // The box being dragged, where it is now; the others keep their places meanwhile.
   const [moving, setMoving] = useState<{ id: string; spot: Spot } | null>(null);
@@ -297,7 +315,11 @@ export function RoutineFlow({
         variant="ghost"
         className="h-7 rounded-full px-2 text-xs text-muted-foreground"
         disabled={!text.trim()}
-        onClick={() => onTry(text, step)}
+        onClick={() => {
+          // The trial shows under the canvas, so a canvas covering the window makes way for it.
+          setFullScreen(false);
+          onTry(text, step);
+        }}
       >
         <FlaskConical className="size-3.5" /> {t('flow.try')}
       </Button>
@@ -390,14 +412,46 @@ export function RoutineFlow({
   const promptStatus = partOf('prompt');
   const last = spots[ids[ids.length - 1]!]!;
 
+  const fullScreenButton = (
+    <Button
+      type="button"
+      variant="secondary"
+      size="icon"
+      className="size-8 rounded-full"
+      onClick={() => setFullScreen(!fullScreen)}
+      aria-label={t(fullScreen ? 'flow.exitFullScreen' : 'flow.fullScreen')}
+      title={t(fullScreen ? 'flow.exitFullScreen' : 'flow.fullScreen')}
+    >
+      {fullScreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+    </Button>
+  );
+
   return (
-    <div className="space-y-2">
+    <div
+      className={cn(
+        // No margin: the page's column spaces its parts with margins, which would cut it short.
+        fullScreen
+          ? 'safe-pane fixed inset-0 z-40 m-0 flex flex-col gap-2 bg-background p-3'
+          : 'relative space-y-2',
+      )}
+    >
+      {fullScreen ? (
+        // Over the whole window the bar keeps clear of the window's own buttons and moves the window.
+        <div className="window-drag flex items-center justify-end gap-2 frameless:pl-[88px]">
+          {fullScreenBar}
+          {fullScreenButton}
+        </div>
+      ) : (
+        <div className="absolute top-2 right-2 z-10">{fullScreenButton}</div>
+      )}
       <div
         ref={scroller}
         role="group"
         aria-label={t('routine.view.flow')}
         className={cn(
-          'scroll-thin relative h-[max(34rem,calc(100dvh-16rem))] overflow-auto overscroll-contain rounded-2xl border',
+          // Wheeling past the canvas's own edge goes on to scroll the page around it.
+          'scroll-thin relative overflow-auto rounded-2xl border',
+          fullScreen ? 'min-h-0 flex-1' : 'h-[max(34rem,calc(100dvh-16rem))]',
           'bg-[radial-gradient(var(--border)_1px,transparent_1px)] [background-size:16px_16px]',
           moving && 'cursor-grabbing select-none',
         )}

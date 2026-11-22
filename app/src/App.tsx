@@ -9,8 +9,8 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { CreateAccount } from '@/features/AccountSetup';
-import { BotDialog, NewBotPage } from '@/features/BotDialog';
-import { AppsDialog } from '@/features/Connections';
+import { BotFormPage } from '@/features/BotFormPage';
+import { AppsPage } from '@/features/Connections';
 import { ComputerDialog } from '@/features/Computer';
 import { FilePreview } from '@/features/FilePreview';
 import { Chat } from '@/features/Chat';
@@ -170,7 +170,7 @@ function Workspace() {
   const botId = useUi((s) => s.botId);
   const selectBot = useUi((s) => s.selectBot);
   const panelOpen = useUi((s) => s.panelOpen);
-  const openBotDialog = useUi((s) => s.openBotDialog);
+  const openBotPage = useUi((s) => s.openBotPage);
   const panelSheet = useUi((s) => s.panelSheet);
   const togglePanelSheet = useUi((s) => s.togglePanelSheet);
   const phonePane = useUi((s) => s.phonePane);
@@ -197,7 +197,8 @@ function Workspace() {
   }, [roomId, rooms, roomsFetching]);
   // A routine open in place of the bot's chat: its flow needs the room the chat and panel take.
   const routine = useOpenedRoutine();
-  const newBot = useUi((s) => s.newBot);
+  const botPage = useUi((s) => s.botPage);
+  const apps = useUi((s) => s.apps);
   // A link to one conversation (…?thread=<id>) opens it, once the person is signed in.
   useEffect(() => {
     const linked = takeLinkedThread();
@@ -223,67 +224,70 @@ function Workspace() {
   }, [bot?.color]);
 
   // A phone shows the list or the chat, never both; the chat needs a bot to show.
-  const pane = phone ? (bot || room || routine || newBot ? phonePane : 'list') : null;
+  const pane = phone ? (bot || room || routine || botPage || apps ? phonePane : 'list') : null;
 
   return (
     <>
       <div className="workspace flex h-full overflow-hidden" inert={settingsOpen}>
         {pane !== 'chat' && <Sidebar />}
         <main className={cn('safe-pane min-w-0 flex-1 bg-background', pane === 'list' ? 'hidden' : 'flex')}>
-          {newBot ? (
-            <NewBotPage preset={newBot.preset} />
-          ) : routine ? (
-            <RoutinePage
-              key={`${routine.botId}:${routine.routine?.id ?? 'new'}`}
-              botId={routine.botId}
-              routine={routine.routine}
-              showRuns={routine.showRuns}
-            />
-          ) : room ? (
-            <RoomView key={room.id} room={room} />
-          ) : bot ? (
-            <>
-              <Chat key={bot.id} bot={bot} />
-              {panelBeside ? (
-                <AnimatePresence initial={false}>
-                  {panelOpen && (
-                    <motion.div
-                      key="panel"
-                      initial={{ width: 0, opacity: 0 }}
-                      animate={{ width: PANEL_WIDTH, opacity: 1 }}
-                      exit={{ width: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
-                    >
-                      <RightPanel bot={bot} beside />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              ) : (
-                <Sheet open={panelSheet} onOpenChange={togglePanelSheet}>
-                  <SheetContent aria-describedby={undefined}>
-                    <SheetTitle className="sr-only">{bot.name}</SheetTitle>
-                    <RightPanel bot={bot} />
-                  </SheetContent>
-                </Sheet>
-              )}
-            </>
-          ) : (
-            !isLoading && (
-              <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-                <div className="size-20">
-                  <AppMascot />
+          {/* The apps page covers the rest, which stays as it was (typed changes too) under it. */}
+          {apps && <AppsPage />}
+          <div className={cn('flex min-w-0 flex-1', apps && 'hidden')}>
+            {botPage ? (
+              <BotFormPage key={botPage.mode === 'edit' ? botPage.botId : 'new'} page={botPage} />
+            ) : routine ? (
+              <RoutinePage
+                key={`${routine.botId}:${routine.routine?.id ?? 'new'}`}
+                botId={routine.botId}
+                routine={routine.routine}
+                showRuns={routine.showRuns}
+              />
+            ) : room ? (
+              <RoomView key={room.id} room={room} />
+            ) : bot ? (
+              <>
+                <Chat key={bot.id} bot={bot} />
+                {panelBeside ? (
+                  <AnimatePresence initial={false}>
+                    {panelOpen && (
+                      <motion.div
+                        key="panel"
+                        initial={{ width: 0, opacity: 0 }}
+                        animate={{ width: PANEL_WIDTH, opacity: 1 }}
+                        exit={{ width: 0, opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <RightPanel bot={bot} beside />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                ) : (
+                  <Sheet open={panelSheet} onOpenChange={togglePanelSheet}>
+                    <SheetContent aria-describedby={undefined}>
+                      <SheetTitle className="sr-only">{bot.name}</SheetTitle>
+                      <RightPanel bot={bot} />
+                    </SheetContent>
+                  </Sheet>
+                )}
+              </>
+            ) : (
+              !isLoading && (
+                <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+                  <div className="size-20">
+                    <AppMascot />
+                  </div>
+                  <h1 className="text-2xl font-semibold">{t('welcome.title')}</h1>
+                  <p className="max-w-sm text-sm text-muted-foreground">{t('welcome.body')}</p>
+                  <Button className="rounded-full" onClick={() => openBotPage({ mode: 'create' })}>
+                    <Plus /> {t('welcome.create')}
+                  </Button>
                 </div>
-                <h1 className="text-2xl font-semibold">{t('welcome.title')}</h1>
-                <p className="max-w-sm text-sm text-muted-foreground">{t('welcome.body')}</p>
-                <Button className="rounded-full" onClick={() => openBotDialog({ mode: 'create' })}>
-                  <Plus /> {t('welcome.create')}
-                </Button>
-              </div>
-            )
-          )}
+              )
+            )}
+          </div>
         </main>
-        <BotDialog />
         <RoomDialog />
         <ComputerDialog />
         <FilePreview />
@@ -291,7 +295,6 @@ function Workspace() {
         <ShortcutsDialog />
         <TodayDialog />
         <BoardDialog />
-        <AppsDialog />
       </div>
       <SettingsPage />
     </>

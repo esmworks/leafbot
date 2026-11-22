@@ -1343,7 +1343,7 @@ function Composer({
       if (el) editAsTyped(el, '/goal ', 6);
       else setText('/goal ');
       return;
-    } else if (c === 'settings') ui.openBotDialog({ mode: 'edit', botId: bot.id });
+    } else if (c === 'settings') ui.openBotPage({ mode: 'edit', botId: bot.id });
     else if (panelBeside) ui.togglePanel();
     else ui.togglePanelSheet();
   };

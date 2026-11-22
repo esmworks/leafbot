@@ -163,7 +163,7 @@ function WhatsAppForm({ status, bots }: { status: WhatsAppStatus; bots: Bot[] })
   const groupName = (chat: string) => groups?.find((g) => g.id === chat)?.name;
   const { data: settings } = useSettings();
   const openSettings = useUi((s) => s.openSettings);
-  const openBotDialog = useUi((s) => s.openBotDialog);
+  const openBotPage = useUi((s) => s.openBotPage);
   const doorBot = door ? live.find((b) => b.id === door.botId) : undefined;
   // A bot made for the front door alone, locked down; the door is saved with it, and its
   // instructions open next, to be filled with what anyone may know.
@@ -191,7 +191,7 @@ function WhatsAppForm({ status, bots }: { status: WhatsAppStatus; bots: Bot[] })
       put(s);
       toast.success(t('whatsapp.doorBot.created'));
       openSettings(null);
-      openBotDialog({ mode: 'edit', botId: bot.id });
+      openBotPage({ mode: 'edit', botId: bot.id });
     },
     onError: (e) => toast.error((e as Error).message),
   });

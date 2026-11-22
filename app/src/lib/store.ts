@@ -61,7 +61,7 @@ export interface Stream {
   text: string;
 }
 
-interface UiState {
+export interface UiState {
   authed: boolean | null;
   connected: boolean;
   botId: string | null;
@@ -98,15 +98,22 @@ interface UiState {
    * null. `showRuns` opens it at its latest runs, for a routine opened to see why a run failed.
    */
   routine: { botId: string; routineId: string | null; showRuns?: boolean } | null;
-  /** A new bot being made, as a page in place of the chat; it may start with a name and a folder. */
-  newBot: { preset?: { name: string; projectDir: string } } | null;
+  /**
+   * A bot as a page in place of the chat: a new one being made, which may start with a name and a
+   * folder, or one's settings.
+   */
+  botPage:
+    | { mode: 'create'; preset?: { name: string; projectDir: string } }
+    | { mode: 'edit'; botId: string }
+    | null;
   /** Text picked in a message, waiting to be quoted at the top of the draft. */
   pendingQuote: string | null;
-  /** The apps (connections) window; `botId` is the bot it was opened for, whose switch a new connection turns on. */
-  /** The apps window; `catalogId` opens it on one service of the catalog. */
+  /**
+   * The apps (connections) page, over whatever the main area shows, which stays as it was under it.
+   * `botId` is the bot it was opened for, whose switch a new connection turns on; `catalogId` opens
+   * it on one service of the catalog, `connectionId` on one connection.
+   */
   apps: { botId: string | null; catalogId?: string; connectionId?: string } | null;
-  /** The window with a bot's settings. */
-  botDialog: { mode: 'edit'; botId: string } | null;
   /** The bot whose computer (browser) is open. */
   computerBotId: string | null;
   /** Whether that browser shows in a small window over the chat rather than the large view. */
@@ -145,7 +152,7 @@ interface UiState {
   /** Opens a routine in place of its bot's chat; `null` leaves it as `leavePage` does. */
   openRoutine(routine: UiState['routine']): void;
   /**
-   * Closes the page open in place of the chat (a routine, a new bot), asking first when it holds
+   * Closes the page open in place of the chat (a routine, a bot), asking first when it holds
    * changes not saved; false when the person keeps it open. Whatever would show something else in
    * its place goes through here.
    */
@@ -154,10 +161,8 @@ interface UiState {
   closePage(): void;
   quote(text: string | null): void;
   openApps(apps: UiState['apps']): void;
-  /** A new bot opens as a page in place of the chat; a bot's settings open in a window. */
-  openBotDialog(
-    d: { mode: 'create'; preset?: { name: string; projectDir: string } } | UiState['botDialog'],
-  ): void;
+  /** Opens a new bot, or a bot's settings, in place of the chat; `null` leaves it as `leavePage` does. */
+  openBotPage(page: UiState['botPage']): void;
   openComputer(botId: string | null): void;
   floatComputer(float: boolean): void;
   /** Adds a turn's next words; `restart` starts its text over, as the run did. */
@@ -226,10 +231,9 @@ export const useUi = create<UiState>((set, get) => ({
   todayOpen: false,
   boardOpen: false,
   routine: null,
-  newBot: null,
+  botPage: null,
   pendingQuote: null,
   apps: null,
-  botDialog: null,
   computerBotId: null,
   computerFloat: saved.computerFloat ?? false,
   streams: {},
@@ -244,23 +248,31 @@ export const useUi = create<UiState>((set, get) => ({
     if (!get().leavePage()) return;
     set(
       botId
-        ? { botId, threadId: null, roomId: null, findOpen: false }
-        : { botId, threadId: null, roomId: null, phonePane: 'list', findOpen: false },
+        ? { botId, threadId: null, roomId: null, findOpen: false, apps: null }
+        : { botId, threadId: null, roomId: null, phonePane: 'list', findOpen: false, apps: null },
     );
   },
   openChat: (botId) => {
     if (!get().leavePage()) return;
-    set({ botId, threadId: null, roomId: null, phonePane: 'chat', panelSheet: false, findOpen: false });
+    set({
+      botId,
+      threadId: null,
+      roomId: null,
+      phonePane: 'chat',
+      panelSheet: false,
+      findOpen: false,
+      apps: null,
+    });
   },
   showList: () => set({ phonePane: 'list', panelSheet: false }),
   selectThread: (threadId) => {
     if (!get().leavePage()) return;
-    set({ threadId, roomId: null });
+    set({ threadId, roomId: null, apps: null });
   },
   openRoom: (roomId) => {
     if (!roomId) return set({ roomId });
     if (!get().leavePage()) return;
-    set({ roomId, phonePane: 'chat', panelSheet: false, findOpen: false });
+    set({ roomId, phonePane: 'chat', panelSheet: false, findOpen: false, apps: null });
   },
   openRoomDialog: (roomDialog) => set({ roomDialog }),
   togglePanel: (open) => set((s) => ({ panelOpen: open ?? !s.panelOpen })),
@@ -287,27 +299,45 @@ export const useUi = create<UiState>((set, get) => ({
       phonePane: 'chat',
       panelSheet: false,
       findOpen: false,
+      apps: null,
     });
   },
   leavePage: () => {
     const s = get();
-    if (!s.routine && !s.newBot) return true;
+    if (!s.routine && !s.botPage) return true;
     if (pageLeaveAsk && !pageLeaveAsk()) return false;
     s.closePage();
     return true;
   },
   closePage: () => {
     pageLeaveAsk = null;
-    set({ routine: null, newBot: null });
+    set({ routine: null, botPage: null, apps: null });
   },
   quote: (pendingQuote) => set({ pendingQuote }),
-  openApps: (apps) => set({ apps }),
-  openBotDialog: (d) => {
-    if (d?.mode !== 'create') return set({ botDialog: d });
-    // Asked to make a new bot again while making one, the page stays as it is.
-    if (get().newBot) return;
-    if (!get().leavePage()) return;
-    set({ newBot: { preset: d.preset }, phonePane: 'chat', panelSheet: false, findOpen: false });
+  // The page under it is kept as it is, typed changes too, for when the apps page closes.
+  openApps: (apps) => set(apps ? { apps, phonePane: 'chat', panelSheet: false } : { apps }),
+  openBotPage: (page) => {
+    if (!page) return void get().leavePage();
+    const s = get();
+    // The same page again stays as it is; another one is a page left.
+    const open = s.botPage;
+    const same =
+      open?.mode === page.mode &&
+      (page.mode === 'create' || (open.mode === 'edit' && open.botId === page.botId));
+    if (same) return set({ apps: null });
+    if (!s.leavePage()) return;
+    set({
+      botPage: page,
+      ...(page.mode === 'edit' && {
+        botId: page.botId,
+        threadId: page.botId === s.botId ? s.threadId : null,
+        roomId: null,
+      }),
+      phonePane: 'chat',
+      panelSheet: false,
+      findOpen: false,
+      apps: null,
+    });
   },
   openComputer: (computerBotId) => set({ computerBotId }),
   floatComputer: (computerFloat) => set({ computerFloat }),
