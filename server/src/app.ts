@@ -761,8 +761,12 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     else io.emit('refresh', e);
   });
   bus.on('delta', (e) => sendToThread(e.threadId, (to) => to.emit('delta', e)));
-  bus.on('turn', (e) => sendToThread(e.threadId, (to) => to.emit('turn', e)));
+  bus.on('turn', (e) => {
+    sendToThread(e.threadId, (to) => to.emit('turn', e));
+    void services.push.activityTurn(e);
+  });
   bus.on('notice', (e) => {
+    services.push.activityNotice(e);
     // A notice for named people (a second yes wanted) goes to them alone.
     void (e.to ? Promise.resolve(e.to) : services.access.noticeAudience(e.threadId)).then((users) => {
       toPeople(users).emit('notice', e);

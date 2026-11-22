@@ -24,6 +24,7 @@ import { ApiError } from '@/lib/api';
 import { useTapToDismiss } from '@/lib/dismiss';
 import { formatters, needsDivider } from '@/lib/format';
 import { nav } from '@/lib/nav';
+import { showWork, useLiveActivityChoice } from '@/lib/liveActivity';
 import { useLiveCards } from '@/lib/liveCards';
 import { useMessages } from '@/lib/queries';
 import { useLiveState, useStream } from '@/lib/realtime';
@@ -231,6 +232,7 @@ export function Conversation({
   }, [highlightId]);
 
   // --- Sending ----------------------------------------------------------------------------
+  const [liveWork] = useLiveActivityChoice();
   const send = useCallback(
     async (text: string, extra?: SendExtra): Promise<string | null> => {
       const clientId = newClientId();
@@ -260,6 +262,8 @@ export function Conversation({
           files.map((f) => f.name),
           extra?.replyTo?.id,
         );
+        // The bot's work on the lock screen, for when the phone is put away before it ends.
+        if (liveWork) void showWork(api.watchActivity, threadId, bot.name);
         await qc.invalidateQueries({ queryKey: ['messages', origin, threadId] });
         return null;
       } catch (e) {
@@ -268,7 +272,7 @@ export function Conversation({
         setPending((p) => p.filter((x) => x.clientId !== clientId));
       }
     },
-    [api, qc, origin, threadId],
+    [api, qc, origin, threadId, liveWork, bot.name],
   );
   const stop = useCallback(() => void api.stop(threadId).catch(() => undefined), [api, threadId]);
   const quick = (text: string) =>

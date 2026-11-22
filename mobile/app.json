@@ -83,6 +83,15 @@
           "locationAlwaysPermission": false,
           "motionUsagePermission": false
         }
+      ],
+      [
+        "expo-widgets",
+        {
+          "bundleIdentifier": "com.esmworks.leafbot.ExpoWidgetsTarget",
+          "groupIdentifier": "group.com.esmworks.leafbot",
+          "enablePushNotifications": true,
+          "frequentUpdates": false
+        }
       ]
     ],
     "experiments": {

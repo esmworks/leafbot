@@ -27,6 +27,35 @@ export const PushDeviceSet = z.object({
 });
 export type PushDeviceSet = z.infer<typeof PushDeviceSet>;
 
+/**
+ * A Live Activity the iPhone app started on the lock screen for a conversation's work: Apple's
+ * token for that one activity, and the language its words are written in.
+ */
+export const LiveActivitySet = z.object({
+  token: z
+    .string()
+    .trim()
+    .regex(/^[0-9a-fA-F]{32,400}$/),
+  locale: z.enum(LOCALES),
+});
+export type LiveActivitySet = z.infer<typeof LiveActivitySet>;
+
+/**
+ * The name the phone's Live Activity layout is registered under, which every update must carry,
+ * and the phases of the work it shows.
+ */
+export const LIVE_ACTIVITY_NAME = 'BotWork';
+export type LiveActivityPhase = 'working' | 'waiting' | 'done' | 'failed';
+
+/** What a Live Activity shows; the words come already in the person's language. */
+export interface LiveActivityProps {
+  bot: string;
+  state: string;
+  phase: LiveActivityPhase;
+  /** When the work began (ms since the epoch): the lock screen counts the time from it itself. */
+  since: number;
+}
+
 /** The Apple key that lets this server send notifications to the iPhone app. */
 export const ApnsSet = z.object({
   teamId: z

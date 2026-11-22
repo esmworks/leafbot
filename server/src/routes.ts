@@ -27,6 +27,7 @@ import {
   newBotEngine,
   ApnsSet,
   ClaudeAuthSet,
+  LiveActivitySet,
   PushDeviceSet,
   type ClaudeAuthStatus,
   type ClaudeModel,
@@ -526,6 +527,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     await s.push.test(PushToken.parse(req.body).token);
     return { ok: true };
   });
+  // A Live Activity on the lock screen for this conversation's work, kept current from here.
+  app.put('/api/threads/:id/activity', async (req) =>
+    s.push.watchActivity(IdParams.parse(req.params).id, LiveActivitySet.parse(req.body)),
+  );
   app.get('/api/push/apns', async () => s.push.apnsStatus());
   app.put('/api/push/apns', async (req) => {
     await s.push.setApns(ApnsSet.parse(req.body));
