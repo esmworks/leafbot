@@ -576,6 +576,10 @@ export const routines = pgTable('routines', {
   whatsappGroup: text('whatsapp_group'),
   /** Also runs when someone writes to the linked WhatsApp account in a chat of their own. */
   whatsappPeople: boolean('whatsapp_people').notNull().default(false),
+  /** The bot's table whose rows, filled in or changed by the routine's person, also start it; null for none. */
+  tableTrigger: text('table_trigger').references(() => botTables.id, { onDelete: 'set null' }),
+  /** Conditions a new row's cells must meet to start it (as the webhook filter, on column names). */
+  tableFilter: text('table_filter').notNull().default(''),
   /**
    * The connection a run found signed out. Its scheduled runs are skipped while it stays signed
    * out, since each would only stop at the same sign-in card; the first run after the person signs
@@ -1608,6 +1612,12 @@ export const botTableRows = pgTable(
       .references(() => botTables.id, { onDelete: 'cascade' }),
     /** The row's values by column name; sealed with the conversations when sealing is on. */
     values: sealedJson('values').$type<Record<string, string | number | boolean | null>>().notNull(),
+    /**
+     * The person who wrote every cell of the row in the app; null once a bot, someone else or
+     * taking a turn back wrote any of it. A routine the row starts takes it as that person's own
+     * words only while it is theirs alone.
+     */
+    writtenBy: text('written_by'),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },

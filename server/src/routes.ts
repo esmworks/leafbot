@@ -102,6 +102,7 @@ import {
   ApiSourceCreate,
   TicketCommentCreate,
   RowValues,
+  type TableRow,
   TicketCreate,
   TicketUpdate,
   skillSlug,
@@ -942,12 +943,23 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       )
       .send(text);
   });
-  app.post('/api/tables/:id/rows', async (req) =>
-    s.tables.addRows(IdParams.parse(req.params).id, [RowValues.parse(req.body)]).then((r) => r[0]),
-  );
+  /** A row the person adds or fills in can be work a routine picks up; the row is saved whether or not one starts. */
+  const rowsForRoutines = async (tableId: string, rows: TableRow[], req: FastifyRequest) => {
+    await s.routines
+      .runFromTableRows(await s.tables.get(tableId), rows, me(req).userId)
+      .catch((err) => console.error(`Routines for table ${tableId} failed to start`, err));
+  };
+  app.post('/api/tables/:id/rows', async (req) => {
+    const id = IdParams.parse(req.params).id;
+    const rows = await s.tables.addRows(id, [RowValues.parse(req.body)], me(req).userId);
+    await rowsForRoutines(id, rows, req);
+    return rows[0];
+  });
   app.patch('/api/tables/:id/rows/:rowId', async (req) => {
     const p = z.object({ id: z.string(), rowId: z.string() }).parse(req.params);
-    return s.tables.updateRow(p.id, p.rowId, RowValues.parse(req.body));
+    const row = await s.tables.updateRow(p.id, p.rowId, RowValues.parse(req.body), me(req).userId);
+    await rowsForRoutines(p.id, [row], req);
+    return row;
   });
   app.delete('/api/tables/:id/rows/:rowId', async (req) => {
     const p = z.object({ id: z.string(), rowId: z.string() }).parse(req.params);

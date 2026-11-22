@@ -176,6 +176,8 @@ export const toRoutine = (r: Row<typeof schema.routines>): Routine => ({
   emailFilter: r.emailFilter,
   whatsappGroup: r.whatsappGroup,
   whatsappPeople: r.whatsappPeople,
+  tableTrigger: r.tableTrigger,
+  tableFilter: r.tableFilter,
   signInWait: r.signInWait,
 });
 

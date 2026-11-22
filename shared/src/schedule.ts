@@ -193,6 +193,13 @@ export const Routine = z.object({
   /** Also runs when someone writes to the linked WhatsApp account. Missing on older servers. */
   whatsappPeople: z.boolean().optional(),
   /**
+   * The bot's table whose rows, once the routine's person fills one in or changes it to meet
+   * `tableFilter`, also start it; null for none. Missing on older servers.
+   */
+  tableTrigger: z.string().nullable().optional(),
+  /** Conditions a new row's cells must meet to start it, one per line. Missing on older servers. */
+  tableFilter: z.string().optional(),
+  /**
    * The id of the connection a run found signed out: its scheduled runs are skipped until the
    * person signs in to it again. Null when nothing waits; missing on older servers.
    */
@@ -286,6 +293,15 @@ export const RoutineCreate = z.object({
    * own, a couple of minutes after the chat goes quiet.
    */
   whatsappPeople: z.boolean().default(false),
+  /**
+   * The id of one of the bot's tables: a row the routine's person adds or changes there in the app
+   * starts a run with that row, once, the first time it has something in it and meets
+   * `tableFilter`. A row the bot writes does not, so a run that fills the table cannot start itself
+   * again, and nobody else's text steers a run that works with the person's apps and notes.
+   */
+  tableTrigger: z.string().min(1).max(64).nullable().default(null),
+  /** `column=value`, `column!=value`, `column~=text` or `column` lines; a new row must meet all of them. */
+  tableFilter: z.string().max(2000).default(''),
 });
 export type RoutineCreate = z.infer<typeof RoutineCreate>;
 export const RoutineUpdate = patchOf(RoutineCreate.omit({ botId: true }));

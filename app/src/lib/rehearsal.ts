@@ -20,6 +20,7 @@ export const startedBySomething = (
     | 'whatsappGroup'
     | 'whatsappPeople'
     | 'slackReaction'
+    | 'tableTrigger'
   >,
 ) =>
   !!r.watchUrl ||
@@ -28,7 +29,8 @@ export const startedBySomething = (
   r.emailTrigger ||
   !!r.whatsappGroup ||
   !!r.whatsappPeople ||
-  !!r.slackReaction;
+  !!r.slackReaction ||
+  !!r.tableTrigger;
 
 /** Whole seconds a rehearsal took; null while it is still going. */
 export const rehearsalSeconds = (r: Pick<Rehearsal, 'startedAt' | 'finishedAt'>) =>

@@ -189,7 +189,8 @@ export class TableService {
     return out;
   }
 
-  async addRows(tableId: string, list: RowValues[]): Promise<TableRow[]> {
+  /** `by`: the person adding the rows in the app; null for a bot. */
+  async addRows(tableId: string, list: RowValues[], by: string | null = null): Promise<TableRow[]> {
     const table = await this.get(tableId);
     if (table.rowCount + list.length > MAX_ROWS) throw new HttpError(400, 'error.tableRows');
     const checked = list.map((v) => this.check(table, v));
@@ -198,14 +199,30 @@ export class TableService {
     const now = Date.now();
     const rows = await this.ctx.db
       .insert(schema.botTableRows)
-      .values(checked.map((values, i) => ({ id: newId(), tableId, values, createdAt: new Date(now + i) })))
+      .values(
+        checked.map((values, i) => ({
+          id: newId(),
+          tableId,
+          values,
+          writtenBy: by,
+          createdAt: new Date(now + i),
+        })),
+      )
       .returning();
     await this.touch(table);
     return rows.map(toRow);
   }
 
-  /** Changes the given cells of a row; the others stay as they were. */
-  async updateRow(tableId: string, rowId: string, values: RowValues): Promise<TableRow> {
+  /**
+   * Changes the given cells of a row; the others stay as they were. `by`: the person changing it in
+   * the app; null for a bot. The row stays one person's own only while nobody else writes in it.
+   */
+  async updateRow(
+    tableId: string,
+    rowId: string,
+    values: RowValues,
+    by: string | null = null,
+  ): Promise<TableRow> {
     const table = await this.get(tableId);
     const [current] = await this.ctx.db
       .select()
@@ -215,11 +232,25 @@ export class TableService {
     if (!current) throw notFound('tableRow');
     const [row] = await this.ctx.db
       .update(schema.botTableRows)
-      .set({ values: { ...current.values, ...this.check(table, values) }, updatedAt: new Date() })
+      .set({
+        values: { ...current.values, ...this.check(table, values) },
+        writtenBy: by !== null && current.writtenBy === by ? by : null,
+        updatedAt: new Date(),
+      })
       .where(eq(schema.botTableRows.id, rowId))
       .returning();
     await this.touch(table);
     return toRow(row!);
+  }
+
+  /** Who alone wrote each of these rows in the app, by row id; rows anyone else wrote in are left out. */
+  async writers(rowIds: string[]): Promise<Map<string, string>> {
+    if (!rowIds.length) return new Map();
+    const rows = await this.ctx.db
+      .select({ id: schema.botTableRows.id, by: schema.botTableRows.writtenBy })
+      .from(schema.botTableRows)
+      .where(inArray(schema.botTableRows.id, rowIds));
+    return new Map(rows.flatMap((r) => (r.by ? [[r.id, r.by] as const] : [])));
   }
 
   /** One row, or null when there is none. */
@@ -240,7 +271,7 @@ export class TableService {
     const table = await this.get(tableId);
     await this.ctx.db
       .update(schema.botTableRows)
-      .set({ values, updatedAt: new Date(updatedAt) })
+      .set({ values, writtenBy: null, updatedAt: new Date(updatedAt) })
       .where(and(eq(schema.botTableRows.id, rowId), eq(schema.botTableRows.tableId, tableId)));
     await this.touch(table);
   }

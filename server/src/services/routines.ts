@@ -1,7 +1,8 @@
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
-import type { Bot, BotEmail, OutsideTrigger, RoutineUpdate } from '@leafbot/shared';
+import type { Bot, BotEmail, BotTable, OutsideTrigger, RoutineUpdate, TableRow } from '@leafbot/shared';
 import {
   APPROVAL_TIMED_OUT,
+  cellText,
   cronTooOften,
   fillFilter,
   filterVars,
@@ -12,6 +13,7 @@ import {
   nextRun,
   zonedTime,
   occurrenceKey,
+  parseFilter,
   passesFilter,
   type Routine,
   type RoutineCheck,
@@ -268,6 +270,7 @@ export class RoutineService {
       checkWhatsAppPlace(input.slackChannel);
       await this.checkGroup(userId ?? (await this.services.access.botOwner(input.botId)));
     }
+    if (input.tableTrigger) await this.checkTable(input.botId, input.tableTrigger, input.tableFilter);
     const now = this.clock();
     this.checkOnce(input.schedule, input.timezone, now);
     // The routine and the first line of its history are written together, or neither is.
@@ -327,6 +330,9 @@ export class RoutineService {
         (patch.whatsappPeople && !current.whatsappPeople);
       if (turnedOn || person !== was) await this.checkGroup(person);
     }
+    const tableId = patch.tableTrigger !== undefined ? patch.tableTrigger : current.tableTrigger;
+    if (tableId && (patch.tableTrigger !== undefined || patch.tableFilter !== undefined))
+      await this.checkTable(current.botId, tableId, patch.tableFilter ?? current.tableFilter ?? '');
     // A changed instruction goes into the history in the same write: a failed save leaves none.
     const row = await this.ctx.db.transaction(async (tx) => {
       const [saved] = await tx
@@ -978,6 +984,82 @@ export class RoutineService {
   }
 
   /**
+   * A routine starts only on a table of its own bot: another bot's rows are not its work. Its
+   * filter names the table's columns exactly as they are written, since a filter on a column that
+   * is not there (or written in other letters) would never let a row through and say nothing.
+   */
+  private async checkTable(botId: string, tableId: string, filter: string) {
+    const table = await this.services.tables.get(tableId).catch(() => null);
+    if (table?.botId !== botId) throw new HttpError(400, 'error.routineTable');
+    for (const rule of parseFilter(filter)) {
+      const column = rule.path.join('.');
+      if (!table.columns.some((c) => c.name === column))
+        throw new HttpError(400, 'error.routineTableFilter', {
+          column,
+          columns: table.columns.map((c) => c.name).join(', '),
+        });
+    }
+  }
+
+  /**
+   * Starts the routines that run on rows of `table`, for rows `addedBy` just added or changed in
+   * the app. A row starts a routine once, the first time it has something in it and meets the
+   * routine's filter: the app adds a row empty and the person fills it in, and moving a row into
+   * the filter (a status set to "todo") is how it is handed over. Only a routine working for that
+   * person starts: a run works with its person's apps, sign-ins and notes, so someone else's change
+   * is not let steer it. A row with cells a bot or someone else wrote may hold text from outside (a
+   * mail the bot copied in), so the run reads it as such and changes nothing without a card. A
+   * routine that is busy keeps the row for when its run ends, since a row, unlike a webhook call,
+   * is not sent again.
+   */
+  async runFromTableRows(table: BotTable, rows: TableRow[], addedBy: string): Promise<(RoutineRun | null)[]> {
+    const filled = rows.filter((row) => Object.values(row.values).some((v) => v !== null && v !== ''));
+    if (!filled.length) return [];
+    const routines = await this.ctx.db
+      .select()
+      .from(schema.routines)
+      .where(
+        and(
+          eq(schema.routines.botId, table.botId),
+          eq(schema.routines.enabled, true),
+          eq(schema.routines.tableTrigger, table.id),
+        ),
+      );
+    if (!routines.length) return [];
+    const t = await this.services.settings.translator();
+    const yes = t('tool.tableYes');
+    const no = t('tool.tableNo');
+    const writers = await this.services.tables.writers(filled.map((row) => row.id));
+    const runs: (RoutineRun | null)[] = [];
+    for (const r of routines) {
+      if ((await this.personOf(r)) !== addedBy) continue;
+      for (const row of filled) {
+        if (!passesFilter(r.tableFilter, JSON.stringify(row.values))) continue;
+        const payload = [
+          t('routine.tableRowIn', { table: table.name }),
+          `[${row.id}] ${table.columns
+            .map((c) => `${c.name}: ${cellText(row.values[c.name], yes, no) || '—'}`)
+            .join(' · ')}`,
+        ].join('\n');
+        const own = writers.get(row.id) === addedBy;
+        // Keyed on the row: a row changed again after it started the routine does not start it twice.
+        runs.push(
+          await this.fire(
+            toRoutine(r),
+            `table:${row.id}`,
+            payload,
+            false,
+            undefined,
+            undefined,
+            own ? undefined : 'stored',
+          ),
+        );
+      }
+    }
+    return runs;
+  }
+
+  /**
    * The enabled routines that read WhatsApp, and only those working for the person whose WhatsApp
    * is linked now: once someone else links theirs, another person's routine reads none of it.
    */
@@ -1327,6 +1409,9 @@ export class RoutineService {
       const brought = check?.trigger ?? outside;
       if (brought && !occurrence.startsWith('hook:'))
         return this.queue(routine, thread?.id ?? null, occurrence, payload, brought, t);
+      // A row the person wrote alone is not written again either, and it waits as their own words.
+      if (occurrence.startsWith('table:'))
+        return this.queue(routine, thread?.id ?? null, occurrence, payload, null, t);
       return this.recordBusy(routine, retriable(occurrence), t);
     }
     const threadOf = thread?.id ?? (await this.ownThread(routine, bot.id, run.id));
@@ -1443,7 +1528,7 @@ export class RoutineService {
     threadId: string | null,
     occurrence: string,
     payload: string | undefined,
-    trigger: OutsideTrigger,
+    trigger: OutsideTrigger | null,
     t: T,
   ): Promise<RoutineRun | null> {
     const [{ queued } = { queued: 0 }] = await this.ctx.db
