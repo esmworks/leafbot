@@ -223,7 +223,37 @@ export function DesktopDialog() {
 function DesktopView({ bot, close }: { bot: Bot; close(): void }) {
   const t = useT();
   const state = useDesktop(bot.id);
-  const phase = phaseOf(state);
+  return (
+    <DialogContent
+      showCloseButton={false}
+      className="screen-edges flex h-[100dvh] max-h-[100dvh] w-screen max-w-none items-center justify-center gap-0 rounded-none border-0 bg-neutral-950 p-3 text-white sm:max-w-none sm:rounded-none sm:p-6"
+      // Escape and clicks belong to the desktop while the person controls it.
+      onEscapeKeyDown={(e) => state.user && e.preventDefault()}
+      onInteractOutside={(e) => state.user && e.preventDefault()}
+    >
+      <DialogTitle className="sr-only">{t('computer.titleOf', { name: bot.name })}</DialogTitle>
+      <DialogDescription className="sr-only">{t(PHASE_TEXT[phaseOf(state)])}</DialogDescription>
+
+      <Button
+        variant="secondary"
+        size="sm"
+        className="absolute top-3 right-3 z-10 rounded-full bg-white/10 text-white hover:bg-white/20 sm:top-5 sm:right-5"
+        onClick={close}
+      >
+        <Minimize2 /> {t('computer.desktop.collapse')}
+      </Button>
+
+      <DesktopStage bot={bot} state={state} />
+    </DialogContent>
+  );
+}
+
+/**
+ * The desktop's screen as large as it fits, or a way to wake it, with the button that takes or
+ * gives back control. The large view shows it in a dialog; the phone app shows it on a page alone.
+ */
+export function DesktopStage({ bot, state }: { bot: Bot; state: ComputerState }) {
+  const t = useT();
   const [pending, setPending] = useState(false);
   /** Whether this view took control, so closing it hands control back. */
   const took = useRef(false);
@@ -251,25 +281,7 @@ function DesktopView({ bot, close }: { bot: Bot; close(): void }) {
   };
 
   return (
-    <DialogContent
-      showCloseButton={false}
-      className="screen-edges flex h-[100dvh] max-h-[100dvh] w-screen max-w-none items-center justify-center gap-0 rounded-none border-0 bg-neutral-950 p-3 text-white sm:max-w-none sm:rounded-none sm:p-6"
-      // Escape and clicks belong to the desktop while the person controls it.
-      onEscapeKeyDown={(e) => state.user && e.preventDefault()}
-      onInteractOutside={(e) => state.user && e.preventDefault()}
-    >
-      <DialogTitle className="sr-only">{t('computer.titleOf', { name: bot.name })}</DialogTitle>
-      <DialogDescription className="sr-only">{t(PHASE_TEXT[phase])}</DialogDescription>
-
-      <Button
-        variant="secondary"
-        size="sm"
-        className="absolute top-3 right-3 z-10 rounded-full bg-white/10 text-white hover:bg-white/20 sm:top-5 sm:right-5"
-        onClick={close}
-      >
-        <Minimize2 /> {t('computer.desktop.collapse')}
-      </Button>
-
+    <>
       {state.status === 'running' ? (
         // As large as fits, in the desktop's own shape so pointer positions map one to one.
         <div style={{ aspectRatio: ASPECT, width: `min(100%, calc((100dvh - 6rem) * ${VIEW_RATIO}))` }}>
@@ -340,6 +352,6 @@ function DesktopView({ bot, close }: { bot: Bot; close(): void }) {
           )}
         </div>
       )}
-    </DialogContent>
+    </>
   );
 }

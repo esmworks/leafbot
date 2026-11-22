@@ -92,11 +92,19 @@ export function Composer({
   const storeKey = `leafbot.draft.${origin}.${draftKey}`;
   const [stored, , loaded] = useStored<string>(storeKey, '');
   const [text, setText] = useState('');
+  // The box is not handed its text back on every keystroke: iOS's predictive text, autocorrect and
+  // swipe typing lose their place when a box being typed in has its text set again. What the app
+  // writes into the box itself (a saved draft, a picked skill, a command) remounts it with that text.
+  const [box, setBox] = useState({ key: 0, text: '', focus: false });
+  const write = (next: string, focus = false) => {
+    setText(next);
+    setBox((b) => ({ key: b.key + 1, text: next, focus }));
+  };
   const [error, setError] = useState<string | null>(null);
   const [seeded, setSeeded] = useState(false);
   if (loaded && !seeded) {
     setSeeded(true);
-    if (stored) setText((cur) => cur || stored);
+    if (stored && !text) write(stored);
   }
   const latest = useRef(text);
   useEffect(() => {
@@ -173,22 +181,28 @@ export function Composer({
       if (o.tag && caret !== null) {
         const next = pickSkill(text, caret, o.name);
         if (next) {
-          setText(next.text);
+          write(next.text, true);
           setSelection({ start: next.caret, end: next.caret });
         }
       } else {
-        setText(`$${o.name} `);
+        write(`$${o.name} `, true);
       }
       return;
     }
     if (o.id === 'goal') {
       // The goal itself is typed after the command, then sent.
-      setText('/goal ');
+      write('/goal ', true);
       return;
     }
-    setText('');
+    clear();
     if (o.id === 'stop') onStop?.();
     else onCommand?.(o.id);
+  };
+
+  /** Empties the box in place, so the keyboard stays up after sending. */
+  const clear = () => {
+    setText('');
+    input.current?.clear();
   };
 
   const empty = text.trim().length === 0;
@@ -204,7 +218,7 @@ export function Composer({
     // `/goal …` sets what the conversation is for instead of being sent.
     const goal = bot ? goalCommand(value) : null;
     if (bot && goal !== null && attachments.items.length === 0) {
-      setText('');
+      clear();
       try {
         await api.setGoal(bot.threadId, goal);
         void qc.invalidateQueries({ queryKey: ['threads', origin, bot.botId] });
@@ -218,7 +232,7 @@ export function Composer({
     }
     const files = attachments.take();
     const answered = replyTo;
-    setText('');
+    clear();
     setError(null);
     onReplyChange?.(null);
     const failed = await onSend(value, {
@@ -227,7 +241,7 @@ export function Composer({
     });
     if (failed) {
       // Put it all back so nothing typed or attached is lost.
-      setText((cur) => cur || value);
+      if (!latest.current) write(value);
       attachments.restore(files);
       if (answered) onReplyChange?.(answered);
       setError(failed);
@@ -375,8 +389,10 @@ export function Composer({
             </Pressable>
           ) : null}
           <TextInput
+            key={box.key}
             ref={input}
-            value={text}
+            defaultValue={box.text}
+            autoFocus={box.focus}
             onChangeText={(v) => {
               setText(v);
               setClosed(false);
