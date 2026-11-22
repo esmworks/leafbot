@@ -81,7 +81,7 @@ export function FilePreview() {
               aria-label={t('preview.previous')}
               onClick={() => step(-1)}
             >
-              <ChevronLeft />
+              <ChevronLeft className="rtl:-scale-x-100" />
             </Button>
             <span className="tabular-nums">{t('preview.position', { at: at + 1, count: list.length })}</span>
             <Button
@@ -91,7 +91,7 @@ export function FilePreview() {
               aria-label={t('preview.next')}
               onClick={() => step(1)}
             >
-              <ChevronRight />
+              <ChevronRight className="rtl:-scale-x-100" />
             </Button>
           </div>
         )}
@@ -108,7 +108,7 @@ function PreviewBody({ file }: { file: PreviewFile }) {
   const inline = api.fileUrl(file.botId, file.path, { inline: true });
   return (
     <>
-      <div className="flex items-center gap-3 pr-8">
+      <div className="flex items-center gap-3 pe-8">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-secondary">
           <FileText className="size-4" />
         </span>
@@ -210,7 +210,7 @@ function FolderOrNone({ file }: { file: PreviewFile }) {
           key={f.path}
           type="button"
           onClick={() => open({ botId: file.botId, path: f.path, name: f.name, size: f.size })}
-          className="flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left text-sm hover:bg-accent"
+          className="flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-start text-sm hover:bg-accent"
         >
           <FileText className="size-4 shrink-0 text-muted-foreground" />
           <span className="min-w-0 flex-1 truncate">{f.path.slice(key.length + 1)}</span>
@@ -246,7 +246,7 @@ function TablePreview({ file }: { file: PreviewFile }) {
   return (
     <div className="scroll-thin size-full overflow-auto bg-background">
       {(data.cut || body.length > TABLE_ROWS) && (
-        <p className="sticky top-0 left-0 z-10 border-b bg-amber-500/10 px-4 py-2 text-xs text-amber-700 backdrop-blur dark:text-amber-300">
+        <p className="sticky top-0 start-0 z-10 border-b bg-amber-500/10 px-4 py-2 text-xs text-amber-700 backdrop-blur dark:text-amber-300">
           {t('preview.rowsCut', { shown: shown.length })}
         </p>
       )}
@@ -254,7 +254,7 @@ function TablePreview({ file }: { file: PreviewFile }) {
         <thead className="sticky top-0 bg-secondary">
           <tr>
             {head.map((h, i) => (
-              <th key={i} className="border-b px-3 py-1.5 text-left font-medium whitespace-nowrap">
+              <th key={i} className="border-b px-3 py-1.5 text-start font-medium whitespace-nowrap">
                 {h}
               </th>
             ))}
@@ -327,7 +327,7 @@ function TextPreview({ file, markdown, html }: { file: PreviewFile; markdown: bo
           </pre>
         )}
       </div>
-      <div className="absolute top-2 right-4 flex gap-1">
+      <div className="absolute top-2 end-4 flex gap-1">
         {html && (
           <Button
             variant="secondary"

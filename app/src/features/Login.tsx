@@ -168,7 +168,7 @@ function KeyForm() {
     <form onSubmit={submit} className="space-y-6">
       <div className="space-y-2">
         <div className="relative">
-          <KeyRound className="absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground" />
+          <KeyRound className="absolute top-1/2 start-4 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             {...form.register('key')}
             type="password"
@@ -176,7 +176,7 @@ function KeyForm() {
             autoComplete="current-password"
             placeholder={t('login.placeholder')}
             aria-invalid={!!error}
-            className="h-12 rounded-full pl-11"
+            className="h-12 rounded-full ps-11"
           />
         </div>
         {error && <p className="px-4 text-sm text-destructive">{error}</p>}
@@ -245,7 +245,11 @@ function LanguageSwitch() {
   const locale = useLocale((s) => s.locale);
   const setLocale = useLocale((s) => s.setLocale);
   return (
-    <div role="group" aria-label={t('common.language')} className="mt-8 flex gap-1 text-sm">
+    <div
+      role="group"
+      aria-label={t('common.language')}
+      className="mt-8 flex flex-wrap justify-center gap-1 text-sm"
+    >
       {LOCALES.map((l) => (
         <button
           key={l}

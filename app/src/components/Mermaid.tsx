@@ -85,7 +85,7 @@ export function MermaidDiagram({ code }: { code: string }) {
           onClick={() => setSource((v) => !v)}
           aria-label={source ? t('diagram.showDiagram') : t('diagram.showSource')}
           title={source ? t('diagram.showDiagram') : t('diagram.showSource')}
-          className="absolute top-1.5 right-1.5 flex size-7 items-center justify-center rounded-lg bg-background/70 text-muted-foreground opacity-0 transition-opacity group-hover/diagram:opacity-100 hover:text-foreground focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+          className="absolute top-1.5 end-1.5 flex size-7 items-center justify-center rounded-lg bg-background/70 text-muted-foreground opacity-0 transition-opacity group-hover/diagram:opacity-100 hover:text-foreground focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
         >
           {source ? <ImageIcon className="size-3.5" /> : <Code2 className="size-3.5" />}
         </button>

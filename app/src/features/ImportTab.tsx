@@ -199,7 +199,7 @@ export function ImportTab() {
                       <h4 className="mb-1 text-xs font-medium text-muted-foreground">
                         {t('import.memories')}
                       </h4>
-                      <ul className="list-disc space-y-1 pl-5 text-xs">
+                      <ul className="list-disc space-y-1 ps-5 text-xs">
                         {bot.memories.map((m, i) => (
                           <li key={i}>{m}</li>
                         ))}

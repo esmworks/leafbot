@@ -34,12 +34,12 @@ export function VaultTab() {
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t('vault.search')}
-            className="h-10 rounded-full pl-9"
+            className="h-10 rounded-full ps-9"
           />
         </div>
         <Button

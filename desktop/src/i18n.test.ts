@@ -11,7 +11,7 @@ describe('masaüstü dili', () => {
   it('kayıt yoksa sistem dilini, varsa uygulamanın son dilini kullanır', () => {
     expect(loadLocale(dir, ['en-US', 'tr-TR'])).toBe('en');
     expect(t('menu.quit')).toBe('Quit');
-    expect(loadLocale(dir, ['fr-FR'])).toBe('tr');
+    expect(loadLocale(dir, ['ja-JP'])).toBe('tr');
     // The menu bar app has no German text of its own: a German system reads it in English.
     expect(loadLocale(dir, ['de-DE'])).toBe('de');
     expect(t('menu.quit')).toBe('Quit');

@@ -877,9 +877,9 @@ export function ModelSearch({
         placeholder={placeholder ?? models[0]?.value ?? t('provider.model')}
         spellCheck={false}
         autoComplete="off"
-        className={cn('h-10 rounded-full px-4 pr-9 font-mono', className)}
+        className={cn('h-10 rounded-full px-4 pe-9 font-mono', className)}
       />
-      <ChevronDown className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
+      <ChevronDown className="pointer-events-none absolute top-1/2 end-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
       {open && (shown.length > 0 || q) && (
         <div className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded-2xl border bg-popover text-popover-foreground shadow-lg">
           {shown.length > 0 ? (

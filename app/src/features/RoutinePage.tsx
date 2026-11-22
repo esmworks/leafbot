@@ -577,7 +577,7 @@ export function RoutinePage({
           onClick={() => useUi.getState().leavePage()}
           aria-label={t('common.back')}
         >
-          <ChevronLeft className="size-5" />
+          <ChevronLeft className="size-5 rtl:-scale-x-100" />
         </Button>
         <RoutineName form={form} name={values.name} />
         <div
@@ -910,7 +910,7 @@ function RecentRuns({ routineId, botId, reveal }: { routineId: string; botId: st
                 ui.openChat(botId);
                 ui.selectThread(r.threadId);
               }}
-              className="flex w-full items-start gap-2 rounded-xl px-2 py-1 text-left enabled:hover:bg-accent"
+              className="flex w-full items-start gap-2 rounded-xl px-2 py-1 text-start enabled:hover:bg-accent"
             >
               <span
                 className={cn(
@@ -1288,7 +1288,7 @@ function Webhook({ routine: given }: { routine: Routine }) {
       {url && routine.webhookToken && (
         <details className="rounded-xl bg-background px-2 py-1">
           <summary className="cursor-pointer select-none">{t('routine.github')}</summary>
-          <ol className="mt-1 list-decimal space-y-1 pl-5">
+          <ol className="mt-1 list-decimal space-y-1 ps-5">
             <li>{t('routine.githubStep1')}</li>
             <li>{t('routine.githubStep2')}</li>
             <li>

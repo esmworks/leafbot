@@ -29,7 +29,7 @@ export function BotTables({ bot }: { bot: Bot }) {
           <button
             key={x.id}
             onClick={() => setOpenId(x.id)}
-            className="flex w-full items-center gap-3 rounded-2xl bg-secondary/60 px-3 py-2.5 text-left hover:bg-secondary"
+            className="flex w-full items-center gap-3 rounded-2xl bg-secondary/60 px-3 py-2.5 text-start hover:bg-secondary"
           >
             <Table2 className="size-4 shrink-0 text-muted-foreground" />
             <span className="min-w-0 flex-1">
@@ -38,7 +38,7 @@ export function BotTables({ bot }: { bot: Bot }) {
                 {t('tables.rows', { count: x.rowCount })}
               </span>
             </span>
-            <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+            <ChevronRight className="size-4 shrink-0 text-muted-foreground rtl:-scale-x-100" />
           </button>
         ))}
       </div>
@@ -121,13 +121,13 @@ function TableDialog({ table, onClose }: { table: BotTable; onClose(): void }) {
         </DialogHeader>
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-40 flex-1">
-            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute top-1/2 start-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t('tables.search')}
               aria-label={t('tables.search')}
-              className="h-9 rounded-full pl-9"
+              className="h-9 rounded-full ps-9"
             />
           </div>
           <Button size="sm" variant="secondary" disabled={add.isPending} onClick={() => add.mutate()}>
@@ -153,9 +153,9 @@ function TableDialog({ table, onClose }: { table: BotTable; onClose(): void }) {
             <thead className="sticky top-0 z-10 bg-background">
               <tr className="border-b">
                 {table.columns.map((c) => (
-                  <th key={c.name} className="px-3 py-2 text-left font-medium whitespace-nowrap">
+                  <th key={c.name} className="px-3 py-2 text-start font-medium whitespace-nowrap">
                     {c.name}
-                    <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                    <span className="ms-1.5 text-xs font-normal text-muted-foreground">
                       {t(`tables.type.${c.type}`)}
                     </span>
                   </th>
@@ -180,7 +180,7 @@ function TableDialog({ table, onClose }: { table: BotTable; onClose(): void }) {
                       }}
                     />
                   ))}
-                  <td className="px-1 text-right">
+                  <td className="px-1 text-end">
                     <Button
                       size="icon"
                       variant="ghost"

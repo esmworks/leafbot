@@ -15,7 +15,7 @@ describe('dil', () => {
 
   it('dil seçilene kadar boştur; yalnızca desteklenen diller kaydedilir', async () => {
     expect((await t.api<{ language?: string }>('GET', '/api/settings')).body.language).toBeUndefined();
-    expect((await t.api('PATCH', '/api/settings', { language: 'fr' })).status).toBe(400);
+    expect((await t.api('PATCH', '/api/settings', { language: 'ja' })).status).toBe(400);
     expect((await english()).status).toBe(200);
     expect((await t.api<{ language?: string }>('GET', '/api/settings')).body.language).toBe('en');
   });
@@ -83,6 +83,22 @@ describe('dil', () => {
     const prompt = t.engine.requests.at(-1)!.systemPrompt;
     expect(prompt).toContain('You are an assistant bot named "Katip".');
     expect(prompt).toContain('Reply in German unless the user writes in another language.');
+  });
+
+  it('Çince ve Arapça: bot istemi, dilin adıyla birlikte o dilde yanıt ister', async () => {
+    for (const [language, name] of [
+      ['zh', 'Chinese (Simplified)'],
+      ['ar', 'Arabic'],
+    ]) {
+      expect((await t.api('PATCH', '/api/settings', { language })).status).toBe(200);
+      const bot = await t.bot({ name: 'Katip' });
+      const thread = await main(bot.id);
+      await t.send(thread.id, 'merhaba');
+      await t.services.turns.idle();
+      expect(t.engine.requests.at(-1)!.systemPrompt).toContain(
+        `Reply in ${name} unless the user writes in another language.`,
+      );
+    }
   });
 
   it('İngilizce sunucu: botlar arası iş satırları ve araç sonuçları İngilizce', async () => {

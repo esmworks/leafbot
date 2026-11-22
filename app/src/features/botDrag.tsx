@@ -180,7 +180,7 @@ function DropLine({ axis, side }: { axis: 'x' | 'y'; side: 'before' | 'after' })
         'pointer-events-none absolute z-10 rounded-full bg-primary',
         axis === 'y' ? 'inset-x-2 h-0.5' : 'inset-y-2 w-0.5',
         axis === 'y' && (side === 'before' ? '-top-px' : '-bottom-px'),
-        axis === 'x' && (side === 'before' ? '-left-px' : '-right-px'),
+        axis === 'x' && (side === 'before' ? '-start-px' : '-end-px'),
       )}
     />
   );

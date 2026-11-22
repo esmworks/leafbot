@@ -50,7 +50,7 @@ export function TelegramPanel({ botId }: { botId: string }) {
       <div className="flex items-center gap-2">
         <Send className="size-4 text-muted-foreground" />
         <span className="text-sm font-medium">{t('telegram.title')}</span>
-        <span className="ml-auto text-xs text-muted-foreground">
+        <span className="ms-auto text-xs text-muted-foreground">
           {status.owner ? t('telegram.paired') : status.connected ? t('telegram.waiting') : t('telegram.off')}
         </span>
       </div>
@@ -60,7 +60,7 @@ export function TelegramPanel({ botId }: { botId: string }) {
 
       {!status.connected && (
         <div className="space-y-2">
-          <ol className="list-decimal space-y-1 pl-5 text-xs text-muted-foreground">
+          <ol className="list-decimal space-y-1 ps-5 text-xs text-muted-foreground">
             <li>
               {t('telegram.step1')}{' '}
               <a href="https://t.me/BotFather" target="_blank" rel="noreferrer" className="underline">

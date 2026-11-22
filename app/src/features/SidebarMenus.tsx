@@ -177,7 +177,7 @@ export function BotMenu({ bot, children }: { bot: Bot; children: React.ReactElem
                   onSelect={() => moveBot(bot.id, moveTo(s.key, null))}
                 >
                   <span className="min-w-0 flex-1 truncate">{s.name}</span>
-                  {s.key === current && <Check className="ml-auto" />}
+                  {s.key === current && <Check className="ms-auto" />}
                 </ContextMenuItem>
               ))}
               <ContextMenuSeparator />

@@ -84,7 +84,7 @@ function RoomFace({ members, size = 22 }: { members: Bot[]; size?: number }) {
   return (
     <span className="flex items-center">
       {shown.map((b, i) => (
-        <span key={b.id} className={cn(i > 0 && '-ml-2')} style={{ zIndex: shown.length - i }}>
+        <span key={b.id} className={cn(i > 0 && '-ms-2')} style={{ zIndex: shown.length - i }}>
           <BotAvatar avatar={b.avatar} color={b.color} seed={b.id} size={size} />
         </span>
       ))}
@@ -158,7 +158,7 @@ export function RoomsSection({ query }: { query: string }) {
   if (!bots.length || (query && !shown.length)) return null;
   return (
     <section className="mt-1" aria-label={t('rooms.title')}>
-      <div className="flex items-center pr-2">
+      <div className="flex items-center pe-2">
         <h3 className={cn(heading, 'flex-1')}>{t('rooms.title')}</h3>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -182,7 +182,7 @@ export function RoomsSection({ query }: { query: string }) {
         <button
           type="button"
           onClick={() => openRoomDialog({ mode: 'create' })}
-          className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-3 rounded-2xl px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+          className="mx-1 flex w-[calc(100%-0.5rem)] items-center gap-3 rounded-2xl px-3 py-2 text-start text-sm text-muted-foreground hover:bg-accent/60 hover:text-foreground"
         >
           <Users className="size-4 shrink-0" />
           {t('room.dialogHint')}
@@ -205,20 +205,20 @@ function RoomRow({ room }: { room: Room }) {
       type="button"
       onClick={() => openRoom(room.id)}
       className={cn(
-        'flex w-full items-center gap-3 rounded-2xl px-3 py-1.5 text-left transition-colors select-none hover:bg-accent/60',
+        'flex w-full items-center gap-3 rounded-2xl px-3 py-1.5 text-start transition-colors select-none hover:bg-accent/60',
         selected && 'bg-accent',
       )}
     >
       <span className="relative shrink-0">
         <RoomCluster members={members} box={38} />
         {busy && (
-          <span className="absolute -right-0.5 -bottom-0.5 z-10 size-2.5 animate-pulse rounded-full bg-emerald-500 ring-2 ring-sidebar" />
+          <span className="absolute -end-0.5 -bottom-0.5 z-10 size-2.5 animate-pulse rounded-full bg-emerald-500 ring-2 ring-sidebar" />
         )}
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className="truncate text-[15px] leading-5 font-semibold">{room.title}</span>
-          <span className="ml-auto shrink-0 text-xs text-muted-foreground">{shortTime(room.updatedAt)}</span>
+          <span className="ms-auto shrink-0 text-xs text-muted-foreground">{shortTime(room.updatedAt)}</span>
         </div>
         <div className="truncate text-sm text-muted-foreground">
           {room.preview ?? t('rooms.members', { count: members.length })}
@@ -376,7 +376,7 @@ function RoomForm({ room, onDone }: { room?: Room; onDone(): void }) {
                     onClick={() => toggle(b.id)}
                     aria-pressed={at >= 0}
                     className={cn(
-                      'flex w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-left transition-colors hover:bg-accent/60',
+                      'flex w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-start transition-colors hover:bg-accent/60',
                       at >= 0 && 'bg-accent/70',
                     )}
                   >
@@ -463,7 +463,7 @@ function RoomForm({ room, onDone }: { room?: Room; onDone(): void }) {
           <Button
             type="button"
             variant="ghost"
-            className="mr-auto rounded-full text-destructive"
+            className="me-auto rounded-full text-destructive"
             onClick={() => confirm(t('room.deleteConfirm', { name: room.title })) && remove.mutate()}
           >
             {t('room.delete')}
@@ -690,13 +690,13 @@ function RoomHeader({ room, members }: { room: Room; members: Bot[] }) {
             onClick={showList}
             aria-label={t('chat.backToList')}
           >
-            <ChevronLeft className="size-5" />
+            <ChevronLeft className="size-5 rtl:-scale-x-100" />
           </Button>
         </div>
         <button
           type="button"
           onClick={() => openRoomDialog({ mode: 'edit', roomId: room.id })}
-          className="pointer-events-auto flex max-w-full min-w-0 items-center gap-2 rounded-full border bg-background/80 py-1.5 pr-3 pl-1.5 shadow-sm backdrop-blur transition-colors hover:bg-accent"
+          className="pointer-events-auto flex max-w-full min-w-0 items-center gap-2 rounded-full border bg-background/80 py-1.5 pe-3 ps-1.5 shadow-sm backdrop-blur transition-colors hover:bg-accent"
         >
           <RoomFace members={members} size={24} />
           <span className="truncate text-sm font-semibold">{room.title}</span>
@@ -858,7 +858,7 @@ function RoomComposer({
           </div>
         )}
         {replyTo && (
-          <div className="mx-1 mt-1 flex items-center gap-2 rounded-2xl bg-secondary py-1.5 pr-1.5 pl-3 text-sm text-muted-foreground">
+          <div className="mx-1 mt-1 flex items-center gap-2 rounded-2xl bg-secondary py-1.5 pe-1.5 ps-3 text-sm text-muted-foreground">
             <Reply className="size-4 shrink-0" />
             <span className="min-w-0 flex-1 truncate">{replyExcerpt(replyTo)}</span>
             <Button
@@ -873,7 +873,7 @@ function RoomComposer({
             </Button>
           </div>
         )}
-        <div className="flex items-end gap-1 pl-3">
+        <div className="flex items-end gap-1 ps-3">
           <textarea
             ref={ref}
             rows={1}

@@ -109,7 +109,7 @@ export function RightPanel({ bot, beside }: { bot: Bot; beside?: boolean }) {
             activity={activity}
             motion="always"
           />
-          <span className="absolute right-0 bottom-0 flex size-8 items-center justify-center rounded-full border bg-background opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100">
+          <span className="absolute end-0 bottom-0 flex size-8 items-center justify-center rounded-full border bg-background opacity-0 transition-opacity group-hover:opacity-100 pointer-coarse:opacity-100">
             <Pencil className="size-4" />
           </span>
         </button>
@@ -197,7 +197,7 @@ function Upcoming({ bot }: { bot: Bot }) {
               <Clock className="size-4 shrink-0 text-muted-foreground" />
             )}
             <button
-              className="min-w-0 flex-1 text-left"
+              className="min-w-0 flex-1 text-start"
               onClick={() => openRoutine({ botId: bot.id, routineId: r.id, showRuns: failed.has(r.id) })}
             >
               <div className="truncate text-sm font-medium">{r.name}</div>
@@ -262,14 +262,14 @@ function BotApps({ bot }: { bot: Bot }) {
       {connections.length === 0 ? (
         <button
           onClick={() => openApps({ botId: bot.id })}
-          className="w-full rounded-2xl bg-secondary/60 px-4 py-3 text-left text-sm text-muted-foreground hover:bg-secondary"
+          className="w-full rounded-2xl bg-secondary/60 px-4 py-3 text-start text-sm text-muted-foreground hover:bg-secondary"
         >
           {t('panel.noApps')}
         </button>
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="flex w-full items-center gap-3 rounded-2xl bg-secondary/60 px-3 py-2.5 text-left hover:bg-secondary"
+          className="flex w-full items-center gap-3 rounded-2xl bg-secondary/60 px-3 py-2.5 text-start hover:bg-secondary"
         >
           <span className="flex shrink-0 -space-x-2">
             {(on.length ? on : connections).slice(0, STACKED_LOGOS).map((c) => (
@@ -288,7 +288,7 @@ function BotApps({ bot }: { bot: Bot }) {
               </span>
             )}
           </span>
-          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground rtl:-scale-x-100" />
         </button>
       )}
       <BotAppsDialog bot={bot} open={open} onOpenChange={setOpen} />
@@ -345,13 +345,13 @@ function BotAppsDialog({
         </DialogHeader>
         <div className="flex items-center gap-2 px-6 pb-3">
           <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t('panel.appsSearch')}
               aria-label={t('panel.appsSearch')}
-              className="rounded-xl pl-9"
+              className="rounded-xl ps-9"
             />
           </div>
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => all.mutate(true)}>
@@ -429,14 +429,14 @@ function BotSkills({ bot }: { bot: Bot }) {
       {skills.length === 0 ? (
         <button
           onClick={() => openSettings('skills')}
-          className="w-full rounded-2xl bg-secondary/60 px-4 py-3 text-left text-sm text-muted-foreground hover:bg-secondary"
+          className="w-full rounded-2xl bg-secondary/60 px-4 py-3 text-start text-sm text-muted-foreground hover:bg-secondary"
         >
           {t('panel.noSkills')}
         </button>
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="flex w-full items-center gap-3 rounded-2xl bg-secondary/60 px-3 py-2.5 text-left hover:bg-secondary"
+          className="flex w-full items-center gap-3 rounded-2xl bg-secondary/60 px-3 py-2.5 text-start hover:bg-secondary"
         >
           <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-background text-muted-foreground">
             <Sparkles className="size-3.5" />
@@ -451,7 +451,7 @@ function BotSkills({ bot }: { bot: Bot }) {
               </span>
             )}
           </span>
-          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground rtl:-scale-x-100" />
         </button>
       )}
       <BotSkillsDialog bot={bot} open={open} onOpenChange={setOpen} />
@@ -544,13 +544,13 @@ function BotSkillsDialog({
         </DialogHeader>
         <div className="flex items-center gap-2 px-6 pb-3">
           <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t('panel.skillsSearch')}
               aria-label={t('panel.skillsSearch')}
-              className="rounded-xl pl-9"
+              className="rounded-xl ps-9"
             />
           </div>
           <Button size="sm" variant="ghost" disabled={busy} onClick={() => all.mutate(true)}>
@@ -723,7 +723,7 @@ function Library({ bot }: { bot: Bot }) {
             <button
               type="button"
               onClick={() => preview({ botId: bot.id, path: f.path, name: f.name, size: f.size })}
-              className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-3 text-left"
+              className="flex min-w-0 flex-1 items-center gap-3 py-2.5 ps-3 text-start"
               aria-label={t('preview.open', { name: f.name })}
             >
               {info}

@@ -343,7 +343,7 @@ function BotForm({
           onClick={onCancel}
           aria-label={t('common.back')}
         >
-          <ChevronLeft className="size-5" />
+          <ChevronLeft className="size-5 rtl:-scale-x-100" />
         </Button>
         <h1 className="min-w-0 flex-1 truncate text-base font-semibold">
           {bot ? t('bot.settingsTitle', { name: bot.name }) : v.name?.trim() || t('bot.new')}
@@ -386,7 +386,7 @@ function BotForm({
                       title={s.description}
                       onClick={() => pickStarter(id)}
                       className={cn(
-                        'inline-flex items-center gap-2 rounded-xl border py-1.5 pr-3 pl-1.5 text-sm transition-colors hover:bg-accent',
+                        'inline-flex items-center gap-2 rounded-xl border py-1.5 pe-3 ps-1.5 text-sm transition-colors hover:bg-accent',
                         on && 'border-[var(--brand)]/60 bg-[var(--brand)]/10 hover:bg-[var(--brand)]/15',
                       )}
                     >
@@ -494,7 +494,7 @@ function BotForm({
             type="button"
             onClick={() => setAdvanced((a) => !a)}
             aria-expanded={advanced}
-            className="flex w-full items-center gap-3 rounded-2xl px-1 py-1 text-left"
+            className="flex w-full items-center gap-3 rounded-2xl px-1 py-1 text-start"
           >
             <span className="min-w-0 flex-1">
               <span className="block text-sm font-medium">{t('bot.advanced')}</span>

@@ -135,6 +135,35 @@
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
+/*
+ * Inter holds Latin, Greek and Cyrillic only. Without a per-script stack the browser falls back to
+ * whatever it has, and Chinese, Arabic or Devanagari text ends up in a different weight and line
+ * height than the rest of the interface.
+ */
+:root:lang(zh) {
+  --font-sans:
+    'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', 'Microsoft YaHei', ui-sans-serif, system-ui,
+    sans-serif;
+}
+
+:root:lang(ar) {
+  --font-sans:
+    'Inter', 'Geeza Pro', 'Noto Sans Arabic', 'Segoe UI', Tahoma, ui-sans-serif, system-ui, sans-serif;
+}
+
+:root:lang(hi) {
+  --font-sans:
+    'Inter', 'Kohinoor Devanagari', 'Noto Sans Devanagari', 'Nirmala UI', ui-sans-serif, system-ui, sans-serif;
+}
+
+/*
+ * Arabic letters join; letter-spacing breaks the joins, so any text set with a tracking utility
+ * loses it in a right-to-left language.
+ */
+[dir='rtl'] [class*='tracking-'] {
+  letter-spacing: normal;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

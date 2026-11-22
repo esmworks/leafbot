@@ -162,7 +162,7 @@ function SkillRow({ skill, onEdit }: { skill: Skill; onEdit(): void }) {
         <div className="line-clamp-2 text-xs text-muted-foreground">{skill.description}</div>
         <div className="mt-1.5 flex items-center gap-1">
           {skill.uses > 0 && (
-            <span className="mr-1.5 text-xs text-muted-foreground">
+            <span className="me-1.5 text-xs text-muted-foreground">
               {t('skills.uses', { count: skill.uses })}
             </span>
           )}

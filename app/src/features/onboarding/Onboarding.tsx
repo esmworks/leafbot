@@ -186,7 +186,7 @@ function ServerStep({ onBack, onNext }: { onBack(): void; onNext(): void }) {
       onBack={onBack}
       next={
         <Button className="rounded-full" onClick={onNext}>
-          {t('onboarding.continue')} <ArrowRight />
+          {t('onboarding.continue')} <ArrowRight className="rtl:-scale-x-100" />
         </Button>
       }
     >
@@ -199,7 +199,7 @@ function ServerStep({ onBack, onNext }: { onBack(): void; onNext(): void }) {
             aria-checked={o.on}
             onClick={o.pick}
             className={cn(
-              'flex items-center gap-3 rounded-2xl border px-4 py-3.5 text-left transition-colors hover:bg-accent',
+              'flex items-center gap-3 rounded-2xl border px-4 py-3.5 text-start transition-colors hover:bg-accent',
               o.on && 'border-[var(--brand)]/60 bg-[var(--brand)]/10 hover:bg-[var(--brand)]/15',
             )}
           >
@@ -261,7 +261,7 @@ function AiStep({ onBack, onNext }: { onBack(): void; onNext(connected: EngineKi
           onClick={() => onNext(connected ? kind : null)}
         >
           {connected ? t('onboarding.continue') : t('onboarding.later')}
-          {connected && <ArrowRight />}
+          {connected && <ArrowRight className="rtl:-scale-x-100" />}
         </Button>
       }
     >
@@ -274,7 +274,7 @@ function AiStep({ onBack, onNext }: { onBack(): void; onNext(connected: EngineKi
             aria-checked={kind === o.id}
             onClick={() => setPicked(o.id)}
             className={cn(
-              'rounded-2xl border px-4 py-3.5 text-left transition-colors hover:bg-accent',
+              'rounded-2xl border px-4 py-3.5 text-start transition-colors hover:bg-accent',
               kind === o.id && 'border-[var(--brand)]/60 bg-[var(--brand)]/10 hover:bg-[var(--brand)]/15',
             )}
           >
@@ -310,7 +310,7 @@ function ModelStep({ onBack, onNext }: { onBack(): void; onNext(): void }) {
       onBack={onBack}
       next={
         <Button className="rounded-full" onClick={() => save.mutate()} disabled={save.isPending}>
-          {t('onboarding.continue')} <ArrowRight />
+          {t('onboarding.continue')} <ArrowRight className="rtl:-scale-x-100" />
         </Button>
       }
     >
@@ -338,7 +338,7 @@ function PiModelStep({ onBack, onNext }: { onBack(): void; onNext(): void }) {
         >
           {save.isPending && <Loader2 className="animate-spin" />}
           {save.isPending ? t('claude.testing') : t('onboarding.continue')}
-          {!save.isPending && <ArrowRight />}
+          {!save.isPending && <ArrowRight className="rtl:-scale-x-100" />}
         </Button>
       }
     >
@@ -379,7 +379,7 @@ function LanguageStep({ onNext }: { onNext(): void }) {
               lang={l}
               onClick={() => pick(l)}
               className={cn(
-                'flex h-12 items-center justify-between rounded-2xl border px-5 text-left transition-colors hover:bg-accent',
+                'flex h-12 items-center justify-between rounded-2xl border px-5 text-start transition-colors hover:bg-accent',
                 l === locale && 'border-[var(--brand)]/60 bg-[var(--brand)]/10 hover:bg-[var(--brand)]/15',
               )}
             >
@@ -389,7 +389,7 @@ function LanguageStep({ onNext }: { onNext(): void }) {
           ))}
         </div>
         <Button className="h-11 w-full rounded-full" onClick={onNext} autoFocus>
-          {t('onboarding.continue')} <ArrowRight />
+          {t('onboarding.continue')} <ArrowRight className="rtl:-scale-x-100" />
         </Button>
       </div>
     </main>
@@ -486,7 +486,7 @@ function AboutStep({
         {current === 'done' && (
           <div className="flex justify-end">
             <Button className="rounded-full" onClick={onNext}>
-              {t('onboarding.continue')} <ArrowRight />
+              {t('onboarding.continue')} <ArrowRight className="rtl:-scale-x-100" />
             </Button>
           </div>
         )}
@@ -544,7 +544,7 @@ function AnswerInput({
     const empty =
       question === 'name' ? { name: '' } : question === 'addressAs' ? { addressAs: '' } : { about: '' };
     return (
-      <form onSubmit={submit} className="flex flex-col items-end gap-2 pl-11">
+      <form onSubmit={submit} className="flex flex-col items-end gap-2 ps-11">
         {question === 'about' ? (
           <Textarea
             value={draft}
@@ -583,7 +583,7 @@ function AnswerInput({
 
   if (question === 'focus') {
     return (
-      <div className="flex flex-col items-end gap-3 pl-11">
+      <div className="flex flex-col items-end gap-3 ps-11">
         <div className="flex flex-wrap justify-end gap-2">
           {PROFILE_FOCUS.map((f) => (
             <Chip key={f} on={answers.focus === f} onClick={() => onAnswer({ ...answers, focus: f })}>
@@ -601,7 +601,7 @@ function AnswerInput({
     const ready = roles.length > 0 || !!roleText.trim();
     const done = () => onAnswer({ ...answers, roles, roleText: roleText.trim() });
     return (
-      <div className="flex flex-col items-end gap-3 pl-11">
+      <div className="flex flex-col items-end gap-3 ps-11">
         <div className="flex flex-wrap justify-end gap-2">
           {ROLES.map((r) => (
             <Chip key={r} check on={roles.includes(r)} onClick={() => toggle(r)}>
@@ -643,7 +643,7 @@ function AnswerInput({
       hs.includes(h) ? hs.filter((x) => x !== h) : PROFILE_HELP.filter((x) => x === h || hs.includes(x)),
     );
   return (
-    <div className="flex flex-col items-end gap-3 pl-11">
+    <div className="flex flex-col items-end gap-3 ps-11">
       <div className="flex flex-wrap justify-end gap-2">
         {PROFILE_HELP.map((h) => (
           <Chip key={h} check on={help.includes(h)} onClick={() => toggle(h)}>
@@ -680,7 +680,7 @@ function BotSays({ children }: { children: ReactNode }) {
         <div className="size-8 shrink-0">
           <ObjectArt id="circle" color={MASCOT_COLOR} seed="leafbot" />
         </div>
-        <div className="max-w-[85%] rounded-2xl rounded-bl-md bg-secondary px-4 py-2.5 text-[15px] leading-relaxed">
+        <div className="max-w-[85%] rounded-2xl rounded-es-md bg-secondary px-4 py-2.5 text-[15px] leading-relaxed">
           {children}
         </div>
       </div>
@@ -702,7 +702,7 @@ function PersonSays({ children, onEdit }: { children: ReactNode; onEdit(): void 
         >
           <Pencil className="size-3.5" />
         </button>
-        <div className="max-w-[80%] rounded-2xl rounded-br-md bg-[var(--brand)]/12 px-4 py-2.5 text-[15px] leading-relaxed">
+        <div className="max-w-[80%] rounded-2xl rounded-ee-md bg-[var(--brand)]/12 px-4 py-2.5 text-[15px] leading-relaxed">
           {children}
         </div>
       </div>
@@ -717,7 +717,7 @@ function Typing() {
         <div className="size-8 shrink-0">
           <ObjectArt id="circle" color={MASCOT_COLOR} activity="thinking" motion="always" seed="leafbot" />
         </div>
-        <div className="flex gap-1 rounded-2xl rounded-bl-md bg-secondary px-4 py-3.5" aria-hidden>
+        <div className="flex gap-1 rounded-2xl rounded-es-md bg-secondary px-4 py-3.5" aria-hidden>
           {[0, 1, 2].map((i) => (
             <span
               key={i}
@@ -798,7 +798,7 @@ function BotsStep({
                   aria-pressed={on}
                   onClick={() => toggle(id)}
                   className={cn(
-                    'flex items-start gap-3 rounded-2xl border p-4 text-left transition-colors hover:bg-accent',
+                    'flex items-start gap-3 rounded-2xl border p-4 text-start transition-colors hover:bg-accent',
                     on && 'border-[var(--brand)]/60 bg-[var(--brand)]/5',
                   )}
                 >

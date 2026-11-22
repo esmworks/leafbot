@@ -105,7 +105,7 @@ function CardRow({ card: c }: { card: PaymentCard }) {
         )}
       </div>
       {c.sites.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 pl-12 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center gap-1.5 ps-12 text-xs text-muted-foreground">
           <span>{t('cards.sites')}</span>
           {c.sites.map((site) => (
             <span key={site} className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5">
@@ -185,7 +185,7 @@ function CardForm({ onDone }: { onDone(): void }) {
           aria-invalid={digits.length >= 12 && !valid}
         />
         {brand && brand !== 'other' && (
-          <span className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-xs text-muted-foreground">
+          <span className="pointer-events-none absolute top-1/2 end-3 -translate-y-1/2 text-xs text-muted-foreground">
             {BRANDS[brand]}
           </span>
         )}

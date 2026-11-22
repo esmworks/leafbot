@@ -171,7 +171,7 @@ function SearchBody({ onDone }: { onDone(): void }) {
               onMouseEnter={() => setActive(i)}
               onClick={() => pick(r)}
               className={cn(
-                'flex w-full items-start gap-3 rounded-2xl px-3 py-2 text-left',
+                'flex w-full items-start gap-3 rounded-2xl px-3 py-2 text-start',
                 i === active && 'bg-accent',
               )}
             >
@@ -202,7 +202,7 @@ function SearchBody({ onDone }: { onDone(): void }) {
                       {bot?.name ?? t('common.bot')}
                       {r.hit.threadTitle ? ` · ${r.hit.threadTitle}` : ''}
                     </span>
-                    <span className="ml-auto shrink-0">{shortTime(r.hit.createdAt)}</span>
+                    <span className="ms-auto shrink-0">{shortTime(r.hit.createdAt)}</span>
                   </div>
                   <div className="line-clamp-2 text-sm">
                     <span className="text-muted-foreground">

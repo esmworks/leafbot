@@ -123,7 +123,7 @@ export function QuickPanel() {
         <span className="font-medium">{t('quick.title')}</span>
         {pending.length > 0 && <span className="text-muted-foreground tabular-nums">{pending.length}</span>}
         {shortcut && (
-          <span className="ml-auto flex gap-1 text-xs text-muted-foreground">
+          <span className="ms-auto flex gap-1 text-xs text-muted-foreground">
             {shortcutLabel(shortcut, mac).map((k) => (
               <Key key={k}>{k}</Key>
             ))}
@@ -232,7 +232,7 @@ function Card({
         <div className="min-w-0 flex-1 break-words">{text}</div>
       </div>
       {card.kind === 'tool' && (
-        <div className="flex flex-wrap gap-1.5 pl-6">
+        <div className="flex flex-wrap gap-1.5 ps-6">
           <Choice
             n="1"
             label={t('approval.allowOnce')}
@@ -248,7 +248,7 @@ function Card({
         </div>
       )}
       {card.kind === 'question' && question && (
-        <div className="space-y-1 pl-6">
+        <div className="space-y-1 ps-6">
           {question.options.slice(0, 9).map((o, i) => (
             <Choice
               key={o}
@@ -285,7 +285,7 @@ function Card({
         </div>
       )}
       {card.kind === 'open' && (
-        <div className="pl-6">
+        <div className="ps-6">
           <Choice
             n="O"
             label={t('quick.openChat')}
@@ -317,7 +317,7 @@ function Choice({
         e.stopPropagation();
         onClick();
       }}
-      className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-accent disabled:opacity-50"
+      className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1 text-start hover:bg-accent disabled:opacity-50"
     >
       <Key>{n}</Key>
       <span className="min-w-0 break-words">{label}</span>

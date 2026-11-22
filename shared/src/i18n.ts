@@ -2,7 +2,23 @@
  * Languages the app speaks. The first one is the default. Turkish and English hold every text;
  * the others hold what has been translated and show English for the rest (see `FALLBACK_LOCALE`).
  */
-export const LOCALES = ['tr', 'en', 'de'] as const;
+export const LOCALES = [
+  'tr',
+  'en',
+  'de',
+  'ar',
+  'es',
+  'fr',
+  'hi',
+  'id',
+  'it',
+  'pl',
+  'pt',
+  'ru',
+  'uk',
+  'vi',
+  'zh',
+] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = 'tr';
 /** What a language shows for a text not translated into it yet. */
@@ -11,13 +27,72 @@ export const FALLBACK_LOCALE: Locale = 'en';
 export const FULL_LOCALES: readonly Locale[] = ['tr', 'en'];
 
 /** Each language's name in itself, for language pickers. */
-export const LOCALE_NAMES: Record<Locale, string> = { tr: 'Türkçe', en: 'English', de: 'Deutsch' };
+export const LOCALE_NAMES: Record<Locale, string> = {
+  tr: 'Türkçe',
+  en: 'English',
+  de: 'Deutsch',
+  ar: 'العربية',
+  es: 'Español',
+  fr: 'Français',
+  hi: 'हिन्दी',
+  id: 'Bahasa Indonesia',
+  it: 'Italiano',
+  pl: 'Polski',
+  pt: 'Português (Brasil)',
+  ru: 'Русский',
+  uk: 'Українська',
+  vi: 'Tiếng Việt',
+  zh: '简体中文',
+};
 
-/** BCP 47 tag for `Intl` formatting (dates, numbers, case mapping). */
-export const INTL_LOCALE: Record<Locale, string> = { tr: 'tr-TR', en: 'en-US', de: 'de-DE' };
+/**
+ * BCP 47 tag for `Intl` formatting (dates, numbers, case mapping). Chinese is the Simplified
+ * script and Portuguese is the Brazilian variant; Arabic uses `ar-EG` so numbers stay Western,
+ * the way they are written in prices, tables and the rest of the interface.
+ */
+export const INTL_LOCALE: Record<Locale, string> = {
+  tr: 'tr-TR',
+  en: 'en-US',
+  de: 'de-DE',
+  ar: 'ar-EG',
+  es: 'es-ES',
+  fr: 'fr-FR',
+  hi: 'hi-IN',
+  id: 'id-ID',
+  it: 'it-IT',
+  pl: 'pl-PL',
+  pt: 'pt-BR',
+  ru: 'ru-RU',
+  uk: 'uk-UA',
+  vi: 'vi-VN',
+  zh: 'zh-CN',
+};
 
 /** The language's name in English, for telling a model which language to write in. */
-export const LANGUAGE_NAMES: Record<Locale, string> = { tr: 'Turkish', en: 'English', de: 'German' };
+export const LANGUAGE_NAMES: Record<Locale, string> = {
+  tr: 'Turkish',
+  en: 'English',
+  de: 'German',
+  ar: 'Arabic',
+  es: 'Spanish',
+  fr: 'French',
+  hi: 'Hindi',
+  id: 'Indonesian',
+  it: 'Italian',
+  pl: 'Polish',
+  pt: 'Portuguese',
+  ru: 'Russian',
+  uk: 'Ukrainian',
+  vi: 'Vietnamese',
+  zh: 'Chinese (Simplified)',
+};
+
+/** Languages written right to left; the interface mirrors itself for them. */
+export const RTL_LOCALES: readonly Locale[] = ['ar'];
+
+export function isRtl(locale: Locale): boolean {
+  return RTL_LOCALES.includes(locale);
+}
 
 export function isLocale(v: unknown): v is Locale {
   return typeof v === 'string' && (LOCALES as readonly string[]).includes(v);
@@ -53,8 +128,15 @@ export function parseAcceptLanguage(header: string): string[] {
     .map((x) => x.tag);
 }
 
-/** A message, or plural forms picked by the `count` parameter (CLDR categories). */
-export type CatalogMessage = string | { one?: string; other: string };
+/** The CLDR plural categories `Intl.PluralRules` selects between. */
+export type PluralCategory = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other';
+
+/**
+ * A message, or plural forms picked by the `count` parameter. A language supplies the categories
+ * it uses (Russian needs one/few/many, Arabic zero/two/few/many, Chinese only other); the rest
+ * fall back to `other`.
+ */
+export type CatalogMessage = string | (Partial<Record<PluralCategory, string>> & { other: string });
 export type Catalog<K extends string = string> = Record<K, CatalogMessage>;
 export type Params = Record<string, string | number>;
 export type Translate<K extends string> = (key: K, params?: Params) => string;
@@ -72,8 +154,8 @@ function render(locale: Locale, msg: CatalogMessage, params?: Params): string {
   let rules = pluralRules.get(locale);
   if (!rules) pluralRules.set(locale, (rules = new Intl.PluralRules(INTL_LOCALE[locale])));
   const count = Number(params?.count ?? 0);
-  const form = rules.select(count) === 'one' ? (msg.one ?? msg.other) : msg.other;
-  return interpolate(form, params);
+  const category = rules.select(count) as PluralCategory;
+  return interpolate(msg[category] ?? msg.other, params);
 }
 
 /**

@@ -144,7 +144,7 @@ export function PluginDialog({ onClose }: { onClose(): void }) {
             {plan.leftOut.length > 0 && (
               <section className="space-y-1">
                 <h4 className="text-xs font-medium text-muted-foreground">{t('plugin.leftOut')}</h4>
-                <ul className="list-disc pl-5 text-xs text-muted-foreground">
+                <ul className="list-disc ps-5 text-xs text-muted-foreground">
                   {plan.leftOut.map((l) => (
                     <li key={l.part}>
                       {l.part} — {t(`plugin.why.${l.why}`)}

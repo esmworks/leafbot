@@ -302,7 +302,7 @@ export function BoardDialog() {
             </DropdownMenuContent>
           </DropdownMenu>
           <label className="relative flex items-center phone:order-3 phone:min-w-0 phone:flex-1 phone:basis-48">
-            <Search className="pointer-events-none absolute left-2.5 size-4 text-muted-foreground" />
+            <Search className="pointer-events-none absolute start-2.5 size-4 text-muted-foreground" />
             <input
               ref={search}
               value={query}
@@ -316,7 +316,7 @@ export function BoardDialog() {
               data-own-escape={query ? '' : undefined}
               placeholder={t('board.search')}
               aria-label={t('board.search')}
-              className="h-8 w-56 rounded-xl border bg-transparent pr-3 pl-8 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 phone:w-full"
+              className="h-8 w-56 rounded-xl border bg-transparent pe-3 ps-8 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 phone:w-full"
             />
           </label>
           <Button size="sm" className="rounded-xl phone:order-1" onClick={() => setAdding(true)}>
@@ -408,7 +408,7 @@ export function BoardDialog() {
         {drag &&
           createPortal(
             <div
-              className="pointer-events-none fixed top-0 left-0 z-[100]"
+              className="pointer-events-none fixed top-0 start-0 z-[100]"
               style={{
                 width: drag.width,
                 transform: `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px)`,
@@ -523,7 +523,7 @@ function Column({
         over && 'bg-blue-500/10 ring-2 ring-blue-500/50 ring-inset',
       )}
     >
-      <h3 className="flex h-11 shrink-0 items-center gap-2 pr-1.5 pl-3 text-sm font-medium">
+      <h3 className="flex h-11 shrink-0 items-center gap-2 pe-1.5 ps-3 text-sm font-medium">
         <StatusIcon status={status} />
         <span className="truncate">{t(`board.status.${status}`)}</span>
         <span className="text-xs font-normal text-muted-foreground tabular-nums">{tickets.length}</span>

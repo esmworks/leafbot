@@ -179,7 +179,7 @@ export function DesktopCard({ bot }: { bot: Bot }) {
       </div>
       <button
         onClick={() => open(bot.id)}
-        className="group block w-full overflow-hidden rounded-2xl border bg-secondary/60 text-left transition-colors hover:border-foreground/20"
+        className="group block w-full overflow-hidden rounded-2xl border bg-secondary/60 text-start transition-colors hover:border-foreground/20"
         aria-label={t('computer.open')}
       >
         <div className="relative w-full" style={{ aspectRatio: ASPECT }}>
@@ -264,7 +264,7 @@ function DesktopView({ bot, close }: { bot: Bot; close(): void }) {
       <Button
         variant="secondary"
         size="sm"
-        className="absolute top-3 right-3 z-10 rounded-full bg-white/10 text-white hover:bg-white/20 sm:top-5 sm:right-5"
+        className="absolute top-3 end-3 z-10 rounded-full bg-white/10 text-white hover:bg-white/20 sm:top-5 sm:end-5"
         onClick={close}
       >
         <Minimize2 /> {t('computer.desktop.collapse')}
@@ -303,7 +303,7 @@ function DesktopView({ bot, close }: { bot: Bot; close(): void }) {
       )}
 
       {state.status === 'running' && (
-        <div className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-full border border-white/15 bg-neutral-900/90 py-1.5 pr-1.5 pl-4 shadow-lg backdrop-blur sm:bottom-6">
+        <div className="absolute bottom-4 start-1/2 z-10 flex -translate-x-1/2 items-center gap-3 rounded-full border border-white/15 bg-neutral-900/90 py-1.5 pe-1.5 ps-4 shadow-lg backdrop-blur sm:bottom-6">
           {state.user ? (
             <>
               <span className="flex items-center gap-2 text-sm">

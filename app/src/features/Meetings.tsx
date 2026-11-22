@@ -295,7 +295,7 @@ export function MeetingBar({ room }: { room: Room }) {
   const meeting = room.meeting;
   if (!meeting || meeting.status === 'asked') return null;
   const pill =
-    'pointer-events-auto flex items-center gap-2 rounded-full border bg-background/80 py-1 pr-1 pl-3 text-xs shadow-sm backdrop-blur';
+    'pointer-events-auto flex items-center gap-2 rounded-full border bg-background/80 py-1 pe-1 ps-3 text-xs shadow-sm backdrop-blur';
   if (meeting.status === 'active')
     return (
       <div className={pill} role="status">
@@ -314,7 +314,7 @@ export function MeetingBar({ room }: { room: Room }) {
     );
   if (meeting.status === 'writing')
     return (
-      <div className={cn(pill, 'pr-3')} role="status">
+      <div className={cn(pill, 'pe-3')} role="status">
         <Loader2 className="size-3.5 animate-spin" />
         {t('meeting.writing')}
       </div>
@@ -322,7 +322,7 @@ export function MeetingBar({ room }: { room: Room }) {
   return (
     <button
       type="button"
-      className={cn(pill, 'pr-3 hover:bg-accent', meeting.status === 'failed' && 'text-destructive')}
+      className={cn(pill, 'pe-3 hover:bg-accent', meeting.status === 'failed' && 'text-destructive')}
       onClick={() => showMinutes(room.id, meeting.id)}
     >
       {meeting.status === 'failed' ? (
@@ -411,7 +411,7 @@ function MinutesBody({
                 key={m.id}
                 type="button"
                 onClick={() => onOpen(m.id)}
-                className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-left hover:bg-accent/60"
+                className="flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-start hover:bg-accent/60"
               >
                 {m.status === 'saved' ? (
                   <CheckCircle2 className="size-4 shrink-0 text-emerald-600" />
@@ -504,7 +504,7 @@ function MinutesView({
         <Button
           type="button"
           variant="ghost"
-          className="mr-auto rounded-full text-destructive"
+          className="me-auto rounded-full text-destructive"
           disabled={remove.isPending}
           onClick={() => confirm(t('meeting.deleteConfirm')) && remove.mutate()}
         >
@@ -537,7 +537,7 @@ function MinutesSections({ minutes, meta }: { minutes: MeetingMinutes; meta: str
   const empty = <p className="text-sm text-muted-foreground">{t('meeting.empty')}</p>;
   const list = (xs: string[]) =>
     xs.length ? (
-      <ul className="list-disc space-y-1 pl-5 text-[15px]">
+      <ul className="list-disc space-y-1 ps-5 text-[15px]">
         {xs.map((x, i) => (
           <li key={i}>{x}</li>
         ))}
@@ -933,7 +933,7 @@ function Recipient({
       disabled={!bot.memory}
       aria-pressed={on}
       className={cn(
-        'flex w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-left transition-colors hover:bg-accent/60 disabled:opacity-50',
+        'flex w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-start transition-colors hover:bg-accent/60 disabled:opacity-50',
         on && 'bg-accent/70',
       )}
     >

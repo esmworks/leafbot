@@ -312,7 +312,7 @@ export function SettingsPage() {
               aria-label={t('settings.close')}
               title={t('settings.close')}
             >
-              <ChevronLeft className="size-5" />
+              <ChevronLeft className="size-5 rtl:-scale-x-100" />
             </Button>
             <h1 className="text-base font-semibold phone:text-lg">{t('settings.title')}</h1>
           </div>
@@ -341,7 +341,7 @@ export function SettingsPage() {
             >
               {tb.icon}
               <span className="flex-1 text-left">{t(`settings.tab.${tb.id}`)}</span>
-              {phone && <ChevronRight className="text-muted-foreground" />}
+              {phone && <ChevronRight className="text-muted-foreground rtl:-scale-x-100" />}
             </button>
           ))}
           {appsFound && (
@@ -366,7 +366,7 @@ export function SettingsPage() {
             // The section's own title bar, with the way back to the list.
             <div className="flex h-14 shrink-0 items-center gap-1 border-b bg-sidebar px-1">
               <Button variant="ghost" size="icon" onClick={toList} aria-label={t('settings.back')}>
-                <ChevronLeft className="size-5" />
+                <ChevronLeft className="size-5 rtl:-scale-x-100" />
               </Button>
               <h1 className="truncate text-lg font-semibold">{t(`settings.tab.${current.id}`)}</h1>
             </div>

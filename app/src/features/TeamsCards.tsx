@@ -113,7 +113,7 @@ function TeamsForm({ status, bots }: { status: TeamsStatus; bots: Bot[] }) {
 
         {!status.connected && (
           <div className="space-y-4">
-            <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
+            <ol className="list-decimal space-y-2 ps-5 text-sm text-muted-foreground">
               <li>
                 {t('teams.step1')}{' '}
                 <a href={NEW_BOT} target="_blank" rel="noreferrer" className="text-primary underline">

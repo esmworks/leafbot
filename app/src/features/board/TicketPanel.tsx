@@ -104,7 +104,7 @@ export function TicketPanel({
   return (
     <aside
       aria-label={`#${ticket.number}`}
-      className="absolute inset-y-0 right-0 z-20 flex w-[min(560px,100%)] flex-col border-l bg-background shadow-[-24px_0_48px_-24px_rgb(0_0_0/0.18)] duration-200 animate-in fade-in-0 slide-in-from-right-6"
+      className="absolute inset-y-0 end-0 z-20 flex w-[min(560px,100%)] flex-col border-l bg-background shadow-[-24px_0_48px_-24px_rgb(0_0_0/0.18)] duration-200 animate-in fade-in-0 slide-in-from-end-6"
     >
       <div className="flex h-14 shrink-0 items-center gap-1.5 border-b px-4">
         <StatusIcon status={ticket.status} />
@@ -361,7 +361,7 @@ function DescriptionField({ value, onSave }: { value: string; onSave(v: string):
         <button
           type="button"
           onClick={start}
-          className="-mx-2 w-[calc(100%+1rem)] rounded-lg px-2 py-1.5 text-left text-sm text-muted-foreground transition-colors hover:bg-accent/60"
+          className="-mx-2 w-[calc(100%+1rem)] rounded-lg px-2 py-1.5 text-start text-sm text-muted-foreground transition-colors hover:bg-accent/60"
         >
           {t('board.addDescription')}
         </button>
