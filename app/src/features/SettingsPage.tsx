@@ -115,6 +115,7 @@ import { useZoom, ZOOMS } from '@/lib/zoom';
 import { cn } from '@/lib/utils';
 import { ChannelsTab } from './ChannelsTab';
 import { AiServicesTab } from './AiServicesTab';
+import { MemoryFlags } from './MemoryFlags';
 import { PendingMemory } from './PendingMemory';
 import { ImportTab } from './ImportTab';
 import { ProfileTab } from './ProfileTab';
@@ -1676,6 +1677,7 @@ function MemoryTab() {
       </div>
       <p className="mb-6 px-1 text-xs text-muted-foreground">{t('memory.pinHint')}</p>
       <PendingMemory bots={[...bots, ...archived]} />
+      <MemoryFlags bots={[...bots, ...archived]} />
       {expiredHits.length > 0 && (
         <Card title={t('memory.expired')}>
           <p className="px-4 py-3 text-xs text-muted-foreground">{t('memory.expiredHint')}</p>

@@ -76,6 +76,7 @@ const BOOKKEEPING = new Set([
   'react',
   'memory_search',
   'memory_write',
+  'memory_flag',
   'memory_update',
   'memory_forget',
   'skill_read',

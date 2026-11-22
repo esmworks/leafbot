@@ -120,6 +120,23 @@ export function TodayDialog() {
                       </span>
                     </Item>
                   ) : null}
+                  {/* Gaps bots found in what they know wait for the person's answer. */}
+                  {data.openFlags ? (
+                    <Item
+                      onClick={() => {
+                        useUi.getState().openSettings('memory');
+                        setOpen(false);
+                      }}
+                    >
+                      <Brain className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate">
+                        {t('today.openFlags', { count: data.openFlags })}
+                      </span>
+                      <span className="shrink-0 text-xs font-medium text-amber-600 dark:text-amber-400">
+                        {t('memory.flagAnswer')}
+                      </span>
+                    </Item>
+                  ) : null}
                   {/* Better ways bots found for the person's skills wait for the person to read them. */}
                   {data.pendingSkills ? (
                     <Item

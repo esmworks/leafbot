@@ -24,7 +24,12 @@ describe('botun araç seçimi', () => {
     await t.send(thread.id, 'merhaba');
     await t.services.turns.idle();
     const req = t.engine.requests.at(-1)!;
-    expect(req.tools.map((x) => x.name).sort()).toEqual(['memory_search', 'memory_update', 'memory_write']);
+    expect(req.tools.map((x) => x.name).sort()).toEqual([
+      'memory_flag',
+      'memory_search',
+      'memory_update',
+      'memory_write',
+    ]);
     // The engine's own tools are narrowed by name too.
     expect(req.pickTool?.('Read')).toBe(true);
     expect(req.pickTool?.('Bash')).toBe(false);

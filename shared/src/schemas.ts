@@ -1066,8 +1066,9 @@ export interface MemoryChange {
    * `person`: someone who may talk with the bot but not change it asked for it; `name` is theirs.
    * `stopped`: a run of the bot `name` made it, then was stopped or failed; it was taken back.
    * `review`: the background review of a conversation of the bot `name` found it.
+   * `flag`: a page the bot `name` named when it flagged a gap holds the answer.
    */
-  origin: { kind: 'routine' | 'bot' | 'outside' | 'person' | 'stopped' | 'review'; name: string };
+  origin: { kind: 'routine' | 'bot' | 'outside' | 'person' | 'stopped' | 'review' | 'flag'; name: string };
   /** The person the work was for. Missing on older servers. */
   userId?: string | null;
   threadId: string | null;
@@ -1076,6 +1077,36 @@ export interface MemoryChange {
   /** Until when the bot said the fact is true. Missing on older servers. */
   validUntil?: string | null;
   createdAt: string;
+}
+/**
+ * Something a bot found missing or wrong in what it knows without knowing the right answer, as
+ * `GET /api/memory/flags` lists it: open ones, and those waiting on a memory change (`proposed`).
+ */
+export interface MemoryFlag {
+  id: string;
+  kind: 'missing' | 'wrong';
+  scope: MemoryScope;
+  botId: string;
+  /** What the bot was looking for. */
+  about: string;
+  /** What it saw instead. */
+  seen: string | null;
+  /** The note it says is wrong, while it is there. */
+  memoryId: string | null;
+  /** That note's words, for the list to show. */
+  note: string | null;
+  /** The skill it says is wrong, by name. */
+  skill: string | null;
+  /** A page the bot says may hold the answer. */
+  sourceUrl: string | null;
+  /** Whether the bot had read outside text (a mail, a web page) when it raised it. */
+  outside: boolean;
+  /** The conversation it came up in; only for the person it was raised for. */
+  threadId: string | null;
+  count: number;
+  status: 'open' | 'proposed';
+  createdAt: string;
+  lastSeenAt: string;
 }
 /** One thing that happened to a memory note, as `GET /api/memory-history` lists it (oldest first). */
 export interface MemoryHistoryLine {
@@ -1701,6 +1732,8 @@ export const TodayReport = z.object({
   pendingMemory: z.number().int().optional(),
   /** Changes bots found for skills the user owns, waiting for the user's review. Missing from older servers. */
   pendingSkills: z.number().int().optional(),
+  /** Gaps bots found in what they know and could not fill, waiting for an answer. Missing from older servers. */
+  openFlags: z.number().int().optional(),
   /** Trip-wire alarms the user has not marked seen. Missing from older servers. */
   canaryAlarms: z.array(CanaryAlarm).optional(),
 });

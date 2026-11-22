@@ -411,6 +411,8 @@ function detailFor(name: string, input: Record<string, unknown>, locale: Locale)
     case 'memory_write':
     case 'memory_update':
       return str(input.content);
+    case 'memory_flag':
+      return str(input.about);
     case 'image_create':
     case 'video_create':
       return str(input.prompt);

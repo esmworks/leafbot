@@ -307,6 +307,9 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'GET /api/memory-changes': 'self',
   'POST /api/memory-changes/:id/accept': 'self',
   'DELETE /api/memory-changes/:id': 'self',
+  'GET /api/memory/flags': 'self',
+  'POST /api/memory/flags/:id/answer': 'self',
+  'POST /api/memory/flags/:id/dismiss': 'self',
   'GET /api/memory-stale': 'self',
   'POST /api/memory-stale/delete': 'self',
 

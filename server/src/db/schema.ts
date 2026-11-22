@@ -1397,7 +1397,10 @@ export const memoryChanges = pgTable(
      * review of a conversation; with its name.
      */
     origin: jsonb('origin')
-      .$type<{ kind: 'routine' | 'bot' | 'outside' | 'person' | 'stopped' | 'review'; name: string }>()
+      .$type<{
+        kind: 'routine' | 'bot' | 'outside' | 'person' | 'stopped' | 'review' | 'flag';
+        name: string;
+      }>()
       .notNull(),
     /**
      * The person the work was for. A change to their own notes is theirs to accept; one to a
@@ -1412,6 +1415,64 @@ export const memoryChanges = pgTable(
     createdAt: created(),
   },
   (t) => [index('memory_changes_created_idx').on(t.createdAt)],
+);
+
+/**
+ * Something a bot found missing or wrong in what it knows, while it did not know the right answer
+ * itself: a fact its notes lack, or a note or skill that disagrees with what it saw. It waits for
+ * someone who knows (the person, a later conversation, the page it names) to settle it, so the gap
+ * is filled once instead of being met again in every task.
+ */
+export const memoryFlags = pgTable(
+  'memory_flags',
+  {
+    id: text('id').primaryKey(),
+    kind: text('kind', { enum: ['missing', 'wrong'] }).notNull(),
+    /** Whose it is, as a note's (see `memories.scope`): it is seen by those who would see that note. */
+    scope: text('scope', { enum: ['bot', 'user', 'room'] }).notNull(),
+    /** The bot that raised it. */
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    /** The person the bot worked for; their conversation is the only one the flag links to. */
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    place: text('place'),
+    /** The note it says is wrong; the flag stays, without it, when the note goes. */
+    memoryId: text('memory_id').references(() => memories.id, { onDelete: 'set null' }),
+    /** The skill it says is wrong. */
+    skillId: text('skill_id').references(() => skills.id, { onDelete: 'cascade' }),
+    /** What the bot was looking for. */
+    about: sealedText('about').notNull(),
+    /** What it saw instead, for a note or skill that disagrees with it. */
+    seen: sealedText('seen'),
+    /** A page the bot says may hold the answer. */
+    sourceUrl: sealedText('source_url'),
+    /** Outside text the turn had read when it raised the flag: its words then are not the person's. */
+    outside: text('outside', { enum: OUTSIDE_TRIGGERS }),
+    threadId: text('thread_id'),
+    turnId: text('turn_id'),
+    /** How many times the same gap was raised: a gap met again and again comes first. */
+    count: integer('count').notNull().default(1),
+    status: text('status', { enum: ['open', 'proposed', 'resolved', 'dismissed', 'expired'] })
+      .notNull()
+      .default('open'),
+    /** The memory change a proposed flag waits on. */
+    changeId: text('change_id'),
+    /** When its page was read; a flag's page is read once. */
+    checkedAt: ts('checked_at'),
+    /** How it was settled: the words written, or what happened. */
+    resolution: sealedText('resolution'),
+    /** Who settled it: `user:<id>`, `review`, `source` or `note-changed`. */
+    resolvedBy: text('resolved_by'),
+    resolvedAt: ts('resolved_at'),
+    createdAt: created(),
+    lastSeenAt: ts('last_seen_at').notNull().defaultNow(),
+  },
+  (t) => [
+    index('memory_flags_bot_idx').on(t.botId, t.status),
+    index('memory_flags_memory_idx').on(t.memoryId),
+    index('memory_flags_turn_idx').on(t.turnId),
+  ],
 );
 
 /**

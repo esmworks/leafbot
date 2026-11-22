@@ -8,6 +8,7 @@ import { translator, type T } from '../i18n';
 import { OWNER_ID } from '../users';
 import { HttpError, truncate } from '../util';
 import { atLeast } from './access';
+import type { FlagRow } from './memory-flags';
 import { placeOf, ROOM_NOTES_PER_PLACE } from './memory';
 import { redactSecrets } from './secrets';
 import type { Services } from './index';
@@ -32,13 +33,20 @@ const RESET_MIN_TURNS = 3;
 const REVIEWED_KINDS: ThreadRow['kind'][] = ['user', 'room', 'team'];
 
 /** One change as the model asks for it; a malformed one is dropped, not fatal. */
-const Operation = z.object({
+const NoteOperation = z.object({
   op: z.enum(['write', 'update', 'forget']),
   scope: z.enum(['bot', 'user', 'room']),
   id: z.string().min(1).max(100).optional(),
   content: z.string().max(5000).optional(),
   site: z.string().max(253).optional(),
 });
+/** The answer to a gap a bot flagged, as the person gave it in the conversation. */
+const ResolveOperation = z.object({
+  op: z.literal('resolve'),
+  flag: z.string().min(1).max(100),
+  content: z.string().max(5000),
+});
+const Operation = z.union([NoteOperation, ResolveOperation]);
 type Operation = z.infer<typeof Operation>;
 
 /** The changes in the model's answer: a list, or an object holding one; anything unclear is none. */
@@ -279,7 +287,11 @@ export class MemoryReviewService {
     const member =
       !team &&
       !atLeast(await this.services.access.level(await this.services.access.viewerOf(person), bot.id), 'edit');
-    const request = this.request(t, { team, member, place, notes, span, outside });
+    // A stretch with outside text in it settles no gap: what answers it there may not be the person's.
+    const flags = outside
+      ? []
+      : await this.services.memoryFlags.forReview(bot.id, team ? null : person, place);
+    const request = this.request(t, { team, member, place, notes, span, outside, flags });
     const controller = new AbortController();
     this.current = controller;
     let text: string;
@@ -305,6 +317,7 @@ export class MemoryReviewService {
       place,
       shown,
       botNotes,
+      flags: new Map(flags.filter((f) => request.flagsShown.has(f.id)).map((f) => [f.id, f])),
     });
     if (changed) this.ctx.bus.refresh({ scope: 'memory' });
   }
@@ -368,6 +381,7 @@ export class MemoryReviewService {
       notes: Memory[];
       span: { role: string; text: string; props: unknown }[];
       outside: boolean;
+      flags: FlagRow[];
     },
   ) {
     const scopes = [
@@ -378,11 +392,20 @@ export class MemoryReviewService {
       ...(o.team ? [t('memoryReview.scopesTeam')] : []),
       ...(o.member ? [t('memoryReview.scopesMember')] : []),
     ].join('\n');
-    const system = t('memoryReview.system', {
-      pinned: t('memoryReview.markPinned'),
-      byPerson: t('memoryReview.markPerson'),
-      scopes,
-      today: new Date().toISOString().slice(0, 10),
+    const system = [
+      t('memoryReview.system', {
+        pinned: t('memoryReview.markPinned'),
+        byPerson: t('memoryReview.markPerson'),
+        scopes,
+        today: new Date().toISOString().slice(0, 10),
+      }),
+      ...(o.flags.length ? [t('memoryReview.flagsRule')] : []),
+    ].join('\n\n');
+    const flagsShown = new Set<string>();
+    const flagLines = o.flags.map((f) => {
+      flagsShown.add(f.id);
+      const target = f.memoryId ? ` note=${f.memoryId}` : '';
+      return `[${f.id}] (${f.kind}${target}) ${data(truncate(f.about, NOTE_CHARS))}${f.seen ? ` | ${data(truncate(f.seen, NOTE_CHARS))}` : ''}`;
     });
     const shown = new Set<string>();
     let used = 0;
@@ -406,9 +429,10 @@ export class MemoryReviewService {
     }
     const user = [
       `<notes>\n${lines.length ? lines.join('\n') : t('memoryReview.noNotes')}\n</notes>`,
+      ...(flagLines.length ? [`<flags>\n${flagLines.join('\n')}\n</flags>`] : []),
       `<conversation>\n${kept.join('\n')}\n</conversation>`,
     ].join('\n');
-    return { system, user, shown };
+    return { system, user, shown, flagsShown };
   }
 
   /**
@@ -428,6 +452,8 @@ export class MemoryReviewService {
       shown: Map<string, Memory>;
       /** Whether the bot's own notes may change. */
       botNotes: boolean;
+      /** The gaps the review was shown, the only ones it may settle. */
+      flags: Map<string, FlagRow>;
     },
   ): Promise<boolean> {
     let changed = false;
@@ -445,6 +471,7 @@ export class MemoryReviewService {
     const { memory } = this.services;
     const { bot, thread } = c;
     const actor = `bot:${bot.id}`;
+    if (op.op === 'resolve') return this.resolve(op, c);
     const content = op.content?.trim();
     if (op.op !== 'forget' && (!content || content.length > 2000)) return false;
     const clean = content ? redactSecrets(content, c.t('memory.redacted')) : null;
@@ -498,6 +525,27 @@ export class MemoryReviewService {
       return true;
     }
     await memory.remove(m.id, actor);
+    return true;
+  }
+
+  /**
+   * Fills a gap a bot flagged with what the person said in the conversation: the flagged note
+   * takes the words, or a note of the flag's scope is written. A note the person wrote or pinned
+   * is theirs, so a flag about one stays for them to answer.
+   */
+  private async resolve(
+    op: Extract<Operation, { op: 'resolve' }>,
+    c: Parameters<MemoryReviewService['apply']>[1],
+  ): Promise<boolean> {
+    const flag = c.flags.get(op.flag);
+    const content = op.content.trim();
+    if (!flag || !content || content.length > 2000) return false;
+    const clean = redactSecrets(content, c.t('memory.redacted')).text;
+    const done = flag.memoryId
+      ? await this.applyOne({ op: 'update', scope: flag.scope, id: flag.memoryId, content: clean }, c)
+      : await this.applyOne({ op: 'write', scope: flag.scope, content: clean }, c);
+    if (!done) return false;
+    await this.services.memoryFlags.settle(flag.id, 'review', clean);
     return true;
   }
 }
