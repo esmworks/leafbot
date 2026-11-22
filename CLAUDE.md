@@ -11,7 +11,8 @@ Notes for people and coding agents working on this repository.
 - Commit messages, pull request titles and descriptions are written in English. Earlier commits in Turkish stay as
   they are.
 - Text the person sees goes through the translation catalogs (`app/src/i18n`, `shared/src/i18n.ts`) in English and
-  Turkish; `shared/src/hardcoded-text.test.ts` catches text written straight into the code.
+  Turkish; `shared/src/hardcoded-text.test.ts` catches text written straight into the code. Other languages, such as
+  German (`app/src/i18n/de.ts`), may lack newer keys; those show in English until translated.
 - `PRD.md` and `TASKS.md` are local working notes and stay out of the repository (they are in `.gitignore`).
 
 ## Checks

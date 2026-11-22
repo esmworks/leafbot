@@ -74,7 +74,7 @@ export class ServerProcess extends EventEmitter {
           USER: process.env.USER ?? '',
           LOGNAME: process.env.LOGNAME ?? process.env.USER ?? '',
           TMPDIR: process.env.TMPDIR ?? '/tmp',
-          LANG: process.env.LANG ?? (locale() === 'en' ? 'en_US.UTF-8' : 'tr_TR.UTF-8'),
+          LANG: process.env.LANG ?? (locale() === 'tr' ? 'tr_TR.UTF-8' : 'en_US.UTF-8'),
           SHELL: process.env.SHELL ?? '/bin/zsh',
           ...(process.env.TZ ? { TZ: process.env.TZ } : {}),
           ELECTRON_RUN_AS_NODE: '1',

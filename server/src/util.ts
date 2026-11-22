@@ -119,10 +119,12 @@ const STOP: Record<'words' | 'fillers', Record<Locale, string[]>> = {
   words: {
     en: ['stop', 'halt', 'cancel', 'abort'],
     tr: ['dur', 'durdur', 'iptal', 'vazgeç', 'kes', 'bırak'],
+    de: ['stopp', 'stop', 'halt', 'abbrechen', 'aufhören', 'anhalten'],
   },
   fillers: {
     en: ['now', 'please', 'it', 'that'],
     tr: ['şimdi', 'lütfen', 'hemen', 'artık', 'et', 'yeter'],
+    de: ['jetzt', 'bitte', 'sofort', 'das', 'es'],
   },
 };
 // A message may mix languages ("stop lütfen"), so every language's words count.

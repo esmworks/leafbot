@@ -1,13 +1,23 @@
-/** Languages the app speaks. The first one is the default. */
-export const LOCALES = ['tr', 'en'] as const;
+/**
+ * Languages the app speaks. The first one is the default. Turkish and English hold every text;
+ * the others hold what has been translated and show English for the rest (see `FALLBACK_LOCALE`).
+ */
+export const LOCALES = ['tr', 'en', 'de'] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = 'tr';
+/** What a language shows for a text not translated into it yet. */
+export const FALLBACK_LOCALE: Locale = 'en';
+/** The languages every text must be written in; the others may lag behind. */
+export const FULL_LOCALES: readonly Locale[] = ['tr', 'en'];
 
 /** Each language's name in itself, for language pickers. */
-export const LOCALE_NAMES: Record<Locale, string> = { tr: 'Türkçe', en: 'English' };
+export const LOCALE_NAMES: Record<Locale, string> = { tr: 'Türkçe', en: 'English', de: 'Deutsch' };
 
 /** BCP 47 tag for `Intl` formatting (dates, numbers, case mapping). */
-export const INTL_LOCALE: Record<Locale, string> = { tr: 'tr-TR', en: 'en-US' };
+export const INTL_LOCALE: Record<Locale, string> = { tr: 'tr-TR', en: 'en-US', de: 'de-DE' };
+
+/** The language's name in English, for telling a model which language to write in. */
+export const LANGUAGE_NAMES: Record<Locale, string> = { tr: 'Turkish', en: 'English', de: 'German' };
 
 export function isLocale(v: unknown): v is Locale {
   return typeof v === 'string' && (LOCALES as readonly string[]).includes(v);
@@ -67,17 +77,21 @@ function render(locale: Locale, msg: CatalogMessage, params?: Params): string {
 }
 
 /**
- * A translate function over per-language catalogs. A key missing in one language falls back
- * to the default language, then to the key itself, so a gap never breaks the screen.
+ * A translate function over per-language catalogs. A key missing in one language falls back to
+ * English, then to the default language, then to the key itself, so a gap never breaks the screen.
+ * A message is put together by the rules of the language it was found in (its plural forms).
  */
 export function createTranslator<K extends string>(
-  catalogs: Record<Locale, Partial<Catalog<K>>>,
+  catalogs: Partial<Record<Locale, Partial<Catalog<K>>>>,
   locale: Locale,
 ): Translate<K> {
+  const order = [...new Set<Locale>([locale, FALLBACK_LOCALE, DEFAULT_LOCALE])];
   return (key, params) => {
-    // Own entries only: a key like `constructor` must not find an object's built-in member.
-    const own = (c: Partial<Catalog<K>>) => (Object.hasOwn(c, key) ? c[key] : undefined);
-    const msg = own(catalogs[locale]) ?? own(catalogs[DEFAULT_LOCALE]);
-    return msg === undefined ? key : render(locale, msg, params);
+    for (const lang of order) {
+      const c = catalogs[lang];
+      // Own entries only: a key like `constructor` must not find an object's built-in member.
+      if (c && Object.hasOwn(c, key)) return render(lang, c[key]!, params);
+    }
+    return key;
   };
 }

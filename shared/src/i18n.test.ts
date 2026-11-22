@@ -3,10 +3,11 @@ import { createTranslator, parseAcceptLanguage, pickLocale } from './i18n';
 
 describe('dil seçimi', () => {
   it('tarayıcı tercihlerinden desteklenen ilk dili seçer', () => {
-    expect(pickLocale(['de-DE', 'en-GB', 'tr'])).toBe('en');
+    expect(pickLocale(['fr-FR', 'en-GB', 'tr'])).toBe('en');
+    expect(pickLocale(['de-AT', 'en-GB'])).toBe('de');
     expect(pickLocale(['tr-TR'])).toBe('tr');
-    expect(pickLocale(['de', 'fr'])).toBe('tr');
-    expect(pickLocale(['de'], 'en')).toBe('en');
+    expect(pickLocale(['fr', 'it'])).toBe('tr');
+    expect(pickLocale(['fr'], 'en')).toBe('en');
     expect(pickLocale(undefined)).toBe('tr');
   });
 
@@ -37,6 +38,13 @@ describe('çevirmen', () => {
     const en = createTranslator<string>(catalogs, 'en');
     expect(en('onlyTr')).toBe('yalnız Türkçe');
     expect(en('missing')).toBe('missing');
+  });
+
+  it('Almancada eksik metni İngilizceden, çoğulunu İngilizcenin kuralıyla gösterir', () => {
+    const de = createTranslator<string>({ ...catalogs, de: { hello: 'Hallo {name}' } }, 'de');
+    expect(de('hello', { name: 'Ayşe' })).toBe('Hallo Ayşe');
+    expect(de('files', { count: 1 })).toBe('1 file');
+    expect(de('onlyTr')).toBe('yalnız Türkçe');
   });
 
   it('nesnenin yerleşik üyelerini çeviri sanmaz', () => {

@@ -6,6 +6,7 @@ import {
   type Skill,
   type SkillSuggestion,
   type SkillSuggestionAccept,
+  LANGUAGE_NAMES,
 } from '@leafbot/shared';
 import { and, asc, eq, gt, gte, isNotNull, isNull } from 'drizzle-orm';
 import type { Ctx } from '../context';
@@ -81,7 +82,7 @@ const BOOKKEEPING = new Set([
   'promise_track',
 ]);
 
-const LANGUAGE: Record<Locale, string> = { tr: 'Turkish', en: 'English' };
+const LANGUAGE = LANGUAGE_NAMES;
 
 /** Keeps the data from closing or opening a tag of its own inside the request. */
 const data = (s: string) => s.replace(/</g, '\\u003c');

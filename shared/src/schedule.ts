@@ -683,12 +683,14 @@ export function occurrenceKey(at: Date): string {
 const DAY_NAMES: Record<Locale, string[]> = {
   tr: ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma', 'Cumartesi'],
   en: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  de: ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'],
 };
 
 /** Short weekday names, Sunday first (index = `Schedule` weekday number). */
 export const SHORT_DAY_NAMES: Record<Locale, string[]> = {
   tr: ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'],
   en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+  de: ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'],
 };
 
 const SCHEDULE_TEXT: Record<Locale, Catalog> = {
@@ -714,6 +716,18 @@ const SCHEDULE_TEXT: Record<Locale, Catalog> = {
     hours: { one: 'Every hour', other: 'Every {count} hours' },
     minutes: { one: 'Every minute', other: 'Every {count} minutes' },
     between: 'between {from} and {to}',
+    cron: 'Cron: {expr}',
+  },
+  de: {
+    hourly: 'Jede Stunde um :{minute}',
+    daily: 'Täglich um {time}',
+    weekdays: 'Werktags um {time}',
+    weekly: '{days} um {time}',
+    monthly: 'Monatlich am {day}. um {time}',
+    once: 'Einmal, am {date} um {time}',
+    hours: { one: 'Jede Stunde', other: 'Alle {count} Stunden' },
+    minutes: { one: 'Jede Minute', other: 'Alle {count} Minuten' },
+    between: 'zwischen {from} und {to}',
     cron: 'Cron: {expr}',
   },
 };

@@ -1,9 +1,9 @@
-import type { Locale } from '@leafbot/shared';
+import { LANGUAGE_NAMES } from '@leafbot/shared';
 import { truncate } from '../util';
 import type { GateRequest, GateVerdict } from './types';
 
 /** The checker writes its reason in the person's language; it reads its instructions in English. */
-const LANGUAGE: Record<Locale, string> = { tr: 'Turkish', en: 'English' };
+const LANGUAGE = LANGUAGE_NAMES;
 
 /** Keeps the input from closing or opening a tag of its own inside the data it hands over. */
 const data = (s: string) => s.replace(/</g, '\\u003c');
