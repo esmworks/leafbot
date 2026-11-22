@@ -146,7 +146,8 @@ interface UiState {
   openBotDialog(d: UiState['botDialog']): void;
   openComputer(botId: string | null): void;
   floatComputer(float: boolean): void;
-  appendStream(threadId: string, turnId: string, text: string): void;
+  /** Adds a turn's next words; `restart` starts its text over, as the run did. */
+  appendStream(threadId: string, turnId: string, text: string, restart?: boolean): void;
   dropStream(threadId: string, turnId?: string): void;
   /** Notes where cards were asked in their turn's text; a card's first note stays. */
   markCards(cuts: Record<string, number>): void;
@@ -246,10 +247,10 @@ export const useUi = create<UiState>((set, get) => ({
   openBotDialog: (botDialog) => set({ botDialog }),
   openComputer: (computerBotId) => set({ computerBotId }),
   floatComputer: (computerFloat) => set({ computerFloat }),
-  appendStream: (threadId, turnId, text) =>
+  appendStream: (threadId, turnId, text, restart) =>
     set((s) => {
       const cur = s.streams[threadId];
-      const next = cur && cur.turnId === turnId ? cur.text + text : text;
+      const next = cur && cur.turnId === turnId && !restart ? cur.text + text : text;
       return { streams: { ...s.streams, [threadId]: { turnId, text: next } } };
     }),
   dropStream: (threadId, turnId) =>

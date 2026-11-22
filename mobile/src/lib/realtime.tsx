@@ -33,8 +33,8 @@ class LiveStore {
     for (const fn of this.listeners) fn();
   }
 
-  append(threadId: string, turnId: string, text: string) {
-    this.streams = appendStream(this.streams, threadId, turnId, text);
+  append(threadId: string, turnId: string, text: string, restart?: boolean) {
+    this.streams = appendStream(this.streams, threadId, turnId, text, restart);
     this.emit();
   }
 
@@ -171,7 +171,7 @@ function connect(origin: string, qc: QueryClient, store: LiveStore): () => void 
     void qc.invalidateQueries();
   });
   s.on('refresh', (e) => refresh(origin, e, inv));
-  s.on('delta', (e) => store.append(e.threadId, e.turnId, e.text));
+  s.on('delta', (e) => store.append(e.threadId, e.turnId, e.text, e.restart));
   s.on('tool', (e) => store.setTool(e.threadId, e.tool));
   s.on('notice', (e) => notices.forEach((fn) => fn(e)));
   s.on('turn', (e) => {
