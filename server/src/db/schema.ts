@@ -533,6 +533,8 @@ export const routines = pgTable('routines', {
   prompt: text('prompt').notNull(),
   /** What it does after its instruction, in order (`RoutineStep`); empty for one instruction. */
   steps: jsonb('steps').notNull().default([]),
+  /** Where the flow view's boxes sit (`FlowLayout`); null places them in order. */
+  flowLayout: jsonb('flow_layout'),
   schedule: jsonb('schedule').notNull(),
   timezone: text('timezone').notNull(),
   enabled: boolean('enabled').notNull().default(true),

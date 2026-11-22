@@ -1,6 +1,7 @@
 import type {
   Approval,
   Bot,
+  FlowLayout,
   Group,
   Memory,
   MemoryChange,
@@ -181,6 +182,7 @@ export const toRoutine = (r: Row<typeof schema.routines>): Routine => ({
   tableTrigger: r.tableTrigger,
   tableFilter: r.tableFilter,
   signInWait: r.signInWait,
+  flowLayout: (r.flowLayout as FlowLayout | null) ?? null,
 });
 
 export const toRun = (r: Row<typeof schema.routineRuns>): RoutineRun => ({

@@ -74,6 +74,24 @@ function newWaitStep(): StepForm {
   return { id: newStepId(), kind: 'wait', on: 'time', minutes: 60, filter: '', timeoutDays: 7 };
 }
 
+/** The kinds of step, in the order they are offered. */
+export const STEP_KINDS = ['agent', 'approval', 'wait', 'notify'] as const;
+
+/** A new, empty step of each kind. */
+export const NEW_STEP: Record<StepForm['kind'], () => StepForm> = {
+  agent: newAgentStep,
+  approval: newApprovalStep,
+  wait: newWaitStep,
+  notify: newNotifyStep,
+};
+
+/** The icon of a step's kind. */
+export function StepIcon({ kind }: { kind: StepForm['kind'] }) {
+  const Icon =
+    kind === 'approval' ? UserCheck : kind === 'wait' ? Hourglass : kind === 'notify' ? Send : BotIcon;
+  return <Icon className="size-3.5" aria-hidden />;
+}
+
 /**
  * The steps after the routine's own instruction, each a card in the order they run: what it does,
  * the model it runs on, and buttons to move or remove it.
@@ -110,15 +128,7 @@ export function StepsEditor({
       {steps.map((s, i) => (
         <div key={s.id} className="space-y-2 rounded-2xl border px-3 py-2.5">
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {s.kind === 'approval' ? (
-              <UserCheck className="size-3.5" aria-hidden />
-            ) : s.kind === 'wait' ? (
-              <Hourglass className="size-3.5" aria-hidden />
-            ) : s.kind === 'notify' ? (
-              <Send className="size-3.5" aria-hidden />
-            ) : (
-              <BotIcon className="size-3.5" aria-hidden />
-            )}
+            <StepIcon kind={s.kind} />
             <span className="min-w-0 flex-1">{t(`routine.step.${s.kind}`)}</span>
             <Button
               type="button"
@@ -153,72 +163,13 @@ export function StepsEditor({
               <Trash2 className="size-3.5" />
             </Button>
           </div>
-          {s.kind === 'agent' ? (
-            <>
-              <Textarea
-                value={s.prompt}
-                onChange={(e) => set(i, { ...s, prompt: e.target.value })}
-                rows={3}
-                placeholder={t('routine.stepPromptPlaceholder')}
-                className="scroll-thin max-h-60 overflow-y-auto rounded-xl"
-                aria-label={t('routine.step.agent')}
-              />
-              {errors?.[i] && <p className="text-sm text-destructive">{t(errors[i] as MessageKey)}</p>}
-              <Input
-                value={s.model}
-                onChange={(e) => set(i, { ...s, model: e.target.value })}
-                list={modelListId}
-                placeholder={modelPlaceholder}
-                className="h-8 rounded-xl text-sm"
-                aria-label={t('routine.stepModel')}
-              />
-            </>
-          ) : s.kind === 'wait' ? (
-            <WaitFields step={s} onChange={(next) => set(i, next)} />
-          ) : s.kind === 'notify' ? (
-            <>
-              <Textarea
-                value={s.text}
-                onChange={(e) => set(i, { ...s, text: e.target.value })}
-                rows={2}
-                placeholder={t('routine.notifyPlaceholder')}
-                className="scroll-thin max-h-40 overflow-y-auto rounded-xl"
-                aria-label={t('routine.step.notify')}
-              />
-              <label className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-                <span>{t('routine.notifyWithBefore')}</span>
-                <Switch checked={s.withBefore} onCheckedChange={(v) => set(i, { ...s, withBefore: v })} />
-              </label>
-              <p className="text-xs text-muted-foreground">{t('routine.notifyHint')}</p>
-            </>
-          ) : (
-            <>
-              <Textarea
-                value={s.question}
-                onChange={(e) => set(i, { ...s, question: e.target.value })}
-                rows={2}
-                placeholder={t('routine.stepQuestionPlaceholder')}
-                className="scroll-thin max-h-40 overflow-y-auto rounded-xl"
-                aria-label={t('routine.step.approval')}
-              />
-              {errors?.[i] && <p className="text-sm text-destructive">{t(errors[i] as MessageKey)}</p>}
-              <p className="text-xs text-muted-foreground">{t('routine.stepApprovalHint')}</p>
-              <label className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Hourglass className="size-3.5" aria-hidden />
-                <span className="flex-1">{t('routine.stepTimeoutDays')}</span>
-                <Input
-                  type="number"
-                  min={1}
-                  max={ROUTINE_APPROVAL_MAX_DAYS}
-                  value={s.timeoutDays}
-                  onChange={(e) =>
-                    set(i, { ...s, timeoutDays: clamp(e.target.value, 1, ROUTINE_APPROVAL_MAX_DAYS) })
-                  }
-                  className="h-8 w-20 rounded-xl text-sm"
-                />
-              </label>
-            </>
-          )}
+          <StepFields
+            step={s}
+            onChange={(next) => set(i, next)}
+            error={errors?.[i]}
+            modelListId={modelListId}
+            modelPlaceholder={modelPlaceholder}
+          />
         </div>
       ))}
       <div className="flex flex-wrap gap-2">
@@ -263,11 +214,99 @@ export function StepsEditor({
   );
 }
 
+/** What one step does, as the list and the flow both edit it. */
+export function StepFields({
+  step: s,
+  onChange,
+  error,
+  modelListId,
+  modelPlaceholder,
+}: {
+  step: StepForm;
+  onChange(next: StepForm): void;
+  /** The message key of the step's text that did not pass. */
+  error?: string;
+  modelListId: string;
+  modelPlaceholder: string;
+}) {
+  const t = useT();
+  return (
+    <>
+      {s.kind === 'agent' ? (
+        <>
+          <Textarea
+            value={s.prompt}
+            onChange={(e) => onChange({ ...s, prompt: e.target.value })}
+            rows={3}
+            placeholder={t('routine.stepPromptPlaceholder')}
+            className="scroll-thin max-h-60 overflow-y-auto rounded-xl"
+            aria-label={t('routine.step.agent')}
+          />
+          {error && <p className="text-sm text-destructive">{t(error as MessageKey)}</p>}
+          <Input
+            value={s.model}
+            onChange={(e) => onChange({ ...s, model: e.target.value })}
+            list={modelListId}
+            placeholder={modelPlaceholder}
+            className="h-8 rounded-xl text-sm"
+            aria-label={t('routine.stepModel')}
+          />
+        </>
+      ) : s.kind === 'wait' ? (
+        <WaitFields step={s} onChange={onChange} />
+      ) : s.kind === 'notify' ? (
+        <>
+          <Textarea
+            value={s.text}
+            onChange={(e) => onChange({ ...s, text: e.target.value })}
+            rows={2}
+            placeholder={t('routine.notifyPlaceholder')}
+            className="scroll-thin max-h-40 overflow-y-auto rounded-xl"
+            aria-label={t('routine.step.notify')}
+          />
+          <label className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span>{t('routine.notifyWithBefore')}</span>
+            <Switch checked={s.withBefore} onCheckedChange={(v) => onChange({ ...s, withBefore: v })} />
+          </label>
+          <p className="text-xs text-muted-foreground">{t('routine.notifyHint')}</p>
+        </>
+      ) : (
+        <>
+          <Textarea
+            value={s.question}
+            onChange={(e) => onChange({ ...s, question: e.target.value })}
+            rows={2}
+            placeholder={t('routine.stepQuestionPlaceholder')}
+            className="scroll-thin max-h-40 overflow-y-auto rounded-xl"
+            aria-label={t('routine.step.approval')}
+          />
+          {error && <p className="text-sm text-destructive">{t(error as MessageKey)}</p>}
+          <p className="text-xs text-muted-foreground">{t('routine.stepApprovalHint')}</p>
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Hourglass className="size-3.5" aria-hidden />
+            <span className="flex-1">{t('routine.stepTimeoutDays')}</span>
+            <Input
+              type="number"
+              min={1}
+              max={ROUTINE_APPROVAL_MAX_DAYS}
+              value={s.timeoutDays}
+              onChange={(e) =>
+                onChange({ ...s, timeoutDays: clamp(e.target.value, 1, ROUTINE_APPROVAL_MAX_DAYS) })
+              }
+              className="h-8 w-20 rounded-xl text-sm"
+            />
+          </label>
+        </>
+      )}
+    </>
+  );
+}
+
 /**
  * The buttons of a run's approval step, under it in the routine's list: the same card the run's
  * conversation shows, answered from here.
  */
-function ApprovalAnswer({ approvalId, routineId }: { approvalId: string; routineId: string }) {
+export function ApprovalAnswer({ approvalId, routineId }: { approvalId: string; routineId: string }) {
   const t = useT();
   const qc = useQueryClient();
   const card = useApprovals().data?.find((a) => a.id === approvalId);
@@ -426,7 +465,7 @@ function WaitFields({
 }
 
 /** Ends a run's wait now; the run goes on as if its time had come. */
-function EndWait({ run }: { run: RoutineRun }) {
+export function EndWait({ run }: { run: RoutineRun }) {
   const t = useT();
   const qc = useQueryClient();
   const end = useMutation({
