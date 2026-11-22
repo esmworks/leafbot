@@ -23,6 +23,7 @@ import {
   Plus,
   Search,
   Shield,
+  Sparkles,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -416,15 +417,98 @@ function BotAppsDialog({
   );
 }
 
-/** The skills in the library, each with its switch for this bot. */
+/**
+ * The skills this bot may use, as one row: how many are on. The row opens a window with each
+ * skill's switch, so a long library does not stretch the panel.
+ */
 function BotSkills({ bot }: { bot: Bot }) {
+  const t = useT();
+  const { data: skills = [] } = useSkills();
+  const openSettings = useUi((s) => s.openSettings);
+  const [open, setOpen] = useState(false);
+  const on = skills.filter((k) => k.botIds.includes(bot.id));
+  return (
+    <section>
+      <div className="mb-2 flex items-center justify-between">
+        <h4 className="text-sm font-semibold">{t('panel.skills')}</h4>
+        <Button size="sm" variant="ghost" className="rounded-full" onClick={() => openSettings('skills')}>
+          {skills.length ? (
+            t('panel.manageSkills')
+          ) : (
+            <>
+              <Plus /> {t('skills.new')}
+            </>
+          )}
+        </Button>
+      </div>
+      {skills.length === 0 ? (
+        <button
+          onClick={() => openSettings('skills')}
+          className="w-full rounded-2xl bg-secondary/60 px-4 py-3 text-left text-sm text-muted-foreground hover:bg-secondary"
+        >
+          {t('panel.noSkills')}
+        </button>
+      ) : (
+        <button
+          onClick={() => setOpen(true)}
+          className="flex w-full items-center gap-3 rounded-2xl bg-secondary/60 px-3 py-2.5 text-left hover:bg-secondary"
+        >
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-background text-muted-foreground">
+            <Sparkles className="size-3.5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">
+              {t('panel.skillsOn', { on: on.length, total: skills.length })}
+            </span>
+            {on.length > 0 && (
+              <span className="block truncate font-mono text-[13px] text-muted-foreground">
+                {on.map((k) => k.name).join(', ')}
+              </span>
+            )}
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
+        </button>
+      )}
+      <BotSkillsDialog bot={bot} open={open} onOpenChange={setOpen} />
+    </section>
+  );
+}
+
+/** Every skill with its switch for one bot, a search over them, and all on or off at once. */
+function BotSkillsDialog({
+  bot,
+  open,
+  onOpenChange,
+}: {
+  bot: Bot;
+  open: boolean;
+  onOpenChange(open: boolean): void;
+}) {
   const t = useT();
   const qc = useQueryClient();
   const { data: skills = [] } = useSkills();
   const openSettings = useUi((s) => s.openSettings);
+  const [query, setQuery] = useState('');
+  const q = query.trim().toLocaleLowerCase();
+  const shown = q
+    ? skills.filter(
+        (k) => k.name.toLocaleLowerCase().includes(q) || k.description.toLocaleLowerCase().includes(q),
+      )
+    : skills;
   const toggle = useMutation({
     mutationFn: (v: { id: string; on: boolean }) => api.setSkillBot(v.id, bot.id, v.on),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['skills'] }),
+    onError: (e) => toast.error((e as Error).message),
+  });
+  const all = useMutation({
+    // One request per skill that changes, so skills already in the wanted state are left alone.
+    mutationFn: async (on: boolean) => {
+      for (const k of skills) {
+        if (k.botIds.includes(bot.id) === on) continue;
+        await api.setSkillBot(k.id, bot.id, on);
+      }
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['skills'] }),
     onError: (e) => toast.error((e as Error).message),
   });
   // A taught skill runs again in the bot's browser without the model; one that stops partway can
@@ -459,60 +543,86 @@ function BotSkills({ bot }: { bot: Bot }) {
     },
     onError: (e) => toast.error((e as Error).message),
   });
+  const busy = toggle.isPending || all.isPending;
   return (
-    <section>
-      <div className="mb-2 flex items-center justify-between">
-        <h4 className="text-sm font-semibold">{t('panel.skills')}</h4>
-        <Button size="sm" variant="ghost" className="rounded-full" onClick={() => openSettings('skills')}>
-          {skills.length ? (
-            t('panel.manageSkills')
-          ) : (
-            <>
-              <Plus /> {t('skills.new')}
-            </>
-          )}
-        </Button>
-      </div>
-      {skills.length === 0 && (
-        <button
-          onClick={() => openSettings('skills')}
-          className="w-full rounded-2xl bg-secondary/60 px-4 py-3 text-left text-sm text-muted-foreground hover:bg-secondary"
-        >
-          {t('panel.noSkills')}
-        </button>
-      )}
-      <div className="space-y-2">
-        {skills.map((k) => (
-          <div key={k.id} className="flex items-center gap-3 rounded-2xl bg-secondary/60 px-3 py-2.5">
-            <div className="min-w-0 flex-1">
-              <div className="truncate font-mono text-sm">{k.name}</div>
-              <div className="truncate text-[13px] text-muted-foreground" title={k.description}>
-                {k.description}
-              </div>
-            </div>
-            {replayable && k.steps?.length && k.botIds.includes(bot.id) ? (
-              <Button
-                size="icon"
-                variant="ghost"
-                className="size-8 shrink-0 rounded-full"
-                disabled={replay.isPending}
-                onClick={() => replay.mutate(k)}
-                title={t('replay.run')}
-                aria-label={t('replay.runNamed', { name: k.name })}
-              >
-                <Play />
-              </Button>
-            ) : null}
-            <Switch
-              checked={k.botIds.includes(bot.id)}
-              disabled={toggle.isPending}
-              onCheckedChange={(on) => toggle.mutate({ id: k.id, on })}
-              aria-label={k.name}
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) setQuery('');
+        onOpenChange(o);
+      }}
+    >
+      <DialogContent className="screen-edges flex h-[min(640px,85vh)] flex-col gap-0 overflow-hidden rounded-3xl p-0 sm:max-w-md phone:h-dvh phone:max-h-none phone:max-w-full phone:rounded-none phone:border-0">
+        <DialogHeader className="px-6 pt-6 pb-3">
+          <DialogTitle>{t('panel.skillsTitle', { name: bot.name })}</DialogTitle>
+          <DialogDescription>{t('panel.skillsHint')}</DialogDescription>
+        </DialogHeader>
+        <div className="flex items-center gap-2 px-6 pb-3">
+          <div className="relative min-w-0 flex-1">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('panel.skillsSearch')}
+              aria-label={t('panel.skillsSearch')}
+              className="rounded-xl pl-9"
             />
           </div>
-        ))}
-      </div>
-    </section>
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => all.mutate(true)}>
+            {t('panel.appsAllOn')}
+          </Button>
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => all.mutate(false)}>
+            {t('panel.appsAllOff')}
+          </Button>
+        </div>
+        <div className="scroll-thin min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-6 pb-4">
+          {shown.length === 0 && (
+            <p className="px-1 py-6 text-center text-sm text-muted-foreground">{t('panel.skillsNoMatch')}</p>
+          )}
+          {shown.map((k) => (
+            <div key={k.id} className="flex items-center gap-3 rounded-2xl bg-secondary/60 px-3 py-2.5">
+              <div className="min-w-0 flex-1">
+                <div className="truncate font-mono text-sm">{k.name}</div>
+                <div className="truncate text-[13px] text-muted-foreground" title={k.description}>
+                  {k.description}
+                </div>
+              </div>
+              {replayable && k.steps?.length && k.botIds.includes(bot.id) ? (
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="size-8 shrink-0 rounded-full"
+                  disabled={replay.isPending}
+                  onClick={() => replay.mutate(k)}
+                  title={t('replay.run')}
+                  aria-label={t('replay.runNamed', { name: k.name })}
+                >
+                  <Play />
+                </Button>
+              ) : null}
+              <Switch
+                checked={k.botIds.includes(bot.id)}
+                disabled={busy}
+                onCheckedChange={(on) => toggle.mutate({ id: k.id, on })}
+                aria-label={k.name}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="border-t px-6 py-3">
+          <Button
+            variant="ghost"
+            className="rounded-full"
+            onClick={() => {
+              onOpenChange(false);
+              openSettings('skills');
+            }}
+          >
+            <Plus /> {t('panel.skillsNew')}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

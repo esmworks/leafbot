@@ -1785,6 +1785,12 @@ export const en: Catalog<MessageKey> = {
   'panel.skills': 'Skills',
   'panel.manageSkills': 'Manage',
   'panel.noSkills': 'No skills yet. Skills teach a bot how to do one kind of task.',
+  'panel.skillsOn': '{on} of {total} on',
+  'panel.skillsTitle': '{name} skills',
+  'panel.skillsHint': 'The bot uses only the skills that are on.',
+  'panel.skillsSearch': 'Search skills',
+  'panel.skillsNoMatch': 'No skill by that name.',
+  'panel.skillsNew': 'Add a new skill',
   'settings.tab.groups': 'Groups',
 
   'general.appearance': 'Appearance',

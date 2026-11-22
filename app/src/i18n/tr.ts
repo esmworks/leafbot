@@ -1752,6 +1752,12 @@ export const tr = {
   'panel.skills': 'Beceriler',
   'panel.manageSkills': 'Yönet',
   'panel.noSkills': 'Henüz beceri yok. Beceriler bota bir iş türünü nasıl yapacağını öğretir.',
+  'panel.skillsOn': '{on} / {total} açık',
+  'panel.skillsTitle': '{name} becerileri',
+  'panel.skillsHint': 'Bot yalnızca açık olan becerileri kullanır.',
+  'panel.skillsSearch': 'Beceri ara',
+  'panel.skillsNoMatch': 'Bu adla bir beceri yok.',
+  'panel.skillsNew': 'Yeni beceri ekle',
   'settings.tab.groups': 'Gruplar',
 
   'general.appearance': 'Görünüm',
