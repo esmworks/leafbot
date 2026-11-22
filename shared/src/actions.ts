@@ -68,6 +68,7 @@ const ARCHIVE: Verb = ['arşivlemek', 'arşivleyebilir', 'arşivlemeyecek'];
 const SEND: Verb = ['göndermek', 'gönderebilir', 'göndermeyecek'];
 const STOP: Verb = ['durdurmak', 'durdurabilir', 'durdurmayacak'];
 const USE: Verb = ['kullanmak', 'kullanabilir', 'kullanmayacak'];
+const READ: Verb = ['okumak', 'okuyabilir', 'okumayacak'];
 const UPLOAD: Verb = ['yüklemek', 'yükleyebilir', 'yüklemeyecek'];
 const TURN_OFF: Verb = ['kapatmak', 'kapatabilir', 'kapatmayacak'];
 const DELETE: Verb = ['silmek', 'silebilir', 'silmeyecek'];
@@ -78,6 +79,8 @@ const CREATE: Verb = ['oluşturmak', 'oluşturabilir', 'oluşturmayacak'];
  * keyboard. They ask once in a turn at every level (see the turn's permission check).
  */
 export const PERSON_COMPUTER = 'person_computer_';
+/** The name prefix of the tools that read the person's own phone. */
+export const PERSON_PHONE = 'person_phone_';
 
 /** One action in both languages, before the bot's name is put in. */
 interface Phrase {
@@ -93,6 +96,24 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
   const bot = str(input.bot) ?? str(input.name);
   if (name.startsWith(PERSON_COMPUTER)) {
     return { tr: ["Mac'ini", "Mac'ini", USE], en: ['use your Mac', 'use your Mac'] };
+  }
+  if (name === `${PERSON_PHONE}calendar`) {
+    return {
+      tr: ['telefonundaki takvimi', 'telefonundaki takvimi', READ],
+      en: ['read your phone’s calendar', 'read your phone’s calendar'],
+    };
+  }
+  if (name === `${PERSON_PHONE}contacts`) {
+    return {
+      tr: ['telefonundaki rehberi', 'telefonundaki rehberi', READ],
+      en: ['search your phone’s contacts', 'search your phone’s contacts'],
+    };
+  }
+  if (name === `${PERSON_PHONE}location`) {
+    return {
+      tr: ['telefonunun konumunu', 'telefonunun konumunu', READ],
+      en: ['see where your phone is', 'see where your phone is'],
+    };
   }
   switch (name) {
     case 'Bash':
@@ -343,6 +364,7 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
 function detailFor(name: string, input: Record<string, unknown>, locale: Locale): string | null {
   if (name === `${PERSON_COMPUTER}type`) return str(input.text);
   if (name === `${PERSON_COMPUTER}key`) return str(input.keys);
+  if (name === `${PERSON_PHONE}contacts`) return str(input.query);
   switch (name) {
     case 'Bash':
       return str(input.command);

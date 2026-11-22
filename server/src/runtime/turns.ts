@@ -12,6 +12,7 @@ import {
   outsideIn,
   type OutsideTrigger,
   PERSON_COMPUTER,
+  PERSON_PHONE,
 } from '@leafbot/shared';
 import { and, asc, desc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { Ctx } from '../context';
@@ -1546,6 +1547,8 @@ export class TurnManager {
     // The card the person answered yes on before this bot first used their Mac in this turn; later
     // steps on it go by that answer (see `onMac` below).
     let macApproval: string | null = null;
+    // The same for the person's phone: one yes in a turn lets the bot go on reading it in that turn.
+    let phoneApproval: string | null = null;
     const canUseTool = async (raw: {
       toolName: string;
       input: Record<string, unknown>;
@@ -1587,6 +1590,9 @@ export class TurnManager {
       // said yes, looking, moving and plain typing go on in this piece of work without another
       // card; a key or text that could run or send something asks each time (see below).
       const onMac = (ask.toolName.split('__').at(-1) ?? '').startsWith(PERSON_COMPUTER);
+      // The person's own phone (their calendar, contacts, where they are): the first read in a turn
+      // asks at every level, with no "always allow", since it is their private data and not the bot's.
+      const onPhone = (ask.toolName.split('__').at(-1) ?? '').startsWith(PERSON_PHONE);
       // A coding agent's own step runs outside the bot's sandbox, with the person's rights, and the
       // app knows of it only what the agent says: none of the shortcuts that rely on the sandbox
       // apply, and anything past reading asks at every level, with no "always allow". Its calls to
@@ -1635,6 +1641,15 @@ export class TurnManager {
         !submitsOnMac(ask.toolName, ask.input)
       ) {
         return { behavior: 'allow', let: { how: 'card', approvalId: macApproval } };
+      }
+      if (
+        onPhone &&
+        phoneApproval &&
+        !turn.rehearsalId &&
+        mode !== 'readonly' &&
+        !askRuleMatches(rules, ask.toolName, ask.input)
+      ) {
+        return { behavior: 'allow', let: { how: 'card', approvalId: phoneApproval } };
       }
       // A page address that imitates a site the person uses (a copy made to take a sign-in or a
       // payment) is theirs to open, at every level; the card says which site it looks like and
@@ -1774,7 +1789,7 @@ export class TurnManager {
         readOnlyTools: free,
         guest: locked,
       });
-      const verdict = (copied || onMac || agentAct) && decided === 'allow' ? 'ask' : decided;
+      const verdict = (copied || onMac || onPhone || agentAct) && decided === 'allow' ? 'ask' : decided;
       if (verdict === 'allow') {
         // A read goes without a line in the bot's list of what it changed.
         if (free.has(ask.toolName) || READ_ONLY_TOOLS.has(ask.toolName)) return { behavior: 'allow' };
@@ -1827,7 +1842,7 @@ export class TurnManager {
         timeoutMs: present ? undefined : this.ctx.config.unattendedApprovalMs,
         // A copy of a site gets no "always allow", nor an answer from another card's rule; nor does
         // the person's Mac.
-        outside: locked || capped || !!copied || onMac || agentAct,
+        outside: locked || capped || !!copied || onMac || onPhone || agentAct,
         second,
         onCreated: async (a) => {
           await threads.addMessage({
@@ -1839,7 +1854,7 @@ export class TurnManager {
               approvalId: a.id,
               ...held,
               ...(second ? { needsSecond: true } : {}),
-              ...(locked || capped || onMac || agentAct ? { noAlways: true } : {}),
+              ...(locked || capped || onMac || onPhone || agentAct ? { noAlways: true } : {}),
               ...(copied ? { resembles: copied.charAt(0).toUpperCase() + copied.slice(1) } : {}),
             },
             turnId: turn.id,
@@ -1850,6 +1865,7 @@ export class TurnManager {
       this.emitState(thread.id, bot.id);
       const answer = approvals.toAnswer(result, t);
       if (onMac && answer.behavior === 'allow' && result.approvalId) macApproval = result.approvalId;
+      if (onPhone && answer.behavior === 'allow' && result.approvalId) phoneApproval = result.approvalId;
       return answer.behavior === 'allow'
         ? { ...answer, let: { how: 'card', approvalId: result.approvalId } }
         : answer;

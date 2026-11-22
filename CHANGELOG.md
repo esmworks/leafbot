@@ -37,6 +37,12 @@ version is 0.x, a minor release may change the data format or the API; the serve
   apps you give the routine's secret to are checked with it, and for apps that make their own secret (Stripe, Shopify,
   Linear, Sentry) you paste it into the routine, after which only calls signed with it start the routine. Stripe and
   Calendly calls signed more than five minutes earlier are turned away. Removing the webhook removes the pasted secret too.
+- A bot can read from your own phone: your calendar, your contacts (by name) and where the phone is. Each is off
+  until you turn it on in the phone app's settings under "This phone", which asks the phone's own permission; it is
+  kept per server. A bot reads it only while the app is open and connected, only in work your own message started in
+  your own conversation (not a routine, a team chat, a guest or someone else), and not when it may only read. The
+  first read in each piece of work asks on a card at every level, with no "always allow"; what comes back counts as
+  outside text. Nothing on the phone is changed. A new build of the phone app is needed for it.
 
 ## 0.8.0 — 2026-11-22
 

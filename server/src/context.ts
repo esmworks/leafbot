@@ -5,6 +5,7 @@ import type { ComputerService } from './computer/service';
 import type { Config } from './config';
 import type { Db } from './db';
 import type { EgressHub } from './egress/hub';
+import type { PhoneBridge } from './phone/bridge';
 
 export interface Ctx {
   db: Db;
@@ -21,4 +22,6 @@ export interface Ctx {
    * runs on that computer.
    */
   egress?: EgressHub | null;
+  /** The people's phones connected now, for the bots to read what each person lets them. */
+  phones?: PhoneBridge;
 }

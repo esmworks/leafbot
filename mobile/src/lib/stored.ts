@@ -39,6 +39,20 @@ export function readStored<T>(key: string): T | undefined {
   return values.get(key) as T | undefined;
 }
 
+/** Reads a kept value once it has been read from the phone, for code outside components. */
+export async function loadStored<T>(key: string): Promise<T | undefined> {
+  load(key);
+  if (!values.has(key))
+    await new Promise<void>((resolve) => {
+      const off = subscribe(() => {
+        if (!values.has(key)) return;
+        off();
+        resolve();
+      });
+    });
+  return values.get(key) as T | undefined;
+}
+
 export function writeStored<T>(key: string, value: T | undefined) {
   values.set(key, value);
   emit();

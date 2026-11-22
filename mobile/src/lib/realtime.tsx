@@ -7,9 +7,12 @@ import type {
 } from '@leafbot/shared';
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { AppState } from 'react-native';
 import { io, type Socket } from 'socket.io-client';
 import { locale } from '@/i18n';
 import { apiFor } from './api';
+import { answerPhone, offeredKinds, onShareChange, sharedKinds } from './phone';
+import { expoDevice } from './phoneDevice';
 import { usePush } from './push';
 import { useServer } from './server';
 import { appendStream, dropStream, type Stream, type Streams } from './stream';
@@ -158,7 +161,28 @@ function connect(origin: string, qc: QueryClient, store: LiveStore): () => void 
   let bootId: string | null = null;
   const inv = (...queryKey: unknown[]) => void qc.invalidateQueries({ queryKey });
 
-  s.on('connect', () => store.setConnected(true));
+  // What the person lets bots read from this phone, said again whenever it may have changed: on
+  // every connect, when a switch changes, and when the app comes back (a permission may be gone).
+  const offer = () =>
+    void sharedKinds(origin)
+      .then((shared) => offeredKinds(shared, expoDevice))
+      .then((kinds) => s.emit('phone:offer', kinds))
+      .catch(() => undefined);
+  const offShare = onShareChange(offer);
+  const offActive = AppState.addEventListener('change', (state) => {
+    if (state === 'active' && s.connected) offer();
+  });
+  s.on('phone:ask', (ask, ack) => {
+    if (typeof ack !== 'function') return;
+    void sharedKinds(origin)
+      .then((shared) => answerPhone(ask, shared, expoDevice))
+      .then(ack, () => ack({ ok: false, reason: 'failed' }));
+  });
+
+  s.on('connect', () => {
+    store.setConnected(true);
+    offer();
+  });
   s.on('disconnect', (reason) => {
     store.setConnected(false);
     // A server that shuts down drops every socket itself, and Socket.IO does not retry that alone.
@@ -199,6 +223,8 @@ function connect(origin: string, qc: QueryClient, store: LiveStore): () => void 
   });
 
   return () => {
+    offShare();
+    offActive.remove();
     s.removeAllListeners();
     s.close();
     store.setConnected(false);

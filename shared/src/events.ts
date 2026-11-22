@@ -1,4 +1,5 @@
 import type { ComputerAck, ComputerState } from './computer.js';
+import type { PhoneAnswer, PhoneAsk, PhoneKind } from './phone.js';
 import type { BrowserInput, TurnState } from './schemas.js';
 
 /** Scope of a `refresh` push: the client refetches only that slice over HTTP. */
@@ -111,6 +112,8 @@ export interface ServerToClientEvents {
   /** Screen bytes (RFB) for the one socket that opened the view. */
   'vnc:data': (e: { botId: string; data: ArrayBuffer | Uint8Array }) => void;
   'vnc:closed': (e: { botId: string }) => void;
+  /** A bot reads from the person's phone; only the phone app, which offered that kind, answers. */
+  'phone:ask': (e: PhoneAsk, ack: (a: PhoneAnswer) => void) => void;
 }
 
 export interface ClientToServerEvents {
@@ -132,4 +135,6 @@ export interface ClientToServerEvents {
   /** Bytes from the viewer. Input is dropped unless this socket's person has control. */
   'vnc:data': (e: { botId: string; data: ArrayBuffer | Uint8Array }) => void;
   'vnc:close': (botId: string) => void;
+  /** The phone app says what its person lets bots read from it now; an empty list takes it back. */
+  'phone:offer': (kinds: PhoneKind[]) => void;
 }

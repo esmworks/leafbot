@@ -250,6 +250,10 @@ to Apple's push service. That needs an APNs key (`.p8`) from the Apple Developer
 under Settings → Connection on the phone or the web, and an installed build of the app (Expo Go cannot receive them).
 Which notices arrive is chosen under Settings → General on the phone. Android has no notifications yet.
 
+Under Settings → General → This phone, you can let your bots read the phone's calendar, search its contacts by name and
+see where it is. Each is off until turned on there, and works while the app is open and connected; the first read in a
+piece of work asks on a card.
+
 A server on the internet is reached over HTTPS: an address typed without `http://` or `https://` falls back to plain
 http only for this device, the local network (private addresses, `.local`, single-word names) and a Tailscale tailnet,
 and an `http://` address on the internet is used only after a warning. iOS allows plain http only on the local network.

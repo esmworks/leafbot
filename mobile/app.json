@@ -25,7 +25,8 @@
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "blockedPermissions": ["android.permission.WRITE_CALENDAR", "android.permission.WRITE_CONTACTS"]
     },
     "plugins": [
       "expo-router",
@@ -60,7 +61,29 @@
         }
       ],
       "expo-sharing",
-      "expo-notifications"
+      "expo-notifications",
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Leaf Bot lets the bots you allow read your calendar, when you ask them to.",
+          "remindersPermission": false
+        }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Leaf Bot lets the bots you allow search your contacts, when you ask them to."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Leaf Bot lets the bots you allow see where you are, when you ask them to.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false,
+          "motionUsagePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
