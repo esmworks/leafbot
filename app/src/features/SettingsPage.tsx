@@ -100,7 +100,7 @@ import {
 } from '@/lib/speech';
 import { Slider } from '@/components/ui/slider';
 import { useSendKey, type SendKey } from '@/lib/sendKey';
-import { useTheme, type ThemeChoice } from '@/lib/theme';
+import { TONES, useTheme, type ThemeChoice, type ToneChoice } from '@/lib/theme';
 import {
   useChatWidth,
   useDensity,
@@ -576,6 +576,20 @@ function General() {
               <SelectItem value="system">{t('general.theme.system')}</SelectItem>
               <SelectItem value="light">{t('general.theme.light')}</SelectItem>
               <SelectItem value="dark">{t('general.theme.dark')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </Row>
+        <Row label={t('general.tone')}>
+          <Select value={theme.tone} onValueChange={(v) => theme.setTone(v as ToneChoice)}>
+            <SelectTrigger className="w-44 rounded-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TONES.map((tone) => (
+                <SelectItem key={tone} value={tone}>
+                  {t(`general.tone.${tone}`)}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </Row>

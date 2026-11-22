@@ -9,7 +9,8 @@ import { PhoneShareSection } from './PhoneShareSection';
 import { Field } from '@/components/ui';
 import { locale, t } from '@/i18n';
 import { useSettings } from '@/lib/queries';
-import { useColors, useTheme, type ThemeChoice } from '@/lib/theme';
+import { useColors, useTheme, useTone, type ThemeChoice } from '@/lib/theme';
+import { TONES, type ToneChoice } from '@/lib/tone';
 
 /** Used when the phone's runtime cannot list every time zone. */
 const COMMON_ZONES = [
@@ -128,6 +129,7 @@ export function GeneralSection() {
   const { data: settings } = useSettings();
   const save = useSaveSettings();
   const [theme, setTheme] = useTheme();
+  const [tone, setTone] = useTone();
   if (!settings) return <Loading />;
   return (
     <>
@@ -143,6 +145,13 @@ export function GeneralSection() {
               { value: 'dark', label: t('general.theme.dark') },
             ]}
             onChange={setTheme}
+          />
+          <ChoiceRow<ToneChoice>
+            icon="droplet"
+            label={t('general.tone')}
+            value={tone}
+            options={TONES.map((value) => ({ value, label: t(`general.tone.${value}`) }))}
+            onChange={setTone}
           />
           <ChoiceRow<Locale>
             icon="globe"

@@ -1904,6 +1904,10 @@ export const en: Catalog<MessageKey> = {
   'general.theme.system': 'Follow system',
   'general.theme.light': 'Light',
   'general.theme.dark': 'Dark',
+  'general.tone': 'Color tone',
+  'general.tone.neutral': 'Neutral',
+  'general.tone.slate': 'Slate',
+  'general.tone.leaf': 'Leaf',
   'general.languageHint':
     "The interface, the bots' prompt and the system messages in conversations use this language.",
   'general.bots': 'Bots',
