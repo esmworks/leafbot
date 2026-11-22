@@ -230,6 +230,9 @@ export function buildSystemPrompt(opts: {
     ...(opts.recall === false ? [] : [t('prompt.ruleRecall')]),
     t('prompt.ruleTryFirst'),
     t('prompt.rulePersist'),
+    // Asked for several things at once, a model tends to do most and drop one, and only owns up
+    // when asked; a written list and a read of the request before the end catch the dropped one.
+    t('prompt.ruleChecklist'),
     t('prompt.ruleFacts'),
     t('prompt.ruleDraft'),
     t('prompt.ruleFiles'),
