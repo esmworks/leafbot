@@ -275,7 +275,7 @@ function Item({ onClick, children }: { onClick(): void; children: React.ReactNod
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center gap-3 px-3 py-2 text-left first:rounded-t-2xl last:rounded-b-2xl hover:bg-accent/50"
+      className="flex w-full items-center gap-3 px-3 py-2 text-start first:rounded-t-2xl last:rounded-b-2xl hover:bg-accent/50"
     >
       {children}
     </button>

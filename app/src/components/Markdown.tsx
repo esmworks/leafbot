@@ -396,7 +396,7 @@ function CodeBlock({ children, language }: { children: ReactNode; language: stri
           {language}
         </span>
       )}
-      <pre ref={ref} data-language={language ?? undefined}>
+      <pre ref={ref} dir="ltr" data-language={language ?? undefined}>
         {tokens ? (
           <code>
             {tokens.map((line, i) => (

@@ -1715,6 +1715,7 @@ function Composer({
           </Tooltip>
           <EmojiButton onPick={insertEmoji} />
           <textarea
+            dir="auto"
             ref={ref}
             rows={1}
             value={text}

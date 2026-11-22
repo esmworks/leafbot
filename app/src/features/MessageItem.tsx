@@ -934,6 +934,7 @@ function QueuedMessage({ m, tint, hasFiles }: { m: Message; tint?: string; hasFi
         }}
       >
         <textarea
+          dir="auto"
           autoFocus
           value={text}
           onChange={(e) => setText(e.target.value)}

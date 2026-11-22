@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { BotDragProvider, useBotDrag, useDragItem, useSectionOver } from '@/features/botDrag';
 import { RoomRail, RoomsSection } from '@/features/Rooms';
 import { BotMenu, GroupMenu, SidebarMenu } from '@/features/SidebarMenus';
+import { isRtl } from '@leafbot/shared';
 import { useLocale, useT } from '@/i18n';
 import { botState, useBotActivity } from '@/lib/botActivity';
 import { PINNED, UNGROUPED, type SectionKey } from '@/lib/botLayout';
@@ -472,6 +473,7 @@ function RailHint({ label }: { label: string }) {
 function ResizeHandle({ width }: { width: number }) {
   const t = useT();
   const resize = useUi((s) => s.resizeSidebar);
+  const rtl = useLocale((s) => isRtl(s.locale));
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -481,7 +483,8 @@ function ResizeHandle({ width }: { width: number }) {
     el.setPointerCapture(e.pointerId);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-    const move = (ev: PointerEvent) => resize(width + ev.clientX - startX);
+    // The panel sits at the end side, so dragging left widens it in a right-to-left language.
+    const move = (ev: PointerEvent) => resize(width + (rtl ? startX - ev.clientX : ev.clientX - startX));
     const end = () => {
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', end);

@@ -21,7 +21,7 @@ function SheetContent({
       <DialogPrimitive.Content
         data-slot="sheet-content"
         className={cn(
-          'screen-edges fixed inset-y-0 end-0 z-50 flex w-full flex-col bg-background shadow-xl outline-none sm:w-[360px] sm:border-l',
+          'screen-edges fixed inset-y-0 end-0 z-50 flex w-full flex-col bg-background shadow-xl outline-none sm:w-[360px] sm:border-s',
           'duration-200 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:slide-in-from-right',
           className,
         )}

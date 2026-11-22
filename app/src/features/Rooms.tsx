@@ -875,6 +875,7 @@ function RoomComposer({
         )}
         <div className="flex items-end gap-1 ps-3">
           <textarea
+            dir="auto"
             ref={ref}
             rows={1}
             value={text}

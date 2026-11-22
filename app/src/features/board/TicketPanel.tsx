@@ -104,7 +104,7 @@ export function TicketPanel({
   return (
     <aside
       aria-label={`#${ticket.number}`}
-      className="absolute inset-y-0 end-0 z-20 flex w-[min(560px,100%)] flex-col border-l bg-background shadow-[-24px_0_48px_-24px_rgb(0_0_0/0.18)] duration-200 animate-in fade-in-0 slide-in-from-end-6"
+      className="absolute inset-y-0 end-0 z-20 flex w-[min(560px,100%)] flex-col border-s bg-background shadow-[-24px_0_48px_-24px_rgb(0_0_0/0.18)] duration-200 animate-in fade-in-0 slide-in-from-end-6"
     >
       <div className="flex h-14 shrink-0 items-center gap-1.5 border-b px-4">
         <StatusIcon status={ticket.status} />
@@ -272,6 +272,7 @@ function TitleField({ value, onSave }: { value: string; onSave(v: string): void 
   };
   return (
     <textarea
+      dir="auto"
       ref={ref}
       rows={1}
       value={shown}
@@ -398,6 +399,7 @@ function CommentBox({ ticket }: { ticket: Ticket }) {
     >
       <div className="flex items-end gap-2 rounded-2xl border bg-card px-3 py-2 focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/30">
         <textarea
+          dir="auto"
           ref={ref}
           rows={1}
           value={text}

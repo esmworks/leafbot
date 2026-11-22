@@ -260,6 +260,7 @@ function Card({
           ))}
           {writing ? (
             <textarea
+              dir="auto"
               autoFocus
               rows={2}
               value={draft}

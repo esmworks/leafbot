@@ -106,7 +106,7 @@ export function EmailApprovalCard({
             <DropdownMenuTrigger asChild>
               <Button
                 size="sm"
-                className="rounded-s-none rounded-e-full border-l border-primary-foreground/20 px-2"
+                className="rounded-s-none rounded-e-full border-s border-primary-foreground/20 px-2"
                 disabled={busy}
                 aria-label={t('email.more')}
               >
