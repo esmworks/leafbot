@@ -27,6 +27,7 @@ import {
   newBotEngine,
   ApnsSet,
   ClaudeAuthSet,
+  LiveActivitySet,
   PushDeviceSet,
   type ClaudeAuthStatus,
   type ClaudeModel,
@@ -525,6 +526,15 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.post('/api/push/test', async (req) => {
     await s.push.test(PushToken.parse(req.body).token);
     return { ok: true };
+  });
+  // A Live Activity on the lock screen for this conversation's work, kept current from here.
+  app.put('/api/threads/:id/activity', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    const body = LiveActivitySet.parse(req.body);
+    // As the conversation shows it: a turn just begun may not be saved as running yet.
+    const saved = await s.threads.state(id);
+    const state = saved === 'idle' && s.turns.isRunning(id) ? 'running' : saved;
+    return s.push.watchActivity(id, body, state);
   });
   app.get('/api/push/apns', async () => s.push.apnsStatus());
   app.put('/api/push/apns', async (req) => {

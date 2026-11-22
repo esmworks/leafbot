@@ -5,6 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode
 import {
   AccessibilityInfo,
   ActivityIndicator,
+  AppState,
   Dimensions,
   FlatList,
   Keyboard,
@@ -24,6 +25,7 @@ import { ApiError } from '@/lib/api';
 import { useTapToDismiss } from '@/lib/dismiss';
 import { formatters, needsDivider } from '@/lib/format';
 import { nav } from '@/lib/nav';
+import { endWorkSeen, showWork, useLiveActivityChoice } from '@/lib/liveActivity';
 import { useLiveCards } from '@/lib/liveCards';
 import { useMessages } from '@/lib/queries';
 import { useLiveState, useStream } from '@/lib/realtime';
@@ -91,6 +93,10 @@ export function Conversation({
 
   const stream = useStream(threadId);
   const liveState = useLiveState(threadId);
+  // Seen to the end here, the bot's work need not stay on the lock screen.
+  useEffect(() => {
+    if (liveState === 'idle' && AppState.currentState === 'active') endWorkSeen(threadId);
+  }, [liveState, threadId]);
   const state = liveState ?? thread?.state ?? 'idle';
   const working = state === 'running' || state === 'queued';
   const [pending, setPending] = useState<Message[]>([]);
@@ -231,6 +237,7 @@ export function Conversation({
   }, [highlightId]);
 
   // --- Sending ----------------------------------------------------------------------------
+  const [liveWork] = useLiveActivityChoice();
   const send = useCallback(
     async (text: string, extra?: SendExtra): Promise<string | null> => {
       const clientId = newClientId();
@@ -260,6 +267,8 @@ export function Conversation({
           files.map((f) => f.name),
           extra?.replyTo?.id,
         );
+        // The bot's work on the lock screen, for when the phone is put away before it ends.
+        if (liveWork) void showWork(api.watchActivity, threadId, bot.name);
         await qc.invalidateQueries({ queryKey: ['messages', origin, threadId] });
         return null;
       } catch (e) {
@@ -268,7 +277,7 @@ export function Conversation({
         setPending((p) => p.filter((x) => x.clientId !== clientId));
       }
     },
-    [api, qc, origin, threadId],
+    [api, qc, origin, threadId, liveWork, bot.name],
   );
   const stop = useCallback(() => void api.stop(threadId).catch(() => undefined), [api, threadId]);
   const quick = (text: string) =>

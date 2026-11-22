@@ -1,4 +1,4 @@
-import { ROUTINE_STEP_MAX, type RoutineRun, type RoutineStepRun } from '@leafbot/shared';
+import { FLOW_LAYOUT_MAX, ROUTINE_STEP_MAX, type RoutineRun, type RoutineStepRun } from '@leafbot/shared';
 
 /**
  * Changes to a routine's steps as the flow view makes them: insert at a place, move one to another
@@ -40,9 +40,9 @@ const EDGE = 24;
 /** How far apart rows of boxes start; boxes are seldom taller than this less the gap. */
 const ROW = 340;
 
-/** A place on the canvas's grid, never off its top or left. */
+/** A place on the canvas's grid, never off its top or left, nor past where a place may be kept. */
 export function snap(v: number): number {
-  return Math.max(0, Math.round(v / 8) * 8);
+  return Math.min(FLOW_LAYOUT_MAX, Math.max(0, Math.round(v / 8) * 8));
 }
 
 const overlaps = (a: Spot, b: Spot) =>

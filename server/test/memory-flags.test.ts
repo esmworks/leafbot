@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
 import { FLAG_EXPIRE_MS, FLAGS_PER_TURN, type FlagInput } from '../src/services/memory-flags';
 import { parseFlagAnswer } from '../src/services/memory-tidy';
-import { testServer, type TestServer } from './helpers';
+import { testServer, waitFor, type TestServer } from './helpers';
 
 describe('hafıza işaretleri: botun bilmediğini söylemesi', () => {
   let t: TestServer;
@@ -330,6 +330,8 @@ describe('hafıza işaretleri: botun bilmediğini söylemesi', () => {
         sourceUrl: 'https://ornek.com/kargo',
       });
       expect(await flags()).toMatchObject([{ status: 'proposed' }]);
+      // It still waits for the person, so it is counted as the list shows it.
+      expect((await t.api<TodayReport>('GET', '/api/today')).body.openFlags).toBe(1);
       await t.services.memoryTidy.runAll();
       expect(read).toHaveLength(1);
       await t.api('POST', `/api/memory-changes/${change!.id}/accept`, {});
@@ -355,6 +357,50 @@ describe('hafıza işaretleri: botun bilmediğini söylemesi', () => {
       expect((await rows()).find((r) => r.about === 'Kargo firması')).toMatchObject({ status: 'dismissed' });
     });
 
+    it('kişi bekleyen öneriyi beklemeden kendi cevaplarsa öneri kalkar', async () => {
+      const bot = await t.bot({ name: 'Satış', internet: true });
+      const th = await main(bot.id);
+      await say(th, flag({ kind: 'missing', about: 'Kargo firması', where: 'https://ornek.com/kargo' }));
+      page('Kargolarımız Aras ile gönderilir.');
+      t.engine.completer = () => JSON.stringify({ answer: 'Kargo Aras ile gider' });
+      await t.services.memoryTidy.runAll();
+      const [f] = await flags();
+      expect(f).toMatchObject({ status: 'proposed' });
+      await t.api('POST', `/api/memory/flags/${f!.id}/answer`, { text: 'Kargo Yurtiçi ile gider' });
+      expect((await t.api<MemoryChange[]>('GET', '/api/memory-changes')).body).toEqual([]);
+      expect((await rows())[0]).toMatchObject({ status: 'resolved', resolution: 'Kargo Yurtiçi ile gider' });
+    });
+
+    it('sayfasını okuyamayan botların işaretleri öbürlerinin sırasını tutmaz', async () => {
+      const off = await t.bot({ name: 'Kapalı', internet: false });
+      const on = await t.bot({ name: 'Açık', internet: true });
+      const offThread = await main(off.id);
+      for (let i = 0; i < 12; i++) {
+        await t.services.memoryFlags.raise({
+          kind: 'missing',
+          about: `Konu ${i} ${'x'.repeat(i)}`,
+          seen: null,
+          memoryId: null,
+          skillId: null,
+          sourceUrl: `https://ornek.com/${i}`,
+          botId: off.id,
+          userId: 'owner',
+          place: null,
+          outside: null,
+          threadId: offThread,
+          turnId: `tur-${i}`,
+        });
+      }
+      await say(
+        await main(on.id),
+        flag({ kind: 'missing', about: 'Kargo firması', where: 'https://ornek.com/kargo' }),
+      );
+      const read = page('Aras');
+      t.engine.completer = () => JSON.stringify({ answer: null });
+      await t.services.memoryTidy.runAll();
+      expect(read).toEqual(['https://ornek.com/kargo']);
+    });
+
     it('internete kapalı botun sayfası okunmaz', async () => {
       const bot = await t.bot({ name: 'Satış', internet: false });
       const th = await main(bot.id);
@@ -362,37 +408,6 @@ describe('hafıza işaretleri: botun bilmediğini söylemesi', () => {
       const read = page('Aras');
       await t.services.memoryTidy.runAll();
       expect(read).toEqual([]);
-    });
-
-    it('sayfası okunamayan botun işaretleri diğerlerinin sırasını tıkamaz', async () => {
-      const off = await t.bot({ name: 'Kapalı', internet: false });
-      const on = await t.bot({ name: 'Açık', internet: true });
-      const words = [
-        'elma',
-        'armut',
-        'kiraz',
-        'erik',
-        'incir',
-        'üzüm',
-        'kavun',
-        'karpuz',
-        'ayva',
-        'nar',
-        'muz',
-        'limon',
-      ];
-      for (const [i, w] of words.entries())
-        await raise({ botId: off.id, about: w, sourceUrl: `https://ornek.com/${w}`, turnId: `kapali-${i}` });
-      await raise({
-        botId: on.id,
-        about: 'Kargo firması',
-        sourceUrl: 'https://ornek.com/kargo',
-        turnId: 'acik',
-      });
-      const read = page('Hakkımızda');
-      t.engine.completer = () => JSON.stringify({ answer: null });
-      await t.services.memoryTidy.runAll();
-      expect(read).toEqual(['https://ornek.com/kargo']);
     });
 
     it('bekleyen sayfa önerisi, not bu arada değişince düşer', async () => {
@@ -443,6 +458,40 @@ describe('hafıza işaretleri: botun bilmediğini söylemesi', () => {
     t.now.value = new Date();
     expect(await t.services.memoryFlags.expire()).toBe(1);
     expect((await flags()).map((f) => f.about)).toEqual(['Depo adresi bilgisi']);
+  });
+
+  it('durdurulan tur bıraktığı işareti de geri alır', async () => {
+    const bot = await t.bot({ name: 'Satış' });
+    const th = await main(bot.id);
+    await t.send(th, `${flag({ kind: 'missing', about: 'Kargo firması' })} [bekle:5000] uzun iş`);
+    await waitFor(async () => (await rows()).length === 1);
+    await t.api('POST', `/api/threads/${th}/stop`);
+    await t.services.turns.idle(3000);
+    expect(await rows()).toEqual([]);
+  });
+
+  it('başka turda yeniden sayılan işaret, ilk turu geri alınınca bir eksilir ama kalır', async () => {
+    const bot = await t.bot({ name: 'Satış' });
+    const th = await main(bot.id);
+    const raise = (turnId: string) =>
+      t.services.memoryFlags.raise({
+        kind: 'missing',
+        about: 'Kargo firması',
+        seen: null,
+        memoryId: null,
+        skillId: null,
+        sourceUrl: null,
+        botId: bot.id,
+        userId: 'owner',
+        place: null,
+        outside: null,
+        threadId: th,
+        turnId,
+      });
+    await raise('tur-1');
+    await raise('tur-2');
+    await t.services.memoryFlags.dropForTurn('tur-1');
+    expect(await rows()).toMatchObject([{ count: 1, status: 'open' }]);
   });
 
   it('geri alınan tur bıraktığı işareti de geri alır', async () => {

@@ -252,6 +252,11 @@ to Apple's push service. That needs an APNs key (`.p8`) from the Apple Developer
 under Settings → Connection on the phone or the web, and an installed build of the app (Expo Go cannot receive them).
 Which notices arrive is chosen under Settings → General on the phone. Android has no notifications yet.
 
+After you send a message, the iPhone shows the bot's work on the Lock Screen and in the Dynamic Island until it ends
+(Live Activities, iOS 16.2 or later). The server keeps it current with the same APNs key, so without one it is not
+shown; it is turned off under Settings → General → Notifications. It needs the widget extension, which an installed build gets
+from the `expo-widgets` plugin; Expo Go has none.
+
 Under Settings → General → This phone, you can let your bots read the phone's calendar, search its contacts by name and
 see where it is. Each is off until turned on there, and works while the app is open and connected; the first read in a
 piece of work asks on a card.

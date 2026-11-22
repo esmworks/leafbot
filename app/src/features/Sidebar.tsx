@@ -19,7 +19,7 @@ import { BotDragProvider, useBotDrag, useDragItem, useSectionOver } from '@/feat
 import { RoomRail, RoomsSection } from '@/features/Rooms';
 import { BotMenu, GroupMenu, SidebarMenu } from '@/features/SidebarMenus';
 import { useLocale, useT } from '@/i18n';
-import { useBotActivity } from '@/lib/botActivity';
+import { botState, useBotActivity } from '@/lib/botActivity';
 import { PINNED, UNGROUPED, type SectionKey } from '@/lib/botLayout';
 import { initials, useFormat } from '@/lib/format';
 import { useBots, useGroups, useRooms, useSettings, useSummaries } from '@/lib/queries';
@@ -548,7 +548,7 @@ function RoundButton({
 function StateDot({ summary }: { summary?: BotSummary }) {
   const t = useT();
   const live = useUi((s) => (summary?.threadId ? s.states[summary.threadId] : undefined));
-  const state = live ?? summary?.state ?? 'idle';
+  const state = botState(live, summary?.state);
   if (summary?.pendingApprovals) {
     return (
       <span className="absolute -right-0.5 -bottom-0.5 flex size-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-black ring-2 ring-sidebar">

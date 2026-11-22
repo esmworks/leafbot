@@ -926,13 +926,17 @@ export class BrowserManager {
     live.lastUsed = Date.now();
   }
 
-  /** How listening goes; null once the tab or the browser is gone. */
+  /**
+   * How listening goes; null once the tab or the browser is gone. A page between two documents (it
+   * cannot be asked, or its new one is not listening yet) reads as not listening, not as gone.
+   */
   async listenState(botId: string): Promise<CaptureState | null> {
     const call = this.live.get(botId)?.call;
     if (!call || call.page.isClosed()) return null;
-    return (await call.page
+    const state = (await call.page
       .evaluate('window.__leafbotCall ? window.__leafbotCall.state() : null')
       .catch(() => null)) as CaptureState | null;
+    return state ?? { listening: false, tracks: 0, audio: 'none' };
   }
 
   /**

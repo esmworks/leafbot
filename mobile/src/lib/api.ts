@@ -4,6 +4,7 @@ import type {
   WhatsAppStatus,
   ApnsSet,
   ApnsStatus,
+  LiveActivitySet,
   PushDeviceSet,
   SkillWarning,
   Room,
@@ -271,6 +272,9 @@ export function apiFor(origin: string) {
     /** This phone's push token and choices; the server sends notices that pass them. */
     pushDevice: (b: PushDeviceSet) => http.put<{ ok: true }>('/api/push/device', b),
     pushTest: (token: string) => http.post<{ ok: true }>('/api/push/test', { token }),
+    /** A Live Activity this phone started for a conversation's work, for the server to keep current. */
+    watchActivity: (threadId: string, b: LiveActivitySet) =>
+      http.put<{ pushing: boolean }>(`/api/threads/${threadId}/activity`, b),
     /** The Apple key for iPhone notifications; write-only, reads say only which key it is. */
     apns: () => http.get<ApnsStatus>('/api/push/apns'),
     setApns: (b: ApnsSet) => http.put<ApnsStatus>('/api/push/apns', b),

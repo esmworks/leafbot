@@ -7,6 +7,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- The iPhone app shows a bot's work on the Lock Screen and in the Dynamic Island: after you send a message, a Live
+  Activity names the bot, says whether it is working, needs you, is done or ran into a problem, and counts the time.
+  The server moves it along through Apple's push service with the same key as notifications, so it keeps up while the
+  app is closed; it dims if nothing new comes for half an hour and leaves the Lock Screen a while after the work ends.
+  It needs an installed build of the app (not Expo Go) and can be turned off under Settings → General → Notifications.
 - A color tone beside the light and dark theme, in the web and the phone app: Neutral (as before), Slate or Leaf. It
   tints only the gray surfaces and keeps their lightness, so text reads as well in each, and leaves the words, buttons
   and each bot's own color as they are. It is kept per device under Settings → General.

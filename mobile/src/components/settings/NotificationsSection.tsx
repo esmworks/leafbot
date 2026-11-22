@@ -1,9 +1,10 @@
 import type { PushLevel } from '@leafbot/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Linking } from 'react-native';
-import { Row, Section } from '@/components/page';
+import { Row, Section, SwitchRow } from '@/components/page';
 import { toast, toastError } from '@/components/overlay';
 import { t } from '@/i18n';
+import { liveActivitiesSupported, useLiveActivityChoice } from '@/lib/liveActivity';
 import { pushSupported, usePushLevel, usePushPermission, usePushToken } from '@/lib/push';
 import { useApi, useServer } from '@/lib/server';
 import { ChoiceRow, Rows } from './common/controls';
@@ -23,6 +24,7 @@ function Notifications() {
   const [level, setLevel] = usePushLevel();
   const [permission, ask] = usePushPermission();
   const token = usePushToken();
+  const [live, setLive] = useLiveActivityChoice();
   const apns = useQuery({ queryKey: ['apns', origin], queryFn: api.apns });
   const test = useMutation({
     mutationFn: () => api.pushTest(token!),
@@ -62,6 +64,15 @@ function Notifications() {
             busy={test.isPending}
             disabled={test.isPending}
             onPress={() => test.mutate()}
+          />
+        ) : null}
+        {liveActivitiesSupported() ? (
+          <SwitchRow
+            icon="lock"
+            label={t('liveActivity.title')}
+            detail={t('liveActivity.hint')}
+            value={live}
+            onChange={setLive}
           />
         ) : null}
       </Rows>

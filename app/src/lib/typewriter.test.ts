@@ -1,6 +1,6 @@
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useTypewriter } from './typewriter';
+import { restartTyping, useTypewriter } from './typewriter';
 
 describe('harf harf yazım', () => {
   beforeEach(() => {
@@ -31,6 +31,21 @@ describe('harf harf yazım', () => {
     expect(saved.result.current.length).toBe(reached);
     act(() => vi.advanceTimersByTime(2000));
     expect(saved.result.current).toBe(text);
+  });
+
+  it('baştan başlayan çalışmanın yazısını kendi başından açar', () => {
+    const { result, rerender } = renderHook(({ text }) => useTypewriter(text, 'turn-4', true), {
+      initialProps: { text: 'a'.repeat(200) },
+    });
+    act(() => vi.advanceTimersByTime(300));
+    expect(result.current.length).toBeGreaterThan(20);
+    restartTyping('turn-4');
+    rerender({ text: 'Yeniden deniyorum' });
+    act(() => vi.advanceTimersByTime(16));
+    expect(result.current.length).toBeLessThan('Yeniden deniyorum'.length);
+    expect('Yeniden deniyorum'.startsWith(result.current)).toBe(true);
+    act(() => vi.advanceTimersByTime(2000));
+    expect(result.current).toBe('Yeniden deniyorum');
   });
 
   it('akışı görülmemiş eski mesajı hemen tümüyle gösterir', () => {

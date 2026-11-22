@@ -269,6 +269,7 @@ export class MemoryFlagService {
     const [row] = await this.ctx.db
       .select({ n: count() })
       .from(schema.memoryFlags)
+      // Counted as the list shows them: also those whose answer waits as a memory change.
       .leftJoin(schema.memories, eq(schema.memories.id, schema.memoryFlags.memoryId))
       .where(and(inArray(schema.memoryFlags.status, [...OPEN]), reachable(reach)));
     return row?.n ?? 0;
@@ -338,6 +339,7 @@ export class MemoryFlagService {
       .update(schema.memoryFlags)
       .set({ status: 'resolved', resolution: words, resolvedBy: actor, resolvedAt: this.clock() })
       .where(eq(schema.memoryFlags.id, flag.id));
+    await this.dropChange(flag);
     this.ctx.bus.refresh({ scope: 'memory' });
   }
 
@@ -347,7 +349,16 @@ export class MemoryFlagService {
       .update(schema.memoryFlags)
       .set({ status: 'dismissed', resolvedBy: `user:${reach.userId}`, resolvedAt: this.clock() })
       .where(eq(schema.memoryFlags.id, flag.id));
+    await this.dropChange(flag);
     this.ctx.bus.refresh({ scope: 'memory' });
+  }
+
+  /**
+   * The memory change a page's answer to the flag waits as, once the person settled the flag
+   * themselves: taken later, it would put the page's words over theirs.
+   */
+  private async dropChange(flag: FlagRow): Promise<void> {
+    if (flag.status === 'proposed' && flag.changeId) await this.services.memory.reject(flag.changeId);
   }
 
   /**
@@ -413,20 +424,20 @@ export class MemoryFlagService {
   }
 
   /**
-   * Open flags with a page not read yet, the oldest first, for the tidy-up to read, leaving out
-   * those of `skipBots`: bots whose pages cannot be read now.
+   * Open flags with a page not read yet, the oldest first, for the tidy-up to read; none of the
+   * bots in `skip`, which cannot read now.
    */
-  async withUnreadPage(limit: number, skipBots: string[] = []): Promise<FlagRow[]> {
+  async withUnreadPage(limit: number, skip: readonly string[] = []): Promise<FlagRow[]> {
     return this.ctx.db
       .select()
       .from(schema.memoryFlags)
       .where(
         and(
           eq(schema.memoryFlags.status, 'open'),
+          skip.length ? notInArray(schema.memoryFlags.botId, [...skip]) : undefined,
           sql`${schema.memoryFlags.sourceUrl} is not null`,
           sql`${schema.memoryFlags.checkedAt} is null`,
           sql`${schema.memoryFlags.outside} is null`,
-          skipBots.length ? notInArray(schema.memoryFlags.botId, skipBots) : undefined,
         ),
       )
       .orderBy(asc(schema.memoryFlags.createdAt))

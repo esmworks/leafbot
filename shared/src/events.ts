@@ -39,6 +39,11 @@ export interface DeltaEvent {
   turnId: string;
   /** Appended text for the in-progress assistant message. */
   text: string;
+  /**
+   * The turn's run started over (a retry after a cut or a crash, a fresh session, a backup model):
+   * this text replaces what came before instead of being added to it.
+   */
+  restart?: boolean;
 }
 
 /**

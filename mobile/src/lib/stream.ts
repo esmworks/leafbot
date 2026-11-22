@@ -9,9 +9,16 @@ export interface Stream {
 export type Streams = Readonly<Record<string, Stream>>;
 
 /** Adds a piece of a reply; a piece of a new turn starts that conversation's text over. */
-export function appendStream(streams: Streams, threadId: string, turnId: string, text: string): Streams {
+export function appendStream(
+  streams: Streams,
+  threadId: string,
+  turnId: string,
+  text: string,
+  restart = false,
+): Streams {
   const cur = streams[threadId];
-  const next = cur && cur.turnId === turnId ? cur.text + text : text;
+  // A run that started over (a retry, a fresh session) writes its text again from the start.
+  const next = cur && cur.turnId === turnId && !restart ? cur.text + text : text;
   return { ...streams, [threadId]: { turnId, text: next } };
 }
 
