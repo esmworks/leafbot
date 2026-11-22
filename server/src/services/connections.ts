@@ -1135,6 +1135,38 @@ export class ConnectionService {
 
   /** The tools of the connections open to a bot, as the bot's own tools. */
   /** `elicit` answers a server that asks the person something during a call. */
+  /**
+   * Whether the bot reaches a person's mail or calendar through a connected app, for them: a
+   * connection or one of its tools named for mail or a calendar (Gmail, Outlook, Google Calendar).
+   * What a check-in reads; a bot with neither has nothing to look at.
+   */
+  async readsMailOrCalendar(botId: string, userId: string): Promise<boolean> {
+    const chosen = this.ctx.db
+      .select({ id: schema.botConnections.connectionId })
+      .from(schema.botConnections)
+      .where(eq(schema.botConnections.botId, botId));
+    const rows = await this.ctx.db
+      .select({
+        name: schema.connections.name,
+        slug: schema.connections.slug,
+        tools: schema.connections.tools,
+      })
+      .from(schema.connections)
+      .where(
+        and(
+          eq(schema.connections.status, 'connected'),
+          usable(userId),
+          or(eq(schema.connections.allBots, true), inArray(schema.connections.id, chosen)),
+        ),
+      );
+    const MAIL_OR_CALENDAR = /mail|inbox|outlook|calendar|takvim|event/i;
+    return rows.some(
+      (r) =>
+        MAIL_OR_CALENDAR.test(`${r.name} ${r.slug}`) ||
+        r.tools.some((x) => x.enabled && MAIL_OR_CALENDAR.test(x.name)),
+    );
+  }
+
   async toolsFor(
     botId: string,
     /** The person the bot works for: the team's connections and their own; null for the team's alone. */
