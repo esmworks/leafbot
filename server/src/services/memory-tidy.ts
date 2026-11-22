@@ -370,17 +370,34 @@ export class MemoryTidyService {
    */
   private async checkFlagPages(defaultModel: string): Promise<number> {
     let proposed = 0;
-    for (const f of await this.services.memoryFlags.withUnreadPage(SOURCES_PER_PASS)) {
-      if (this.stopped) break;
-      const bot = await this.services.bots.get(f.botId).catch(() => null);
-      if (!bot || !bot.memory || bot.archivedAt || !bot.internet || !this.engineFor(bot).complete) continue;
-      if (await this.services.usage.reached(bot)) continue;
-      // Marked first: a page that fails is not read again.
-      await this.services.memoryFlags.checked(f.id);
-      try {
-        if (await this.checkFlagPage(f, bot, defaultModel)) proposed++;
-      } catch (err) {
-        console.warn(`Memory flag page check of ${f.id} failed: ${(err as Error).message}`);
+    let read = 0;
+    // Bots that cannot read now (at their spending limit) are passed over for this pass, so their
+    // flags do not hold up the others'.
+    const skip = new Set<string>();
+    while (read < SOURCES_PER_PASS && !this.stopped) {
+      const batch = await this.services.memoryFlags.withUnreadPage(SOURCES_PER_PASS - read, [...skip]);
+      if (!batch.length) break;
+      for (const f of batch) {
+        if (this.stopped) break;
+        if (skip.has(f.botId)) continue;
+        const bot = await this.services.bots.get(f.botId).catch(() => null);
+        // A bot that may not read the page has it marked read: it would stay first in line for good.
+        if (!bot || !bot.memory || bot.archivedAt || !bot.internet || !this.engineFor(bot).complete) {
+          await this.services.memoryFlags.checked(f.id);
+          continue;
+        }
+        if (await this.services.usage.reached(bot)) {
+          skip.add(bot.id);
+          continue;
+        }
+        // Marked first: a page that fails is not read again.
+        await this.services.memoryFlags.checked(f.id);
+        read++;
+        try {
+          if (await this.checkFlagPage(f, bot, defaultModel)) proposed++;
+        } catch (err) {
+          console.warn(`Memory flag page check of ${f.id} failed: ${(err as Error).message}`);
+        }
       }
     }
     return proposed;
