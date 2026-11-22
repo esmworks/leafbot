@@ -12,7 +12,7 @@ import {
   type ConnectionUpdate,
   type MailSender,
 } from '@leafbot/shared';
-import { and, asc, eq, inArray, isNull, lt, ne, or } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, lt, ne, or } from 'drizzle-orm';
 import {
   authFetch,
   callTool,
@@ -58,6 +58,8 @@ const SIGNIN_TTL_MS = 15 * 60_000;
 const MAX_TOOL_NAME = 64;
 
 export const OAUTH_CALLBACK_PATH = '/api/connections/oauth/callback';
+/** The catalog's GitHub, whose sign-in git on a bot's desktop may use. */
+const GITHUB_CATALOG_ID = 'github';
 
 const LOOPBACK_NAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
 /** How long who a mail account sends as is kept before it is read again: a signature changes rarely. */
@@ -456,6 +458,8 @@ export class ConnectionService {
 
   private changed() {
     this.ctx.bus.refresh({ scope: 'connections' });
+    // A GitHub sign-in may be what git on a bot's desktop uses (see `gitToken`).
+    void this.ctx.computer?.refreshGit();
   }
 
   /** A new connection: `userId`'s own, or the team's when null. */
@@ -817,8 +821,44 @@ export class ConnectionService {
   async setOwner(id: string, userId: string | null): Promise<Connection> {
     await this.row(id);
     await this.ctx.db.update(schema.connections).set({ userId }).where(eq(schema.connections.id, id));
-    this.ctx.bus.refresh({ scope: 'connections' });
+    this.changed();
     return this.get(id);
+  }
+
+  /**
+   * The sign-in of the team's GitHub app open to the bot, for git on its desktop when the team
+   * keeps no GitHub key: a person who connected GitHub need not make a token for git as well. A
+   * person's own connection is left out for the reason a person's own key is (see
+   * `ApiCredentialService.gitToken`). With several, the one changed last. Only the computer
+   * service's relay gets it, and sends it to github.com alone.
+   */
+  async gitToken(botId: string): Promise<string | null> {
+    const github = catalogEntry(GITHUB_CATALOG_ID);
+    const chosen = this.ctx.db
+      .select({ id: schema.botConnections.connectionId })
+      .from(schema.botConnections)
+      .where(eq(schema.botConnections.botId, botId));
+    const rows = await this.ctx.db
+      .select()
+      .from(schema.connections)
+      .where(
+        and(
+          eq(schema.connections.status, 'connected'),
+          eq(schema.connections.auth, 'oauth'),
+          isNull(schema.connections.userId),
+          or(
+            eq(schema.connections.catalogId, GITHUB_CATALOG_ID),
+            eq(schema.connections.url, github?.url ?? ''),
+          ),
+          or(eq(schema.connections.allBots, true), inArray(schema.connections.id, chosen)),
+        ),
+      )
+      .orderBy(desc(schema.connections.updatedAt));
+    for (const row of rows) {
+      const token = this.secretsOf(row).oauth?.tokens?.access_token;
+      if (token && /^[\x21-\x7e]{1,1000}$/.test(token)) return token;
+    }
+    return null;
   }
 
   /** Opens a connection to every bot, or limits it to the given ones. */
