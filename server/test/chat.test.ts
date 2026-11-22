@@ -8,7 +8,13 @@ import {
 } from '@leafbot/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OWNER_ID } from '../src/users';
-import { isSilentReply, maybeSilentReply, planItems } from '../src/engine/types';
+import {
+  endsSilent,
+  isSilentReply,
+  maybeSilentReply,
+  planItems,
+  withoutSilentEnd,
+} from '../src/engine/types';
 import { resetTime } from '../src/engine/claude';
 import { CONTEXT_FULL } from '../src/runtime/turns';
 import { OVERLOADED } from '../src/engine/types';
@@ -811,6 +817,21 @@ describe('sohbet', () => {
     // Only the reply itself is silent; an answer that merely starts like it is held, then shown.
     expect(isSilentReply(' NO_REPLY. ')).toBe(true);
     expect(isSilentReply('NO_REPLY, ama bir sorum var')).toBe(false);
+    expect(endsSilent('Değişiklik yok.\n\nNO_REPLY.\n')).toBe(true);
+    expect(endsSilent('NO_REPLY')).toBe(false);
+    expect(endsSilent('\n\nNO_REPLY')).toBe(false);
+    expect(endsSilent('Yok, NO_REPLY')).toBe(false);
+    expect(withoutSilentEnd('Değişiklik yok.\n\nNO_REPLY')).toBe('Değişiklik yok.');
+
+    // In a conversation with the person, what the bot wrote above it is shown, without the marker.
+    await t.services.turns.enqueue({
+      threadId: thread.id,
+      botId: bot.id,
+      source: 'user',
+      prompt: '[sessiz-son]',
+    });
+    await t.services.turns.idle();
+    expect((await t.messages(thread.id)).map((m) => m.text)).toEqual(['Değişiklik yok.']);
     expect(maybeSilentReply('NO_RE')).toBe(true);
     expect(maybeSilentReply('NO ')).toBe(true);
     expect(maybeSilentReply('NO bir')).toBe(false);

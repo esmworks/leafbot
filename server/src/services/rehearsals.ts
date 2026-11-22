@@ -302,7 +302,7 @@ export class RehearsalService {
       .update(schema.routineRehearsals)
       .set({
         status: outcome.ok ? 'done' : outcome.kind === 'interrupted' ? 'stopped' : 'error',
-        report: outcome.ok && !isSilentReply(outcome.text) ? outcome.text : '',
+        report: outcome.ok && !outcome.quiet && !isSilentReply(outcome.text) ? outcome.text : '',
         error: outcome.ok ? null : outcome.message,
         costUsd: cost?.costUsd ?? outcome.costUsd ?? null,
         finishedAt: this.clock(),

@@ -98,6 +98,12 @@ export function pageText(html: string): string {
 /** The longest previous report carried into a run. */
 const REPORT_MAX = 4000;
 
+/**
+ * How many of a routine's latest instructions in a conversation are looked through for the ones of
+ * a run that ended with nothing to report: the run's own are the newest, one per step.
+ */
+const QUIET_LOOKBACK = 50;
+
 /** A write that is part of a larger one, so they succeed or fail together. */
 type Tx = Parameters<Parameters<Ctx['db']['transaction']>[0]>[0];
 type RoutineRow = typeof schema.routines.$inferSelect;
@@ -2419,6 +2425,34 @@ export class RoutineService {
   }
 
   /**
+   * A run in the person's main conversation that found nothing to report leaves nothing there: its
+   * instruction alone, with no answer under it, would only crowd the conversation they read. A run
+   * that left anything else there, such as a card or an earlier step's answer, keeps its
+   * instructions over it. A routine's own conversation is the record of its runs and keeps them.
+   */
+  private async clearQuietRun(runId: string, routineId: string, threadId: string) {
+    const thread = await this.services.threads.row(threadId).catch(() => null);
+    if (thread?.kind !== 'user') return;
+    // Props are sealed, so the run's instructions are told apart after they are read.
+    const recent = await this.ctx.db
+      .select({ id: schema.messages.id, props: schema.messages.props })
+      .from(schema.messages)
+      .where(and(eq(schema.messages.threadId, threadId), eq(schema.messages.author, `routine:${routineId}`)))
+      .orderBy(desc(schema.messages.createdAt))
+      .limit(QUIET_LOOKBACK);
+    const own = recent.filter((m) => m.props.routineRunId === runId);
+    if (!own.length) return;
+    const [left] = await this.ctx.db
+      .select({ id: schema.messages.id })
+      .from(schema.messages)
+      .innerJoin(schema.turns, eq(schema.turns.id, schema.messages.turnId))
+      .where(and(eq(schema.messages.threadId, threadId), eq(schema.turns.routineRunId, runId)))
+      .limit(1);
+    if (left) return;
+    for (const m of own) await this.services.threads.removeMessage(m.id);
+  }
+
+  /**
    * A bot's turn of a run with steps ended. One that failed, or that the person stopped, ends the
    * run there, to be tried again from that step; nothing runs again by itself, since the steps
    * before it may already have changed something. One that ended well starts the next step. True
@@ -2472,7 +2506,8 @@ export class RoutineService {
       return true;
     }
     await endStep({ status: 'done', output: outcome.text.trim() || null });
-    if (isSilentReply(outcome.text)) {
+    if (isSilentReply(outcome.text) || (outcome.ok && outcome.quiet)) {
+      await this.clearQuietRun(runId, run.routineId, turn.threadId);
       const t = await this.services.settings.translator();
       const rest = position < steps.length;
       await endRun({
@@ -2791,13 +2826,18 @@ export class RoutineService {
     // A run with steps goes on to its next step; only its last one reports, as a run of one
     // instruction does.
     if (run?.steps && (await this.stepEnded(turn, outcome, run))) return;
-    if (run && outcome.ok) {
+    // A run that ended with the silent reply under what it wrote keeps that in its own
+    // conversation, and reports nothing.
+    if (run && outcome.ok && !outcome.quiet) {
       await this.deliver(turn.botId, turn.threadId, outcome.text, {
         id: turn.routineRunId,
         routineName: run.routineName,
         outside: run.outside,
         slackChannel: run.slackChannel,
       });
+    }
+    if (run && outcome.ok && !run.failedByBot && (!outcome.text.trim() || isSilentReply(outcome.text))) {
+      await this.clearQuietRun(turn.routineRunId, run.routineId, turn.threadId);
     }
     // The person's stop is an ending they chose, not a failure, and is not tried again.
     const stopped = !outcome.ok && outcome.kind === 'interrupted' && outcome.byPerson === true;

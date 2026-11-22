@@ -22,6 +22,20 @@ export const SILENT_REPLY = 'NO_REPLY';
 /** True for an answer that is only the silent reply, give or take spaces and a full stop. */
 export const isSilentReply = (text: string) => text.trim().replace(/\.$/, '') === SILENT_REPLY;
 
+/**
+ * True for an answer whose last line is the silent reply after something written above it, such as
+ * "Nothing changed since the last run.\n\nNO_REPLY": the bot said why it has nothing to report and
+ * then said so. Not true for an answer that is only the silent reply.
+ */
+export const endsSilent = (text: string) => {
+  const lines = text.trimEnd().split('\n');
+  return lines.length > 1 && isSilentReply(lines.at(-1)!) && lines.slice(0, -1).join('').trim() !== '';
+};
+
+/** The answer without a silent reply on its last line; any other answer as it is. */
+export const withoutSilentEnd = (text: string) =>
+  endsSilent(text) ? text.trimEnd().split('\n').slice(0, -1).join('\n').trimEnd() : text;
+
 /** True while streamed text may still turn out to be the silent reply, so it is held back. */
 export const maybeSilentReply = (text: string) => SILENT_REPLY.startsWith(text.trim());
 
@@ -276,6 +290,11 @@ export type TurnOutcome = (
       costUsd: number | null;
       /** How much of the model's context the session fills after this run, in tokens, when known. */
       contextTokens?: number | null;
+      /**
+       * A routine's turn ended its answer with the silent reply under some text: there is nothing
+       * to report, and `text` holds what it wrote above, for the run's own record.
+       */
+      quiet?: boolean;
     }
   | {
       ok: false;
