@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { runCommand } from './RoutineDialog';
+import { runCommand } from './RoutinePage';
 
 describe('rutin çalıştırma komutu', () => {
   it('anahtarı ortamdan okur, komuta yazmaz', () => {

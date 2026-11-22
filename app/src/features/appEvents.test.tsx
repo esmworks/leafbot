@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/lib/api';
-import { AppEvents } from './RoutineDialog';
+import { AppEvents } from './RoutinePage';
 
 vi.mock('@/lib/api', () => ({ api: { setWebhookSecret: vi.fn(), routines: vi.fn() } }));
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));

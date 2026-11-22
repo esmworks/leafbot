@@ -8,6 +8,7 @@ export const en: Catalog<MessageKey> = {
   'common.add': 'Add',
   'common.save': 'Save',
   'common.cancel': 'Cancel',
+  'common.back': 'Back',
   'common.delete': 'Delete',
   'common.remove': 'Remove',
   'common.close': 'Close',
@@ -1415,6 +1416,7 @@ export const en: Catalog<MessageKey> = {
 
   'routine.edit': 'Edit routine',
   'routine.new': 'New routine',
+  'routine.leaveConfirm': 'Changes not saved will be lost. Leave anyway?',
   'routine.webhookHint':
     'Give this routine a secret address that another service can call to start it, without the access key.',
   'routine.webhookOn':

@@ -93,18 +93,20 @@ interface UiState {
   /** The day's summary. */
   todayOpen: boolean;
   boardOpen: boolean;
-  /** A routine opened from outside the bot panel (the failed-routine mark on a bot's avatar). */
-  routineDialog: { botId: string; routineId: string } | null;
+  /**
+   * The routine open in place of the bot's chat: a saved one, or a new one when `routineId` is
+   * null. `showRuns` opens it at its latest runs, for a routine opened to see why a run failed.
+   */
+  routine: { botId: string; routineId: string | null; showRuns?: boolean } | null;
+  /** A new bot being made, as a page in place of the chat; it may start with a name and a folder. */
+  newBot: { preset?: { name: string; projectDir: string } } | null;
   /** Text picked in a message, waiting to be quoted at the top of the draft. */
   pendingQuote: string | null;
   /** The apps (connections) window; `botId` is the bot it was opened for, whose switch a new connection turns on. */
   /** The apps window; `catalogId` opens it on one service of the catalog. */
   apps: { botId: string | null; catalogId?: string; connectionId?: string } | null;
-  /** A new bot may start with a name and a folder filled in, as for a folder found on this computer. */
-  botDialog:
-    | { mode: 'create'; preset?: { name: string; projectDir: string } }
-    | { mode: 'edit'; botId: string }
-    | null;
+  /** The window with a bot's settings. */
+  botDialog: { mode: 'edit'; botId: string } | null;
   /** The bot whose computer (browser) is open. */
   computerBotId: string | null;
   /** Whether that browser shows in a small window over the chat rather than the large view. */
@@ -140,10 +142,22 @@ interface UiState {
   setShortcutsOpen(open: boolean): void;
   setTodayOpen(open: boolean): void;
   setBoardOpen(open: boolean): void;
-  openRoutine(routine: UiState['routineDialog']): void;
+  /** Opens a routine in place of its bot's chat; `null` leaves it as `leavePage` does. */
+  openRoutine(routine: UiState['routine']): void;
+  /**
+   * Closes the page open in place of the chat (a routine, a new bot), asking first when it holds
+   * changes not saved; false when the person keeps it open. Whatever would show something else in
+   * its place goes through here.
+   */
+  leavePage(): boolean;
+  /** Closes that page without asking, once its changes are saved or it is gone. */
+  closePage(): void;
   quote(text: string | null): void;
   openApps(apps: UiState['apps']): void;
-  openBotDialog(d: UiState['botDialog']): void;
+  /** A new bot opens as a page in place of the chat; a bot's settings open in a window. */
+  openBotDialog(
+    d: { mode: 'create'; preset?: { name: string; projectDir: string } } | UiState['botDialog'],
+  ): void;
   openComputer(botId: string | null): void;
   floatComputer(float: boolean): void;
   /** Adds a turn's next words; `restart` starts its text over, as the run did. */
@@ -177,6 +191,13 @@ const saved = (() => {
 export const WRITING_PAUSE_MS = 1200;
 const writingTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+/** The open page's question before its changes are dropped; it says whether to go on. */
+let pageLeaveAsk: (() => boolean) | null = null;
+/** Set by a page in place of the chat while it is open, so leaving it from anywhere asks the same. */
+export function askBeforeLeavingPage(ask: (() => boolean) | null): void {
+  pageLeaveAsk = ask;
+}
+
 function stopWriting(threadId: string) {
   clearTimeout(writingTimers.get(threadId));
   writingTimers.delete(threadId);
@@ -204,7 +225,8 @@ export const useUi = create<UiState>((set, get) => ({
   shortcutsOpen: false,
   todayOpen: false,
   boardOpen: false,
-  routineDialog: null,
+  routine: null,
+  newBot: null,
   pendingQuote: null,
   apps: null,
   botDialog: null,
@@ -218,18 +240,28 @@ export const useUi = create<UiState>((set, get) => ({
   setAuthed: (authed) => set({ authed }),
   setConnected: (connected) => set({ connected }),
   // Without a bot there is no chat to show, so a phone goes back to the list.
-  selectBot: (botId) =>
+  selectBot: (botId) => {
+    if (!get().leavePage()) return;
     set(
       botId
         ? { botId, threadId: null, roomId: null, findOpen: false }
         : { botId, threadId: null, roomId: null, phonePane: 'list', findOpen: false },
-    ),
-  openChat: (botId) =>
-    set({ botId, threadId: null, roomId: null, phonePane: 'chat', panelSheet: false, findOpen: false }),
+    );
+  },
+  openChat: (botId) => {
+    if (!get().leavePage()) return;
+    set({ botId, threadId: null, roomId: null, phonePane: 'chat', panelSheet: false, findOpen: false });
+  },
   showList: () => set({ phonePane: 'list', panelSheet: false }),
-  selectThread: (threadId) => set({ threadId, roomId: null }),
-  openRoom: (roomId) =>
-    set(roomId ? { roomId, phonePane: 'chat', panelSheet: false, findOpen: false } : { roomId }),
+  selectThread: (threadId) => {
+    if (!get().leavePage()) return;
+    set({ threadId, roomId: null });
+  },
+  openRoom: (roomId) => {
+    if (!roomId) return set({ roomId });
+    if (!get().leavePage()) return;
+    set({ roomId, phonePane: 'chat', panelSheet: false, findOpen: false });
+  },
   openRoomDialog: (roomDialog) => set({ roomDialog }),
   togglePanel: (open) => set((s) => ({ panelOpen: open ?? !s.panelOpen })),
   togglePanelSheet: (open) => set((s) => ({ panelSheet: open ?? !s.panelSheet })),
@@ -241,10 +273,42 @@ export const useUi = create<UiState>((set, get) => ({
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
   setTodayOpen: (todayOpen) => set({ todayOpen }),
   setBoardOpen: (boardOpen) => set({ boardOpen }),
-  openRoutine: (routineDialog) => set({ routineDialog }),
+  openRoutine: (routine) => {
+    if (!routine) return void get().leavePage();
+    const s = get();
+    // The same routine again only moves to its runs; another one is a page left.
+    const same = s.routine?.botId === routine.botId && s.routine.routineId === routine.routineId;
+    if (!same && !s.leavePage()) return;
+    set({
+      routine,
+      botId: routine.botId,
+      threadId: routine.botId === s.botId ? s.threadId : null,
+      roomId: null,
+      phonePane: 'chat',
+      panelSheet: false,
+      findOpen: false,
+    });
+  },
+  leavePage: () => {
+    const s = get();
+    if (!s.routine && !s.newBot) return true;
+    if (pageLeaveAsk && !pageLeaveAsk()) return false;
+    s.closePage();
+    return true;
+  },
+  closePage: () => {
+    pageLeaveAsk = null;
+    set({ routine: null, newBot: null });
+  },
   quote: (pendingQuote) => set({ pendingQuote }),
   openApps: (apps) => set({ apps }),
-  openBotDialog: (botDialog) => set({ botDialog }),
+  openBotDialog: (d) => {
+    if (d?.mode !== 'create') return set({ botDialog: d });
+    // Asked to make a new bot again while making one, the page stays as it is.
+    if (get().newBot) return;
+    if (!get().leavePage()) return;
+    set({ newBot: { preset: d.preset }, phonePane: 'chat', panelSheet: false, findOpen: false });
+  },
   openComputer: (computerBotId) => set({ computerBotId }),
   floatComputer: (computerFloat) => set({ computerFloat }),
   appendStream: (threadId, turnId, text, restart) =>

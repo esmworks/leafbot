@@ -9,6 +9,7 @@ export const de: Partial<Catalog<MessageKey>> = {
   'common.add': 'Hinzufügen',
   'common.save': 'Speichern',
   'common.cancel': 'Abbrechen',
+  'common.back': 'Zurück',
   'common.delete': 'Löschen',
   'common.remove': 'Entfernen',
   'common.close': 'Schließen',
@@ -1428,6 +1429,7 @@ export const de: Partial<Catalog<MessageKey>> = {
   'panel.noFiles': 'Noch keine Dateien im Ordner des Bots. Dateien, die der Bot erstellt, erscheinen hier.',
   'routine.edit': 'Routine bearbeiten',
   'routine.new': 'Neue Routine',
+  'routine.leaveConfirm': 'Nicht gespeicherte Änderungen gehen verloren. Trotzdem verlassen?',
   'routine.webhookHint':
     'Gib dieser Routine eine geheime Adresse, die ein anderer Dienst aufrufen kann, um sie zu starten, ohne den Zugriffsschlüssel.',
   'routine.webhookOn':

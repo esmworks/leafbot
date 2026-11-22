@@ -9,6 +9,7 @@ export const tr = {
   'common.add': 'Ekle',
   'common.save': 'Kaydet',
   'common.cancel': 'Vazgeç',
+  'common.back': 'Geri',
   'common.delete': 'Sil',
   'common.remove': 'Kaldır',
   'common.close': 'Kapat',
@@ -1378,6 +1379,7 @@ export const tr = {
   // Routine dialog
   'routine.edit': 'Rutini düzenle',
   'routine.new': 'Yeni rutin',
+  'routine.leaveConfirm': 'Kaydedilmemiş değişiklikler kaybolacak. Yine de çıkılsın mı?',
   'routine.webhookHint':
     'Bu rutine, başka bir hizmetin erişim anahtarı olmadan çağırıp başlatabileceği gizli bir adres ver.',
   'routine.webhookOn':

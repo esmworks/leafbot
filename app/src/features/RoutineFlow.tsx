@@ -397,7 +397,7 @@ export function RoutineFlow({
         role="group"
         aria-label={t('routine.view.flow')}
         className={cn(
-          'scroll-thin relative h-[34rem] overflow-auto overscroll-contain rounded-2xl border',
+          'scroll-thin relative h-[max(34rem,calc(100dvh-16rem))] overflow-auto overscroll-contain rounded-2xl border',
           'bg-[radial-gradient(var(--border)_1px,transparent_1px)] [background-size:16px_16px]',
           moving && 'cursor-grabbing select-none',
         )}

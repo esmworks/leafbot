@@ -9,7 +9,7 @@ import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { copyText } from '@/lib/clipboard';
 import { useInfo } from '@/lib/queries';
-import { isLoopback } from './RoutineDialog';
+import { isLoopback } from './RoutinePage';
 
 /**
  * A page a bot made (show_page), running in the conversation. It is read fresh from the bot's

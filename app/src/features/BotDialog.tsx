@@ -12,7 +12,7 @@ import {
 } from '@leafbot/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, ChevronDown, Upload } from 'lucide-react';
+import { Archive, ChevronDown, ChevronLeft, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -41,13 +41,13 @@ import {
   useProviders,
   useSettings,
 } from '@/lib/queries';
-import { useUi } from '@/lib/store';
+import { askBeforeLeavingPage, useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { MODE_LABEL } from './RightPanel';
 import { InstructionsDocStatus } from './InstructionsDoc';
 import { availableStarters, starterBot, type StarterId } from './onboarding/profile';
 import { MissingApps } from './MissingApps';
-import { Field } from './RoutineDialog';
+import { Field } from './RoutinePage';
 import { connectionName, ModelSearch, type ModelOption } from './ProviderConnect';
 
 export const COLORS = [
@@ -165,12 +165,13 @@ const CLAUDE = '__claude__';
 /** A coding agent's entry in the connection list: `acp:<agent>`. */
 const AGENT = 'acp:';
 
+/** A bot's settings, in a window over the chat. */
 export function BotDialog() {
   const t = useT();
   const dialog = useUi((s) => s.botDialog);
   const close = useUi((s) => s.openBotDialog);
   const { data: bots = [] } = useBots();
-  const bot = dialog?.mode === 'edit' ? bots.find((b) => b.id === dialog.botId) : undefined;
+  const bot = dialog ? bots.find((b) => b.id === dialog.botId) : undefined;
   // A stray click beside the window, Escape or Cancel must not throw away typed instructions.
   const dirty = useRef(false);
   const leave = () => {
@@ -185,11 +186,10 @@ export function BotDialog() {
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>{bot ? t('bot.settingsTitle', { name: bot.name }) : t('bot.new')}</DialogTitle>
         </DialogHeader>
-        {dialog && (
+        {bot && (
           <BotForm
-            key={bot?.id ?? 'new'}
+            key={bot.id}
             bot={bot}
-            preset={dialog.mode === 'create' ? dialog.preset : undefined}
             onDone={() => {
               dirty.current = false;
               close(null);
@@ -205,9 +205,34 @@ export function BotDialog() {
   );
 }
 
+/**
+ * A new bot, as a page in place of the chat: there is room to read the starters and instructions,
+ * and changes not saved are asked about before anything replaces the page.
+ */
+export function NewBotPage({ preset }: { preset?: { name: string; projectDir: string } }) {
+  const t = useT();
+  const dirty = useRef(false);
+  useEffect(() => {
+    askBeforeLeavingPage(() => !dirty.current || window.confirm(t('bot.discardConfirm')));
+    return () => askBeforeLeavingPage(null);
+  }, [t]);
+  return (
+    <BotForm
+      page
+      preset={preset}
+      onDone={() => useUi.getState().closePage()}
+      onCancel={() => useUi.getState().leavePage()}
+      onDirty={(d) => {
+        dirty.current = d;
+      }}
+    />
+  );
+}
+
 function BotForm({
   bot,
   preset,
+  page = false,
   onDone,
   onCancel,
   onDirty,
@@ -215,6 +240,8 @@ function BotForm({
   bot?: Bot;
   /** What a new bot starts with besides the defaults. */
   preset?: { name: string; projectDir: string };
+  /** Drawn as a page: a bar with the title and buttons on top, the form in a column under it. */
+  page?: boolean;
   onDone(): void;
   onCancel(): void;
   /** Whether the form holds changes not saved yet, each time that changes. */
@@ -318,8 +345,8 @@ function BotForm({
       qc.setQueryData<Bot[]>(['bots'], (old = []) => [...old.filter((b) => b.id !== saved.id), saved]);
       void qc.invalidateQueries({ queryKey: ['bots'] });
       void qc.invalidateQueries({ queryKey: ['groups'] });
-      if (!bot) openChat(saved.id);
       onDone();
+      if (!bot) openChat(saved.id);
     },
     onError: (e) => toast.error((e as Error).message),
   });
@@ -335,294 +362,322 @@ function BotForm({
   });
 
   return (
-    <form onSubmit={form.handleSubmit((f) => save.mutate(f))} className="flex min-h-0 flex-1 flex-col">
-      <div className="scroll-thin min-h-0 flex-1 space-y-5 overflow-y-auto overscroll-contain px-6 pt-1 pb-6">
-        {readOnly && <p className="rounded-2xl bg-secondary/60 px-4 py-3 text-sm">{t('share.readOnly')}</p>}
-        {starters.length > 0 && (
-          <section aria-labelledby="bot-starters">
-            <h3 id="bot-starters" className="mb-2 text-sm font-medium">
-              {t('bot.starters')}
-            </h3>
-            <div className="flex flex-wrap gap-2">
-              {starters.map((id) => {
-                const s = starterBot(id, t);
-                const on = starterOn(id);
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    aria-pressed={on}
-                    title={s.description}
-                    onClick={() => pickStarter(id)}
-                    className={cn(
-                      'inline-flex items-center gap-2 rounded-xl border py-1.5 pr-3 pl-1.5 text-sm transition-colors hover:bg-accent',
-                      on && 'border-[var(--brand)]/60 bg-[var(--brand)]/10 hover:bg-[var(--brand)]/15',
-                    )}
-                  >
-                    <BotAvatar avatar={s.avatar} color={s.color} seed={id} size={24} />
-                    {s.name}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-        )}
-        <AvatarEditor
-          avatar={v.avatar}
-          color={v.color}
-          onAvatar={(a) => form.setValue('avatar', a, { shouldDirty: true })}
-          onColor={(c) => form.setValue('color', c, { shouldDirty: true })}
-        />
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={t('bot.name')} error={err.name?.message}>
-            <Input
-              {...form.register('name')}
-              autoFocus={!bot}
-              className="rounded-xl"
-              placeholder={t('bot.namePlaceholder')}
-            />
-          </Field>
-          <Field label={t('bot.group')}>
-            <Select value={v.groupId} onValueChange={(g) => form.setValue('groupId', g)}>
-              <SelectTrigger className="w-full rounded-xl">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={NO_GROUP}>{t('bot.noGroup')}</SelectItem>
-                {groups.map((g) => (
-                  <SelectItem key={g.id} value={g.id}>
-                    {g.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Input
-              {...form.register('newGroup')}
-              className="mt-2 rounded-xl"
-              placeholder={t('bot.newGroup')}
-            />
-          </Field>
-        </div>
-        <Field label={t('bot.description')}>
-          <Input
-            {...form.register('description')}
-            className="rounded-xl"
-            placeholder={t('bot.descriptionPlaceholder')}
-          />
-        </Field>
-        <Field label={t('bot.instructions')}>
-          <Textarea
-            {...form.register('instructions')}
-            rows={5}
-            readOnly={!!v.instructionsUrl?.trim()}
-            className={cn('rounded-xl', v.instructionsUrl?.trim() && 'text-muted-foreground')}
-            placeholder={t('bot.instructionsPlaceholder')}
-          />
-          {v.instructionsUrl?.trim() && !bot?.instructionsUrl && (
-            <p className="text-xs text-muted-foreground">{t('bot.instructionsFromDoc')}</p>
-          )}
-          {bot && <InstructionsDocStatus bot={bot} />}
-          <MissingApps text={v.instructions ?? ''} botId={bot?.id ?? null} />
-        </Field>
-        <ModelPicker
-          value={v}
-          error={err.model?.message}
-          onChange={(patch) => {
-            for (const [k, val] of Object.entries(patch)) {
-              form.setValue(k as 'engine' | 'provider' | 'model', val as string, { shouldDirty: true });
-            }
-          }}
-        />
-        {(v.engine === 'claude' || v.engine === 'pi') && efforts?.length !== 0 && (
-          <Field label={t('model.effort')}>
-            <Select
-              value={v.effort && effortOptions.includes(v.effort as Effort) ? v.effort : DEFAULT_EFFORT}
-              onValueChange={(e) =>
-                form.setValue('effort', e === DEFAULT_EFFORT ? '' : e, { shouldDirty: true })
-              }
-            >
-              <SelectTrigger className="w-full rounded-xl">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value={DEFAULT_EFFORT}>
-                  {t(v.engine === 'claude' ? 'bot.effortDefault' : 'bot.effortModelDefault')}
-                </SelectItem>
-                {effortOptions.map((e) => (
-                  <SelectItem key={e} value={e}>
-                    {t(`effort.${e}`)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-        )}
-        {bot && <BotSharing bot={bot} />}
-        {bot && <TelegramPanel botId={bot.id} />}
-        <button
-          type="button"
-          onClick={() => setAdvanced((a) => !a)}
-          aria-expanded={advanced}
-          className="flex w-full items-center gap-3 rounded-2xl px-1 py-1 text-left"
-        >
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium">{t('bot.advanced')}</span>
-            <span className="block text-xs text-muted-foreground">{t('bot.advancedHint')}</span>
-          </span>
-          <ChevronDown
-            className={cn('size-4 text-muted-foreground transition-transform', advanced && 'rotate-180')}
-          />
-        </button>
-        {advanced && (
-          <div className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label={t('bot.permissionMode')}>
-                <Select
-                  value={v.permissionMode}
-                  onValueChange={(m) => form.setValue('permissionMode', m as Form['permissionMode'])}
-                >
-                  <SelectTrigger className="w-full rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PERMISSION_MODES.map((m) => (
-                      <SelectItem key={m} value={m}>
-                        {t(MODE_LABEL[m])}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">{t(`bot.modeHint.${v.permissionMode}`)}</p>
-              </Field>
-              <Field label={t('bot.instructionsUrl')} error={err.instructionsUrl?.message}>
-                <Input
-                  {...form.register('instructionsUrl')}
-                  className="rounded-xl"
-                  inputMode="url"
-                  placeholder={DOC_EXAMPLE}
-                />
-                <p className="text-xs text-muted-foreground">{t('bot.instructionsUrlHint')}</p>
-              </Field>
-              <Field label={t('bot.projectDir')}>
-                <Input
-                  {...form.register('projectDir')}
-                  className="rounded-xl"
-                  placeholder={t('bot.projectDirPlaceholder')}
-                />
-                <p className="text-xs text-muted-foreground">{t('bot.projectDirHint')}</p>
-              </Field>
-            </div>
-            <label className="flex items-center justify-between gap-4 rounded-2xl bg-secondary/60 px-4 py-3">
-              <span>
-                <span className="block text-sm font-medium">{t('bot.internet')}</span>
-                <span className="block text-xs text-muted-foreground">{t('bot.internetHint')}</span>
-              </span>
-              <Switch
-                checked={v.internet}
-                onCheckedChange={(c) => form.setValue('internet', c, { shouldDirty: true })}
-              />
-            </label>
-            <PersonComputerSwitch
-              on={v.personComputer}
-              onChange={(c) => form.setValue('personComputer', c, { shouldDirty: true })}
-            />
-            <label className="flex items-center justify-between gap-4 rounded-2xl bg-secondary/60 px-4 py-3">
-              <span>
-                <span className="block text-sm font-medium">{t('bot.manager')}</span>
-                <span className="block text-xs text-muted-foreground">{t('bot.managerHint')}</span>
-              </span>
-              <Switch checked={v.isManager} onCheckedChange={(c) => form.setValue('isManager', c)} />
-            </label>
-            <label className="flex items-center justify-between gap-4 rounded-2xl bg-secondary/60 px-4 py-3">
-              <span>
-                <span className="block text-sm font-medium">{t('bot.memory')}</span>
-                <span className="block text-xs text-muted-foreground">{t('bot.memoryHint')}</span>
-              </span>
-              <Switch
-                checked={v.memory}
-                onCheckedChange={(c) => form.setValue('memory', c, { shouldDirty: true })}
-              />
-            </label>
-            <div className="space-y-3 rounded-2xl bg-secondary/60 px-4 py-3">
-              <span className="block">
-                <span className="block text-sm font-medium">{t('bot.spendLimits')}</span>
-                <span className="block text-xs text-muted-foreground">{t('bot.spendLimitsHint')}</span>
-              </span>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label={t('bot.dailyLimit')} error={err.dailyLimit?.message}>
-                  <Input
-                    {...form.register('dailyLimit')}
-                    inputMode="decimal"
-                    placeholder="0"
-                    className="rounded-xl tabular-nums"
-                  />
-                </Field>
-                <Field label={t('bot.monthlyLimit')} error={err.monthlyLimit?.message}>
-                  <Input
-                    {...form.register('monthlyLimit')}
-                    inputMode="decimal"
-                    placeholder="0"
-                    className="rounded-xl tabular-nums"
-                  />
-                </Field>
-              </div>
-              {bot && <BotSpent botId={bot.id} />}
-            </div>
-            <div className="space-y-3 rounded-2xl bg-secondary/60 px-4 py-3">
-              <label className="flex items-center justify-between gap-4">
-                <span>
-                  <span className="block text-sm font-medium">{t('bot.toolsOnly')}</span>
-                  <span className="block text-xs text-muted-foreground">{t('bot.toolsHint')}</span>
-                </span>
-                <Switch
-                  checked={v.toolsOnly}
-                  onCheckedChange={(c) => form.setValue('toolsOnly', c, { shouldDirty: true })}
-                />
-              </label>
-              {v.toolsOnly && (
-                <Field label={t('bot.toolsAllow')} error={err.toolsAllow?.message}>
-                  <Textarea
-                    {...form.register('toolsAllow')}
-                    rows={4}
-                    spellCheck={false}
-                    placeholder={TOOLS_EXAMPLE}
-                    className="rounded-xl font-mono text-xs"
-                  />
-                </Field>
-              )}
-              <Field label={t('bot.toolsExclude')} error={err.toolsExclude?.message}>
-                <Textarea
-                  {...form.register('toolsExclude')}
-                  rows={2}
-                  spellCheck={false}
-                  placeholder={TOOLS_EXCLUDE_EXAMPLE}
-                  className="rounded-xl font-mono text-xs"
-                />
-              </Field>
-            </div>
-          </div>
-        )}
-      </div>
-      <div className="flex items-center gap-2 border-t px-6 py-4">
-        {bot && (
+    <form
+      onSubmit={form.handleSubmit((f) => save.mutate(f))}
+      className="flex min-h-0 min-w-0 flex-1 flex-col"
+      aria-label={page ? t('bot.new') : undefined}
+    >
+      {page && (
+        <header className="window-drag flex items-center gap-2 border-b px-3 py-3 sm:px-4">
           <Button
             type="button"
             variant="ghost"
-            className="mr-auto rounded-full text-muted-foreground"
-            onClick={() => archive.mutate()}
-            disabled={archive.isPending || readOnly}
+            size="icon"
+            className="shrink-0 rounded-full"
+            onClick={onCancel}
+            aria-label={t('common.back')}
           >
-            <Archive /> {t('bot.archive')}
+            <ChevronLeft className="size-5" />
           </Button>
-        )}
-        <div className="flex-1" />
-        <Button type="button" variant="ghost" className="rounded-full" onClick={onCancel}>
-          {t('common.cancel')}
-        </Button>
-        <Button type="submit" className="rounded-full" disabled={save.isPending || readOnly}>
-          {bot ? t('common.save') : t('bot.create')}
-        </Button>
+          <h1 className="min-w-0 flex-1 truncate text-base font-semibold">
+            {v.name?.trim() || t('bot.new')}
+          </h1>
+          <Button type="submit" className="rounded-full" disabled={save.isPending}>
+            {t('bot.create')}
+          </Button>
+        </header>
+      )}
+      <div className="scroll-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className={cn('space-y-5', page ? 'mx-auto max-w-2xl px-4 py-6 sm:px-6' : 'px-6 pt-1 pb-6')}>
+          {readOnly && <p className="rounded-2xl bg-secondary/60 px-4 py-3 text-sm">{t('share.readOnly')}</p>}
+          {starters.length > 0 && (
+            <section aria-labelledby="bot-starters">
+              <h3 id="bot-starters" className="mb-2 text-sm font-medium">
+                {t('bot.starters')}
+              </h3>
+              <div className="flex flex-wrap gap-2">
+                {starters.map((id) => {
+                  const s = starterBot(id, t);
+                  const on = starterOn(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      aria-pressed={on}
+                      title={s.description}
+                      onClick={() => pickStarter(id)}
+                      className={cn(
+                        'inline-flex items-center gap-2 rounded-xl border py-1.5 pr-3 pl-1.5 text-sm transition-colors hover:bg-accent',
+                        on && 'border-[var(--brand)]/60 bg-[var(--brand)]/10 hover:bg-[var(--brand)]/15',
+                      )}
+                    >
+                      <BotAvatar avatar={s.avatar} color={s.color} seed={id} size={24} />
+                      {s.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+          <AvatarEditor
+            avatar={v.avatar}
+            color={v.color}
+            onAvatar={(a) => form.setValue('avatar', a, { shouldDirty: true })}
+            onColor={(c) => form.setValue('color', c, { shouldDirty: true })}
+          />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label={t('bot.name')} error={err.name?.message}>
+              <Input
+                {...form.register('name')}
+                autoFocus={!bot}
+                className="rounded-xl"
+                placeholder={t('bot.namePlaceholder')}
+              />
+            </Field>
+            <Field label={t('bot.group')}>
+              <Select value={v.groupId} onValueChange={(g) => form.setValue('groupId', g)}>
+                <SelectTrigger className="w-full rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_GROUP}>{t('bot.noGroup')}</SelectItem>
+                  {groups.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Input
+                {...form.register('newGroup')}
+                className="mt-2 rounded-xl"
+                placeholder={t('bot.newGroup')}
+              />
+            </Field>
+          </div>
+          <Field label={t('bot.description')}>
+            <Input
+              {...form.register('description')}
+              className="rounded-xl"
+              placeholder={t('bot.descriptionPlaceholder')}
+            />
+          </Field>
+          <Field label={t('bot.instructions')}>
+            <Textarea
+              {...form.register('instructions')}
+              rows={5}
+              readOnly={!!v.instructionsUrl?.trim()}
+              className={cn('rounded-xl', v.instructionsUrl?.trim() && 'text-muted-foreground')}
+              placeholder={t('bot.instructionsPlaceholder')}
+            />
+            {v.instructionsUrl?.trim() && !bot?.instructionsUrl && (
+              <p className="text-xs text-muted-foreground">{t('bot.instructionsFromDoc')}</p>
+            )}
+            {bot && <InstructionsDocStatus bot={bot} />}
+            <MissingApps text={v.instructions ?? ''} botId={bot?.id ?? null} />
+          </Field>
+          <ModelPicker
+            value={v}
+            error={err.model?.message}
+            onChange={(patch) => {
+              for (const [k, val] of Object.entries(patch)) {
+                form.setValue(k as 'engine' | 'provider' | 'model', val as string, { shouldDirty: true });
+              }
+            }}
+          />
+          {(v.engine === 'claude' || v.engine === 'pi') && efforts?.length !== 0 && (
+            <Field label={t('model.effort')}>
+              <Select
+                value={v.effort && effortOptions.includes(v.effort as Effort) ? v.effort : DEFAULT_EFFORT}
+                onValueChange={(e) =>
+                  form.setValue('effort', e === DEFAULT_EFFORT ? '' : e, { shouldDirty: true })
+                }
+              >
+                <SelectTrigger className="w-full rounded-xl">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={DEFAULT_EFFORT}>
+                    {t(v.engine === 'claude' ? 'bot.effortDefault' : 'bot.effortModelDefault')}
+                  </SelectItem>
+                  {effortOptions.map((e) => (
+                    <SelectItem key={e} value={e}>
+                      {t(`effort.${e}`)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
+          {bot && <BotSharing bot={bot} />}
+          {bot && <TelegramPanel botId={bot.id} />}
+          <button
+            type="button"
+            onClick={() => setAdvanced((a) => !a)}
+            aria-expanded={advanced}
+            className="flex w-full items-center gap-3 rounded-2xl px-1 py-1 text-left"
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-medium">{t('bot.advanced')}</span>
+              <span className="block text-xs text-muted-foreground">{t('bot.advancedHint')}</span>
+            </span>
+            <ChevronDown
+              className={cn('size-4 text-muted-foreground transition-transform', advanced && 'rotate-180')}
+            />
+          </button>
+          {advanced && (
+            <div className="space-y-5">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label={t('bot.permissionMode')}>
+                  <Select
+                    value={v.permissionMode}
+                    onValueChange={(m) => form.setValue('permissionMode', m as Form['permissionMode'])}
+                  >
+                    <SelectTrigger className="w-full rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PERMISSION_MODES.map((m) => (
+                        <SelectItem key={m} value={m}>
+                          {t(MODE_LABEL[m])}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">{t(`bot.modeHint.${v.permissionMode}`)}</p>
+                </Field>
+                <Field label={t('bot.instructionsUrl')} error={err.instructionsUrl?.message}>
+                  <Input
+                    {...form.register('instructionsUrl')}
+                    className="rounded-xl"
+                    inputMode="url"
+                    placeholder={DOC_EXAMPLE}
+                  />
+                  <p className="text-xs text-muted-foreground">{t('bot.instructionsUrlHint')}</p>
+                </Field>
+                <Field label={t('bot.projectDir')}>
+                  <Input
+                    {...form.register('projectDir')}
+                    className="rounded-xl"
+                    placeholder={t('bot.projectDirPlaceholder')}
+                  />
+                  <p className="text-xs text-muted-foreground">{t('bot.projectDirHint')}</p>
+                </Field>
+              </div>
+              <label className="flex items-center justify-between gap-4 rounded-2xl bg-secondary/60 px-4 py-3">
+                <span>
+                  <span className="block text-sm font-medium">{t('bot.internet')}</span>
+                  <span className="block text-xs text-muted-foreground">{t('bot.internetHint')}</span>
+                </span>
+                <Switch
+                  checked={v.internet}
+                  onCheckedChange={(c) => form.setValue('internet', c, { shouldDirty: true })}
+                />
+              </label>
+              <PersonComputerSwitch
+                on={v.personComputer}
+                onChange={(c) => form.setValue('personComputer', c, { shouldDirty: true })}
+              />
+              <label className="flex items-center justify-between gap-4 rounded-2xl bg-secondary/60 px-4 py-3">
+                <span>
+                  <span className="block text-sm font-medium">{t('bot.manager')}</span>
+                  <span className="block text-xs text-muted-foreground">{t('bot.managerHint')}</span>
+                </span>
+                <Switch checked={v.isManager} onCheckedChange={(c) => form.setValue('isManager', c)} />
+              </label>
+              <label className="flex items-center justify-between gap-4 rounded-2xl bg-secondary/60 px-4 py-3">
+                <span>
+                  <span className="block text-sm font-medium">{t('bot.memory')}</span>
+                  <span className="block text-xs text-muted-foreground">{t('bot.memoryHint')}</span>
+                </span>
+                <Switch
+                  checked={v.memory}
+                  onCheckedChange={(c) => form.setValue('memory', c, { shouldDirty: true })}
+                />
+              </label>
+              <div className="space-y-3 rounded-2xl bg-secondary/60 px-4 py-3">
+                <span className="block">
+                  <span className="block text-sm font-medium">{t('bot.spendLimits')}</span>
+                  <span className="block text-xs text-muted-foreground">{t('bot.spendLimitsHint')}</span>
+                </span>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label={t('bot.dailyLimit')} error={err.dailyLimit?.message}>
+                    <Input
+                      {...form.register('dailyLimit')}
+                      inputMode="decimal"
+                      placeholder="0"
+                      className="rounded-xl tabular-nums"
+                    />
+                  </Field>
+                  <Field label={t('bot.monthlyLimit')} error={err.monthlyLimit?.message}>
+                    <Input
+                      {...form.register('monthlyLimit')}
+                      inputMode="decimal"
+                      placeholder="0"
+                      className="rounded-xl tabular-nums"
+                    />
+                  </Field>
+                </div>
+                {bot && <BotSpent botId={bot.id} />}
+              </div>
+              <div className="space-y-3 rounded-2xl bg-secondary/60 px-4 py-3">
+                <label className="flex items-center justify-between gap-4">
+                  <span>
+                    <span className="block text-sm font-medium">{t('bot.toolsOnly')}</span>
+                    <span className="block text-xs text-muted-foreground">{t('bot.toolsHint')}</span>
+                  </span>
+                  <Switch
+                    checked={v.toolsOnly}
+                    onCheckedChange={(c) => form.setValue('toolsOnly', c, { shouldDirty: true })}
+                  />
+                </label>
+                {v.toolsOnly && (
+                  <Field label={t('bot.toolsAllow')} error={err.toolsAllow?.message}>
+                    <Textarea
+                      {...form.register('toolsAllow')}
+                      rows={4}
+                      spellCheck={false}
+                      placeholder={TOOLS_EXAMPLE}
+                      className="rounded-xl font-mono text-xs"
+                    />
+                  </Field>
+                )}
+                <Field label={t('bot.toolsExclude')} error={err.toolsExclude?.message}>
+                  <Textarea
+                    {...form.register('toolsExclude')}
+                    rows={2}
+                    spellCheck={false}
+                    placeholder={TOOLS_EXCLUDE_EXAMPLE}
+                    className="rounded-xl font-mono text-xs"
+                  />
+                </Field>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
+      {!page && (
+        <div className="flex items-center gap-2 border-t px-6 py-4">
+          {bot && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="mr-auto rounded-full text-muted-foreground"
+              onClick={() => archive.mutate()}
+              disabled={archive.isPending || readOnly}
+            >
+              <Archive /> {t('bot.archive')}
+            </Button>
+          )}
+          <div className="flex-1" />
+          <Button type="button" variant="ghost" className="rounded-full" onClick={onCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button type="submit" className="rounded-full" disabled={save.isPending || readOnly}>
+            {bot ? t('common.save') : t('bot.create')}
+          </Button>
+        </div>
+      )}
     </form>
   );
 }
