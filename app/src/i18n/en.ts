@@ -491,6 +491,7 @@ export const en: Catalog<MessageKey> = {
   'bot.effortDefault': 'As set for all bots',
   'settings.search': 'Search settings',
   'settings.back': 'All settings',
+  'settings.close': 'Back to the app',
   'settings.keywords.apps':
     'apps, connections, connect, mcp, mcp server, integrations, services, tools, plugins',
   'settings.appsResult': 'Apps and connections',

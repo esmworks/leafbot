@@ -5,7 +5,7 @@ import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { useUi } from '@/lib/store';
-import { Card } from './SettingsDialog';
+import { Card } from './SettingsPage';
 
 /**
  * Folders the person's coding tools have worked in on this computer, each a click away from a bot

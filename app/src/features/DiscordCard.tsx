@@ -10,7 +10,7 @@ import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { useBots } from '@/lib/queries';
 import { cn } from '@/lib/utils';
-import { Card } from './SettingsDialog';
+import { Card } from './SettingsPage';
 
 /** Discord's page for making an application with a bot. */
 const PORTAL = 'https://discord.com/developers/applications';

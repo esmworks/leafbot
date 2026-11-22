@@ -10,7 +10,7 @@ import { api } from '@/lib/api';
 import { copyText } from '@/lib/clipboard';
 import { useBots } from '@/lib/queries';
 import { cn } from '@/lib/utils';
-import { Card } from './SettingsDialog';
+import { Card } from './SettingsPage';
 
 /** Slack's page for making an app from a manifest. */
 const NEW_APP = 'https://api.slack.com/apps?new_app=1';

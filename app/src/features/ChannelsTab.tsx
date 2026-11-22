@@ -20,7 +20,7 @@ import { newBotEngine } from '@/lib/new-bot';
 import { useBots, useSettings } from '@/lib/queries';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
-import { Card } from './SettingsDialog';
+import { Card } from './SettingsPage';
 import { EmailCard } from './EmailCard';
 import { DiscordCard } from './DiscordCard';
 import { SlackCard } from './SlackCards';

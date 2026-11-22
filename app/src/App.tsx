@@ -19,7 +19,7 @@ import { Login } from '@/features/Login';
 import { Onboarding } from '@/features/onboarding/Onboarding';
 import { RightPanel } from '@/features/RightPanel';
 import { SearchDialog } from '@/features/SearchDialog';
-import { SettingsDialog } from '@/features/SettingsDialog';
+import { SettingsPage } from '@/features/SettingsPage';
 import { ShortcutsDialog } from '@/features/ShortcutsDialog';
 import { TodayDialog } from '@/features/TodayDialog';
 import { BoardDialog } from '@/features/board/BoardDialog';
@@ -174,6 +174,8 @@ function Workspace() {
   const panelSheet = useUi((s) => s.panelSheet);
   const togglePanelSheet = useUi((s) => s.togglePanelSheet);
   const phonePane = useUi((s) => s.phonePane);
+  // The settings cover the whole window; what lies under them stays as it was, out of reach.
+  const settingsOpen = useUi((s) => !!s.settingsTab);
   const { phone, panelBeside } = useLayout();
 
   useEffect(() => connectRealtime(qc), [qc]);
@@ -221,64 +223,66 @@ function Workspace() {
   const pane = phone ? (bot || room ? phonePane : 'list') : null;
 
   return (
-    <div className="workspace flex h-full overflow-hidden">
-      {pane !== 'chat' && <Sidebar />}
-      <main className={cn('safe-pane min-w-0 flex-1 bg-background', pane === 'list' ? 'hidden' : 'flex')}>
-        {room ? (
-          <RoomView key={room.id} room={room} />
-        ) : bot ? (
-          <>
-            <Chat key={bot.id} bot={bot} />
-            {panelBeside ? (
-              <AnimatePresence initial={false}>
-                {panelOpen && (
-                  <motion.div
-                    key="panel"
-                    initial={{ width: 0, opacity: 0 }}
-                    animate={{ width: PANEL_WIDTH, opacity: 1 }}
-                    exit={{ width: 0, opacity: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="overflow-hidden"
-                  >
-                    <RightPanel bot={bot} beside />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            ) : (
-              <Sheet open={panelSheet} onOpenChange={togglePanelSheet}>
-                <SheetContent aria-describedby={undefined}>
-                  <SheetTitle className="sr-only">{bot.name}</SheetTitle>
-                  <RightPanel bot={bot} />
-                </SheetContent>
-              </Sheet>
-            )}
-          </>
-        ) : (
-          !isLoading && (
-            <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
-              <div className="size-20">
-                <AppMascot />
+    <>
+      <div className="workspace flex h-full overflow-hidden" inert={settingsOpen}>
+        {pane !== 'chat' && <Sidebar />}
+        <main className={cn('safe-pane min-w-0 flex-1 bg-background', pane === 'list' ? 'hidden' : 'flex')}>
+          {room ? (
+            <RoomView key={room.id} room={room} />
+          ) : bot ? (
+            <>
+              <Chat key={bot.id} bot={bot} />
+              {panelBeside ? (
+                <AnimatePresence initial={false}>
+                  {panelOpen && (
+                    <motion.div
+                      key="panel"
+                      initial={{ width: 0, opacity: 0 }}
+                      animate={{ width: PANEL_WIDTH, opacity: 1 }}
+                      exit={{ width: 0, opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden"
+                    >
+                      <RightPanel bot={bot} beside />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              ) : (
+                <Sheet open={panelSheet} onOpenChange={togglePanelSheet}>
+                  <SheetContent aria-describedby={undefined}>
+                    <SheetTitle className="sr-only">{bot.name}</SheetTitle>
+                    <RightPanel bot={bot} />
+                  </SheetContent>
+                </Sheet>
+              )}
+            </>
+          ) : (
+            !isLoading && (
+              <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+                <div className="size-20">
+                  <AppMascot />
+                </div>
+                <h1 className="text-2xl font-semibold">{t('welcome.title')}</h1>
+                <p className="max-w-sm text-sm text-muted-foreground">{t('welcome.body')}</p>
+                <Button className="rounded-full" onClick={() => openBotDialog({ mode: 'create' })}>
+                  <Plus /> {t('welcome.create')}
+                </Button>
               </div>
-              <h1 className="text-2xl font-semibold">{t('welcome.title')}</h1>
-              <p className="max-w-sm text-sm text-muted-foreground">{t('welcome.body')}</p>
-              <Button className="rounded-full" onClick={() => openBotDialog({ mode: 'create' })}>
-                <Plus /> {t('welcome.create')}
-              </Button>
-            </div>
-          )
-        )}
-      </main>
-      <BotDialog />
-      <RoomDialog />
-      <ComputerDialog />
-      <FilePreview />
-      <SettingsDialog />
-      <SearchDialog />
-      <ShortcutsDialog />
-      <TodayDialog />
-      <BoardDialog />
-      <OpenedRoutineDialog />
-      <AppsDialog />
-    </div>
+            )
+          )}
+        </main>
+        <BotDialog />
+        <RoomDialog />
+        <ComputerDialog />
+        <FilePreview />
+        <SearchDialog />
+        <ShortcutsDialog />
+        <TodayDialog />
+        <BoardDialog />
+        <OpenedRoutineDialog />
+        <AppsDialog />
+      </div>
+      <SettingsPage />
+    </>
   );
 }

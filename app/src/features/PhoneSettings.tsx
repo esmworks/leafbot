@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
-import { Card, Row } from './SettingsDialog';
+import { Card, Row } from './SettingsPage';
 
 const useApns = () => useQuery({ queryKey: ['apns'], queryFn: api.apns });
 

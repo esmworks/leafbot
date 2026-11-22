@@ -7,7 +7,7 @@ import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { Card, Row } from './SettingsDialog';
+import { Card, Row } from './SettingsPage';
 
 /**
  * The server's own check of its data, for those who look after it: what a crash or a full disk

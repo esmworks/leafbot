@@ -24,7 +24,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { useBots, useSkills } from '@/lib/queries';
-import { Card } from './SettingsDialog';
+import { Card } from './SettingsPage';
 import { PluginDialog } from './PluginDialog';
 
 /** Largest SKILL.md read from disk; a skill is instructions, not a document store. */

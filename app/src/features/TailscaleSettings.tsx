@@ -7,7 +7,7 @@ import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { copyText } from '@/lib/clipboard';
 import { useSession } from '@/lib/queries';
-import { Card, Row } from './SettingsDialog';
+import { Card, Row } from './SettingsPage';
 
 /**
  * Reaching this server from the person's other devices over their Tailscale network: it gets an
