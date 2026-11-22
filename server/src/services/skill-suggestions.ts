@@ -282,7 +282,6 @@ export class SkillSuggestionService {
             days,
             fingerprint,
             signature: core.join(' '),
-            costUsd: written.costUsd,
             createdAt: now,
           })
           .onConflictDoNothing()
@@ -401,7 +400,7 @@ export class SkillSuggestionService {
     bot: Bot,
     group: Task[],
     language: Locale,
-  ): Promise<{ name: string; description: string; body: string; costUsd: number | null } | null> {
+  ): Promise<{ name: string; description: string; body: string } | null> {
     const engine = this.engineFor(bot);
     if (!engine.complete) return null;
     const t = translator(language);
@@ -440,12 +439,14 @@ export class SkillSuggestionService {
     }
     if (controller.signal.aborted) return null;
     const parsed = parseSkill(text);
+    await this.ctx.db
+      .insert(schema.skillSuggestionChecks)
+      .values({ id: newId(), botId: bot.id, costUsd, found: !!parsed, createdAt: this.clock() });
     if (!parsed) return null;
     return {
       name: parsed.name,
       description: clean(parsed.description),
       body: clean(parsed.body),
-      costUsd,
     };
   }
 

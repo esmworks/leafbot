@@ -1786,7 +1786,6 @@ export const skillSuggestions = pgTable(
       .notNull()
       .default('open'),
     skillId: text('skill_id').references(() => skills.id, { onDelete: 'set null' }),
-    costUsd: real('cost_usd'),
     createdAt: created(),
     decidedAt: ts('decided_at'),
   },
@@ -1794,6 +1793,41 @@ export const skillSuggestions = pgTable(
     index('skill_suggestions_user_status_idx').on(t.userId, t.status),
     uniqueIndex('skill_suggestions_fingerprint_uq').on(t.userId, t.botId, t.fingerprint),
   ],
+);
+
+/** One call the skill suggestions made to write a skill: what it cost and whether it wrote one. */
+export const skillSuggestionChecks = pgTable(
+  'skill_suggestion_checks',
+  {
+    id: text('id').primaryKey(),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    costUsd: real('cost_usd'),
+    found: boolean('found').notNull().default(false),
+    createdAt: created(),
+  },
+  (t) => [index('skill_suggestion_checks_created_idx').on(t.createdAt)],
+);
+
+/**
+ * One call the memory tidy-up made: reading a set of notes, or a note against its page. What it
+ * cost, and how many notes it changed.
+ */
+export const memoryTidyChecks = pgTable(
+  'memory_tidy_checks',
+  {
+    id: text('id').primaryKey(),
+    /** The bot whose model was asked. */
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    kind: text('kind', { enum: ['set', 'source'] }).notNull(),
+    costUsd: real('cost_usd'),
+    changed: integer('changed').notNull().default(0),
+    createdAt: created(),
+  },
+  (t) => [index('memory_tidy_checks_created_idx').on(t.createdAt)],
 );
 
 /** One look of the routine suggestions at a group of requests: what the small-model call cost. */

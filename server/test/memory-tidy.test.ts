@@ -1,4 +1,4 @@
-import type { Memory, MemoryTidyStatus } from '@leafbot/shared';
+import type { Memory, MemoryTidyStatus, UsageReport } from '@leafbot/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Settings } from '../src/services/settings';
 import { noteSets, parseTidy, parseVerdict, servedText, TIDY_ACTOR } from '../src/services/memory-tidy';
@@ -76,6 +76,10 @@ describe('haftalık hafıza düzenlemesi: tekrar eden ve çelişen notları topa
     ).toEqual(['delete', 'delete', 'update', 'update']);
     const status = (await t.api<MemoryTidyStatus>('GET', '/api/memory-tidy')).body;
     expect(status).toMatchObject({ running: false, last: { sets: 1, merged: 1, updated: 1, forgot: 1 } });
+    // What the call cost shows on the usage page, apart from the bots' turns.
+    const usage = (await t.api<UsageReport>('GET', '/api/usage?days=7')).body;
+    expect(usage.tidy).toEqual({ sets: 1, sources: 0, costUsd: 0.001, changed: 3 });
+    expect(usage.total.costUsd).toBe(0);
   });
 
   it('kişinin yazdığı ve sabitlediği notlara dokunmaz; gösterilmeyen ya da iki kez anılan nota da', async () => {
@@ -280,6 +284,8 @@ describe('haftalık hafıza düzenlemesi: tekrar eden ve çelişen notları topa
         checked: 1,
         updated: 1,
       });
+      const usage = (await t.api<UsageReport>('GET', '/api/usage?days=7')).body;
+      expect(usage.tidy).toMatchObject({ sources: 1, changed: 1 });
       // Read again only a month later.
       later(8);
       await tidyNow();

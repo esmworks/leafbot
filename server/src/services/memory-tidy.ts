@@ -5,7 +5,7 @@ import type { Ctx } from '../context';
 import { schema } from '../db';
 import type { Engine } from '../engine/types';
 import { translator, type T } from '../i18n';
-import { HttpError, truncate } from '../util';
+import { HttpError, newId, truncate } from '../util';
 import { pageText } from './routines';
 import { redactSecrets } from './secrets';
 import { fetchPublic, type PublicResponse } from './skill-link';
@@ -338,8 +338,9 @@ export class MemoryTidyService {
     const controller = new AbortController();
     this.current.add(controller);
     let answer: string;
+    let costUsd: number | null;
     try {
-      ({ text: answer } = await this.engineFor(bot).complete!({
+      ({ text: answer, costUsd } = await this.engineFor(bot).complete!({
         model: bot.model || (bot.engine === 'claude' ? defaultModel : '') || this.ctx.config.claudeModel,
         system: t('memoryTidy.sourceSystem', { today: this.clock().toISOString().slice(0, 10) }),
         user: `<note>${data(m.content)}</note>\n<page url="${data(url.href).replace(/"/g, '%22')}">${data(truncate(text, PAGE_CHARS))}</page>`,
@@ -350,7 +351,13 @@ export class MemoryTidyService {
       this.current.delete(controller);
     }
     if (controller.signal.aborted) return false;
-    const v = parseVerdict(answer);
+    const changed = await this.correct(m, parseVerdict(answer), t);
+    await this.spent(bot.id, 'source', costUsd, changed ? 1 : 0);
+    return changed;
+  }
+
+  /** Gives a note the new words the model read on its page, when they are fit to take. */
+  private async correct(m: Memory, v: ReturnType<typeof parseVerdict>, t: T): Promise<boolean> {
     if (v.verdict !== 'changed') return false;
     // The same fact in new words, about as long as the note: a page cannot grow a note into
     // something else through this.
@@ -364,6 +371,14 @@ export class MemoryTidyService {
       if (err instanceof HttpError && err.status === 409) return false;
       throw err;
     }
+  }
+
+  /** Keeps what one call cost, and how many notes it changed, for the usage page. */
+  private async spent(botId: string, kind: 'set' | 'source', costUsd: number | null, changed: number) {
+    await this.ctx.db
+      .insert(schema.memoryTidyChecks)
+      .values({ id: newId(), botId, kind, costUsd, changed, createdAt: this.clock() })
+      .catch((err: unknown) => console.warn(`Could not keep a memory tidy-up's cost: ${String(err)}`));
   }
 
   private async stamp(key: string, at: Date) {
@@ -421,8 +436,9 @@ export class MemoryTidyService {
     const controller = new AbortController();
     this.current.add(controller);
     let text: string;
+    let costUsd: number | null;
     try {
-      ({ text } = await engine.complete!({
+      ({ text, costUsd } = await engine.complete!({
         model: bot.model || (bot.engine === 'claude' ? defaultModel : '') || this.ctx.config.claudeModel,
         system: request.system,
         user: request.user,
@@ -434,7 +450,9 @@ export class MemoryTidyService {
     }
     if (controller.signal.aborted) return null;
     const shown = new Map(set.notes.filter((n) => request.shown.has(n.id)).map((n) => [n.id, n]));
-    return this.apply(parseTidy(text), shown, t);
+    const done = await this.apply(parseTidy(text), shown, t);
+    await this.spent(bot.id, 'set', costUsd, done.merged + done.updated + done.forgot);
+    return done;
   }
 
   /** The language the notes of a set are most likely read in: their person's, or the server's. */

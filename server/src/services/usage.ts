@@ -376,6 +376,8 @@ export class UsageService {
       promises: await this.promiseNet(since, new Set(keys), timezone, botId),
       suggestions: await this.suggestionNet(since, new Set(keys), timezone, botId),
       offers: await this.offerNet(since, new Set(keys), timezone, botId),
+      tidy: await this.tidyNet(since, new Set(keys), timezone, botId),
+      skillSuggestions: await this.skillNet(since, new Set(keys), timezone, botId),
     };
   }
 
@@ -502,6 +504,68 @@ export class UsageService {
         and(
           gte(schema.workOfferChecks.createdAt, since),
           botId ? eq(schema.workOfferChecks.botId, botId) : undefined,
+        ),
+      );
+    const sum = { checks: 0, costUsd: 0, found: 0 };
+    for (const r of rows) {
+      if (!days.has(dayKey(r.at, timezone))) continue;
+      sum.checks++;
+      sum.costUsd += r.costUsd ?? 0;
+      if (r.found) sum.found++;
+    }
+    return sum.checks ? sum : undefined;
+  }
+
+  /** The memory tidy-up over the period: the sets and pages it read, what that cost and the notes it changed. */
+  private async tidyNet(
+    since: Date,
+    days: Set<string>,
+    timezone: string,
+    botId?: string,
+  ): Promise<UsageReport['tidy']> {
+    const rows = await this.ctx.db
+      .select({
+        at: schema.memoryTidyChecks.createdAt,
+        kind: schema.memoryTidyChecks.kind,
+        costUsd: schema.memoryTidyChecks.costUsd,
+        changed: schema.memoryTidyChecks.changed,
+      })
+      .from(schema.memoryTidyChecks)
+      .where(
+        and(
+          gte(schema.memoryTidyChecks.createdAt, since),
+          botId ? eq(schema.memoryTidyChecks.botId, botId) : undefined,
+        ),
+      );
+    const sum = { sets: 0, sources: 0, costUsd: 0, changed: 0 };
+    for (const r of rows) {
+      if (!days.has(dayKey(r.at, timezone))) continue;
+      if (r.kind === 'set') sum.sets++;
+      else sum.sources++;
+      sum.costUsd += r.costUsd ?? 0;
+      sum.changed += r.changed;
+    }
+    return sum.sets || sum.sources ? sum : undefined;
+  }
+
+  /** The skill suggestions over the period: their calls to the small model, what they cost and the skills written. */
+  private async skillNet(
+    since: Date,
+    days: Set<string>,
+    timezone: string,
+    botId?: string,
+  ): Promise<UsageReport['skillSuggestions']> {
+    const rows = await this.ctx.db
+      .select({
+        at: schema.skillSuggestionChecks.createdAt,
+        costUsd: schema.skillSuggestionChecks.costUsd,
+        found: schema.skillSuggestionChecks.found,
+      })
+      .from(schema.skillSuggestionChecks)
+      .where(
+        and(
+          gte(schema.skillSuggestionChecks.createdAt, since),
+          botId ? eq(schema.skillSuggestionChecks.botId, botId) : undefined,
         ),
       );
     const sum = { checks: 0, costUsd: 0, found: 0 };

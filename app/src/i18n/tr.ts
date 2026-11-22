@@ -309,6 +309,11 @@ export const tr = {
     'Haftada bir, botlara son haftalarda birkaç adımda yaptırdığın işlere, botun attığı adımlarla ve senin sonradan düzelttiklerinle birlikte bakılır; aynı iş tekrar tekrar geliyorsa Bugün sayfası onu beceri olarak saklamayı önerir. Beceriyi botun kendi hesabından kısa bir istek yazar; sen eklemeden hiçbir şey değişmez.',
   'usage.suggestions': 'Rutin önerileri',
   'usage.suggestions.checks': '{count} istek rutine çevrildi; maliyeti {cost}; yapılan öneri: {found}',
+  'usage.tidy': 'Haftalık hafıza düzenlemesi',
+  'usage.tidy.checks':
+    '{sets} not kümesi ve {sources} kaynak sayfası okundu; maliyeti {cost}; değişen not: {changed}',
+  'usage.skillSuggestions': 'Beceri önerileri',
+  'usage.skillSuggestions.checks': '{count} iş beceriye çevrildi; maliyeti {cost}; yapılan öneri: {found}',
   'usage.offers': 'İş önerileri',
   'usage.offers.checks': '{count} sohbete bakıldı; maliyeti {cost}; yapılan öneri: {found}',
   'usage.parallel': 'Aynı anda çalışan',

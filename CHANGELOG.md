@@ -28,6 +28,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
   that worked and what the person wrote right after the answer. Today shows it with its name, description and
   instructions to edit; "Add skill" makes it and turns it on for the bot, "Not this" closes it for good. Only someone
   who may change the bot can add it.
+- The usage page shows what the weekly memory tidy-up and the skill suggestions spent on their calls over the period,
+  apart from the bots' turns as the other background checks are: the sets of notes and source pages read and the
+  notes changed, and the tasks written into skills and the suggestions made. A bot picked above narrows them to the
+  calls on its account.
 
 ### Changed
 

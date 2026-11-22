@@ -1591,6 +1591,22 @@ export const UsageReport = z.object({
     .optional(),
   /** The work offers' looks at conversations over the period, when there were any: looks, cost, offers made. */
   offers: z.object({ checks: z.number().int(), costUsd: z.number(), found: z.number().int() }).optional(),
+  /**
+   * The memory tidy-up's calls over the period, when it made any: sets of notes read, notes read
+   * against their page, what the calls cost and the notes they changed.
+   */
+  tidy: z
+    .object({
+      sets: z.number().int(),
+      sources: z.number().int(),
+      costUsd: z.number(),
+      changed: z.number().int(),
+    })
+    .optional(),
+  /** The skill suggestions' calls over the period, when there were any: calls, cost, skills written. */
+  skillSuggestions: z
+    .object({ checks: z.number().int(), costUsd: z.number(), found: z.number().int() })
+    .optional(),
 });
 export type UsageReport = z.infer<typeof UsageReport>;
 

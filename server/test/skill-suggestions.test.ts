@@ -1,4 +1,4 @@
-import type { Skill, SkillSuggestion } from '@leafbot/shared';
+import type { Skill, SkillSuggestion, UsageReport } from '@leafbot/shared';
 import { eq, sql } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
@@ -89,6 +89,9 @@ describe('beceri önerileri: tekrar tekrar yaptırılan çok adımlı işten bec
       canCreate: true,
     });
     expect(s!.days).toHaveLength(2);
+    // The call shows on the usage page, by the bot whose model wrote it.
+    const usage = (await t.api<UsageReport>('GET', `/api/usage?days=7&bot=${bot.id}`)).body;
+    expect(usage.skillSuggestions).toEqual({ checks: 1, costUsd: 0.001, found: 1 });
 
     const added = await t.api<Skill>('POST', `/api/skill-suggestions/${s!.id}/accept`, {
       body: 'Raporu bölgeye göre ayır.',

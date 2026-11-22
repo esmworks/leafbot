@@ -72,6 +72,8 @@ export function UsageSection() {
       <MonthLimit month={data?.month} />
       <RoutineGate gate={data?.gate} />
       <PromiseNet net={data?.promises} />
+      <TidyNet net={data?.tidy} />
+      <SkillNet net={data?.skillSuggestions} />
       <Parallel parallel={data?.parallel} />
       <Storage />
       <PillButton
@@ -388,6 +390,43 @@ function PromiseNet({ net }: { net?: UsageReport['promises'] }) {
           </Hint>
         </Pad>
       ) : null}
+    </Section>
+  );
+}
+
+/** The memory tidy-up's calls over the period, as on the web. */
+function TidyNet({ net }: { net?: UsageReport['tidy'] }) {
+  if (!net) return null;
+  return (
+    <Section title={t('usage.tidy')}>
+      <Pad>
+        <Hint>
+          {t('usage.tidy.checks', {
+            sets: net.sets,
+            sources: net.sources,
+            cost: usd(net.costUsd),
+            changed: net.changed,
+          })}
+        </Hint>
+      </Pad>
+    </Section>
+  );
+}
+
+/** The skill suggestions' calls over the period, as on the web. */
+function SkillNet({ net }: { net?: UsageReport['skillSuggestions'] }) {
+  if (!net) return null;
+  return (
+    <Section title={t('usage.skillSuggestions')}>
+      <Pad>
+        <Hint>
+          {t('usage.skillSuggestions.checks', {
+            count: net.checks,
+            cost: usd(net.costUsd),
+            found: net.found,
+          })}
+        </Hint>
+      </Pad>
     </Section>
   );
 }

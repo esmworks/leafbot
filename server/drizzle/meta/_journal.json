@@ -614,15 +614,8 @@
     {
       "idx": 87,
       "version": "7",
-      "when": 1795330785457,
-      "tag": "0087_skill_suggestions",
-      "breakpoints": true
-    },
-    {
-      "idx": 88,
-      "version": "7",
-      "when": 1795331376810,
-      "tag": "0088_memory_source_checks",
+      "when": 1795332384742,
+      "tag": "0087_suggestions_and_tidy_costs",
       "breakpoints": true
     }
   ]

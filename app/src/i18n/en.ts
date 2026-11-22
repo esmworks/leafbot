@@ -322,6 +322,14 @@ export const en: Catalog<MessageKey> = {
     one: '1 request written into a routine; it cost {cost}; suggestions made: {found}',
     other: '{count} requests written into routines; they cost {cost}; suggestions made: {found}',
   },
+  'usage.tidy': 'Weekly memory tidy-up',
+  'usage.tidy.checks':
+    '{sets} sets of notes and {sources} source pages read; it cost {cost}; notes changed: {changed}',
+  'usage.skillSuggestions': 'Skill suggestions',
+  'usage.skillSuggestions.checks': {
+    one: '1 task written into a skill; it cost {cost}; suggestions made: {found}',
+    other: '{count} tasks written into skills; they cost {cost}; suggestions made: {found}',
+  },
   'usage.offers': 'Work offers',
   'usage.offers.checks': {
     one: '1 look at a conversation; it cost {cost}; offers made: {found}',
