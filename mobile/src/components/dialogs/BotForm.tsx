@@ -1,4 +1,5 @@
 import {
+  CHECK_IN_STEPS,
   EFFORTS,
   PERMISSION_MODES,
   shownMode,
@@ -62,6 +63,7 @@ interface Form {
   toolsAllow: string;
   toolsExclude: string;
   internet: boolean;
+  checkInHours: number;
   projectDir: string;
   engine: 'claude' | 'pi';
   /** The model for Claude; `provider/model` for the other engine. */
@@ -86,6 +88,7 @@ function initial(bot: Bot | undefined, start: { engine: 'claude' | 'pi'; model: 
     toolsAllow: bot?.toolSelection.allow.join('\n') ?? '',
     toolsExclude: bot?.toolSelection.exclude.join('\n') ?? '',
     internet: bot?.internet ?? true,
+    checkInHours: bot?.checkInHours ?? 0,
     projectDir: bot?.projectDir ?? '',
     engine: bot?.engine ?? start.engine,
     model: bot?.model ?? start.model,
@@ -194,6 +197,8 @@ function BotFormPage({ bot }: { bot?: Bot }) {
           exclude: selectorLines(v.toolsExclude),
         },
         internet: v.internet,
+        // A server older than check-ins takes none.
+        ...(bot?.checkInHours !== undefined || !bot ? { checkInHours: v.checkInHours } : {}),
         projectDir: v.projectDir.trim() || null,
         engine: v.engine,
         model: v.model.trim(),
@@ -461,6 +466,15 @@ function BotFormPage({ bot }: { bot?: Bot }) {
               detail={t('bot.internetHint')}
               value={v.internet}
               onChange={(on) => set('internet', on)}
+            />
+            <ChoiceRow
+              label={t('bot.checkIn')}
+              value={String(v.checkInHours)}
+              options={CHECK_IN_STEPS.map((h) => ({
+                value: String(h),
+                label: h ? t('bot.checkInEvery', { count: h }) : t('bot.checkInOff'),
+              }))}
+              onChange={(h) => set('checkInHours', Number(h))}
             />
             <SwitchRow
               label={t('bot.manager')}

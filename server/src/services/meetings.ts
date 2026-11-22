@@ -13,7 +13,7 @@ import {
   type MeetingTask,
   type Message,
   type RoomMinutes,
-  RoutineCreate,
+  zonedTime,
 } from '@leafbot/shared';
 import { and, asc, desc, eq, gte, inArray, isNotNull, isNull, lt, lte, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -753,10 +753,11 @@ export class MeetingService {
   }
 
   /**
-   * Reminders for the tasks the person picked: a routine that runs once on the task's day, in the
-   * bot's main conversation, as the person. The bot that took the task on looks at where it stands;
-   * a person's task, or one of a bot the person may not change, is brought up by the first bot of
-   * the room the person may change. A task with no day, or a day already past, gets none.
+   * Reminders for the tasks the person picked: a follow-up on the task's day, in the bot's main
+   * conversation with the person. The bot that took the task on looks at where it stands; a
+   * person's task is brought up by the first bot of the room. A follow-up changes nothing about the
+   * bot, so any member the person may talk with keeps one. A task with no day, or a day already
+   * past, gets none.
    */
   private async remind(
     roomId: string,
@@ -771,15 +772,15 @@ export class MeetingService {
     });
     if (!picked.length) return [];
     const { members } = await this.bots(roomId);
-    const editable: Bot[] = [];
+    const usable: Bot[] = [];
     for (const b of members) {
-      if (atLeast(await this.services.access.level(viewer, b.id), 'edit')) editable.push(b);
+      if (atLeast(await this.services.access.level(viewer, b.id), 'chat')) usable.push(b);
     }
     const pruned = new Set<string>();
     const made: MeetingReminder[] = [];
     for (const task of picked) {
-      const own = editable.find((b) => b.id === task.botId);
-      const bot = own ?? editable[0];
+      const own = usable.find((b) => b.id === task.botId);
+      const bot = own ?? usable[0];
       if (!bot) break;
       const prompt = own
         ? o.t('meeting.reminderOwn', { title: minutes.title, day: o.day, room: o.room, task: task.text })
@@ -795,29 +796,31 @@ export class MeetingService {
           pruned.add(bot.id);
           await this.pruneReminders(bot.id);
         }
-        const routine = await this.services.routines.create(
-          {
-            ...RoutineCreate.parse({
-              botId: bot.id,
-              name: truncate(o.t('meeting.reminderName', { task: task.text }), 80),
-              prompt: redactSecrets(prompt, o.t('memory.redacted')).text,
-              schedule: { type: 'once', date: task.due, time: body.remindAt },
-              timezone: o.timezone,
-            }),
-            // In the conversation where the person talks with the bot, so they see it there.
-            inMain: true,
-          },
-          viewer.userId,
-        );
+        const dueAt = zonedTime(task.due!, body.remindAt, o.timezone);
+        // A day already gone gets none.
+        if (dueAt.getTime() <= this.clock().getTime()) continue;
+        // A follow-up in the conversation where the person talks with the bot, so they see it
+        // there; the bot keeping track, not a routine in its list.
+        const followUp = await this.services.followUps.add({
+          bot,
+          userId: viewer.userId,
+          threadId: roomId,
+          text: prompt,
+          context: o.t('meeting.reminderName', { task: task.text }),
+          eventAt: dueAt,
+          dueAt,
+          kind: 'meeting',
+          t: o.t,
+        });
         made.push({
-          routineId: routine.id,
+          followUpId: followUp.id,
           botId: bot.id,
           task: task.text,
           date: task.due!,
           time: body.remindAt,
         });
       } catch (err) {
-        // A day already past, or a bot with no room for another routine: that task gets none.
+        // A bot that keeps as many follow-ups as it may: that task gets none.
         console.warn(`Meeting reminder for bot ${bot.id} not set: ${(err as Error).message}`);
       }
     }
@@ -833,7 +836,7 @@ export class MeetingService {
     const ids = rows.flatMap((r) =>
       ((r.reminders as MeetingReminder[] | null) ?? [])
         .filter((x) => x.botId === botId)
-        .map((x) => x.routineId),
+        .flatMap((x) => (x.routineId ? [x.routineId] : [])),
     );
     if (!ids.length) return;
     const spent = await this.ctx.db

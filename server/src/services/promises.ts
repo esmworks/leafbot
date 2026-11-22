@@ -1,11 +1,10 @@
-import { RoutineCreate, wallClock, zonedTime, type Bot, type Pledge } from '@leafbot/shared';
+import { wallClock, zonedTime, type Bot, type Pledge } from '@leafbot/shared';
 import { and, asc, desc, eq } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import { isSilentReply, type Engine, type TurnOutcome } from '../engine/types';
 import { translator, type T } from '../i18n';
 import { newId, notFound, truncate } from '../util';
-import { atLeast } from './access';
 import { looksLikePromise } from './promise-phrases';
 import { redactSecrets } from './secrets';
 import type { Services } from '.';
@@ -114,7 +113,7 @@ function toPledge(row: PromiseRow, now: Date): Pledge {
     dueAt: row.dueAt?.toISOString() ?? null,
     dueHasTime: row.dueHasTime,
     condition: row.condition,
-    scheduled: !!row.routineId,
+    scheduled: !!row.routineId || !!row.followUpId,
     status: row.status,
     overdue: row.status === 'open' && !!row.dueAt && row.dueAt.getTime() < now.getTime(),
     createdAt: row.createdAt.toISOString(),
@@ -229,7 +228,6 @@ export class PromiseService {
       .values({ id: newId(), botId: bot.id, costUsd, found: !!found, createdAt: this.clock() });
     if (!found) return;
     const t = translator(settings.language ?? (await this.services.settings.locale()));
-    const level = await this.services.access.level(await this.services.access.viewerOf(person), bot.id);
     const row = await this.keep({
       person,
       bot,
@@ -239,8 +237,6 @@ export class PromiseService {
       toWhom: '',
       at: found.when,
       condition: found.condition,
-      // A routine acts with what the person may change on the bot, as a meeting reminder does.
-      schedule: atLeast(level, 'edit'),
       timezone: settings.timezone,
       t,
     });
@@ -260,9 +256,10 @@ export class PromiseService {
   }
 
   /**
-   * Records a promise and, when it has a time and the person may let the bot work on it, sets the
-   * one-time routine that keeps it. A routine that cannot be set (the bot has no room for another)
-   * leaves the promise listed without one.
+   * Records a promise and, when it has a time, sets the follow-up that brings it up then. A
+   * follow-up is the bot keeping track, not a routine: it needs no leave to change the bot and shows
+   * in no list of routines. One that cannot be set (the bot keeps as many as it may) leaves the
+   * promise listed without one.
    */
   async keep(o: {
     person: string;
@@ -274,7 +271,6 @@ export class PromiseService {
     /** When it is kept; a day with a time for a bot's promise, the reminder moment for a person's. */
     at: { date: string; time: string } | null;
     condition: string;
-    schedule: boolean;
     timezone: string;
     t: T;
     /** For the person's own promise: the day it is due, when no time of day is meant. */
@@ -290,38 +286,28 @@ export class PromiseService {
         ? zonedTime(o.at.date, o.at.time, o.timezone)
         : null;
     await this.sweep(o.person);
-    let routineId: string | null = null;
-    if (o.schedule && o.at) {
+    let followUpId: string | null = null;
+    if (o.at) {
       try {
-        const routine = await this.services.routines.create(
-          {
-            ...RoutineCreate.parse({
-              botId: o.bot.id,
-              name: truncate(
-                o.t(o.madeBy === 'bot' ? 'promise.routineName' : 'promise.reminderName', { what }),
-                80,
-              ),
-              prompt: redactSecrets(
-                o.madeBy === 'bot'
-                  ? o.t('promise.routinePrompt', { what, condition: condition || '-' })
-                  : o.t('promise.reminderPrompt', {
-                      what,
-                      to: toWhom || o.t('promise.someone'),
-                      day: o.day ?? o.at.date,
-                    }),
-                o.t('memory.redacted'),
-              ).text,
-              schedule: { type: 'once', date: o.at.date, time: o.at.time },
-              timezone: o.timezone,
-            }),
-            // In the conversation where the person talks with the bot, so they see it there.
-            inMain: true,
-          },
-          o.person,
-        );
-        routineId = routine.id;
+        const followUp = await this.services.followUps.add({
+          bot: o.bot,
+          userId: o.person,
+          threadId: o.threadId,
+          text:
+            o.madeBy === 'bot'
+              ? o.t('promise.routinePrompt', { what, condition: condition || '-' })
+              : o.t('promise.reminderPrompt', {
+                  what,
+                  to: toWhom || o.t('promise.someone'),
+                  day: o.day ?? o.at.date,
+                }),
+          dueAt: zonedTime(o.at.date, o.at.time, o.timezone),
+          kind: 'promise',
+          t: o.t,
+        });
+        followUpId = followUp.id;
       } catch (err) {
-        console.warn(`Promise routine for bot ${o.bot.id} not set: ${(err as Error).message}`);
+        console.warn(`Promise follow-up for bot ${o.bot.id} not set: ${(err as Error).message}`);
       }
     }
     const [row] = await this.ctx.db
@@ -337,7 +323,7 @@ export class PromiseService {
         dueAt,
         dueHasTime: !o.day && !!o.at,
         condition,
-        routineId,
+        followUpId,
       })
       .returning();
     this.ctx.bus.refresh({ scope: 'promises' });
@@ -356,7 +342,6 @@ export class PromiseService {
     what: string;
     toWhom: string;
     day: string | null;
-    schedule: boolean;
     t: T;
   }): Promise<PromiseRow> {
     const settings = await this.services.settings.all(o.person);
@@ -384,7 +369,6 @@ export class PromiseService {
       toWhom: o.toWhom,
       at,
       condition: '',
-      schedule: o.schedule,
       timezone: settings.timezone,
       t: o.t,
       day: o.day,
@@ -401,6 +385,25 @@ export class PromiseService {
       .from(schema.promises)
       .innerJoin(schema.routines, eq(schema.routines.id, schema.promises.routineId))
       .where(and(eq(schema.promises.userId, userId), eq(schema.promises.status, 'open')));
+    // A follow-up that came up: a bot's promise is kept (the bot brought it up then), and a
+    // person's stays open until they close it, with its reminder gone.
+    const followed = await this.ctx.db
+      .select({ promise: schema.promises, status: schema.followUps.status })
+      .from(schema.promises)
+      .innerJoin(schema.followUps, eq(schema.followUps.id, schema.promises.followUpId))
+      .where(and(eq(schema.promises.userId, userId), eq(schema.promises.status, 'open')));
+    for (const { promise, status } of followed) {
+      if (status !== 'fired') continue;
+      await this.ctx.db
+        .update(schema.promises)
+        .set(
+          promise.madeBy === 'bot'
+            ? { status: 'done', closedAt: this.clock(), followUpId: null }
+            : { followUpId: null },
+        )
+        .where(eq(schema.promises.id, promise.id));
+    }
+    // Promises from before follow-ups were kept by one-time routines.
     for (const { promise, routine } of rows) {
       if (routine.enabled || !routine.lastRunAt) continue;
       await this.services.routines.remove(routine.id).catch(() => {});
@@ -441,14 +444,15 @@ export class PromiseService {
     return row;
   }
 
-  /** Marks a promise kept or drops it; a routine still waiting for it is removed. */
+  /** Marks a promise kept or drops it; a follow-up (or an older routine) still waiting for it goes. */
   async close(id: string, userId: string, status: 'done' | 'dropped'): Promise<Pledge> {
     const row = await this.owned(id, userId);
     if (row.status !== 'open') return toPledge(row, this.clock());
     if (row.routineId) await this.services.routines.remove(row.routineId).catch(() => {});
+    if (row.followUpId) await this.services.followUps.drop(row.followUpId, userId).catch(() => {});
     const [closed] = await this.ctx.db
       .update(schema.promises)
-      .set({ status, closedAt: this.clock(), routineId: null })
+      .set({ status, closedAt: this.clock(), routineId: null, followUpId: null })
       .where(eq(schema.promises.id, id))
       .returning();
     this.ctx.bus.refresh({ scope: 'promises' });

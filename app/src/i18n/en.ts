@@ -149,9 +149,10 @@ export const en: Catalog<MessageKey> = {
   'meeting.remindOn': '{bot} reminds on the day',
   'meeting.remindOff': 'No reminder',
   'meeting.remindPast': 'The day has passed; no reminder is set',
-  'meeting.remindNoBot': 'No bot in the room you may change; no reminder can be set',
+  'meeting.remindNoBot': 'No bot in the room you may talk with; no reminder can be set',
   'meeting.reminders': 'Reminders',
-  'meeting.remindersHint': 'Each is a one-time routine among the bot’s routines; change or delete it there.',
+  'meeting.remindersHint':
+    'Each is a reminder the bot keeps track of, not a routine; it shows on the Today page, where you can remove it.',
   'meeting.reminderCount': '{count} reminders set',
   'meeting.recipients': 'Which bots should know?',
   'meeting.recipientsHint':
@@ -276,11 +277,17 @@ export const en: Catalog<MessageKey> = {
   'usage.promises': 'Promise safety net',
   'usage.promises.on': 'Promises a bot makes are kept',
   'usage.promises.hint':
-    "After a reply that sounds like a promise to do something later, with no routine set, one short request on the bot's own account checks it. A promise with a time gets a one-time routine, shown under the reply with a way to cancel it.",
+    "After a reply that sounds like a promise to do something later, with no routine set, one short request on the bot's own account checks it. A promise with a time gets a follow-up the bot keeps (not a routine), shown under the reply with a way to cancel it.",
   'usage.promises.checks': {
     one: '1 reply checked; the check cost {cost}; promises found: {found}',
     other: '{count} replies checked; the checks cost {cost}; promises found: {found}',
   },
+  'followUp.title': 'Being kept track of',
+  'followUp.when': '{bot} brings it up {when}',
+  'followUp.event': 'happens {when}',
+  'followUp.drop': 'Stop keeping track',
+  'followUp.all': 'Show all ({count})',
+  'followUp.fewer': 'Show fewer',
   'routineSuggest.title': 'Routines you might want',
   'routineSuggest.line': {
     one: 'You asked {bot} for this once, on {days} day.',
@@ -471,7 +478,7 @@ export const en: Catalog<MessageKey> = {
   'promise.due': 'due',
   'promise.overdue': 'overdue since',
   'promise.waitingFor': 'waiting for: {condition}',
-  'promise.scheduled': 'a routine is set',
+  'promise.scheduled': 'a reminder is set',
   'promise.remindAt': 'Remind me of my own promises at',
   'today.expiredMemory': {
     one: '{count} memory note has expired',
@@ -1636,6 +1643,14 @@ export const en: Catalog<MessageKey> = {
   'bot.projectDirPlaceholder': '/Users/…/project',
   'bot.projectDirHint': 'The bot works in this folder; if empty, it uses its own.',
   'bot.internet': 'Internet access',
+  'bot.checkIn': 'Check in by itself',
+  'bot.checkInHint':
+    'After this long without talking, the bot looks at your mail, calendar and what it keeps track of; if something important is coming up in the next days it writes, otherwise it writes nothing. Only in the day (08:00–21:00) and as far as its connected apps allow. Each look is a turn and counts toward the spending limits.',
+  'bot.checkInOff': 'Off',
+  'bot.checkInEvery': {
+    one: 'After {count} hour of quiet',
+    other: 'After {count} hours of quiet',
+  },
   'bot.internetHint':
     'When on, the bot searches the web, reads pages, and uses its own browser and computer. When off, it can do none of these.',
   'bot.manager': 'Manager bot',

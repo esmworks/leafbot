@@ -45,6 +45,7 @@ export const toBot = (r: Row<typeof schema.bots>): Bot => ({
   internet: r.internet,
   projectDir: r.projectDir,
   memory: r.memory,
+  checkInHours: r.checkInHours,
   effort: r.effort,
   toolSelection: (r.toolSelection as ToolSelection | null) ?? ALL_TOOLS,
   instructionsUrl: r.instructionsUrl,

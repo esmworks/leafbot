@@ -50,6 +50,7 @@ import { emailTools } from './email';
 import { pickGroup, whatsappRoots, whatsappTools } from './whatsapp';
 import { tableTools } from './tables';
 import { ticketTools } from './tickets';
+import { FollowUpsFull, MAX_OPEN_FOLLOW_UPS } from '../services/follow-ups';
 import { placeOf, ROOM_NOTES_PER_PLACE, sourceOf } from '../services/memory';
 import { redactSecrets } from '../services/secrets';
 import { siteOf } from '../services/vault';
@@ -107,6 +108,16 @@ export function noteUntil(text: string, timezone: string): string | null | undef
 }
 
 /**
+ * The moment a bot gives for a follow-up, in the person's time zone: a day alone means `dayTime` on
+ * it. Null for none, undefined for something that is not one.
+ */
+export function followUpTime(text: string, timezone: string, dayTime: string): string | null | undefined {
+  const given = text.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(given)) return noteUntil(`${given} ${dayTime}`, timezone);
+  return noteUntil(given, timezone);
+}
+
+/**
  * The page a bot says a fact came from, as a web address the person can open; null for none and
  * undefined for something that is not one. Whatever could sign someone in is taken out first: the
  * address is kept and shown, while what it held would leak with it.
@@ -144,6 +155,10 @@ const TEAM_OFF = new Set<string>([
   'routine_delete',
   // The person's own promises to others: a team or a chat app's stranger has none to keep here.
   'promise_track',
+  // A follow-up comes up in a person's own conversation: a team conversation has no one to tell.
+  'followup_add',
+  'followup_list',
+  'followup_drop',
   'my_activity',
   'conversations_search',
   'message_read',
@@ -164,6 +179,9 @@ const GUEST_OFF = new Set<string>([
   'skill_save',
   'browser_card',
   'promise_track',
+  'followup_add',
+  'followup_list',
+  'followup_drop',
   // Signing in with the vault's password, its two-step code or a code mailed to the bot runs
   // without a card: someone with no account here would get into the person's accounts by asking.
   'browser_login',
@@ -286,6 +304,9 @@ export type ToolName =
   | 'routine_update'
   | 'routine_delete'
   | 'promise_track'
+  | 'followup_add'
+  | 'followup_list'
+  | 'followup_drop'
   | 'routine_failed'
   | 'routine_set'
   | 'routine_stop'
@@ -892,16 +913,83 @@ export class ToolFactory {
             what,
             toWhom: to,
             day,
-            schedule: await mayChange(),
             t,
           });
-          return t(row.routineId ? 'tool.promiseTrackedRemind' : 'tool.promiseTracked', {
+          return t(row.followUpId ? 'tool.promiseTrackedRemind' : 'tool.promiseTracked', {
             what: row.text,
             day: day ?? '-',
           });
         },
-        // The person sees and closes every promise on their Today page, and a reminder is a routine
-        // they can cancel there, so the bot notes it without a card.
+        // The person sees and closes every promise on their Today page, and its reminder is a
+        // follow-up, not a routine, so the bot notes it without a card.
+        'internal',
+      ),
+      def(
+        'followup_add',
+        {
+          what: z.string().trim().min(1).max(500),
+          when: z.string().trim().min(1).max(40),
+          event: z.string().trim().max(40).optional(),
+          from: z.string().trim().max(500).optional(),
+        },
+        async ({ what, when, event, from }) => {
+          const settings = await s.settings.all(person);
+          const dueAt = followUpTime(when, settings.timezone, settings.promiseRemindAt);
+          if (!dueAt) return t('tool.followUpBadTime', { when });
+          if (new Date(dueAt).getTime() <= s.followUps.now().getTime()) return t('tool.followUpPast');
+          const eventAt = event ? followUpTime(event, settings.timezone, '09:00') : null;
+          if (eventAt === undefined) return t('tool.followUpBadTime', { when: event! });
+          // The turn dealt with a promise itself: the safety net has nothing to add to its reply.
+          s.promises.routineTouched(turn.id);
+          try {
+            const f = await s.followUps.add({
+              bot,
+              userId: person,
+              threadId: thread.id,
+              text: what,
+              context: from,
+              eventAt: eventAt ? new Date(eventAt) : null,
+              dueAt: new Date(dueAt),
+              outside: reads(),
+              t,
+            });
+            return t('tool.followUpAdded', { id: f.id, when });
+          } catch (err) {
+            if (err instanceof FollowUpsFull) return t('tool.followUpsFull', { max: MAX_OPEN_FOLLOW_UPS });
+            throw err;
+          }
+        },
+        // The bot keeping track for itself: nobody is asked, and it is no routine. When it comes up the
+        // turn works for nobody who asked just now, and one set from outside text keeps that mark, so
+        // anything that would change something still waits for a card.
+        'internal',
+      ),
+      def(
+        'followup_list',
+        {},
+        async () => {
+          const list = await s.followUps.list(person, bot.id);
+          if (!list.length) return t('tool.followUpsNone');
+          return list
+            .map(
+              (f) =>
+                `- [${f.id}] ${f.dueAt}${f.eventAt ? ` (${t('tool.followUpEvent', { at: f.eventAt })})` : ''}: ${f.text}${f.context ? ` — ${f.context}` : ''}`,
+            )
+            .join('\n');
+        },
+        'read',
+      ),
+      def(
+        'followup_drop',
+        { id: z.string().min(1).max(100) },
+        async ({ id }) => {
+          try {
+            await s.followUps.drop(id, person, bot.id);
+          } catch {
+            return t('tool.followUpNotFound');
+          }
+          return t('tool.followUpDropped');
+        },
         'internal',
       ),
       def(
@@ -1972,6 +2060,7 @@ export class ToolFactory {
               internet: false,
               projectDir: null,
               memory: true,
+              checkInHours: 0,
               effort: '',
               toolSelection: ALL_TOOLS,
               instructionsUrl: null,

@@ -11,6 +11,7 @@ import { useUi } from '@/lib/store';
 import { PromisesSection } from './Promises';
 import { RoutineSuggestionsSection } from './RoutineSuggestions';
 import { SkillSuggestionsSection } from './SkillSuggestions';
+import { FollowUpsSection } from './FollowUps';
 import { SecondYesSection } from './SecondYes';
 import { cn } from '@/lib/utils';
 
@@ -96,6 +97,8 @@ export function TodayDialog() {
             <SecondYesSection enabled={open} />
             {/* What bots said they would do and what the person promised others, overdue first. */}
             <PromisesSection enabled={open} onOpen={(p) => go(p.botId, p.threadId)} />
+            {/* What the bots keep track of for the person and will bring up: not routines. */}
+            <FollowUpsSection enabled={open} />
             {/* What the person keeps asking a bot for by hand, offered as a routine. */}
             <RoutineSuggestionsSection enabled={open} />
             {/* A many-step task the person keeps asking a bot for, offered as a skill. */}

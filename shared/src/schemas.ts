@@ -79,6 +79,9 @@ export const BotAccess = z.object({
 });
 export type BotAccess = z.infer<typeof BotAccess>;
 
+/** The hours of quiet a bot can be set to check in after; 0 is off. */
+export const CHECK_IN_STEPS = [0, 3, 6, 12, 24] as const;
+
 export const Bot = z.object({
   id: Id,
   name: z.string(),
@@ -100,6 +103,8 @@ export const Bot = z.object({
   projectDir: z.string().nullable(),
   /** Whether the bot reads and keeps memory; off, it sees none and gets no memory tools. */
   memory: z.boolean(),
+  /** Hours of quiet after which the bot checks in by itself; 0 is off. Missing on older servers. */
+  checkInHours: z.number().int().optional(),
   /** Effort for this Claude bot; empty uses the setting for all bots. */
   effort: z.string(),
   /** Which tools the bot gets (see `ToolSelection`). */
@@ -228,6 +233,11 @@ export const BotCreate = z.object({
   internet: z.boolean().default(true),
   projectDir: z.string().max(1000).nullable().default(null),
   memory: z.boolean().default(true),
+  checkInHours: z
+    .number()
+    .int()
+    .refine((n) => (CHECK_IN_STEPS as readonly number[]).includes(n))
+    .default(0),
   effort: z.union([z.enum(['low', 'medium', 'high', 'xhigh', 'max']), z.literal('')]).default(''),
   /** Which tools the bot gets; by default every tool its settings allow. */
   toolSelection: ToolSelection.default(ALL_TOOLS),
@@ -476,7 +486,9 @@ export type MeetingRecipient = z.infer<typeof MeetingRecipient>;
  * person's task is brought up by a bot of the room.
  */
 export const MeetingReminder = z.object({
-  routineId: Id,
+  /** The follow-up that brings the task up; a meeting saved before follow-ups has a routine instead. */
+  followUpId: Id.optional(),
+  routineId: Id.optional(),
   botId: Id,
   task: z.string(),
   /** The local day and time it runs, as `YYYY-MM-DD` and `HH:MM`. */
@@ -1709,6 +1721,23 @@ export const Pledge = z.object({
   createdAt: z.string(),
 });
 export type Pledge = z.infer<typeof Pledge>;
+
+/** A reminder a bot keeps for itself, as `GET /api/follow-ups` lists it. */
+export const FollowUp = z.object({
+  id: Id,
+  botId: Id,
+  /** What the bot brings up, and what it came from (a mail's sender and subject, say). */
+  text: z.string(),
+  context: z.string(),
+  /** When the thing itself happens, when there is such a moment; null when none. */
+  eventAt: z.string().nullable(),
+  /** When the bot brings it up. */
+  dueAt: z.string(),
+  /** What set it: the bot keeping track, a person's promise, a meeting's task. */
+  kind: z.enum(['bot', 'promise', 'meeting']),
+  createdAt: z.string(),
+});
+export type FollowUp = z.infer<typeof FollowUp>;
 
 /** What a turn changed that can be put back, by the kind of thing it was. */
 export const TURN_CHANGE_KINDS = [

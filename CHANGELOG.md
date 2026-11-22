@@ -33,8 +33,27 @@ version is 0.x, a minor release may change the data format or the API; the serve
   notes changed, and the tasks written into skills and the suggestions made. A bot picked above narrows them to the
   calls on its account.
 
+- Follow-ups: reminders a bot keeps for itself, apart from the routines. A routine is the person's standing job, shown
+  in the bot's list and set up by them or on their yes; a follow-up is the bot keeping track ("on Sunday morning,
+  bring up Monday's visit"). Bots set one without asking, from the conversation or from what they read: a visit, a
+  meeting, a deadline or a delivery in a mail, with when it happens and where it came from. When it falls due the
+  bot gets a turn in its conversation with the person, reads the related mail again, looks whether the calendar has
+  it, and tells them with the context, offering to add it or to prepare; it sends, adds or changes nothing without a
+  card, and one set from a mail carries that mark into its turn, so a planted mail can at most have the bot bring
+  something up. Same follow-up set again for the same day replaces the old one; a bot keeps at most 300 for a person;
+  one missed by more than a day while the server was off is dropped. Today lists what is being kept track of, each
+  with a way to remove it.
+- Check-ins (bot settings, off by default): after 3, 6, 12 or 24 hours of quiet in a person's conversation, in the
+  day of their time zone, the bot looks at their mail, calendar and follow-ups for something important in the next
+  two days that it has not said yet, and writes it with its context, or writes nothing at all. Each look is a turn
+  and counts toward the spending limits.
+
 ### Changed
 
+- The reminders of a person's promises, of a bot's own promises and of the tasks in approved meeting minutes are
+  follow-ups instead of one-time routines, so they no longer fill the bot's list of routines, and a person who may
+  only talk with the bot gets them too. Bots are told to set a follow-up, not a routine, for something to bring up
+  later. Reminders set before keep running as the routines they are.
 - Bots save to memory without asking. A note a bot writes in the conversation of someone who may only talk with it,
   and the meeting note such a person sends it, are kept at once instead of waiting for the bot's owner, who was asked
   to judge facts from conversations they were not in. They show in the memory screen and its history like any other

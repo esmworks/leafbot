@@ -15,6 +15,7 @@ import { formatters } from '@/lib/format';
 import { nav } from '@/lib/nav';
 import {
   useBots,
+  useFollowUps,
   usePeople,
   usePromises,
   useRoutineSuggestions,
@@ -477,6 +478,64 @@ function SkillCard({ s }: { s: SkillSuggestion }) {
         ) : null}
       </View>
     </View>
+  );
+}
+
+/** What the bots keep track of for the person, as on the web; a person's promise shows with the promises. */
+export function FollowUpsSection() {
+  const c = useColors();
+  const api = useApi();
+  const { data = [] } = useFollowUps();
+  const { data: bots = [] } = useBots();
+  const [all, setAll] = useState(false);
+  const refresh = useRefresher('follow-ups');
+  const drop = useMutation({
+    mutationFn: (id: string) => api.dropFollowUp(id),
+    onSuccess: refresh,
+    onError: (e) => {
+      toastError(e);
+      refresh();
+    },
+  });
+  const list = data.filter((x) => x.kind !== 'promise');
+  if (!list.length) return null;
+  const shown = all ? list : list.slice(0, 5);
+  return (
+    <Group title={t('followUp.title')}>
+      {shown.map((x) => {
+        const bot = bots.find((b) => b.id === x.botId);
+        return (
+          <View key={x.id} style={styles.card}>
+            <View style={styles.head}>
+              {bot ? <Avatar name={bot.name} color={bot.color} avatar={bot.avatar} size={24} /> : null}
+              <Text style={[styles.grow, { color: c.foreground }]}>{x.text}</Text>
+            </View>
+            <Text style={[styles.small, { color: c.mutedForeground }]}>
+              {t('followUp.when', { bot: bot?.name ?? t('common.bot'), when: fmt.dayLabel(x.dueAt) })}
+              {x.eventAt ? ` · ${t('followUp.event', { when: fmt.dayLabel(x.eventAt) })}` : ''}
+              {x.context ? ` · ${x.context}` : ''}
+            </Text>
+            <View style={styles.actions}>
+              <PillButton
+                label={t('followUp.drop')}
+                variant="ghost"
+                disabled={drop.isPending}
+                onPress={() => drop.mutate(x.id)}
+              />
+            </View>
+          </View>
+        );
+      })}
+      {list.length > 5 ? (
+        <View style={styles.card}>
+          <PillButton
+            label={all ? t('followUp.fewer') : t('followUp.all', { count: list.length })}
+            variant="ghost"
+            onPress={() => setAll(!all)}
+          />
+        </View>
+      ) : null}
+    </Group>
   );
 }
 

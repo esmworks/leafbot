@@ -55,7 +55,11 @@ The interface is available in English and Turkish.
   look through their past conversations. Once a week each set of notes that changed is tidied: notes that repeat are
   merged and, of two that disagree, the newer one or the one the person wrote stays; a note taken from a page is read
   against the page again and corrected when it changed. A kind of many-step task asked for again and again is offered
-  on Today as a skill, written from the steps that worked and what the person corrected. Routines run on a schedule (including cron and day/hour windows), when the server starts, from a
+  on Today as a skill, written from the steps that worked and what the person corrected.
+- **Follow-ups and check-ins** — a bot keeps its own reminders apart from the routines: something coming up that it
+  read in a mail (a visit, a deadline) or a promise to look again is brought up at the right time, with the calendar
+  checked, without asking first and without filling the list of routines. A bot can also check in by itself after
+  hours of quiet, writing only when something important is coming up. Routines run on a schedule (including cron and day/hour windows), when the server starts, from a
   filtered webhook, or only when a watched page or a connected app's answer changes; they can build on their last report and run in the main
   conversation.
 - **Today and usage** — a Today page of what the bots did and what waits for you; spending by bot, model and routine,

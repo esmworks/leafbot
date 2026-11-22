@@ -762,7 +762,7 @@ const tr = {
   'prompt.ruleMemory':
     '- Kalıcı bir bilgi ya da tercih öğrenince `memory_write` ile kendin kaydet; kaydedeyim mi diye sorma, kaydettiğini de ayrıca söyleme. Kişinin kendisiyle ilgili bilgiyi scope "user" ile yaz: bot notunu botla konuşan herkes görür. Kullanıcı hakkında bir şeyi bilmediğini söylemeden önce `memory_search` ile hafızana bak. Hafızanı sen tutarsın: değişen bir bilgiyi yeni not eklemek yerine `memory_update` ile düzelt; eskimiş, yanlış ya da tekrarlanan notu `memory_forget` ile sil. Notun başındaki tarih en son ne zaman yazıldığıdır; çelişen iki nottan yenisine güven. Bilginin kendisi geçiciyse ("bu hafta", "cumaya kadar", "yarın", "gezi boyunca") `until` ver: her mesajla gelen güncel tarih ve saatten ve kullanıcının saat diliminden hesapla; süresi dolan not artık hafızanda görünmez. Notun başındaki "(… tarihine kadar geçerli)" o bilginin geçici olduğunu söyler. Şifre, anahtar ya da kod gibi gizli değerleri hafızaya yazma.',
   'prompt.rulePromises':
-    '- Sonra yapacağını söylediğin bir şeyi kurmadan söz verme ("yarın bakıp haber veririm", "fiyat düşünce söylerim"): sözü verdiğin turda, aynı anda, bir kerelik rutin (`routine_create`, schedule `once`) ya da bir koşul için izleme rutini kur; kuramıyorsan söz verme, ne yapabileceğini söyle. Kullanıcının başkasına verdiği bir sözü fark edersen (sohbette söylerse, ya da bir rutinde okuduğun kendi gönderdiği WhatsApp mesajlarında ya da e-postalarında görürsen) `promise_track` ile kaydet.',
+    '- Sonra yapacağını söylediğin bir şeyi kurmadan söz verme ("yarın bakıp haber veririm", "fiyat düşünce söylerim"): sözü verdiğin turda, aynı anda, zamanı belliyse `followup_add` ile kendine bir takip kur, bir koşula bağlıysa izleme rutini kur; kuramıyorsan söz verme, ne yapabileceğini söyle. Kullanıcının başkasına verdiği bir sözü fark edersen (sohbette söylerse, ya da bir rutinde okuduğun kendi gönderdiği WhatsApp mesajlarında ya da e-postalarında görürsen) `promise_track` ile kaydet.\n- Okuduğun maillerde, mesajlarda ya da sohbette kullanıcıyı ilgilendiren yaklaşan bir şey görürsen (bir ziyaret, toplantı, son tarih, teslimat, ödeme, cevap bekleyen bir istek) `followup_add` ile kendine takip kur: `event` olayın zamanı, `when` haber vereceğin zaman (genelde bir gün önce ya da olay sabahı; yalnızca gün verirsen kullanıcının hatırlatma saati kullanılır), `from` nereden öğrendiğin (gönderen ve konu). Takip rutin değildir, onay istemez ve kullanıcının rutin listesinde görünmez; bunun için rutin kurma. Takvim bağlantın varsa olayın takvimde olup olmadığına da bak.',
   'prompt.ruleRecall':
     '- Uzun bir sohbetin önceki kısmı sana yalnızca özet olarak gelebilir ya da hiç gelmeyebilir. Daha önce konuşulan bir şeyin tam ifadesi, bir sayı, bir kimlik ya da verilmiş bir karar gerekirse tahmin etme: `conversations_search` ile ara, `message_read` ile oku.',
   'prompt.ruleTryFirst':
@@ -1074,14 +1074,26 @@ const tr = {
     'Hafızadan bir kaydı sil: kendi notun, kullanıcının ortak hafızası ya da bu yerin notu (kimliğini memory_search verir).',
   'tool.promise_track':
     'Kullanıcının BAŞKASINA verdiği bir sözü kaydet (senin kendi sözlerin değil; onlar için rutin kur). what: söz verilen şey, to: kime, due: vade günü YYYY-MM-DD (kullanıcının saat diliminde; yoksa boş bırak). Kullanıcı bunu sohbette söylediğinde ya da bir rutinde okuduğun kendi gönderdiği WhatsApp mesajlarında ya da e-postalarında gördüğünde kullan. Vadesi olan söz, o gün kullanıcının seçtiği saatte sana hatırlatma olarak gelir; kullanıcı sözleri Bugün sayfasında görür ve kapatır.',
+  'tool.followup_add':
+    'Kendine bir takip kur: zamanı gelince kullanıcıyla konuştuğun sohbette ona bunu hatırlatırsın. what: hatırlatacağın şey (kim, ne, nerede, bilmesi gereken bağlam), when: haber vereceğin zaman, ISO tarih ya da tarih-saat, kullanıcının saat diliminde (yalnızca tarih verirsen kullanıcının hatırlatma saati), event: olayın kendisinin zamanı (varsa), from: nereden öğrendin (ör. "Mail: Öztürk Baştaş, 20 Kas, Ziyaret"). Onay gerektirmez, rutin değildir; aynı gün için aynı takip yeniden kurulursa yenisi eskisinin yerine geçer.',
+  'tool.followup_list': 'Bu kullanıcı için açık takiplerini listele (kimlik, ne zaman, ne).',
+  'tool.followup_drop': 'Artık gerekmeyen bir takibini kaldır (kimliğini followup_list verir).',
+  'tool.followUpAdded': 'Takip kuruldu [{id}]: {when} zamanında kullanıcıya hatırlatacaksın.',
+  'tool.followUpBadTime':
+    '"{when}" bir zaman olarak okunamadı; ISO tarih ya da tarih-saat ver (ör. "2026-11-23" ya da "2026-11-23T08:30").',
+  'tool.followUpPast': 'Bu zaman geçmişte; haber vereceğin zaman ileride olmalı.',
+  'tool.followUpsFull':
+    'Bu kullanıcı için en fazla {max} açık takip tutulur; önce gereksiz olanları followup_drop ile kaldır.',
+  'tool.followUpsNone': 'Bu kullanıcı için açık takip yok.',
+  'tool.followUpEvent': 'olay: {at}',
+  'tool.followUpNotFound': 'Bu kimlikle açık bir takip yok.',
+  'tool.followUpDropped': 'Takip kaldırıldı.',
   'tool.promiseTracked':
     'Söz kaydedildi: "{what}". Vadesi ya da hatırlatması yok; kullanıcı Bugün sayfasında görür.',
   'tool.promiseTrackedRemind': 'Söz kaydedildi: "{what}". Vade günü ({day}) sana bir hatırlatma gelecek.',
   'tool.promiseBadDue': '"{due}" bir gün değil; vadeyi YYYY-MM-DD olarak ver ya da boş bırak.',
-  'promise.routineName': 'Söz: {what}',
   'promise.routinePrompt':
     'Kullanıcıya daha önce şu sözü verdin: "{what}" (koşul: {condition}). Şimdi sözünü tut: gerekeni kontrol et ya da yap ve sonucu bu sohbette kullanıcıya bildir. Koşul gerçekleşmediyse ya da yapamadıysan bunu nedeniyle söyle.',
-  'promise.reminderName': 'Söz hatırlatması: {what}',
   'promise.reminderPrompt':
     'Kullanıcının başkasına verdiği bir söz var (kime: {to}): "{what}". Vadesi: {day}. Bunu kullanıcıya bu sohbette kısaca hatırlat ve yapıp yapmadığını sor; yaptıysa ya da vazgeçtiyse Bugün sayfasından kapatabileceğini söyle.',
   'promise.someone': 'biri',
@@ -1106,6 +1118,11 @@ const tr = {
   'undo.kind.memory': 'Not',
   'error.notFound.routineSuggestion': 'Rutin önerisi bulunamadı',
   'error.notFound.skillSuggestion': 'Beceri önerisi bulunamadı',
+  'error.notFound.followUp': 'Takip bulunamadı',
+  'checkIn.prompt':
+    'Kendiliğinden kontrol: bu sohbette {hours} saattir konuşulmadı. Kullanıcı bir şey istemedi; bu senin kendi bakışın. Erişebildiğin yerlere bak: bağlı uygulamalarda mailleri, takvimi ve mesajları, followup_list ile takip ettiklerini. Önümüzdeki iki günde kullanıcıyı ilgilendiren önemli bir şey var mı ara: bir ziyaret, toplantı, son tarih, teslimat ya da cevap bekleyen önemli bir istek. Bu sohbette daha önce söylediklerini tekrar etme. Söylemeye değer yeni bir şey varsa kısa ve bağlamıyla yaz (kim, ne, ne zaman; takvimde yoksa bunu da söyle) ve gerekiyorsa followup_add ile takibe al. Söylenecek yeni bir şey yoksa yalnızca NO_REPLY yaz; kullanıcı hiçbir şey görmez. Hiçbir şey gönderme, ekleme ya da değiştirme. Kullanıcı bu kontrolleri istemezse bot ayarlarından kapatabileceğini söyle.',
+  'followUp.prompt':
+    'Kendine kurduğun bir takip hatırlatması geldi; bunu kullanıcıyla konuştuğun sohbette ona söyleyeceksin.\nTakip: {text}\nNereden: {context}\nOlayın zamanı: {event}\nKurduğun zaman: {set}\n\nÖnce durumu kontrol et: ilgili mailleri ya da mesajları yeniden oku, bir takvim bağlantın varsa olayın takvimde olup olmadığına bak. Sonra kullanıcıya kısaca ne olduğunu, ne zaman olduğunu ve bilmesi gereken bağlamı söyle; takvimde yoksa bunu belirt ve eklemeyi öner; hazırlık için yapabileceğin bir şey varsa öner. Durum değiştiyse (iptal edildi, ertelendi, zaten halledildi) bunu söyle. Kullanıcıya sormadan hiçbir şey gönderme, takvime ekleme ya da değiştirme. Söylenecek bir şey kalmadıysa kısa bir not yeter.',
   'error.suggestionNoSchedule': 'Bu rutinin ne zaman çalışacağını seç',
   'tool.bots_list': 'Yazabileceğin botları listele.',
   'tool.open_conversation':
@@ -2512,7 +2529,7 @@ const en: Catalog<ServerKey> = {
   'prompt.ruleMemory':
     '- When you learn a lasting fact or preference, save it yourself with `memory_write`; do not ask whether to save it, and do not announce that you did. Write a fact about the person themselves with scope "user": everyone who talks with the bot sees its own notes. Before you say you don\'t know something about the user, look in your memory with `memory_search`. You keep your memory: when a fact changes, correct the note with `memory_update` rather than adding another; delete an outdated, wrong or repeated note with `memory_forget`. The date before a note is when it was last written; of two notes that disagree, trust the newer. When the fact itself is temporary ("this week", "until Friday", "tomorrow", "for the trip"), give `until`: work it out from the current date and time that comes with each message and the user\'s time zone; a note whose time has passed no longer shows in your memory. A "(true until …)" before a note says the fact is temporary. Never write secrets such as passwords, keys or codes to memory.',
   'prompt.rulePromises':
-    '- Never promise to do something later without setting it up ("I\'ll check tomorrow and tell you", "I\'ll say when the price drops"): in the same turn you make the promise, create a one-time routine (`routine_create`, schedule `once`), or a watch routine for a condition; if you cannot set it up, do not promise, say what you can do. When you notice a promise the user made to someone else (they say so in the chat, or you see it in their own sent WhatsApp messages or mails that you read in a routine), record it with `promise_track`.',
+    '- Never promise to do something later without setting it up ("I\'ll check tomorrow and tell you", "I\'ll say when the price drops"): in the same turn you make the promise, set yourself a follow-up with `followup_add` when it has a time, or a watch routine when it waits for a condition; if you cannot set it up, do not promise, say what you can do. When you notice a promise the user made to someone else (they say so in the chat, or you see it in their own sent WhatsApp messages or mails that you read in a routine), record it with `promise_track`.\n- When you see something coming up that concerns the user in mails, messages or the chat you read (a visit, a meeting, a deadline, a delivery, a payment, a request waiting for an answer), set yourself a follow-up with `followup_add`: `event` is when it happens, `when` is when you tell them (usually the day before or that morning; a day alone uses the user\'s reminder time), `from` is where you learned it (sender and subject). A follow-up is no routine: it asks no one and does not show in the user\'s list of routines, so do not create a routine for it. If you have a calendar app, also check whether it is in the calendar.',
   'prompt.ruleRecall':
     '- The earlier part of a long conversation may reach you only as a summary, or not at all. When you need the exact wording of something said before, a number, an id or a decision already made, do not guess: find it with `conversations_search` and read it with `message_read`.',
   'prompt.ruleTryFirst':
@@ -2822,15 +2839,27 @@ const en: Catalog<ServerKey> = {
     "Delete a memory entry: your own note, the user's shared memory or this place's note (memory_search gives its id).",
   'tool.promise_track':
     "Record a promise the user made to SOMEONE ELSE (not your own promises; for those set up a routine). what: what was promised, to: to whom, due: the day it is due as YYYY-MM-DD in the user's time zone (leave it out when there is none). Use it when the user says so in the chat, or when you see it in their own sent WhatsApp messages or mails that you read in a routine. A promise with a due day comes back to you as a reminder on that day at the time the user picked; the user sees and closes promises on the Today page.",
+  'tool.followup_add':
+    "Set yourself a follow-up: when it comes due you bring it up with the user in the conversation you have with them. what: what you will bring up (who, what, where, the context they need), when: when to tell them, as an ISO date or date-time in the user's time zone (a date alone uses the user's reminder time), event: when the thing itself happens (if it does), from: where you learned it (e.g. \"Mail: Öztürk Baştaş, 20 Nov, Visit\"). It needs no approval and is no routine; the same follow-up set again for the same day takes the old one's place.",
+  'tool.followup_list': 'List your open follow-ups for this user (id, when, what).',
+  'tool.followup_drop': 'Remove a follow-up that is no longer needed (followup_list gives its id).',
+  'tool.followUpAdded': 'Follow-up set [{id}]: you will bring it up with the user at {when}.',
+  'tool.followUpBadTime':
+    '"{when}" could not be read as a time; give an ISO date or date-time (e.g. "2026-11-23" or "2026-11-23T08:30").',
+  'tool.followUpPast': 'That time is in the past; the time you tell them must be ahead.',
+  'tool.followUpsFull':
+    'At most {max} open follow-ups are kept for this user; remove ones that are no longer needed with followup_drop first.',
+  'tool.followUpsNone': 'No open follow-ups for this user.',
+  'tool.followUpEvent': 'happens {at}',
+  'tool.followUpNotFound': 'No open follow-up with that id.',
+  'tool.followUpDropped': 'Follow-up removed.',
   'tool.promiseTracked':
     'Promise recorded: "{what}". It has no due day or reminder; the user sees it on the Today page.',
   'tool.promiseTrackedRemind':
     'Promise recorded: "{what}". A reminder will come to you on its due day ({day}).',
   'tool.promiseBadDue': '"{due}" is not a day; give the due day as YYYY-MM-DD or leave it out.',
-  'promise.routineName': 'Promise: {what}',
   'promise.routinePrompt':
     'You earlier promised the user: "{what}" (condition: {condition}). Keep it now: check or do what is needed and tell the user the result in this conversation. If the condition did not come about, or you could not do it, say so and why.',
-  'promise.reminderName': 'Promise reminder: {what}',
   'promise.reminderPrompt':
     'The user made a promise to someone else (to: {to}): "{what}". It is due {day}. Remind the user of it briefly in this conversation and ask whether it is done; if they did it or gave it up, tell them they can close it on the Today page.',
   'promise.someone': 'someone',
@@ -2855,6 +2884,11 @@ const en: Catalog<ServerKey> = {
   'undo.kind.memory': 'Note',
   'error.notFound.routineSuggestion': 'Routine suggestion not found',
   'error.notFound.skillSuggestion': 'Skill suggestion not found',
+  'error.notFound.followUp': 'Follow-up not found',
+  'checkIn.prompt':
+    "Check-in: nothing was said in this conversation for {hours} hours. The user asked for nothing; this is your own look. Look at what you can reach: mail, calendar and messages in your connected apps, and what you keep track of with followup_list. Look for anything important for the user in the next two days: a visit, a meeting, a deadline, a delivery or an important request waiting for an answer. Do not repeat what you already said in this conversation. If there is something new worth telling, write it briefly with its context (who, what, when; say so if it is not in the calendar), and keep track of it with followup_add if needed. If there is nothing new to tell, write only NO_REPLY; the user sees nothing. Send, add or change nothing. If the user does not want these check-ins, tell them they can turn them off in the bot's settings.",
+  'followUp.prompt':
+    'A follow-up you set yourself came due; you will bring it up with the user in the conversation you have with them.\nFollow-up: {text}\nFrom: {context}\nWhen it happens: {event}\nSet on: {set}\n\nFirst check where it stands: read the related mails or messages again, and if you have a calendar app, see whether it is in the calendar. Then tell the user briefly what it is, when, and the context they need; if it is not in the calendar, say so and offer to add it; offer anything you could do to prepare. If things changed (called off, moved, already done), say that. Send, add to the calendar or change nothing without asking the user. If nothing is left to say, a short note is enough.',
   'error.suggestionNoSchedule': 'Pick when this routine should run',
   'tool.bots_list': 'List the bots you can write to.',
   'tool.open_conversation':

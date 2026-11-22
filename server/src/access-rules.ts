@@ -177,6 +177,8 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'POST /api/routine-suggestions/:id/accept': 'self',
   'POST /api/routine-suggestions/:id/dismiss': 'self',
   'GET /api/skill-suggestions': 'self',
+  'GET /api/follow-ups': 'self',
+  'DELETE /api/follow-ups/:id': 'self',
   'POST /api/skill-suggestions/:id/accept': 'self',
   'POST /api/skill-suggestions/:id/dismiss': 'self',
   'GET /api/turns/:id/result': read('turn'),

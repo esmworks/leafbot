@@ -29,6 +29,7 @@ import type {
   RoutineSuggestionAccept,
   SkillSuggestion,
   SkillSuggestionAccept,
+  FollowUp,
   Group,
   Memory,
   MemoryChange,
@@ -346,6 +347,8 @@ export function apiFor(origin: string) {
       http.post<Routine>(`/api/routine-suggestions/${id}/accept`, input),
     dismissRoutineSuggestion: (id: string) =>
       http.post<{ ok: true }>(`/api/routine-suggestions/${id}/dismiss`, {}),
+    followUps: () => http.get<FollowUp[]>('/api/follow-ups'),
+    dropFollowUp: (id: string) => http.del<{ ok: true }>(`/api/follow-ups/${id}`),
     skillSuggestions: () => http.get<SkillSuggestion[]>('/api/skill-suggestions'),
     acceptSkillSuggestion: (id: string, input: SkillSuggestionAccept) =>
       http.post<Skill>(`/api/skill-suggestions/${id}/accept`, input),

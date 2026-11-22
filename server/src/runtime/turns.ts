@@ -65,6 +65,7 @@ const PRIORITY: Record<TurnSource, number> = {
   user: 0,
   reaction: 1,
   routine: 1,
+  followup: 1,
   ticket: 1,
   bot: 2,
   upkeep: 3,

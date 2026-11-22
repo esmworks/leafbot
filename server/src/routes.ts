@@ -1794,6 +1794,15 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.post('/api/routine-suggestions/:id/dismiss', async (req) =>
     s.routineSuggestions.dismiss(IdParams.parse(req.params).id, me(req).userId),
   );
+  // What the bots keep track of for the person: their own reminders, not routines.
+  app.get('/api/follow-ups', async (req) => {
+    const { bot } = z.object({ bot: z.string().min(1).max(64).optional() }).parse(req.query);
+    return s.followUps.list(me(req).userId, bot);
+  });
+  app.delete('/api/follow-ups/:id', async (req) => {
+    await s.followUps.drop(IdParams.parse(req.params).id, me(req).userId);
+    return { ok: true };
+  });
   // Skills suggested from many-step tasks the person keeps asking for: their own, never anyone else's.
   app.get('/api/skill-suggestions', async (req) => s.skillSuggestions.list(me(req)));
   app.post('/api/skill-suggestions/:id/accept', async (req) =>
