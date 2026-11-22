@@ -10,7 +10,7 @@ import {
   type ApiCredentialUpdate as UpdateInput,
 } from '@leafbot/shared';
 import { randomBytes } from 'node:crypto';
-import { and, asc, eq, isNull, or } from 'drizzle-orm';
+import { and, asc, desc, eq, isNull, or } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import { HttpError, newId, notFound } from '../util';
@@ -291,15 +291,16 @@ export class ApiCredentialService {
   }
 
   /**
-   * Saves the key a person typed on a bot's card under its name, as their own: a new one, or a new
-   * value (and origin and way of sending) for their own one already under that name. The team's key
-   * of that name is never touched; theirs outranks it from then on. The bots that may use an
-   * existing key stay as they were.
+   * Saves the key a person typed on a bot's card under its name, for `owner`: a new one, or a new
+   * value (and origin and way of sending) for the one `owner` already keeps under that name. Saved as
+   * a person's own, the team's key of that name is never touched; theirs outranks it from then on.
+   * The team (null) is the owner only when one who looks after the server chose it on the card. The
+   * bots that may use an existing key stay as they were.
    */
-  async put(raw: CreateInput, userId: string): Promise<ApiCredential> {
+  async put(raw: CreateInput, owner: string | null): Promise<ApiCredential> {
     const input = ApiCredentialCreate.parse(raw);
-    const existing = await this.byName(input.name, userId);
-    if (!existing) return this.create(input, userId);
+    const existing = await this.byName(input.name, owner);
+    if (!existing) return this.create(input, owner);
     return this.update(existing.id, {
       origin: input.origin,
       auth: input.auth,
@@ -446,10 +447,11 @@ export class ApiCredentialService {
 
   /**
    * The key git on the bot's desktop uses for GitHub: one of the team's saved for
-   * `https://github.com` that the bot may use (the first by name when there are several). A
-   * person's own key is left out: the desktop is the bot's, and everyone who talks with the bot
-   * works on it. Only the computer service's relay gets it, and sends it to GitHub alone, the
-   * origin it was saved for.
+   * `https://github.com` that the bot may use. With several, the one saved or changed last: it is the
+   * one someone just typed because git failed, while an older one may have expired or been revoked.
+   * A person's own key is left out: the desktop is the bot's, everyone who talks with the bot works
+   * on it, and the relay holds one key for all their steps and background commands at once. Only
+   * the computer service's relay gets it, and sends it to GitHub alone, the origin it was saved for.
    */
   async gitToken(botId: string): Promise<string | null> {
     await this.ready();
@@ -457,7 +459,7 @@ export class ApiCredentialService {
       .select()
       .from(schema.apiCredentials)
       .where(and(eq(schema.apiCredentials.origin, GITHUB_ORIGIN), isNull(schema.apiCredentials.userId)))
-      .orderBy(asc(schema.apiCredentials.name));
+      .orderBy(desc(schema.apiCredentials.updatedAt), asc(schema.apiCredentials.name));
     const row = rows.find((r) => !r.botIds || r.botIds.includes(botId));
     if (!row) return null;
     const value = this.vault.open(row.secret, keyBinding(row.id, row.origin));
