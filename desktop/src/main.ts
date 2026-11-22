@@ -135,6 +135,9 @@ const resources = () => (app.isPackaged ? process.resourcesPath : join(app.getAp
 const serverEntry = () => join(resources(), 'server', 'dist', 'index.mjs');
 const appDir = () => (app.isPackaged ? join(resources(), 'app') : join(resources(), 'app', 'dist'));
 const assets = () => (app.isPackaged ? join(resources(), 'assets') : join(app.getAppPath(), 'assets'));
+/** The macOS helper that moves the mouse and types for a bot the person allowed to use this Mac. */
+const personComputer = () =>
+  app.isPackaged ? join(resources(), 'person-computer') : join(app.getAppPath(), 'dist', 'person-computer');
 
 /** A `leafbot://` link waiting for the page to take it (see `links.ts`). */
 let pendingLink: AppLink | null = linkInArgs(process.argv);
@@ -226,7 +229,14 @@ async function connect() {
     port: DEFAULT_PORT,
     log: (level, line) => log[level](`[sunucu] ${line}`),
     // Development only: run the server with the offline test engine.
-    env: !app.isPackaged && process.env.LEAFBOT_ENGINE ? { LEAFBOT_ENGINE: process.env.LEAFBOT_ENGINE } : {},
+    env: {
+      ...(!app.isPackaged && process.env.LEAFBOT_ENGINE
+        ? { LEAFBOT_ENGINE: process.env.LEAFBOT_ENGINE }
+        : {}),
+      ...(process.platform === 'darwin' && existsSync(personComputer())
+        ? { LEAFBOT_PERSON_COMPUTER: personComputer() }
+        : {}),
+    },
   });
   server.on('restarted', (url: string) => {
     origin = url;

@@ -18,6 +18,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { BotAvatar, ObjectArt } from '@/components/BotAvatar';
+import { PersonComputerSwitch } from '@/features/PersonComputer';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -89,6 +90,7 @@ const Form = z
     toolsAllow: z.string().max(80_000),
     toolsExclude: z.string().max(80_000),
     internet: z.boolean(),
+    personComputer: z.boolean(),
     projectDir: z.string().max(1000),
     instructionsUrl: z
       .string()
@@ -128,6 +130,7 @@ function initial(bot?: Bot, start: BotEngine = { engine: 'claude', model: '' }):
     toolsAllow: bot?.toolSelection.allow.join('\n') ?? '',
     toolsExclude: bot?.toolSelection.exclude.join('\n') ?? '',
     internet: bot?.internet ?? true,
+    personComputer: bot?.personComputer ?? false,
     projectDir: bot?.projectDir ?? '',
     instructionsUrl: bot?.instructionsUrl ?? '',
     engine: bot?.engine ?? start.engine,
@@ -299,6 +302,7 @@ function BotForm({
           exclude: selectorLines(f.toolsExclude),
         },
         internet: f.internet,
+        personComputer: f.personComputer,
         projectDir: f.projectDir.trim() || null,
         engine: f.engine,
         model: f.engine === 'pi' ? `${f.provider}/${f.model}` : f.model,
@@ -516,6 +520,10 @@ function BotForm({
                 onCheckedChange={(c) => form.setValue('internet', c, { shouldDirty: true })}
               />
             </label>
+            <PersonComputerSwitch
+              on={v.personComputer}
+              onChange={(c) => form.setValue('personComputer', c, { shouldDirty: true })}
+            />
             <label className="flex items-center justify-between gap-4 rounded-2xl bg-secondary/60 px-4 py-3">
               <span>
                 <span className="block text-sm font-medium">{t('bot.manager')}</span>

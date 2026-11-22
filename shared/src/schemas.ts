@@ -97,6 +97,11 @@ export const Bot = z.object({
   permissionMode: PermissionMode,
   /** Whether the bot may reach the internet: web search, reading pages, its browser and desktop. */
   internet: z.boolean(),
+  /**
+   * Whether the bot may use the person's own Mac (its screen, mouse and keyboard) in their own work;
+   * only where the server runs on that Mac. Missing on older servers.
+   */
+  personComputer: z.boolean().optional(),
   projectDir: z.string().nullable(),
   /** Whether the bot reads and keeps memory; off, it sees none and gets no memory tools. */
   memory: z.boolean(),
@@ -226,6 +231,7 @@ export const BotCreate = z.object({
   avatar: Avatar.default(DEFAULT_AVATAR),
   permissionMode: PermissionMode.default('auto'),
   internet: z.boolean().default(true),
+  personComputer: z.boolean().default(false),
   projectDir: z.string().max(1000).nullable().default(null),
   memory: z.boolean().default(true),
   effort: z.union([z.enum(['low', 'medium', 'high', 'xhigh', 'max']), z.literal('')]).default(''),
@@ -1503,6 +1509,17 @@ export const TailscaleState = z.object({
   url: z.string().nullable(),
 });
 export type TailscaleState = z.infer<typeof TailscaleState>;
+
+/**
+ * Whether bots can use the person's own Mac, and what macOS allows the app: moving the mouse and
+ * typing (Accessibility) and seeing other apps' windows (Screen Recording).
+ */
+export const PersonComputerState = z.object({
+  available: z.boolean(),
+  accessibility: z.boolean(),
+  screen: z.boolean(),
+});
+export type PersonComputerState = z.infer<typeof PersonComputerState>;
 
 /** What a web link shows on a hover; a GitHub pull request or issue also gives its state. */
 export const LinkPreview = z.object({

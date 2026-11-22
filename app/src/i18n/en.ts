@@ -1632,6 +1632,13 @@ export const en: Catalog<MessageKey> = {
   'bot.internet': 'Internet access',
   'bot.internetHint':
     'When on, the bot searches the web, reads pages, and uses its own browser and computer. When off, it can do none of these.',
+  'bot.personComputer': 'Can use my Mac',
+  'bot.personComputerHint':
+    'In work you ask for, it can look at your screen and use the mouse and keyboard. It asks before its first step each time.',
+  'bot.personComputerMissing': 'macOS has not allowed it yet: {what}',
+  'bot.personComputerAccessibility': 'Accessibility',
+  'bot.personComputerScreen': 'Screen Recording',
+  'bot.personComputerAllow': 'Ask for permission',
   'bot.manager': 'Manager bot',
   'bot.managerHint':
     'Can write to every bot and create and edit bots. Still asks you before loosening permissions.',

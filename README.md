@@ -85,6 +85,8 @@ The interface is available in English and Turkish.
   the bot never sees the password. Stored secrets are encrypted with AES-256-GCM.
 - **A computer per bot** (Docker) — an optional sandboxed Linux desktop for each bot with a browser, terminal, file
   manager and LibreOffice, viewable from the app.
+- **Your own Mac** (desktop app, macOS) — let a bot look at your screen and use the mouse and keyboard for work in
+  apps that only run there; it asks on a card before its first step in each piece of work.
 - **Sandboxed shell** — Claude's Bash commands run in a bubblewrap sandbox that only sees the bot's own folders, and a
   few catastrophic commands are refused whatever is allowed.
 - **Import and backup** — bring in bots exported from other assistants, and keep everything in one password-sealed

@@ -57,6 +57,8 @@ export const bots = pgTable('bots', {
   allowedDomains: jsonb('allowed_domains').$type<string[]>().notNull().default([]),
   /** Whether the bot may reach the internet: web search, reading pages, its browser and desktop. */
   internet: boolean('internet').notNull().default(true),
+  /** Whether the bot may use the person's own Mac in their own work. */
+  personComputer: boolean('person_computer').notNull().default(false),
   projectDir: text('project_dir'),
   /** Whether the bot reads and keeps memory; off, it works from each conversation alone. */
   memory: boolean('memory').notNull().default(true),

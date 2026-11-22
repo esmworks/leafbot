@@ -36,6 +36,7 @@ import {
 import { BrowserManager } from './browser/manager';
 import { browserErrorText } from './browser/text';
 import { Bus } from './bus';
+import { PersonComputer } from './computer/person';
 import { ComputerService } from './computer/service';
 import { RfbClientFilter } from './computer/rfb-filter';
 import { computerErrorText } from './tools/computer';
@@ -191,7 +192,9 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
       hold: (botId: string) => computer.hold(botId),
     }),
   });
-  const ctx: Ctx = { db: db.db, bus, config, browser, computer, egress };
+  // The person's own Mac, through the desktop app's helper, for the bots they allow to use it.
+  const personComputer = config.personComputer ? PersonComputer.start(config.personComputer) : null;
+  const ctx: Ctx = { db: db.db, bus, config, browser, computer, egress, personComputer };
   const accessKey = loadAccessKey(config);
   setToolCallTimeout(config.mcpCallTimeoutMs);
   const auth = new Auth(db.db, accessKey);
@@ -804,6 +807,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
       await services.contentSeal.settled();
       services.embeddings.stop();
       await computer?.shutdown();
+      personComputer?.close();
       stopComputerLink?.();
       localSocks?.close();
       egress?.close();

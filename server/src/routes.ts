@@ -81,6 +81,7 @@ import {
   PasswordManagerCreate,
   PaymentCardCreate,
   PaymentCardUpdate,
+  type PersonComputerState,
   PasswordManagerUpdate,
   VaultImport,
   VaultLoginCreate,
@@ -642,6 +643,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       checkProjectDir(req, patch.projectDir);
     }
     if (patch.groupId !== undefined && patch.groupId !== before.groupId) await checkGroup(req, patch.groupId);
+    // The Mac is the owner's: only they let a bot use it.
+    if (patch.personComputer && !before.personComputer && me(req).role !== 'owner') {
+      throw new HttpError(403, 'error.ownerOnly');
+    }
     const bot = await s.bots.update(id, patch);
     const relinked = !!bot.instructionsUrl && bot.instructionsUrl !== before.instructionsUrl;
     return leveled(req, relinked ? await s.instructionDocs.check(id) : bot);
@@ -1227,6 +1232,19 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   });
 
   // The person's answer on a work offer: taken sends its task as their message; or turned down.
+  // Whether bots can use the person's own Mac, and opening macOS's prompts for its two permissions.
+  app.get('/api/person-computer', async (): Promise<PersonComputerState> => {
+    const pc = s.ctx.personComputer;
+    if (!pc) return { available: false, accessibility: false, screen: false };
+    const st = await pc.status().catch(() => null);
+    return { available: true, accessibility: st?.accessibility ?? false, screen: st?.screen ?? false };
+  });
+  app.post('/api/person-computer/request', async (): Promise<PersonComputerState> => {
+    const pc = s.ctx.personComputer;
+    if (!pc) return { available: false, accessibility: false, screen: false };
+    const st = await pc.request();
+    return { available: true, accessibility: st.accessibility, screen: st.screen };
+  });
   // Sharing this server on the person's Tailscale network.
   app.get('/api/tailscale', async () => s.tailscale.state());
   app.post('/api/tailscale', async (req) => {

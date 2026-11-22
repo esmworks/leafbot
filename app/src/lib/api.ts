@@ -2,6 +2,7 @@ import type {
   BotAction,
   LinkPreview,
   TailscaleState,
+  PersonComputerState,
   TurnChanges,
   RoutineSuggestion,
   RoutineSuggestionAccept,
@@ -552,6 +553,8 @@ export const api = {
   editMessage: (id: string, text: string) => http.patch<Message>(`/api/messages/${id}`, { text }),
   removeMessage: (id: string) => http.del<{ ok: true }>(`/api/messages/${id}`),
   retryMessage: (id: string) => http.post<{ ok: true; turnId: string }>(`/api/messages/${id}/retry`),
+  personComputer: () => http.get<PersonComputerState>('/api/person-computer'),
+  requestPersonComputer: () => http.post<PersonComputerState>('/api/person-computer/request', {}),
   tailscale: () => http.get<TailscaleState>('/api/tailscale'),
   setTailscale: (on: boolean) => http.post<TailscaleState>('/api/tailscale', { on }),
   linkPreview: (url: string) =>

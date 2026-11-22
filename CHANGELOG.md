@@ -3,6 +3,18 @@
 All notable changes to Leaf Bot (called Yumak Bot before 0.7.0) are listed here. Versions follow [Semantic Versioning](https://semver.org/). While the
 version is 0.x, a minor release may change the data format or the API; the server migrates its database on start.
 
+## Unreleased
+
+### Added
+
+- A bot can use your own Mac: look at the screen, click, type and press shortcuts, for work in apps that only run
+  there. Turn on "Can use my Mac" in the bot's settings; only the server's owner sees it, and only in the desktop app
+  on macOS, where the server runs on that Mac. The first look or touch in each piece of work asks on a card, whatever
+  the bot's level and with no "always allow"; after a yes the rest of that work goes on without another card. Only
+  the owner's own conversations get it: not team chats, guests, other people or a bot that may only read. One bot
+  uses the Mac at a time. macOS asks once for Accessibility (mouse and keyboard) and Screen Recording (seeing other
+  apps' windows); the switch says which is still missing and opens the prompts.
+
 ## 0.8.0 — 2026-11-22
 
 ### Added

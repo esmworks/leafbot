@@ -73,6 +73,12 @@ const TURN_OFF: Verb = ['kapatmak', 'kapatabilir', 'kapatmayacak'];
 const DELETE: Verb = ['silmek', 'silebilir', 'silmeyecek'];
 const CREATE: Verb = ['oluşturmak', 'oluşturabilir', 'oluşturmayacak'];
 
+/**
+ * The start of the names of the tools that use the person's own Mac: the screen, the mouse and the
+ * keyboard. They ask once in a turn at every level (see the turn's permission check).
+ */
+export const PERSON_COMPUTER = 'person_computer_';
+
 /** One action in both languages, before the bot's name is put in. */
 interface Phrase {
   /** Turkish object before the verb, as first asked ("bir komut") and once known ("komut"). */
@@ -85,6 +91,9 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
   const file = fileName(str(input.file_path) ?? str(input.path) ?? str(input.notebook_path));
   const trFile = file ? `"${file}" dosyasını` : null;
   const bot = str(input.bot) ?? str(input.name);
+  if (name.startsWith(PERSON_COMPUTER)) {
+    return { tr: ["Mac'ini", "Mac'ini", USE], en: ['use your Mac', 'use your Mac'] };
+  }
   switch (name) {
     case 'Bash':
       return {
@@ -332,6 +341,8 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
 }
 
 function detailFor(name: string, input: Record<string, unknown>, locale: Locale): string | null {
+  if (name === `${PERSON_COMPUTER}type`) return str(input.text);
+  if (name === `${PERSON_COMPUTER}key`) return str(input.keys);
   switch (name) {
     case 'Bash':
       return str(input.command);
