@@ -43,6 +43,8 @@ version is 0.x, a minor release may change the data format or the API; the serve
   your own conversation (not a routine, a team chat, a guest or someone else), and not when it may only read. The
   first read in each piece of work asks on a card at every level, with no "always allow"; what comes back counts as
   outside text. Nothing on the phone is changed. A new build of the phone app is needed for it.
+- ⌘K (Ctrl+K) also does things: type what you want and pick it, such as a new bot, Today, the board, connecting
+  apps, the keyboard shortcuts, the light, dark or system theme, or any settings section by its name or its words.
 
 ## 0.8.0 — 2026-11-22
 
