@@ -1,4 +1,5 @@
 import type { Bot, BotSummary, Room } from '@leafbot/shared';
+import { botState } from '@leafbot/app/src/lib/activity';
 import Feather from '@expo/vector-icons/Feather';
 import * as Haptics from 'expo-haptics';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -33,7 +34,7 @@ export function UnreadDot({ style }: { style?: object }) {
 function StateBadge({ summary }: { summary?: BotSummary }) {
   const c = useColors();
   const live = useLiveState(summary?.threadId ?? undefined);
-  const state = live ?? summary?.state ?? 'idle';
+  const state = botState(live, summary?.state);
   if (summary?.pendingApprovals) {
     return (
       <View style={[styles.badge, { backgroundColor: c.amber, borderColor: c.sidebar }]}>
