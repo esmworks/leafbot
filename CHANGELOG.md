@@ -3,7 +3,7 @@
 All notable changes to Leaf Bot (called Yumak Bot before 0.7.0) are listed here. Versions follow [Semantic Versioning](https://semver.org/). While the
 version is 0.x, a minor release may change the data format or the API; the server migrates its database on start.
 
-## Unreleased
+## 0.8.0 — 2026-11-22
 
 ### Added
 
@@ -88,6 +88,20 @@ version is 0.x, a minor release may change the data format or the API; the serve
   with their status and a short comment, and knows which open tickets are its own. This happens only in a person's
   own conversations, not in team chats, WhatsApp or guest chats, and not for a bot whose tool selection leaves the
   board out.
+- The settings cover the whole window, with their sections listed on the left and the open section in a readable
+  column, instead of a box in the middle of the window that scrolled inside itself. The conversation underneath stays
+  as it was, so leaving the settings comes back to it; Escape leaves unless a dialog, menu or open list takes it first.
+- The phone app draws each bot as its object, acting out what it does as on the web: ribbons while it writes, an
+  exclamation mark when it needs someone, a look over the page while it thinks, a hop when it is done. A bot's object
+  can be picked in its settings on the phone, among the objects the connected server takes. The sign-in screens show
+  the app icon. This reaches phones with the next phone release.
+
+### Fixed
+
+- A routine run whose bot explained why it had nothing to report and put the silent reply on the last line went out
+  as a report ending in that marker. The marker is never shown now, such a run sends no report, and a quiet run in the
+  person's main conversation no longer leaves its instruction there with no answer under it.
+- Pasting a long line into a dialog's text box no longer widens the dialog past its right edge; the line wraps.
 
 ## 0.7.1 — 2026-11-21
 

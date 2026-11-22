@@ -225,7 +225,7 @@ export function McpAppView({ m }: { m: Message }) {
       case 'ui/initialize':
         return {
           protocolVersion: typeof params.protocolVersion === 'string' ? params.protocolVersion : PROTOCOL,
-          hostInfo: { name: 'LeafBot', version: '0.7.1' },
+          hostInfo: { name: 'LeafBot', version: '0.8.0' },
           hostCapabilities: { openLinks: {}, serverTools: {} },
           hostContext: {
             theme,
