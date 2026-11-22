@@ -481,6 +481,8 @@ export class RoutineSuggestionService {
   ): Promise<{ name: string; instructions: string } | null> {
     const engine = this.engineFor(bot);
     if (!engine.complete) return null;
+    // A spent limit stops the bot's background calls too: they are spent from its account.
+    if (await this.services.usage.reached(bot)) return null;
     // The newest requests say it best; what looks like a secret never leaves in a request.
     const t = translator(language);
     const examples = group.slice(-EXAMPLES).map((r) => redactSecrets(r.text, t('memory.redacted')).text);

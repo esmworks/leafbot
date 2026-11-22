@@ -219,7 +219,12 @@ export class UsageService {
     return null;
   }
 
-  /** What the finished turns since `since` cost; with `botId`, only that bot's. */
+  /**
+   * What the bots spent since `since`; with `botId`, only that bot's. The finished turns, and the
+   * calls the server makes on a bot's account in the background (the routine pre-check, the promise
+   * safety net, the routine, work and skill suggestions, the memory tidy-up): each is spent from the
+   * same account, so each counts toward the limits.
+   */
   private async spentSince(since: Date, botId?: string): Promise<number> {
     const rows = await this.ctx.db
       .select({ costUsd: schema.turns.costUsd })
@@ -231,7 +236,45 @@ export class UsageService {
           botId ? eq(schema.turns.botId, botId) : undefined,
         ),
       );
-    return rows.reduce((sum, r) => sum + (r.costUsd ?? 0), 0);
+    const turns = rows.reduce((sum, r) => sum + (r.costUsd ?? 0), 0);
+    return turns + (await this.backgroundSince(since, botId));
+  }
+
+  /** What the background calls on the bots' accounts cost since `since`; with `botId`, only that bot's. */
+  private async backgroundSince(since: Date, botId?: string): Promise<number> {
+    const sumOf = async (
+      table:
+        | typeof schema.promiseChecks
+        | typeof schema.routineSuggestionChecks
+        | typeof schema.workOfferChecks
+        | typeof schema.skillSuggestionChecks
+        | typeof schema.memoryTidyChecks,
+    ) => {
+      const [row] = await this.ctx.db
+        .select({ total: sql<number | null>`sum(${table.costUsd})` })
+        .from(table)
+        .where(and(gte(table.createdAt, since), botId ? eq(table.botId, botId) : undefined));
+      return Number(row?.total ?? 0);
+    };
+    const [gate] = await this.ctx.db
+      .select({ total: sql<number | null>`sum(${schema.routineRuns.gateCostUsd})` })
+      .from(schema.routineRuns)
+      .innerJoin(schema.routines, eq(schema.routines.id, schema.routineRuns.routineId))
+      .where(
+        and(
+          isNotNull(schema.routineRuns.gateCostUsd),
+          gte(schema.routineRuns.startedAt, since),
+          botId ? eq(schema.routines.botId, botId) : undefined,
+        ),
+      );
+    const parts = await Promise.all([
+      sumOf(schema.promiseChecks),
+      sumOf(schema.routineSuggestionChecks),
+      sumOf(schema.workOfferChecks),
+      sumOf(schema.skillSuggestionChecks),
+      sumOf(schema.memoryTidyChecks),
+    ]);
+    return parts.reduce((a, b) => a + b, Number(gate?.total ?? 0));
   }
 
   /** Every finished turn of the last `days` days as CSV, one row each, oldest first. */

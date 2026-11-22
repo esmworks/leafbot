@@ -198,6 +198,8 @@ export class MemoryReviewService {
     const engine = this.engineFor(bot);
     // An engine that cannot answer without a session is skipped: a turn is never run for this.
     if (!engine.complete) return;
+    // A spent limit stops the bot's background calls too; the review looks again after a later turn.
+    if (await this.services.usage.reached(bot)) return;
     // A turn still going would be read without its answer, and the cursor would then pass its
     // question by: the review waits, and the next turn that ends brings it back.
     const [busy] = await this.ctx.db

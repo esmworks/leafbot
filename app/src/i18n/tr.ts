@@ -247,10 +247,12 @@ export const tr = {
   'message.showMarkdown': 'Markdown olarak göster',
   'message.showFormatted': 'Biçimli göster',
   'usage.month': 'Bu ay',
-  'usage.monthOf': '{limit} sınırından; sınıra ulaşılınca turlar gelecek ayı bekler',
+  'usage.monthOf':
+    '{limit} sınırından; arka plan çağrıları dahil. Sınıra ulaşılınca turlar ve arka plan işleri gelecek ayı bekler',
   'usage.noLimit': 'Aylık sınır yok',
   'usage.day': 'Bugün',
-  'usage.dayOf': '{limit} sınırından; sınıra ulaşılınca turlar yarını bekler',
+  'usage.dayOf':
+    '{limit} sınırından; arka plan çağrıları dahil. Sınıra ulaşılınca turlar ve arka plan işleri yarını bekler',
   'usage.noDayLimit': 'Günlük sınır yok',
   'usage.limit': 'Sınır ($)',
   'usage.downloadCsv': 'Bütün turları CSV olarak indir',

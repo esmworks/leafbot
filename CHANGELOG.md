@@ -29,7 +29,7 @@ version is 0.x, a minor release may change the data format or the API; the serve
   instructions to edit; "Add skill" makes it and turns it on for the bot, "Not this" closes it for good. Only someone
   who may change the bot can add it.
 - The usage page shows what the weekly memory tidy-up and the skill suggestions spent on their calls over the period,
-  apart from the bots' turns as the other background checks are: the sets of notes and source pages read and the
+  beside the other background checks: the sets of notes and source pages read and the
   notes changed, and the tasks written into skills and the suggestions made. A bot picked above narrows them to the
   calls on its account.
 
@@ -40,6 +40,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
   to judge facts from conversations they were not in. They show in the memory screen and its history like any other
   note; a conversation a stranger with no account spoke in still writes none. Bots are also told not to ask whether
   to remember something, and to write what is about the person in that person's own notes.
+- The spending limits count what the server spends in the background on a bot's account, not only its turns: the
+  routine pre-check, the promise safety net, the routine, work and skill suggestions and the memory tidy-up. They are
+  spent from the same account, so a limit that left them out let the month run over. Once a limit is reached, those
+  calls, and the memory review, wait as the turns do. The usage page's totals by bot and model stay the turns'.
 
 ## 0.7.1 — 2026-11-21
 

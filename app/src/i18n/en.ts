@@ -243,10 +243,12 @@ export const en: Catalog<MessageKey> = {
   'message.showMarkdown': 'Show as Markdown',
   'message.showFormatted': 'Show formatted',
   'usage.month': 'This month',
-  'usage.monthOf': 'of a {limit} limit; turns wait for next month once it is reached',
+  'usage.monthOf':
+    'of a {limit} limit, background calls included; turns and background work wait for next month once it is reached',
   'usage.noLimit': 'No monthly limit',
   'usage.day': 'Today',
-  'usage.dayOf': 'of a {limit} limit; turns wait for tomorrow once it is reached',
+  'usage.dayOf':
+    'of a {limit} limit, background calls included; turns and background work wait for tomorrow once it is reached',
   'usage.noDayLimit': 'No daily limit',
   'usage.limit': 'Limit ($)',
   'usage.downloadCsv': 'Download every turn as CSV',

@@ -403,6 +403,8 @@ export class SkillSuggestionService {
   ): Promise<{ name: string; description: string; body: string } | null> {
     const engine = this.engineFor(bot);
     if (!engine.complete) return null;
+    // A spent limit stops the bot's background calls too: they are spent from its account.
+    if (await this.services.usage.reached(bot)) return null;
     const t = translator(language);
     const clean = (s: string) => redactSecrets(s, t('memory.redacted')).text;
     // The newest tasks say it best; what looks like a secret never leaves in a request.

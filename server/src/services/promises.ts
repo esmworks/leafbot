@@ -185,6 +185,8 @@ export class PromiseService {
     if (await this.services.whatsapp.contactOf(thread.id)) return;
     const bot = await this.services.bots.get(turn.botId).catch(() => null);
     if (!bot || bot.archivedAt) return;
+    // A spent limit stops the bot's background calls too: they are spent from its account.
+    if (await this.services.usage.reached(bot)) return;
     const engine = this.engineFor(bot);
     if (!engine.complete) return;
     const person = thread.userId;

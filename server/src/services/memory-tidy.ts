@@ -300,6 +300,7 @@ export class MemoryTidyService {
       const botId = m.scope === 'bot' ? m.botId : writerOf(m);
       const bot = botId ? await this.services.bots.get(botId).catch(() => null) : null;
       if (!bot || !bot.memory || bot.archivedAt || !bot.internet || !this.engineFor(bot).complete) continue;
+      if (await this.services.usage.reached(bot)) continue;
       // Marked first: a page that fails is not read again every hour.
       await this.ctx.db
         .update(schema.memories)
@@ -408,7 +409,9 @@ export class MemoryTidyService {
   private async writer(set: NoteSet): Promise<Bot | null> {
     const usable = async (id: string) => {
       const bot = await this.services.bots.get(id).catch(() => null);
-      return bot && bot.memory && !bot.archivedAt && this.engineFor(bot).complete ? bot : null;
+      if (!bot || !bot.memory || bot.archivedAt || !this.engineFor(bot).complete) return null;
+      // A spent limit stops the bot's background calls too: they are spent from its account.
+      return (await this.services.usage.reached(bot)) ? null : bot;
     };
     if (set.key.startsWith('bot:')) return usable(set.key.slice(4));
     const counts = new Map<string, number>();

@@ -156,6 +156,59 @@ describe('kullanım raporu', () => {
     expect((await t.messages(ta.id)).at(-1)!.role).toBe('assistant');
   });
 
+  it('arka planda botun hesabından yapılan çağrılar da toplama ve sınırlara sayılır; sınır dolunca onlar da durur', async () => {
+    const a = await t.bot({ name: 'Katip' });
+    const b = await t.bot({ name: 'Yazman' });
+    const at = new Date('2026-11-10T09:00:00.000Z');
+    const row = (botId: string, costUsd: number) => ({
+      id: `c-${Math.random()}`,
+      botId,
+      costUsd,
+      createdAt: at,
+    });
+    await t.db.db.insert(schema.memoryTidyChecks).values({ ...row(a.id, 0.4), kind: 'set', changed: 2 });
+    await t.db.db.insert(schema.skillSuggestionChecks).values(row(a.id, 0.3));
+    await t.db.db.insert(schema.promiseChecks).values(row(a.id, 0.2));
+    await t.db.db.insert(schema.routineSuggestionChecks).values(row(b.id, 0.1));
+    await t.db.db.insert(schema.workOfferChecks).values(row(b.id, 0.05));
+    // Last month's call counts for none of this month's limits.
+    await t.db.db
+      .insert(schema.memoryTidyChecks)
+      .values({ ...row(a.id, 9), kind: 'source', createdAt: new Date('2026-10-20T09:00:00.000Z') });
+    await turn(b.id, '2026-11-12T09:00:00.000Z', 1);
+
+    const report = (await t.api<UsageReport>('GET', '/api/usage?days=30')).body;
+    expect(report.month!.costUsd).toBeCloseTo(2.05, 6);
+    // The turns' own totals stay the turns'.
+    expect(report.total.costUsd).toBe(1);
+    const spend = (await t.api<{ dayUsd: number; monthUsd: number }>('GET', `/api/bots/${a.id}/spend`)).body;
+    expect(spend.monthUsd).toBeCloseTo(0.9, 6);
+
+    // The bot's limit is spent by its background calls alone: its turns wait.
+    await t.api('PATCH', `/api/bots/${a.id}`, { monthlyLimitUsd: 0.8 });
+    const ta = (await t.api<Thread>('GET', `/api/bots/${a.id}/main-thread`)).body;
+    await t.send(ta.id, 'merhaba');
+    await t.services.turns.idle();
+    expect((await t.messages(ta.id)).at(-1)!.role).toBe('error');
+
+    // And so do its background calls: its notes are not tidied while the limit is spent.
+    for (let i = 1; i <= 5; i++)
+      await t.services.memory.create({
+        scope: 'bot',
+        botId: a.id,
+        content: `Not ${i}`,
+        source: `bot:${a.id}`,
+      });
+    const before = t.engine.completions.length;
+    await t.api('POST', '/api/memory-tidy');
+    await t.services.memoryTidy.idle();
+    expect(t.engine.completions).toHaveLength(before);
+    await t.api('PATCH', `/api/bots/${a.id}`, { monthlyLimitUsd: 0 });
+    await t.api('POST', '/api/memory-tidy');
+    await t.services.memoryTidy.idle();
+    expect(t.engine.completions).toHaveLength(before + 1);
+  });
+
   it('başarısız biten turun harcaması da aylık toplama ve sınıra sayılır', async () => {
     const a = await t.bot({ name: 'Katip' });
     const thread = (await t.api<Thread>('GET', `/api/bots/${a.id}/main-thread`)).body;
