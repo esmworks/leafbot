@@ -15,7 +15,7 @@ interface PhoneBridge {
 export function PhoneScreen({ botId }: { botId: string }) {
   const qc = useQueryClient();
   // The live screen and the computer's state come over the realtime connection.
-  useEffect(() => connectRealtime(qc), [qc]);
+  useEffect(() => connectRealtime(qc, { notices: false }), [qc]);
   useEffect(() => (window as PhoneBridge).ReactNativeWebView?.postMessage(SCREEN_READY), []);
   const { data: bots } = useBots();
   const bot = bots?.find((b) => b.id === botId);

@@ -13,7 +13,7 @@ import { serverBuild } from './update';
  * Realtime channel. Pushes only say what changed; lasting state is always refetched over HTTP.
  * The session cookie authenticates the connection (same origin).
  */
-export function connectRealtime(qc: QueryClient): () => void {
+export function connectRealtime(qc: QueryClient, opts: { notices?: boolean } = {}): () => void {
   const s: Socket<ServerToClientEvents, ClientToServerEvents> = io({
     path: '/socket.io',
     transports: ['websocket'],
@@ -69,7 +69,8 @@ export function connectRealtime(qc: QueryClient): () => void {
       });
     }
   });
-  s.on('notice', (e) => notice(qc, e));
+  // A page inside the phone app leaves sounds and notifications to the phone.
+  if (opts.notices !== false) s.on('notice', (e) => notice(qc, e));
   s.on('browser:state', (e) => useBrowsers.getState().setState(e));
   s.on('browser:frame', (e) => useBrowsers.getState().setFrame(e));
   s.on('computer:state', (e) => useComputers.getState().setState(e));
