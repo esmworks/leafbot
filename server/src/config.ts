@@ -55,6 +55,12 @@ export interface Config {
    * computer sleeps or the app quits. Otherwise it is a separate, always-on host.
    */
   onUserComputer: boolean;
+  /**
+   * The macOS helper that moves the mouse and types on this computer for a bot the person allowed
+   * to use it; the desktop app passes its path. Null where there is none (another system, or a
+   * server that does not run on the person's own computer).
+   */
+  personComputer: string | null;
   /** Chrome, Edge or Chromium program for the bots' browsers; null = bots have no browser. */
   browserPath: string | null;
   /** Chromium's own sandbox for web pages; turn off only where it cannot start (e.g. running as root). */
@@ -192,6 +198,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     routineTickMs: 30_000,
     routinesEnabled: true,
     onUserComputer: env.LEAFBOT_ON_USER_COMPUTER === '1',
+    personComputer:
+      env.LEAFBOT_ON_USER_COMPUTER === '1' && process.platform === 'darwin' && env.LEAFBOT_PERSON_COMPUTER
+        ? env.LEAFBOT_PERSON_COMPUTER
+        : null,
     browserPath: findBrowser(env),
     browserSandbox: env.LEAFBOT_BROWSER_SANDBOX !== '0',
     maxBrowsers: Number(env.LEAFBOT_MAX_BROWSERS ?? 3),

@@ -79,6 +79,11 @@ mac:
   # and sent to Apple for notarization when APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID
   # are set, so the downloaded app opens without the "unidentified developer" warning. Without
   # them the build still succeeds, unsigned or not notarized.
+  # The helper that moves the mouse and types for a bot the person allowed to use this Mac
+  # (build.mjs compiles it).
+  extraResources:
+    - from: dist/person-computer
+      to: person-computer
   hardenedRuntime: true
   entitlements: entitlements.mac.plist
   entitlementsInherit: entitlements.mac.plist

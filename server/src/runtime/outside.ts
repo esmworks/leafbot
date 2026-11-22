@@ -263,6 +263,8 @@ const TAG = 'outside-data';
 export function outsideSource(tool: AppTool, apps: ReadonlyMap<string, string>, t: T): string | null {
   if (tool.server) return apps.get(tool.server) ?? tool.server;
   if (tool.name.startsWith('browser_')) return t('outside.browser');
+  // Whatever is open on the person's screen: a page, a mail, someone else's message.
+  if (tool.name.startsWith('person_computer_')) return t('outside.screen');
   if (tool.name === 'api_request' || tool.name === 'api_call') return t('outside.api');
   if (tool.name === 'email_inbox' || tool.name === 'email_read') return t('outside.email');
   if (tool.name === 'whatsapp_history' || tool.name === 'whatsapp_chats') return t('outside.whatsapp');

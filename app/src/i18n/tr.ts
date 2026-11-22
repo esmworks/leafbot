@@ -1598,6 +1598,13 @@ export const tr = {
   'bot.internet': 'İnternet erişimi',
   'bot.internetHint':
     'Açıkken bot internette arama yapar, sayfa okur, kendi tarayıcısını ve bilgisayarını kullanır. Kapalıyken bunların hiçbirini yapamaz.',
+  'bot.personComputer': "Mac'imi kullanabilir",
+  'bot.personComputerHint':
+    'Senin istediğin işlerde ekranına bakabilir, fareyi ve klavyeyi kullanabilir. Her işte ilk adımdan önce sorar.',
+  'bot.personComputerMissing': 'macOS henüz izin vermedi: {what}',
+  'bot.personComputerAccessibility': 'Erişilebilirlik',
+  'bot.personComputerScreen': 'Ekran Kaydı',
+  'bot.personComputerAllow': 'İzin iste',
   'bot.manager': 'Yönetici bot',
   'bot.managerHint':
     'Bütün botlara yazabilir, bot oluşturup düzenleyebilir. İzin gevşetmek için yine size sorar.',

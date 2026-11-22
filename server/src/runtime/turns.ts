@@ -11,6 +11,7 @@ import {
   type Effort,
   outsideIn,
   type OutsideTrigger,
+  PERSON_COMPUTER,
 } from '@leafbot/shared';
 import { and, asc, desc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { Ctx } from '../context';
@@ -44,6 +45,7 @@ import { carriesToken, scrubCanary, type CanaryHit } from '../services/canary';
 import { publicHost } from '../services/skill-link';
 import type { PlanItem, SubagentState } from '../engine/types';
 import { isUniqueViolation, newId, readableError, truncate } from '../util';
+import { submitsOnMac } from '../computer/person';
 import { markedOutside, outsideRead, outsideSource, resembledSite } from './outside';
 import { MAX_SOURCES } from '../services/canary';
 import { ownerWords, requestedBy } from './owner-words';
@@ -1540,6 +1542,9 @@ export class TurnManager {
     // sandbox here, where every host a command reaches is decided below.
     const shell: 'computer' | 'sandbox' =
       this.ctx.computer && !bot.projectDir && bot.internet ? 'computer' : 'sandbox';
+    // The card the person answered yes on before this bot first used their Mac in this turn; later
+    // steps on it go by that answer (see `onMac` below).
+    let macApproval: string | null = null;
     const canUseTool = async (raw: {
       toolName: string;
       input: Record<string, unknown>;
@@ -1576,6 +1581,11 @@ export class TurnManager {
       ) {
         return { behavior: 'deny', message: t('turn.safetyFloor') };
       }
+      // The person's own Mac: the first look or touch in a turn asks at every level, with no "always
+      // allow", since a bot sees whatever is on their screen and acts with their rights. Once they
+      // said yes, looking, moving and plain typing go on in this piece of work without another
+      // card; a key or text that could run or send something asks each time (see below).
+      const onMac = (ask.toolName.split('__').at(-1) ?? '').startsWith(PERSON_COMPUTER);
       // Reads and talking to the person are free at every level, after outside text too: that text
       // reaches the bot marked as data, and the steps that matter ask at every level.
       let free = readOnlyTools;
@@ -1609,6 +1619,16 @@ export class TurnManager {
       // this bot's level, not the turn's, so the card does not offer it, and another card's answer
       // does not pass this one.
       const capped = mode !== modeFor(level);
+      if (
+        onMac &&
+        macApproval &&
+        !turn.rehearsalId &&
+        mode !== 'readonly' &&
+        !askRuleMatches(rules, ask.toolName, ask.input) &&
+        !submitsOnMac(ask.toolName, ask.input)
+      ) {
+        return { behavior: 'allow', let: { how: 'card', approvalId: macApproval } };
+      }
       // A page address that imitates a site the person uses (a copy made to take a sign-in or a
       // payment) is theirs to open, at every level; the card says which site it looks like and
       // offers no "always allow".
@@ -1744,7 +1764,7 @@ export class TurnManager {
         readOnlyTools: free,
         guest: locked,
       });
-      const verdict = copied && decided === 'allow' ? 'ask' : decided;
+      const verdict = (copied || onMac) && decided === 'allow' ? 'ask' : decided;
       if (verdict === 'allow') {
         // A read goes without a line in the bot's list of what it changed.
         if (free.has(ask.toolName) || READ_ONLY_TOOLS.has(ask.toolName)) return { behavior: 'allow' };
@@ -1795,8 +1815,9 @@ export class TurnManager {
         }).want,
         signal: controller.signal,
         timeoutMs: present ? undefined : this.ctx.config.unattendedApprovalMs,
-        // A copy of a site gets no "always allow", nor an answer from another card's rule.
-        outside: locked || capped || !!copied,
+        // A copy of a site gets no "always allow", nor an answer from another card's rule; nor does
+        // the person's Mac.
+        outside: locked || capped || !!copied || onMac,
         second,
         onCreated: async (a) => {
           await threads.addMessage({
@@ -1808,7 +1829,7 @@ export class TurnManager {
               approvalId: a.id,
               ...held,
               ...(second ? { needsSecond: true } : {}),
-              ...(locked || capped ? { noAlways: true } : {}),
+              ...(locked || capped || onMac ? { noAlways: true } : {}),
               ...(copied ? { resembles: copied.charAt(0).toUpperCase() + copied.slice(1) } : {}),
             },
             turnId: turn.id,
@@ -1818,6 +1839,7 @@ export class TurnManager {
       });
       this.emitState(thread.id, bot.id);
       const answer = approvals.toAnswer(result, t);
+      if (onMac && answer.behavior === 'allow' && result.approvalId) macApproval = result.approvalId;
       return answer.behavior === 'allow'
         ? { ...answer, let: { how: 'card', approvalId: result.approvalId } }
         : answer;

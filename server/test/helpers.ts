@@ -73,6 +73,7 @@ export async function testServer(overrides: Partial<Config> = {}): Promise<TestS
       modelCatalogUrl: null,
       // Steps ask as they do on the person's own computer; a test of a server of its own says so.
       onUserComputer: true,
+      personComputer: null,
       ...overrides,
     },
   );

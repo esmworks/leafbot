@@ -1,0 +1,1 @@
+ALTER TABLE "bots" ADD COLUMN "person_computer" boolean DEFAULT false NOT NULL;

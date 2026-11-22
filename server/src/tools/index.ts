@@ -42,6 +42,7 @@ import { errorText, HttpError, newId, notFound, truncate } from '../util';
 import { replayHandOver, replaySteps } from '../browser/replay';
 import { browserTools, type AskCard, type AskLogin } from './browser';
 import { computerTools } from './computer';
+import { personComputerTools } from './person-computer';
 import { handFiles, pageImageTool, sendFileTool, showPageTool } from './files';
 import { imageTool } from './images';
 import { videoTool } from './videos';
@@ -339,7 +340,13 @@ export type ToolName =
   | 'computer_scroll'
   | 'computer_drag'
   | 'run_command'
-  | 'command_status';
+  | 'command_status'
+  | 'person_computer_screenshot'
+  | 'person_computer_click'
+  | 'person_computer_type'
+  | 'person_computer_key'
+  | 'person_computer_scroll'
+  | 'person_computer_drag';
 
 /**
  * Puts questions to the person on a card in the turn's conversation and waits for the answers,
@@ -1951,6 +1958,21 @@ export class ToolFactory {
       // folder is; the desktop does not see it.
       tools.push(...(bot.projectDir ? desk.filter((x) => x.name !== 'run_command') : desk));
     }
+    // The person's own Mac, for a bot they allowed to use it: only in work their own message
+    // started (not a routine, a mail, a webhook, a follow-up or another bot), in their own
+    // conversation (not a team chat, a guest's or someone else's), and not for a bot that may only
+    // read.
+    if (
+      this.ctx.personComputer &&
+      bot.personComputer &&
+      turn.source === 'user' &&
+      !team &&
+      !turn.guest &&
+      person === OWNER_ID &&
+      bot.permissionMode !== 'readonly'
+    ) {
+      tools.push(...personComputerTools({ def, botId: bot.id, t, computer: this.ctx.personComputer }));
+    }
     if (bot.isManager && !team) {
       tools.push(
         ...this.managerTools(bot, signal, t, unattended, person, (ref) => reachBot(ref, 'edit'), journal),
@@ -2096,6 +2118,8 @@ export class ToolFactory {
               // The level a bot the person creates starts at, as one made in the app.
               permissionMode: 'auto',
               internet: false,
+              // The person's Mac is theirs to open to a bot, never a manager bot's.
+              personComputer: false,
               projectDir: null,
               memory: true,
               effort: '',
