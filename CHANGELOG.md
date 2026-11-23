@@ -3,6 +3,16 @@
 All notable changes to Leaf Bot (called Yumak Bot before 0.7.0) are listed here. Versions follow [Semantic Versioning](https://semver.org/). While the
 version is 0.x, a minor release may change the data format or the API; the server migrates its database on start.
 
+## Unreleased
+
+### Added
+
+- A routine whose runs keep failing switches itself off after 10 failed runs in a row, so a broken instruction, a
+  removed tool or a page that changed stops spending money. You are told in your main conversation, and the routine
+  shows why it is off; when you turn it on again the count starts over. A usage limit, an expired sign-in, a server
+  restart, a run you stopped and a provider that is busy for now do not count, and a run that works resets the count.
+  The server migrates its database on start.
+
 ## 0.9.1 — 2026-11-23
 
 ### Added

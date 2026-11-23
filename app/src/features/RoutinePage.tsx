@@ -357,7 +357,8 @@ export function RoutinePage({
   ];
   /** When it runs next: worked out from the schedule as it is in the form. */
   const when = (() => {
-    if (routine && !routine.enabled) return t('flow.paused');
+    if (routine && !routine.enabled)
+      return t(routine.pausedReason === 'failures' ? 'flow.switchedOffFailures' : 'flow.paused');
     let next: Date | null = null;
     try {
       next = nextRun(

@@ -182,6 +182,7 @@ export const toRoutine = (r: Row<typeof schema.routines>): Routine => ({
   tableTrigger: r.tableTrigger,
   tableFilter: r.tableFilter,
   signInWait: r.signInWait,
+  pausedReason: r.pausedReason,
   flowLayout: (r.flowLayout as FlowLayout | null) ?? null,
 });
 

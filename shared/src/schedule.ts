@@ -221,6 +221,11 @@ export const Routine = z.object({
    */
   signInWait: z.string().nullable().optional(),
   /**
+   * Why it was switched off by itself (`failures`: too many failed runs in a row); null when it
+   * is on or the person paused it. Missing on older servers.
+   */
+  pausedReason: z.enum(['failures']).nullable().optional(),
+  /**
    * The secret part of the address that starts the routine from another service (a webhook);
    * null when it has none.
    */

@@ -615,6 +615,20 @@ export const routines = pgTable('routines', {
    * in again clears it. Null when nothing waits.
    */
   signInWait: text('sign_in_wait').references(() => connections.id, { onDelete: 'set null' }),
+  /**
+   * How many runs in a row have really failed (the run itself ended in error, or the bot said it
+   * could not do its task). A run that did its work resets it; waits, skips, the person's stop, a
+   * usage limit, a sign-in problem and a server restart leave it as it was. A counter beats
+   * counting the last runs: those endings are told apart where they happen, not from the
+   * run's stored reason text, which is in the person's language.
+   */
+  failureStreak: integer('failure_streak').notNull().default(0),
+  /**
+   * Why the routine was switched off by itself (`failures`: too many failed runs in a row); null
+   * when the person paused it, or when it is on. A routine comes in paused from an import as well,
+   * and `enabled` alone cannot say which. Cleared when the routine is turned on or off by hand.
+   */
+  pausedReason: text('paused_reason', { enum: ['failures'] }),
 });
 
 export const routineRuns = pgTable(

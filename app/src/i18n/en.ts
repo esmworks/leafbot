@@ -1399,6 +1399,7 @@ export const en: Catalog<MessageKey> = {
   'panel.nextRun': 'next {when}',
   'panel.lastRunFailed': 'last run failed',
   'panel.signInWait': 'waiting for a sign-in',
+  'panel.switchedOffFailures': 'switched off after repeated failures',
   'panel.runNow': 'Run now',
   'panel.toggle': 'On/off',
   'panel.bot': 'Bot',
@@ -1605,6 +1606,8 @@ export const en: Catalog<MessageKey> = {
   'flow.nextRun': 'Next run {when}',
   'flow.noNextRun': 'Not set to run again',
   'flow.paused': 'Paused; it does not run on its schedule.',
+  'flow.switchedOffFailures':
+    'Switched off after its runs failed several times in a row. Turn it on again once it is fixed; the count starts again.',
   'flow.saveFirst': 'Save your changes before running it.',
   'flow.started': 'The routine started.',
   'flow.result': 'Result',

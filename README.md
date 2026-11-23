@@ -62,7 +62,7 @@ approval sentences, are in English or Turkish.
   GitLab, Stripe, Shopify, Linear, Sentry, Calendly, Typeform, each with its signature checked), when a row of a bot's table
   is ready, or only when a watched page or a connected app's answer changes; they can build on their last report, and
   they run in the bot's main conversation unless they read WhatsApp, wait for the person or are started by outside text. A routine's steps can be laid out as boxes on a canvas, edited in place, with each
-  box showing how the latest run went there.
+  box showing how the latest run went there. A routine whose runs fail ten times in a row switches itself off and tells the person.
 - **Follow-ups** — each bot keeps its own calendar apart from the routines: whatever it learns is coming up (a visit
   in a mail, a deadline said in the chat, a promise) it keeps track of by itself, without asking and without filling
   the list of routines, and brings it up the morning before, with the calendar checked, also in Telegram or WhatsApp.

@@ -1364,6 +1364,7 @@ export const tr = {
   'panel.nextRun': 'sıradaki {when}',
   'panel.lastRunFailed': 'son çalışma başarısız',
   'panel.signInWait': 'oturum açılmasını bekliyor',
+  'panel.switchedOffFailures': 'art arda hatalar yüzünden kapatıldı',
   'panel.runNow': 'Şimdi çalıştır',
   'panel.toggle': 'Aç/kapat',
   'panel.bot': 'Bot',
@@ -1570,6 +1571,8 @@ export const tr = {
   'flow.nextRun': 'Sıradaki çalışma {when}',
   'flow.noNextRun': 'Yeniden çalışması ayarlı değil',
   'flow.paused': 'Duraklatıldı; zamanında çalışmaz.',
+  'flow.switchedOffFailures':
+    'Çalışmaları art arda birkaç kez başarısız olduğu için kapatıldı. Düzelttikten sonra yeniden aç; sayım baştan başlar.',
   'flow.saveFirst': 'Çalıştırmadan önce değişiklikleri kaydet.',
   'flow.started': 'Rutin başladı.',
   'flow.result': 'Sonuç',
