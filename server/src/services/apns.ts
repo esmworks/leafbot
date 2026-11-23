@@ -132,6 +132,8 @@ export interface ApnsAlert {
   /** A newer notification with the same id replaces the older one. */
   collapseId: string;
   data: Record<string, string>;
+  /** The number the app's icon shows; left as it is when absent. */
+  badge?: number;
 }
 
 /** A change to a Live Activity on the lock screen: new content, or its end. */
@@ -189,7 +191,12 @@ export function alertRequest(token: string, sandbox: boolean, auth: string, topi
       'apns-collapse-id': a.collapseId.slice(0, 64),
     },
     body: JSON.stringify({
-      aps: { alert: { title: a.title, body: a.body }, sound: 'default', 'thread-id': a.threadId },
+      aps: {
+        alert: { title: a.title, body: a.body },
+        sound: 'default',
+        'thread-id': a.threadId,
+        ...(a.badge === undefined ? {} : { badge: a.badge }),
+      },
       ...a.data,
     }),
   } satisfies ApnsRequest;

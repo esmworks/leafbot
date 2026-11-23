@@ -12,7 +12,7 @@ import {
   type PushDeviceSet,
   type TurnEvent,
 } from '@leafbot/shared';
-import { and, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
 import { hashSession } from '../auth';
 import type { Ctx } from '../context';
 import { schema } from '../db';
@@ -93,6 +93,8 @@ export class PushService {
       locale: input.locale,
       level: input.level,
       mutes: input.mutes,
+      // An update without the list keeps the one the server has counted up meanwhile.
+      ...(input.unread ? { unread: [...new Set(input.unread)] } : {}),
       sessionId: sessionToken ? hashSession(sessionToken) : null,
       updatedAt: new Date(),
     };
@@ -305,7 +307,7 @@ export class PushService {
         .where(eq(schema.bots.id, e.botId))
         .limit(1);
       await Promise.all(
-        devices.map((d) => {
+        devices.map(async (d) => {
           const t = translator(isLocale(d.locale) ? d.locale : 'tr');
           const name = bot?.name ?? t('push.bot');
           const title =
@@ -315,18 +317,38 @@ export class PushService {
                 ? t('push.error', { name })
                 : name;
           const text = e.text.length > BODY_MAX ? `${e.text.slice(0, BODY_MAX - 1)}…` : e.text;
+          const badge = await this.countUnread(d, e.botId);
           return this.send(d, {
             title,
             body: text,
             threadId: e.threadId,
             collapseId: `${e.kind}:${e.threadId}`,
             data: { kind: e.kind, botId: e.botId, threadId: e.threadId },
+            ...(badge === null ? {} : { badge }),
           });
         }),
       );
     } catch (err) {
       console.warn('push notice', err);
     }
+  }
+
+  /**
+   * Counts the notice's bot as unread on the phone and gives the number for its icon, as the phone
+   * counts it: bots, not messages. In one statement, so two notices at once both count. Null for
+   * an app that keeps no such number.
+   */
+  private async countUnread(d: Device, botId: string): Promise<number | null> {
+    if (!d.unread) return null;
+    const [row] = await this.ctx.db
+      .update(schema.pushDevices)
+      .set({
+        unread: sql`case when ${schema.pushDevices.unread} ? ${botId} then ${schema.pushDevices.unread}
+          else ${schema.pushDevices.unread} || jsonb_build_array(${botId}::text) end`,
+      })
+      .where(and(eq(schema.pushDevices.token, d.token), isNotNull(schema.pushDevices.unread)))
+      .returning({ unread: schema.pushDevices.unread });
+    return row?.unread ? row.unread.length : null;
   }
 
   /** A notification to one registered phone right now, so the person sees what they will get. */

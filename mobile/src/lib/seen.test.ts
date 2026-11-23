@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@react-native-async-storage/async-storage', () => ({ default: {} }));
 
-const { isUnread, markRead, nextSeen } = await import('./seen');
+const { isUnread, markRead, nextSeen, unreadBots } = await import('./seen');
 
 describe('seen', () => {
   it('marks a bot unread only after a reply the person has not seen', () => {
@@ -30,5 +30,16 @@ describe('seen', () => {
     expect(markRead(seen, 'b1', 'a')).toBe(seen);
     expect(markRead(seen, 'b1', 'c')).toEqual({ b1: 'c' });
     expect(markRead(seen, 'b2', 'a')).toEqual({ b1: 'b', b2: 'a' });
+  });
+
+  it('counts the bots with unread replies for the icon', () => {
+    const list = [
+      { botId: 'b1', repliedAt: 'b' },
+      { botId: 'b2', repliedAt: 'a' },
+      { botId: 'b3', repliedAt: null },
+    ];
+    expect(unreadBots(list, null)).toEqual([]);
+    expect(unreadBots(list, { b1: 'a', b2: 'a' })).toEqual(['b1']);
+    expect(unreadBots(list, {})).toEqual(['b1', 'b2']);
   });
 });

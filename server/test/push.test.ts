@@ -81,6 +81,33 @@ describe('telefon bildirimleri', () => {
     expect(ok).toBe(true);
   });
 
+  it('simgedeki sayıyı telefonun okunmamış botlarından sayar', async () => {
+    await t.api('PUT', '/api/push/apns', APNS);
+    const a = await t.bot({ name: 'A' });
+    const b = await t.bot({ name: 'B' });
+    const c = await t.bot({ name: 'C' });
+    const badges = () => sent.map((r) => (JSON.parse(r.body) as { aps: { badge?: number } }).aps.badge);
+    // An app that keeps no number is sent none.
+    await device();
+    await notice('reply', a.id);
+    expect(badges()).toEqual([undefined]);
+    // The phone says one bot is unread; a second reply from it is the same bot, a new bot adds one.
+    await device({ unread: [a.id] });
+    await notice('reply', a.id);
+    await notice('reply', b.id);
+    expect(badges()).toEqual([undefined, 1, 2]);
+    // An update without the list keeps the count; the phone's own list replaces it.
+    await device({ level: 'all' });
+    await Promise.all([notice('reply', c.id), notice('needsYou', c.id)]);
+    expect(badges().slice(3)).toEqual([3, 3]);
+    await device({ unread: [] });
+    await notice('reply', b.id);
+    expect(badges().at(-1)).toBe(1);
+    // The test notification leaves the icon alone.
+    await t.services.push.test(TOKEN);
+    expect(badges().at(-1)).toBeUndefined();
+  });
+
   it('telefonun seçimlerine uyar: yalnızca istekler, susturulan botlar, dil', async () => {
     await t.api('PUT', '/api/push/apns', APNS);
     const a = await t.bot({ name: 'A' });

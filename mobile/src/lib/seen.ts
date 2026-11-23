@@ -80,3 +80,27 @@ export function markSeen(origin: string, botId: string, at: string) {
   if (!seen) return;
   set(origin, markRead(seen, botId, at));
 }
+
+/** The bots with replies not yet read, which the number on the app's icon counts. */
+export function unreadBots(summaries: readonly Summary[], seen: Seen | null | undefined): string[] {
+  return summaries.filter((s) => isUnread(s, seen)).map((s) => s.botId);
+}
+
+// The unread bots of the server the bot list last showed, for the icon's number and the server's
+// copy of it. Unknown until the list and the marks have both been read, so a launch does not set
+// the number to nothing before it knows.
+let unread: { origin: string; key: string; ids: readonly string[] } | null = null;
+
+/** Notes the bot list's unread bots; the same list again changes nothing. */
+export function setUnread(origin: string, ids: readonly string[]) {
+  const key = ids.join(',');
+  if (unread?.origin === origin && unread.key === key) return;
+  unread = { origin, key, ids };
+  for (const fn of listeners) fn();
+}
+
+/** The unread bots on `origin` once known. */
+export function useUnread(origin: string | null): readonly string[] | undefined {
+  const now = useSyncExternalStore(subscribe, () => unread);
+  return origin && now?.origin === origin ? now.ids : undefined;
+}

@@ -24,6 +24,12 @@ export const PushDeviceSet = z.object({
   locale: z.enum(LOCALES),
   level: PushLevel,
   mutes: PushMutes.default({}),
+  /**
+   * The bots with replies not yet read on this phone, which the number on the app's icon counts.
+   * The server adds the bot of each notice it sends, so the number grows while the app is closed.
+   * Left out by an app that keeps no such number, and while the phone has not read its list yet.
+   */
+  unread: z.array(Id).max(1000).optional(),
 });
 export type PushDeviceSet = z.infer<typeof PushDeviceSet>;
 

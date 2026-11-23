@@ -850,6 +850,11 @@ export const pushDevices = pgTable('push_devices', {
   mutes: jsonb('mutes').$type<Record<string, number | null>>().notNull().default({}),
   /** Apple's test service answers for builds run from Xcode; learnt on the first send. */
   sandbox: boolean('sandbox'),
+  /**
+   * The bots unread on the phone, as it last said, plus those of notices sent since: the number on
+   * the app's icon. Null for an app that keeps no such number; it is then sent none.
+   */
+  unread: jsonb('unread').$type<string[]>(),
   createdAt: created(),
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });

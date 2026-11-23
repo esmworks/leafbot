@@ -7,6 +7,7 @@ import { AppState, Platform } from 'react-native';
 import { MUTED_KEY, type Mutes } from '@/components/sidebar/mutes';
 import { locale } from '@/i18n';
 import { apiFor } from './api';
+import { useUnread } from './seen';
 import { nav } from './nav';
 import { useStored } from './stored';
 
@@ -37,6 +38,7 @@ if (pushSupported) {
     handleNotification: async (n) => {
       const { kind, threadId } = payloadOf(n.request);
       const show = kind === 'test' || threadId !== viewing;
+      // The number on the icon is set from the bot list while the app is open.
       return { shouldShowBanner: show, shouldShowList: show, shouldPlaySound: show, shouldSetBadge: false };
     },
   });
@@ -120,6 +122,9 @@ export function usePush(origin: string | null, signedIn: boolean) {
   const [mutes, , mutesLoaded] = useStored<Mutes>(MUTED_KEY, {});
   const [token, setToken] = useStored<string | null>(TOKEN_KEY, null);
   const active = pushSupported && !!origin && signedIn;
+  const unread = useUnread(origin);
+  // The same bots in a new array are not a change.
+  const unreadKey = unread?.join(',');
 
   useEffect(() => {
     if (!active || !levelLoaded) return;
@@ -154,13 +159,22 @@ export function usePush(origin: string | null, signedIn: boolean) {
     };
   }, [active, levelLoaded, level, setToken]);
 
-  // A choice changed on this phone reaches the server at once.
+  // The icon shows how many bots have replies not yet read, as the computer's does; the server
+  // counts on from the same list while the app is closed.
+  useEffect(() => {
+    if (!pushSupported || unreadKey === undefined) return;
+    const count = unreadKey ? unreadKey.split(',').length : 0;
+    void Notifications.setBadgeCountAsync(count).catch(() => undefined);
+  }, [unreadKey]);
+
+  // A choice changed on this phone reaches the server at once, and so does a bot read here.
   useEffect(() => {
     if (!active || !token || !levelLoaded || !mutesLoaded) return;
+    const ids = unreadKey === undefined ? undefined : unreadKey ? unreadKey.split(',') : [];
     apiFor(origin)
-      .pushDevice({ token, platform: 'ios', locale, level, mutes })
+      .pushDevice({ token, platform: 'ios', locale, level, mutes, ...(ids ? { unread: ids } : {}) })
       .catch((err: unknown) => console.warn('push register', err));
-  }, [active, origin, token, level, mutes, levelLoaded, mutesLoaded]);
+  }, [active, origin, token, level, mutes, levelLoaded, mutesLoaded, unreadKey]);
 
   useEffect(() => {
     if (!pushSupported) return;
