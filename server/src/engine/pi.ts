@@ -798,7 +798,12 @@ export class PiEngine implements Engine {
           messages: [],
           ...thinking,
         },
-        streamFn,
+        // Its requests end with the turn, even one sent before its own run could hear the stop.
+        streamFn: (m, context, options) =>
+          streamFn(m, context, {
+            ...options,
+            signal: options?.signal ? AbortSignal.any([options.signal, signal]) : signal,
+          }),
         getApiKey,
         sessionId: randomUUID(),
         toolExecution: 'sequential',
@@ -808,6 +813,7 @@ export class PiEngine implements Engine {
       let steps = 0;
       let capped = false;
       helper.subscribe((event) => {
+        if (signal.aborted) helper.abort();
         if (event.type === 'tool_execution_start' || event.type === 'tool_execution_end') {
           const name = byName.get(event.toolName)?.perm ?? event.toolName;
           const running = event.type === 'tool_execution_start';
@@ -821,6 +827,8 @@ export class PiEngine implements Engine {
           costUsd += (event.message as AssistantMessage).usage?.cost?.total ?? 0;
         }
       });
+      // A stop that came before this listener is not heard by it.
+      if (signal.aborted) return { text: '', stopped: true };
       const onAbort = () => helper.abort();
       signal.addEventListener('abort', onAbort, { once: true });
       try {

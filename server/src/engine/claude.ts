@@ -626,6 +626,13 @@ export class ClaudeEngine implements Engine {
     try {
       for await (const m of q as AsyncIterable<SDKMessage>) {
         req.onActivity?.();
+        // Anything a subagent sends says it has started: the CLI may hold some back while others run.
+        const from = (m as { parent_tool_use_id?: string | null }).parent_tool_use_id;
+        const started = from ? subagents.get(from) : undefined;
+        if (started?.state === 'waiting') {
+          started.state = 'running';
+          req.onSubagent?.({ ...started });
+        }
         if (m.type === 'rate_limit_event') {
           const info = m.rate_limit_info;
           const windows = eventWindows(info);
@@ -654,15 +661,8 @@ export class ClaudeEngine implements Engine {
           }
         } else if (m.type === 'stream_event') {
           // A subagent's words are its own work, not the reply: they stay out of the chat as the
-          // finished text does. The first of them says it has started.
-          if (m.parent_tool_use_id) {
-            const sub = subagents.get(m.parent_tool_use_id);
-            if (sub?.state === 'waiting') {
-              sub.state = 'running';
-              req.onSubagent?.({ ...sub });
-            }
-            continue;
-          }
+          // finished text does.
+          if (m.parent_tool_use_id) continue;
           const ev = m.event as { type: string; delta?: { type: string; text?: string } };
           if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && ev.delta.text) {
             req.onText(ev.delta.text);
@@ -698,7 +698,6 @@ export class ClaudeEngine implements Engine {
           for (const c of m.message.content) {
             if (c.type !== 'tool_use') continue;
             if (parent) {
-              if (parent.state === 'waiting') parent.state = 'running';
               parent.steps += 1;
               parent.tool = c.name;
               req.onSubagent?.({ ...parent });
@@ -710,7 +709,7 @@ export class ClaudeEngine implements Engine {
                   : typeof input.subagent_type === 'string'
                     ? input.subagent_type
                     : '';
-              // Waiting until its own first word: the CLI may hold some back while others run.
+              // Waiting until it sends anything of its own (see the top of the loop).
               const sub: SubagentState = {
                 id: c.id,
                 description: description.slice(0, 200),

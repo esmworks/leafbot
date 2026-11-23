@@ -120,7 +120,9 @@ export function subagentTool(o: {
       const show = () => o.onSubagent?.({ ...sub });
       show();
       const free = await o.slots.acquire(stop);
-      if (!free) {
+      // A place can come free in the same moment the turn is stopped.
+      if (free && stop.aborted) free();
+      if (!free || stop.aborted) {
         sub.state = 'stopped';
         show();
         return result(t('engine.stopped'), true);

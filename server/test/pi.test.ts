@@ -892,6 +892,52 @@ describe('Pi motoru', () => {
       expect(seen.states.get(`g${n}`)).toEqual(['waiting', 'running', 'done']);
     });
 
+    it('durdurulan tur çalışan ve sırada bekleyen alt ajanları durdurur', async () => {
+      // Helpers' requests hang until they are aborted; one that never is gives up after a while.
+      let sent = 0;
+      let aborted = 0;
+      const held = new PiEngine({
+        sessionsDir: join(dir, 'sessions'),
+        apiKey: async (p) => keys[p] ?? null,
+        resolveModel: (p, id) => (p === 'deneme' ? faux.getModel(id) : undefined),
+        streamFn: (async (model, context, options) => {
+          if (isHelper(context as unknown as Ctx)) {
+            sent++;
+            await new Promise<void>((resolve) => {
+              const end = () => {
+                aborted++;
+                clearTimeout(timer);
+                resolve();
+              };
+              const timer = setTimeout(resolve, 5000);
+              if (options?.signal?.aborted) end();
+              else options?.signal?.addEventListener('abort', end);
+            });
+          }
+          return streamSimple(model, context, options);
+        }) as StreamFn,
+      });
+      const n = SUBAGENTS_AT_ONCE + 2;
+      faux.setResponses([helpers(n), ...Array.from({ length: n + 2 }, () => fauxAssistantMessage('Yarım.'))]);
+      const seen = track();
+      const { req, ctrl } = request({
+        onSubagent: (s) => {
+          seen.onSubagent(s);
+          if (seen.peak() === SUBAGENTS_AT_ONCE) ctrl.abort();
+        },
+      });
+      const began = Date.now();
+      const out = await held.run(req);
+      expect(out).toMatchObject({ ok: false, kind: 'interrupted' });
+      expect(Date.now() - began).toBeLessThan(4000);
+      // Every request a helper got out ended with the stop; how many got out depends on timing.
+      expect(sent).toBeLessThanOrEqual(SUBAGENTS_AT_ONCE);
+      expect(aborted).toBe(sent);
+      expect([...seen.last.values()].map((s) => s.state)).toEqual(Array.from({ length: n }, () => 'stopped'));
+      // The ones still in line never started.
+      expect(seen.states.get(`g${n}`)).toEqual(['waiting', 'stopped']);
+    });
+
     it('alt ajanın kendi adımları sorulur; ona alt ajan aracı verilmez', async () => {
       const offered: { helper: boolean; tools: string[] }[] = [];
       const reply = (ctx: Ctx) => {
