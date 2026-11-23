@@ -96,6 +96,7 @@ export function Composer({
   // swipe typing lose their place when a box being typed in has its text set again. What the app
   // writes into the box itself (a saved draft, a picked skill, a command) remounts it with that text.
   const [box, setBox] = useState({ key: 0, text: '', focus: false });
+  const [fitHeight, setFitHeight] = useState(0);
   const write = (next: string, focus = false) => {
     setText(next);
     setBox((b) => ({ key: b.key + 1, text: next, focus }));
@@ -388,6 +389,23 @@ export function Composer({
               <Feather name="paperclip" size={24} color={c.mutedForeground} />
             </Pressable>
           ) : null}
+          {/* The box takes its height from this hidden copy of its text rather than from the text box itself:
+              on iPhones a box that is not handed its text back (see `box` above) stayed one line high while
+              its text wrapped. A text that ends in a line break gets a zero-width character, so the empty last
+              line counts too. */}
+          <Text
+            aria-hidden
+            onLayout={(e) => setFitHeight(e.nativeEvent.layout.height)}
+            style={[
+              styles.input,
+              !bot && styles.inputPlain,
+              styles.mirror,
+              { left: bot ? styles.round.width : 0, right: styles.round.width },
+            ]}
+          >
+            {(text || (replyTo ? t('chat.replyPlaceholder') : placeholder)) +
+              (text.endsWith('\n') ? '\u200b' : '')}
+          </Text>
           <TextInput
             key={box.key}
             ref={input}
@@ -402,7 +420,12 @@ export function Composer({
             onBlur={() => setSelection(null)}
             placeholder={replyTo ? t('chat.replyPlaceholder') : placeholder}
             placeholderTextColor={c.mutedForeground}
-            style={[styles.input, !bot && styles.inputPlain, { color: c.foreground }]}
+            style={[
+              styles.input,
+              !bot && styles.inputPlain,
+              { color: c.foreground },
+              fitHeight ? { height: Math.min(fitHeight, INPUT_MAX_HEIGHT) } : null,
+            ]}
             multiline
             accessibilityLabel={placeholder}
           />
@@ -514,6 +537,9 @@ function useKeyboardShown(): boolean {
   return shown;
 }
 
+/** The text box grows with its text up to this height, then scrolls. */
+const INPUT_MAX_HEIGHT = 160;
+
 const styles = StyleSheet.create({
   wrap: { paddingHorizontal: 12, paddingTop: 4, gap: 6 },
   error: { fontSize: 15, textAlign: 'center' },
@@ -584,11 +610,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 17,
     lineHeight: 23,
-    maxHeight: 160,
+    maxHeight: INPUT_MAX_HEIGHT,
     paddingHorizontal: 8,
     paddingTop: 7,
     paddingBottom: 7,
   },
   inputPlain: { paddingHorizontal: 12 },
+  mirror: { position: 'absolute', top: 0, maxHeight: undefined, opacity: 0 },
   stopSquare: { width: 12, height: 12, borderRadius: 2 },
 });
