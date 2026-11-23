@@ -360,16 +360,24 @@ function LanguageStep({ onNext }: { onNext(): void }) {
       .catch(() => {});
   };
   return (
-    <main className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 pb-16">
-      <div className="flex w-full max-w-sm flex-col items-center gap-8 text-center">
-        <div className="flex flex-col items-center gap-3">
+    // `my-auto` rather than `justify-center`: a centred column taller than the window would lose its
+    // top past the scroll edge, while an auto margin centres it and still lets it scroll.
+    <main className="flex flex-1 flex-col items-center overflow-y-auto px-6 pb-16">
+      <div className="my-auto flex w-full max-w-xl flex-col items-center gap-8 text-center">
+        <div className="flex max-w-sm flex-col items-center gap-3">
           <div className="size-16">
             <AppMascot />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">{t('onboarding.languageTitle')}</h1>
           <p className="text-sm text-muted-foreground">{t('onboarding.languageBody')}</p>
         </div>
-        <div className="grid w-full gap-2" role="radiogroup" aria-label={t('common.language')}>
+        {/* Fifteen languages one under another made a column taller than the window; in rows of
+            three they fit on one screen with the button in view. */}
+        <div
+          className="grid w-full grid-cols-2 gap-2 sm:grid-cols-3"
+          role="radiogroup"
+          aria-label={t('common.language')}
+        >
           {LOCALES.map((l) => (
             <button
               key={l}
@@ -379,16 +387,16 @@ function LanguageStep({ onNext }: { onNext(): void }) {
               lang={l}
               onClick={() => pick(l)}
               className={cn(
-                'flex h-12 items-center justify-between rounded-2xl border px-5 text-start transition-colors hover:bg-accent',
+                'flex h-10 min-w-0 items-center justify-between gap-2 rounded-xl border px-3 text-start text-sm transition-colors hover:bg-accent',
                 l === locale && 'border-[var(--brand)]/60 bg-[var(--brand)]/10 hover:bg-[var(--brand)]/15',
               )}
             >
-              {LOCALE_NAMES[l]}
-              {l === locale && <Check className="size-4 text-[var(--brand)]" />}
+              <span className="truncate">{LOCALE_NAMES[l]}</span>
+              {l === locale && <Check className="size-4 shrink-0 text-[var(--brand)]" />}
             </button>
           ))}
         </div>
-        <Button className="h-11 w-full rounded-full" onClick={onNext} autoFocus>
+        <Button className="h-11 w-full max-w-sm rounded-full" onClick={onNext} autoFocus>
           {t('onboarding.continue')} <ArrowRight className="rtl:-scale-x-100" />
         </Button>
       </div>
