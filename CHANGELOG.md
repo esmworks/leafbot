@@ -3,6 +3,33 @@
 All notable changes to Leaf Bot (called Yumak Bot before 0.7.0) are listed here. Versions follow [Semantic Versioning](https://semver.org/). While the
 version is 0.x, a minor release may change the data format or the API; the server migrates its database on start.
 
+## 0.9.1 — 2026-11-23
+
+### Added
+
+- The iPhone app's icon shows how many bots have replies you have not read, as the desktop app's Dock icon does. The
+  phone tells the server which bots are unread, and the server counts on from there with each notification it sends,
+  so the number grows while the app is closed. It counts bots, not messages. It needs this server and the next store
+  build of the app; an older build is sent no number.
+
+### Changed
+
+- Routines run in the bot's main conversation by default, and existing ones move there, so the bot does its own work
+  where you talk to it. Routines that read WhatsApp, report to Slack or stop for you keep their own conversation, as
+  do runs started by outside text; their reports still reach the main conversation.
+- A card asked while bots work for each other shows in the conversation where the work began, however deep in the
+  chain it was asked. Conversations between bots are no longer listed or searched on their own; they are read behind
+  the marker line in that conversation.
+- The iPhone app's icon is the same layered icon as the desktop app's, from the next store build.
+- The interface is fully translated into Simplified Chinese.
+
+### Fixed
+
+- A message sent while the bot was answering, or right after a stop, no longer leaves the chat showing "working" with
+  nothing on screen, and a connection that drops mid-reply no longer loses the text written so far.
+- The phone app's message box grows with its text again instead of staying one line high.
+- The language choices on the first screen fit in the window, with the Continue button in view.
+
 ## 0.9.0 — 2026-11-23
 
 ### Added
