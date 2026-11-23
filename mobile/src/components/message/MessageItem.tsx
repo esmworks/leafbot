@@ -35,6 +35,7 @@ import {
   SignInCard,
   type PlanItem,
 } from './Cards';
+import { ChatCard } from './ChatCard';
 import { MessageFiles } from './Files';
 import { BotPage, McpAppView } from './Frames';
 import { Marker } from './Marker';
@@ -710,6 +711,14 @@ function AssistantRow({
   const reaction =
     typeof m.props.userReaction === 'string' && m.props.userReaction ? m.props.userReaction : null;
   const sheet = { m, room, onReply, raw, onToggleRaw: () => setRaw((v) => !v) };
+  // A bot's card takes taps and typing of its own, so it is not wrapped in the long-press menu.
+  if (m.props.card) {
+    return (
+      <View style={styles.assistantCol}>
+        <ChatCard m={m} />
+      </View>
+    );
+  }
   const card =
     !page && files.length && !m.text ? null : (
       <Actionable {...sheet}>
