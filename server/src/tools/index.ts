@@ -163,6 +163,7 @@ const TEAM_OFF = new Set<string>([
   'browser_card',
   'credential_request',
   'routine_create',
+  'routine_read',
   'routine_update',
   'routine_delete',
   // The person's own promises to others: a team or a chat app's stranger has none to keep here.
@@ -315,6 +316,7 @@ export type ToolName =
   | 'my_activity'
   | 'skill_save'
   | 'routine_create'
+  | 'routine_read'
   | 'routine_update'
   | 'routine_delete'
   | 'promise_track'
@@ -846,6 +848,53 @@ export class ToolFactory {
           return `${made}\n${t('tool.routineWebhook', { path: `/api/hooks/routines/${r.id}/${hooked.webhookToken}` })}`;
         },
         // The person sees the routine and its schedule on a card before it is made.
+      ),
+      def(
+        'routine_read',
+        {
+          routine: z.string().min(1).max(200),
+          bot: z.string().min(1).max(200).optional(),
+        },
+        async (a) => {
+          // Its instruction is the bot's own setup: shown to whoever may change it, as routine_update is.
+          if (!(await mayChange())) return t('tool.changeNotAllowed');
+          const found = await pickRoutine(a.routine, a.bot);
+          if (typeof found === 'string') return found;
+          const r = found.routine;
+          const [last] = await s.routines.runs(r.id, 1);
+          const steps = (r.steps ?? []).map((st, i) =>
+            t('tool.routineReadStep', {
+              n: i + 1,
+              kind: st.kind,
+              text: (st.kind === 'agent'
+                ? st.prompt
+                : st.kind === 'approval'
+                  ? st.question
+                  : st.kind === 'notify'
+                    ? st.text
+                    : `${st.on} ${st.filter}`.trim()
+              ).slice(0, 300),
+            }),
+          );
+          return t('tool.routineRead', {
+            name: r.name,
+            state: t(r.enabled ? 'tool.routineOn' : 'tool.routineOff'),
+            when: describeSchedule(r.schedule, await s.settings.locale()),
+            timezone: r.timezone,
+            missed: r.missed,
+            carry: String(r.carryReport),
+            last: last
+              ? t('tool.routineReadLast', {
+                  status: last.status,
+                  at: last.startedAt,
+                  reason: last.reason ?? '-',
+                })
+              : t('tool.routineReadNoRun'),
+            prompt: r.prompt,
+            steps: steps.length ? `\n${t('tool.routineReadSteps')}\n${steps.join('\n')}` : '',
+          });
+        },
+        'read',
       ),
       def(
         'routine_update',
