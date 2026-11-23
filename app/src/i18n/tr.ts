@@ -2663,6 +2663,8 @@ export const tr = {
     'Bu numara başka bir yerde açıldı, bu yüzden bağlantı durdu. Burada kullanmak için yeniden bağlayın.',
   'whatsapp.error.unreachable': 'WhatsApp’a ulaşılamadı. İnternet bağlantısını kontrol edip yeniden deneyin.',
   'whatsapp.error.failing': 'WhatsApp’a bağlanılamıyor; yeniden deneniyor.',
+  'whatsapp.error.keysUnreadable':
+    'Kayıtlı WhatsApp anahtarları okunamıyor (büyük olasılıkla sunucunun gizli anahtarı değişti). Yeniden bağlayıp QR kodunu okutun.',
   'whatsapp.mode.separate': 'Ayrı bir bot numarası',
   'whatsapp.modeHint.separate':
     'Önerilen. Bot olacak ikinci bir numara (ör. bir şirket hattı) bağlanır; siz ona başka bir numaradan yazarsınız.',

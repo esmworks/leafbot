@@ -21,6 +21,7 @@ import { saveUpload, stagingDir } from '../uploads';
 import { HttpError, newId, truncate } from '../util';
 import { qrImage } from './qr';
 import {
+  canOpen,
   cardView,
   chatCommand,
   dropRequest,
@@ -190,18 +191,21 @@ export class TelegramChannels {
     await this.services.bots.get(botId);
     const row = await this.forBot(botId);
     const account = row?.account as { username?: string; name?: string } | undefined;
+    const unreadable = !!row?.secret && !canOpen(this.vault, row.secret);
     const pairing = !!row?.pairCode && !!row.pairUntil && row.pairUntil.getTime() > Date.now();
     const pairLink =
       pairing && account?.username ? `https://t.me/${account.username}?start=${row.pairCode}` : null;
     return {
-      connected: !!row?.secret,
+      connected: !!row?.secret && !unreadable,
       bot: account?.username ? { username: account.username, name: account.name ?? account.username } : null,
       owner: row?.owner ? { name: row.ownerName ?? '' } : null,
       pairLink,
       pairQr: pairLink ? await qrImage(pairLink) : null,
       pairUntil: pairing ? row.pairUntil!.toISOString() : null,
       notices: (row?.settings as { notices?: boolean } | undefined)?.notices !== false,
-      error: row?.error ?? null,
+      error: unreadable
+        ? (await this.services.settings.translator())('channel.secretUnreadable')
+        : (row?.error ?? null),
     };
   }
 
@@ -320,7 +324,15 @@ export class TelegramChannels {
     while (!signal.aborted) {
       const row = await this.row(id);
       if (!row?.secret || !row.botId) return;
-      const api = this.api(this.vault.open(row.secret));
+      let token: string;
+      try {
+        token = this.vault.open(row.secret);
+      } catch (err) {
+        // A token that cannot be opened will not open on a retry; the status says why.
+        console.warn('telegram token', err);
+        return;
+      }
+      const api = this.api(token);
       try {
         const updates = await api.getUpdates(
           row.cursor ? Number(row.cursor) : undefined,

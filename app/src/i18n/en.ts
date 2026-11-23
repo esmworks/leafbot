@@ -2691,6 +2691,8 @@ export const en: Catalog<MessageKey> = {
     'This number was opened somewhere else, so the connection stopped. Link again to use it here.',
   'whatsapp.error.unreachable': 'WhatsApp could not be reached. Check the internet connection and try again.',
   'whatsapp.error.failing': 'Cannot connect to WhatsApp; still trying.',
+  'whatsapp.error.keysUnreadable':
+    'The saved WhatsApp keys cannot be read, most likely because the server’s secret key changed. Link again and scan the QR code.',
   'whatsapp.mode.separate': 'A separate bot number',
   'whatsapp.modeHint.separate':
     'Recommended. A second number that will be the bot (e.g. a company line) is linked; you write to it from another number.',

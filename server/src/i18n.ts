@@ -498,6 +498,8 @@ const tr = {
     'Sağlayıcının bakiyesi bitti; bu iş yedek model {model} ile sürüyor. Bakiyeyi sağlayıcının hesabından yükle.',
   'turn.retryCrash': 'Claude Code işlemi beklenmedik biçimde kapandı; aynı modelle bir kez daha deneniyor.',
   'turn.backupBusy': 'Model şu an yanıt veremiyor; bu iş yedek model {model} ile sürüyor.',
+  'turn.backupRefused':
+    'Sağlayıcı bu isteği içerik kuralları gereği reddetti; bu iş yedek model {model} ile sürüyor.',
   'turn.backupGone':
     'Botun modeli artık sunulmuyor ya da adı tanınmıyor; bu iş yedek model {model} ile sürüyor. Botun ayarlarından başka bir model seç.',
   'turn.backupAuth':
@@ -530,6 +532,7 @@ const tr = {
     '{agent} giriş istiyor. Bu bilgisayarda bir kez kendi başına açıp giriş yapın, sonra yeniden deneyin.',
   'engine.acpFailed': '{agent} bir hatayla durdu: {detail}',
   'engine.acpRefused': '{agent} bu isteği yapmayı reddetti.',
+  'engine.acpStartTimeout': '{agent} zamanında başlamadı; tur durduruldu.',
   'engine.acpLimit': '{agent} kendi adım ya da uzunluk sınırına ulaştı; tur durduruldu.',
   'engine.acpOwnerOnly':
     'Bu bot bilgisayardaki bir kodlama ajanıyla çalışıyor; yalnızca sunucunun sahibinin kendi mesajlarını yürütür. Rutin, posta, webhook, ekip sohbeti ya da başka biri için çalışmaz.',
@@ -545,6 +548,7 @@ const tr = {
   'engine.providerLimit': '{provider} hız ya da kota sınırına takıldı; biraz sonra yeniden dene',
   'engine.providerBusy': '{provider} şu an aşırı yüklü ya da kısa süreliğine kapalı',
   'engine.providerModelGone': '{provider} bu modeli artık sunmuyor ya da modelin adını tanımıyor',
+  'engine.providerRefused': '{provider} bu isteği içerik kuralları gereği reddetti',
   'engine.providerCut': '{provider} yanıtı bitirmeden kesti',
   'engine.providerTooLarge':
     'İstek {provider} için çok büyük; yeni bir sohbet aç ya da daha çok şey alan bir model seç',
@@ -809,6 +813,10 @@ const tr = {
     '- Bu turda bitiremediğin ve sonra yapılması gereken bir madde kalırsa (birini bekliyor, zaman alıyor ya da kullanıcının bir kararına bağlı) yalnızca cevabında söylemekle kalma, `ticket_create` ile panoda onun için bir görev aç; açmadan önce `tickets_list` ile aynı iş için bir görev var mı bak.',
   'prompt.ruleFacts':
     '- Önce cevabı ver, sonra gerekiyorsa ayrıntıyı. Bilgi ya da kaynak uydurma; emin olmadığını söyle. Bir işi bitti saymadan önce sonucunu kontrol et.',
+  'prompt.ruleStatus':
+    '- İşin durumunu sade bir dille anlat: ne yapıldı, ne kaldı. Kullanıcı sormadıkça iş, tur ya da görev numarası gibi iç kimlikleri ve araç adlarını yazma.',
+  'prompt.ruleRoutineFacts':
+    '- Kullanıcı bir bilgiyi düzeltir (adres, ad, saat, tercih) ve rutinlerinden biri o bilgiye dayanıyorsa rutini güncellemeyi teklif et. Önce `routine_read` ile oku; `routine_update` ile yalnız kullanıcı kabul ettikten sonra değiştir.',
   'prompt.ruleDraft':
     '- Kullanıcı adına bir şey göndereceksen (e-posta, mesaj, paylaşım) önce taslağı göster ve onayını al; rutinin talimatı göndermeni açıkça istiyorsa gönder. Bir ödemeden önce ürünü, fiyatı ve toplamı söyleyip onay iste.',
   'prompt.ruleMemory':
@@ -1095,8 +1103,16 @@ const tr = {
   'tool.routineCreated': '"{name}" rutini kuruldu: {when} ({timezone}).',
   'tool.routineBadCheck':
     '{tool} bir denetim olamaz: denetim, sana açık bir uygulamanın açık ve yalnız okuyan bir aracı olmalı (sende göründüğü adıyla).',
+  'tool.routine_read':
+    'Bir rutinin tamamını oku: adı, açık mı, zamanı, kaçırılırsa ne olacağı, prompt metni (talimatı), varsa adımları ve son çalışmasının durumu. routine rutinin adıdır; yönetici bot bot ile başka bir botun rutinini seçebilir. Yalnız okur, onay gerektirmez.',
+  'tool.routineRead':
+    '"{name}" rutini: {state}. Zaman: {when} ({timezone}). Kaçırılırsa: {missed}. Önceki raporu taşır: {carry}.\nSon çalışma: {last}.\nTalimat:\n{prompt}{steps}',
+  'tool.routineReadSteps': 'Adımlar:',
+  'tool.routineReadStep': '{n}. {kind}: {text}',
+  'tool.routineReadLast': '{status} ({at}), neden: {reason}',
+  'tool.routineReadNoRun': 'henüz çalışmadı',
   'tool.routine_update':
-    'Bir rutini değiştir: aç ya da kapat (enabled), adını, prompt metnini, zamanını (schedule, routine_create ile aynı biçimde) ya da diğer seçeneklerini değiştir. Yalnız değişecek alanları ver. routine rutinin adıdır; yönetici bot bot ile başka bir botun rutinini seçebilir (başka bir yöneticininkini değil). Bir rutini geçici olarak durdurmak için silmek yerine enabled:false ver. watch_url için boş metin izlemeyi kaldırır; check_tool için boş metin denetimi kaldırır. model rutinin çalışmalarının modelidir (routine_create ile aynı); yalnız o rutini etkiler, botun kendi modelini değiştirmez. Boş metin botun kendi modeline döndürür. on_table için boş metin tablo tetikleyicisini kaldırır. Kullanıcı kartta onaylar.',
+    'Bir rutini değiştir: aç ya da kapat (enabled), adını, prompt metnini, zamanını (schedule, routine_create ile aynı biçimde) ya da diğer seçeneklerini değiştir. Yalnız değişecek alanları ver. routine rutinin adıdır; yönetici bot bot ile başka bir botun rutinini seçebilir (başka bir yöneticininkini değil). Talimatı (prompt) değiştireceksen önce routine_read ile mevcut metni oku; körlemesine üzerine yazma. Bir rutini geçici olarak durdurmak için silmek yerine enabled:false ver. watch_url için boş metin izlemeyi kaldırır; check_tool için boş metin denetimi kaldırır. model rutinin çalışmalarının modelidir (routine_create ile aynı); yalnız o rutini etkiler, botun kendi modelini değiştirmez. Boş metin botun kendi modeline döndürür. on_table için boş metin tablo tetikleyicisini kaldırır. Kullanıcı kartta onaylar.',
   'tool.routine_delete':
     'Bir rutini kalıcı olarak sil; geri alınamaz. routine rutinin adıdır; yönetici bot bot ile başka bir botun rutinini seçebilir (başka bir yöneticininkini değil). Kullanıcı yalnız durdurmak istiyorsa routine_update ile enabled:false ver. Kullanıcı kartta onaylar.',
   'tool.routineUpdated': '"{name}" rutini güncellendi: {when} ({timezone}), {state}.',
@@ -1824,6 +1840,7 @@ const tr = {
   'whatsapp.groupQuote': 'Yanıtladığı mesaj: {text}',
   'whatsapp.groupFile': 'Dosya: {path} ({size} B)',
   'whatsapp.groupFileFailed': 'Dosya alınamadı: {name}',
+  'whatsapp.contactCard': 'Kişi kartı: {cards}',
   'whatsapp.fileNotKept': '[Bir dosya geldi; dosyalar yalnızca bir rutinin okuduğu sohbetlerde saklanır.]',
   'whatsapp.groupFileTooLarge': 'Dosya çok büyük olduğu için alınmadı: {name}',
   'whatsapp.groupMore': '… ve sığmayan {count} mesaj daha.',
@@ -1873,6 +1890,8 @@ const tr = {
   'channel.notDelivered': 'Cevabın bir kısmı buraya iletilemedi; tamamı uygulamada duruyor.',
   'channel.telegramBlocked': "Telegram'da botu engelledin. Engeli kaldırıp Telegram'da Başlat'a bas.",
   'channel.updateFailed': 'Mesajın işlenemedi. Lütfen tekrar dene.',
+  'channel.secretUnreadable':
+    'Kayıtlı bağlantı bilgileri okunamıyor (büyük olasılıkla sunucunun gizli anahtarı değişti). Yeniden bağlamak sorunu çözer.',
   'channel.pressFailed': 'Bu işlem yapılamadı.',
   'channel.noAnswer': 'Bu isteğe bir cevap çıkmadı. Lütfen tekrar dene.',
   'channel.filesMissing': '(Ulaşmayan dosyalar: {names})',
@@ -2396,6 +2415,8 @@ const en: Catalog<ServerKey> = {
     "The provider's balance is used up; this work goes on with the backup model {model}. Add credit in the provider's account.",
   'turn.retryCrash': 'The Claude Code process stopped unexpectedly; trying the same model once more.',
   'turn.backupBusy': 'The model cannot answer right now; this work goes on with the backup model {model}.',
+  'turn.backupRefused':
+    'The provider refused this request under its content rules; this work goes on with the backup model {model}.',
   'turn.backupGone':
     "The bot's model is no longer offered or its name is not known; this work goes on with the backup model {model}. Pick another model in the bot's settings.",
   'turn.backupAuth':
@@ -2428,6 +2449,7 @@ const en: Catalog<ServerKey> = {
     '{agent} wants you to sign in. Open it once on its own on this computer, sign in, then try again.',
   'engine.acpFailed': '{agent} stopped with an error: {detail}',
   'engine.acpRefused': '{agent} refused to do this.',
+  'engine.acpStartTimeout': '{agent} did not start in time; the turn was stopped.',
   'engine.acpLimit': '{agent} reached its own step or length limit; the turn was stopped.',
   'engine.acpOwnerOnly':
     "This bot runs on a coding agent on the computer; it carries out only the server owner's own messages. It does not run for a routine, a mail, a webhook, a team chat or anyone else.",
@@ -2442,6 +2464,7 @@ const en: Catalog<ServerKey> = {
   'engine.providerLimit': '{provider} hit a rate or quota limit; try again in a while',
   'engine.providerBusy': '{provider} is overloaded or briefly down',
   'engine.providerModelGone': '{provider} no longer offers this model or does not know its name',
+  'engine.providerRefused': '{provider} refused this request under its content rules',
   'engine.providerCut': '{provider} cut the reply off before it ended',
   'engine.providerTooLarge':
     'The request is too large for {provider}; start a new chat or pick a model that takes more',
@@ -2707,6 +2730,10 @@ const en: Catalog<ServerKey> = {
     "- When an item is left that you could not finish in this turn and that still has to be done later (it waits on someone, takes a while, or needs the user's decision), do not only say so in your reply: open a ticket for it on the board with `ticket_create`, after checking `tickets_list` for a ticket about the same work.",
   'prompt.ruleFacts':
     "- Give the answer first, then details if needed. Do not invent facts or sources; say when you are not sure. Check a task's result before you call it done.",
+  'prompt.ruleStatus':
+    '- Report the status of work in plain words: what is done and what is left. Do not write internal ids (job, turn or task numbers) or tool names unless the user asks.',
+  'prompt.ruleRoutineFacts':
+    '- When the user corrects a fact (an address, a name, a time, a preference) and one of your routines relies on it, offer to update that routine. Read it first with `routine_read`; change it with `routine_update` only after the user agrees.',
   'prompt.ruleDraft':
     "- Before you send something for the user (an email, a message, a post), show the draft and get their approval; send right away only when a routine's instruction says to. Before a payment, read back the item, price and total and ask to confirm.",
   'prompt.ruleMemory':
@@ -2992,8 +3019,16 @@ const en: Catalog<ServerKey> = {
   'tool.routineCreated': 'The routine "{name}" is set up: {when} ({timezone}).',
   'tool.routineBadCheck':
     '{tool} cannot be a check: a check is a tool that only reads, switched on, of an app open to you (by the name you see it under).',
+  'tool.routine_read':
+    "Read a routine in full: its name, whether it is on, its time, what happens when a run is missed, its prompt (the instruction), its steps if it has any, and how its last run went. routine is the routine's name; a manager bot can pick another bot's routine with bot. It only reads and needs no approval.",
+  'tool.routineRead':
+    'The routine "{name}": {state}. When: {when} ({timezone}). If missed: {missed}. Carries the previous report: {carry}.\nLast run: {last}.\nInstruction:\n{prompt}{steps}',
+  'tool.routineReadSteps': 'Steps:',
+  'tool.routineReadStep': '{n}. {kind}: {text}',
+  'tool.routineReadLast': '{status} ({at}), reason: {reason}',
+  'tool.routineReadNoRun': 'not run yet',
   'tool.routine_update':
-    "Change a routine: turn it on or off (enabled), or change its name, prompt, time (schedule, written as for routine_create) or other options. Give only the fields that change. routine is the routine's name; a manager bot can pick another bot's routine with bot (not another manager's). To pause a routine, give enabled:false rather than deleting it. An empty watch_url stops watching the page; an empty check_tool removes the check. model is the model of the routine's runs (as for routine_create); it affects only that routine, not the bot's own model, and an empty string goes back to the bot's own model. An empty on_table removes the table trigger. The user approves on a card.",
+    "Change a routine: turn it on or off (enabled), or change its name, prompt, time (schedule, written as for routine_create) or other options. Give only the fields that change. routine is the routine's name; a manager bot can pick another bot's routine with bot (not another manager's). To change the prompt, first read the current text with routine_read; never overwrite it blind. To pause a routine, give enabled:false rather than deleting it. An empty watch_url stops watching the page; an empty check_tool removes the check. model is the model of the routine's runs (as for routine_create); it affects only that routine, not the bot's own model, and an empty string goes back to the bot's own model. An empty on_table removes the table trigger. The user approves on a card.",
   'tool.routine_delete':
     "Delete a routine for good; this cannot be undone. routine is the routine's name; a manager bot can pick another bot's routine with bot (not another manager's). If the user only wants it paused, use routine_update with enabled:false. The user approves on a card.",
   'tool.routineUpdated': 'The routine "{name}" is updated: {when} ({timezone}), {state}.',
@@ -3725,6 +3760,7 @@ const en: Catalog<ServerKey> = {
   'whatsapp.groupQuote': 'In reply to: {text}',
   'whatsapp.groupFile': 'File: {path} ({size} B)',
   'whatsapp.groupFileFailed': 'File could not be fetched: {name}',
+  'whatsapp.contactCard': 'Contact card: {cards}',
   'whatsapp.fileNotKept': '[A file came; files are kept only in chats a routine reads.]',
   'whatsapp.groupFileTooLarge': 'File not fetched, too large: {name}',
   'whatsapp.groupMore': '… and {count} more messages that did not fit.',
@@ -3768,6 +3804,8 @@ const en: Catalog<ServerKey> = {
   'channel.notDelivered': 'Part of the answer could not be delivered here; all of it is in the app.',
   'channel.telegramBlocked': 'You blocked the bot in Telegram. Unblock it and press Start in Telegram.',
   'channel.updateFailed': 'Your message could not be handled. Please try again.',
+  'channel.secretUnreadable':
+    'The saved connection details cannot be read (most likely the server’s secret key changed). Connecting again fixes it.',
   'channel.pressFailed': 'This could not be done.',
   'channel.noAnswer': 'There was no answer to this request. Please try again.',
   'channel.filesMissing': '(Files that did not arrive: {names})',
