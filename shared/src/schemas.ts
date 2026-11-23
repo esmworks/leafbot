@@ -423,6 +423,14 @@ export type SendMessage = z.infer<typeof SendMessage>;
 /** The person's emoji on a bot message; null takes it off. The server checks it is one emoji. */
 export const MessageReaction = z.object({ emoji: z.string().trim().min(1).max(32).nullable() });
 
+/** A press on a bot's card: the part pressed, the card's revision it was made on, and the field values. */
+export const CardAnswer = z.object({
+  node: z.string().min(1).max(16),
+  rev: z.number().int().min(1),
+  values: z.record(z.string().max(64), z.union([z.string().max(4000), z.boolean(), z.number()])).default({}),
+});
+export type CardAnswer = z.infer<typeof CardAnswer>;
+
 /** What a reply keeps of the message it answers, to show above it. */
 export interface ReplyQuote {
   id: string;

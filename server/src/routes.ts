@@ -44,6 +44,7 @@ import {
   MAX_BOT_IMPORT_BYTES,
   MemoryCreate,
   MemoryUpdate,
+  CardAnswer,
   MessageReaction,
   patchOf,
   PermissionRuleCreate,
@@ -1264,6 +1265,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   // Change a message the bot has not started on yet; its turn takes the new text.
   app.patch('/api/messages/:id', async (req) => {
     const m = await queuedMessage(IdParams.parse(req.params).id);
+    // A card's answer was checked against the card; changed words would no longer match it.
+    if (m.props.cardAnswerOf) throw new HttpError(409, 'error.cardAnswerFixed');
     const { text } = z.object({ text: z.string().max(100_000) }).parse(req.body);
     const files = (m.props.files as { name: string }[] | undefined) ?? [];
     if (!text.trim() && !files.length) throw new HttpError(400, 'validation.emptyMessage');
@@ -1320,6 +1323,11 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const { take } = z.object({ take: z.boolean() }).parse(req.body);
     return s.offers.answer(IdParams.parse(req.params).id, take, me(req).userId);
   });
+  // The person's press on a bot's card; the answer goes to the bot as their message.
+  app.post('/api/messages/:id/card', async (req) => {
+    const input = CardAnswer.parse(req.body);
+    return s.chatCards.answer(IdParams.parse(req.params).id, input, me(req).userId);
+  });
 
   // Hand a waiting message to the turn running now, so the bot reads it at its next step.
   app.post('/api/messages/:id/steer', async (req) => {
@@ -1343,6 +1351,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     if (m.props.queued) {
       const queued = await queuedMessage(id);
       if (!(await s.turns.cancelQueued(queued.turnId!))) throw new HttpError(409, 'error.messageStarted');
+      // A card's answer taken back before the bot read it: the card can be answered again.
+      if (typeof m.props.cardAnswerOf === 'string') await s.chatCards.reopen(m.props.cardAnswerOf);
     } else if (m.role === 'approval' || m.role === 'marker') {
       throw new HttpError(409, 'error.messageKept');
     }

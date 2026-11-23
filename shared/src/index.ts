@@ -33,3 +33,4 @@ export * from './word-bold';
 export * from './old-names';
 export * from './app-events';
 export * from './phone';
+export * from './card';

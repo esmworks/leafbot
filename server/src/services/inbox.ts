@@ -118,6 +118,8 @@ export class Inbox {
        * for the work under way, whose words then wait their turn.
        */
       answers?: boolean;
+      /** Read by the bot after the message and not shown, e.g. what a card's press asks for. */
+      forBot?: string;
     },
   ): Promise<{ message: Message; created: boolean }> {
     const s = this.services;
@@ -224,7 +226,8 @@ export class Inbox {
     const said = `${history}${name ? `${name}: ` : ''}${written}`;
     // Said aloud in a call, and the answer will be read aloud: the bot is told to keep it speakable.
     const spoken = extra.spoken === true ? `\n\n${t('inbox.spoken')}` : '';
-    const prompt = `${await this.prompt(said, dir, files, answered)}${spoken}`;
+    const forBot = input.forBot ? `\n\n${input.forBot}` : '';
+    const prompt = `${await this.prompt(said, dir, files, answered)}${spoken}${forBot}`;
     const turn = await s.turns.enqueue({
       threadId,
       botId: bot.id,
