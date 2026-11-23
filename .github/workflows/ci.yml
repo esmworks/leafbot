@@ -1,13 +1,17 @@
 name: CI
 
-# Automatic runs are off for now; run it by hand from the Actions tab.
-# To turn them back on, add the push (branches: [main]) and pull_request triggers here again.
+# Runs on every push to main, on every pull request, and by hand from the Actions tab.
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
+# A newer push to the same pull request cancels its older run; runs on main are never cancelled,
+# so every commit on main gets a result.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -24,7 +28,7 @@ jobs:
         with:
           # Install and test scripts have no use for the token, so it is not stored in the checkout.
           persist-credentials: false
-      # pnpm sürümü package.json'daki packageManager alanından okunur.
+      # The pnpm version is read from the packageManager field in package.json.
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
@@ -34,6 +38,11 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
-      # Derleme testlerden önce: masaüstü testleri derlenmiş sunucuyu başlatır.
+      # Build before the tests: the desktop tests start the built server.
       - run: pnpm build
+      # Ubuntu 24.04 lets AppArmor block unprivileged user namespaces, so Chrome's sandbox cannot
+      # start as the runner user and every browser test failed with "Target page, context or browser
+      # has been closed". The tests keep the sandbox on, as the app does, and the runner allows it.
+      - name: Let Chrome start its sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: pnpm test
