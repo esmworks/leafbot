@@ -1399,6 +1399,7 @@ export const en: Catalog<MessageKey> = {
   'panel.nextRun': 'next {when}',
   'panel.lastRunFailed': 'last run failed',
   'panel.signInWait': 'waiting for a sign-in',
+  'panel.switchedOffFailures': 'switched off after repeated failures',
   'panel.runNow': 'Run now',
   'panel.toggle': 'On/off',
   'panel.bot': 'Bot',
@@ -1420,6 +1421,10 @@ export const en: Catalog<MessageKey> = {
   'routine.webhookRenew': 'New address',
   'routine.webhookLocalOnly':
     'This address only works on this computer. To start the routine from a service on the internet, run the server where that service can reach it and set LEAFBOT_PUBLIC_URL.',
+  'routine.reportOnly': 'Only tell me',
+  'routine.reportOnlyHint':
+    'The routine only looks and reports, whatever the bot may do elsewhere: a step that would change something (sending, clicking, typing, editing, a connected app that writes) is refused, and the bot tells you what it found instead.',
+  'routine.reportOnlyShort': 'only tells me',
   'routine.carryReport': 'Build on the last report',
   'routine.carryReportHint':
     'Each run gets what the bot wrote last time, so it can say what changed instead of starting over.',
@@ -1605,6 +1610,8 @@ export const en: Catalog<MessageKey> = {
   'flow.nextRun': 'Next run {when}',
   'flow.noNextRun': 'Not set to run again',
   'flow.paused': 'Paused; it does not run on its schedule.',
+  'flow.switchedOffFailures':
+    'Switched off after its runs failed several times in a row. Turn it on again once it is fixed; the count starts again.',
   'flow.saveFirst': 'Save your changes before running it.',
   'flow.started': 'The routine started.',
   'flow.result': 'Result',

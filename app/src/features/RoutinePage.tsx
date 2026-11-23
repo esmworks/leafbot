@@ -107,6 +107,7 @@ const Form = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'routine.dateFormat'),
   missed: z.enum(['run', 'skip']),
   carryReport: z.boolean(),
+  reportOnly: z.boolean(),
   inMain: z.boolean(),
   onStartup: z.boolean(),
   webhookFilter: z.string().max(2000),
@@ -202,6 +203,7 @@ function fromRoutine(r?: Routine): Form {
     date: s?.type === 'once' ? s.date : tomorrow(),
     missed: r?.missed ?? 'run',
     carryReport: r?.carryReport ?? false,
+    reportOnly: r?.reportOnly ?? false,
     inMain: r?.inMain ?? true,
     onStartup: r?.onStartup ?? false,
     watchUrl: r?.watchUrl ?? '',
@@ -306,6 +308,7 @@ export function RoutinePage({
         schedule: toSchedule(f),
         missed: f.missed,
         carryReport: f.carryReport,
+        reportOnly: f.reportOnly,
         inMain: f.inMain,
         onStartup: f.onStartup,
         watchUrl: f.watchUrl.trim() || null,
@@ -357,7 +360,8 @@ export function RoutinePage({
   ];
   /** When it runs next: worked out from the schedule as it is in the form. */
   const when = (() => {
-    if (routine && !routine.enabled) return t('flow.paused');
+    if (routine && !routine.enabled)
+      return t(routine.pausedReason === 'failures' ? 'flow.switchedOffFailures' : 'flow.paused');
     let next: Date | null = null;
     try {
       next = nextRun(
@@ -396,6 +400,16 @@ export function RoutinePage({
           </Select>
         </Field>
       )}
+      <label className="flex items-start gap-3 rounded-2xl bg-secondary/60 px-3 py-2">
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-medium">{t('routine.reportOnly')}</span>
+          <span className="block text-xs text-muted-foreground">{t('routine.reportOnlyHint')}</span>
+        </span>
+        <Switch
+          checked={values.reportOnly}
+          onCheckedChange={(v) => form.setValue('reportOnly', v, { shouldDirty: true })}
+        />
+      </label>
       <label className="flex items-start gap-3 rounded-2xl bg-secondary/60 px-3 py-2">
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-medium">{t('routine.carryReport')}</span>

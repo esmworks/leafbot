@@ -47,6 +47,8 @@ export function RoutinesSection() {
               detail={[
                 bot?.name,
                 describeSchedule(r.schedule),
+                r.reportOnly ? t('routine.reportOnlyShort') : null,
+                r.pausedReason === 'failures' && !r.enabled ? t('panel.switchedOffFailures') : null,
                 r.lastRunAt ? t('routines.lastRun', { when: fmt.dayLabel(r.lastRunAt) }) : null,
               ]
                 .filter(Boolean)

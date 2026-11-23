@@ -585,6 +585,7 @@ export const ROUTINE_KEYS = [
   'missed',
   'carryReport',
   'inMain',
+  'reportOnly',
   'slackChannel',
   'slackReaction',
   'onStartup',

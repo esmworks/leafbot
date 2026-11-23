@@ -42,6 +42,7 @@ import {
   decide,
   modeFor,
   READ_ONLY_TOOLS,
+  reportOnlyTurn,
 } from '../services/approvals';
 import { carriesToken, scrubCanary, type CanaryHit } from '../services/canary';
 import { publicHost } from '../services/skill-link';
@@ -240,6 +241,49 @@ const GUEST_READS: ReadonlySet<string> = new Set([
   'bots_list',
   'models_list',
   'bot_profile',
+]);
+
+/**
+ * The app's own tools that go on without a card in a run that only looks and reports (a report-only
+ * routine's). Every other tool of the app that is not a plain read is refused there: most are
+ * "internal" only in the sense that they need no card at the bot's level (a table's rows, a ticket,
+ * a browser click or typed text, a message in a chat, another bot's or a new conversation's work), and
+ * a run held to reading must not change those. What stays is the bot's own bookkeeping (its notes,
+ * follow-ups, run values, a quick reply, its plan), looking at pages and the screen, and the ways to
+ * show the person what it found (a file, a page, a picture, a deck); none changes anything of theirs.
+ */
+const REPORT_ONLY_TOOLS: ReadonlySet<string> = new Set([
+  'memory_search',
+  'memory_write',
+  'memory_update',
+  'memory_forget',
+  'memory_flag',
+  'followup_add',
+  'followup_drop',
+  'promise_track',
+  'quick_replies',
+  'plan_update',
+  'routine_set',
+  'routine_failed',
+  'routine_stop',
+  'app_suggest',
+  'send_file',
+  'show_page',
+  'page_to_image',
+  'slides_create',
+  'browser_open',
+  'browser_snapshot',
+  'browser_scroll',
+  'browser_history',
+  'browser_tabs',
+  'browser_screenshot',
+  'browser_wait',
+  'browser_hover',
+  'browser_network',
+  'browser_console',
+  'computer_screenshot',
+  'computer_scroll',
+  'command_status',
 ]);
 
 export class TurnManager {
@@ -1103,6 +1147,9 @@ export class TurnManager {
     if (queued.botId !== entry.turn.botId) return false;
     // Words of someone with no account here do not join a turn that may do more than theirs.
     if (queued.guest && !entry.turn.guest) return false;
+    // Nor do a person's words join a run that only looks and reports: what they ask would be refused
+    // there, so it waits for its own turn, which is not held to reading.
+    if (reportOnlyTurn(entry.turn) !== reportOnlyTurn(queued)) return false;
     if (!entry.steers.some((s) => s.turnId === turnId)) {
       entry.steers.push({ turnId, messageId, prompt: queued.prompt, outside: queued.outside });
     }
@@ -1166,7 +1213,14 @@ export class TurnManager {
       : [];
     const threadRow = await threads.row(turn.threadId);
     const thread = rehearsing?.slackChannel ? { ...threadRow, kind: 'team' as const } : threadRow;
-    const bot = await bots.get(turn.botId);
+    const botRow = await bots.get(turn.botId);
+    // A turn held to reading (a report-only routine's) is built as for a bot that may only read, not
+    // just checked at each step: its tools, its sandbox and what it may hand to another bot follow
+    // that level too. A bot already at it, or a cap that is not that strict, leaves the bot as it is.
+    const bot: typeof botRow =
+      reportOnlyTurn(turn) && botRow.permissionMode !== 'readonly'
+        ? { ...botRow, permissionMode: 'readonly' }
+        : botRow;
     // Spending is checked as a turn starts; one already running finishes.
     const stop = await this.services.usage.reached(bot);
     if (stop) throw new Error(spendText(stop, bot.name, await this.services.settings.translator()));
@@ -1534,10 +1588,14 @@ export class TurnManager {
     // still require one.
     // Someone with no account here reads freely only the bot's own skills and notes: the team's
     // apps, mail, tables and the web each wait for a card, since the answer goes back to them.
+    // Only looking and reporting: a tool that needs no card at a level is still not free here.
+    const reportOnly = reportOnlyTurn(turn);
     const readOnlyTools = new Set(
       tools
         .filter((t) =>
-          turn.guest ? !t.server && (t.internal || GUEST_READS.has(t.name)) : t.internal || t.readOnly,
+          turn.guest
+            ? !t.server && (t.internal || GUEST_READS.has(t.name))
+            : t.readOnly || (t.internal && (!reportOnly || REPORT_ONLY_TOOLS.has(t.name))),
         )
         .map(toolPermName),
     );
@@ -1843,7 +1901,10 @@ export class TurnManager {
       if (verdict === 'block')
         return { behavior: 'deny', message: t('turn.blocked', { rule: ask.toolName }) };
       if (verdict === 'deny') {
-        return { behavior: 'deny', message: t('turn.readOnly') };
+        return {
+          behavior: 'deny',
+          message: t(reportOnlyTurn(turn) ? 'turn.reportOnly' : 'turn.readOnly'),
+        };
       }
       // In work the person asked for, they said no to this very step and have not written since:
       // another card would only ask them the same thing again. A routine's later run still asks.

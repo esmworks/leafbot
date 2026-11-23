@@ -3,6 +3,23 @@
 All notable changes to Leaf Bot (called Yumak Bot before 0.7.0) are listed here. Versions follow [Semantic Versioning](https://semver.org/). While the
 version is 0.x, a minor release may change the data format or the API; the server migrates its database on start.
 
+## Unreleased
+
+### Added
+
+- A routine can be set to "Only tell me": it looks and reports, and whatever the bot may do elsewhere, it changes
+  nothing in those runs. A step that would change something (sending, clicking or typing in a page, writing a file,
+  a connected app that writes, handing work to a looser bot) is refused, not asked, and the bot is told to write what
+  it found instead; no approval card appears. The bot keeps its own notes and follow-ups and can still show you
+  files and pictures. It holds for every step of the routine, for a run held or retried, and for a rehearsal, and
+  never reaches your own messages in the same conversation. Set it in the routine's window, or ask the bot ("just
+  tell me every Monday"); it is carried in a bot file too. The server migrates its database on start.
+- A routine whose runs keep failing switches itself off after 10 failed runs in a row, so a broken instruction, a
+  removed tool or a page that changed stops spending money. You are told in your main conversation, and the routine
+  shows why it is off; when you turn it on again the count starts over. A usage limit, an expired sign-in, a server
+  restart, a run you stopped and a provider that is busy for now do not count, and a run that works resets the count.
+  The server migrates its database on start.
+
 ## 0.9.1 — 2026-11-23
 
 ### Added

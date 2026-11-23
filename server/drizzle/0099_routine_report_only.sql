@@ -1,0 +1,1 @@
+ALTER TABLE "routines" ADD COLUMN "report_only" boolean DEFAULT false NOT NULL;

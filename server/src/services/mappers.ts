@@ -166,6 +166,7 @@ export const toRoutine = (r: Row<typeof schema.routines>): Routine => ({
   webhookSecretSet: !!r.webhookSecret,
   missed: r.missed,
   carryReport: r.carryReport,
+  reportOnly: r.reportOnly,
   inMain: r.inMain,
   slackChannel: r.slackChannel,
   slackReaction: r.slackReaction,
@@ -182,6 +183,7 @@ export const toRoutine = (r: Row<typeof schema.routines>): Routine => ({
   tableTrigger: r.tableTrigger,
   tableFilter: r.tableFilter,
   signInWait: r.signInWait,
+  pausedReason: r.pausedReason,
   flowLayout: (r.flowLayout as FlowLayout | null) ?? null,
 });
 
