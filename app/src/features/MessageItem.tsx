@@ -89,6 +89,7 @@ import { personNameOf } from './PeopleTab';
 import { toolLabel } from '@/lib/toolLabel';
 import { isRefusal } from '@/lib/refusal';
 import { BotPage } from './BotPage';
+import { ChatCard } from './ChatCard';
 import { McpAppView } from './McpAppView';
 import { EmailApprovalCard } from './EmailApproval';
 import { speechSupported, toggleSpeech, useServerVoice, useSpeech } from '@/lib/speech';
@@ -188,7 +189,9 @@ export function MessageItem({
         // The actions sit right under the message; the row's own height takes most of the gap to the next one.
         <div className="group/message -mb-2 flex flex-col" data-message-id={m.id}>
           {(m.props.routineReport === true || m.props.routineInMain === true) && <RoutineReportLine m={m} />}
-          {page ? (
+          {m.props.card ? (
+            <ChatCard m={m} />
+          ) : page ? (
             <BotPage
               botId={botId ?? ''}
               path={page.path}
