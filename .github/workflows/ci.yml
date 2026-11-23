@@ -7,10 +7,10 @@ on:
   pull_request:
   workflow_dispatch:
 
-# A newer push to the same pull request cancels its older run; runs on main are never cancelled,
-# so every commit on main gets a result.
+# A newer push to the same pull request cancels its older run. Every other run gets a group of its
+# own, so no run on main waits behind or is dropped for another, and every commit on main gets a result.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
@@ -48,3 +48,7 @@ jobs:
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       # The hanging-process reporter names whatever keeps a test worker from exiting, should one hang.
       - run: pnpm test --reporter=default --reporter=hanging-process
+        env:
+          # Name the runner's Chrome, so a missing browser fails the browser tests instead of
+          # skipping them without a word.
+          LEAFBOT_TEST_BROWSER: /usr/bin/google-chrome
