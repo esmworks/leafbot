@@ -22,7 +22,8 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # The browser tests now start Chrome on the runner and take longer than the old 20 minutes.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -45,4 +46,5 @@ jobs:
       # has been closed". The tests keep the sandbox on, as the app does, and the runner allows it.
       - name: Let Chrome start its sandbox
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      - run: pnpm test
+      # The hanging-process reporter names whatever keeps a test worker from exiting, should one hang.
+      - run: pnpm test --reporter=default --reporter=hanging-process
