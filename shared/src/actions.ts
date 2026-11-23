@@ -547,6 +547,38 @@ export interface QuestionItem {
   options: string[];
   /** Its answer goes to the waiting bot only: the card keeps it blank (see `hideSecretAnswers`). */
   secret: boolean;
+  /** Several options may be picked: the answer lists them all (see `joinPicks`). */
+  multi: boolean;
+}
+
+/** Between the picked options of a multiple-choice answer; options rarely hold a semicolon, unlike a comma. */
+const PICK_SEPARATOR = '; ';
+
+/** The answer to a multiple-choice question: every pick, then any words the person added. */
+export function joinPicks(picks: readonly string[]): string {
+  return picks
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .join(PICK_SEPARATOR);
+}
+
+/** The picks and written words of an answer made with `joinPicks`. */
+export function splitPicks(answer: string): string[] {
+  return answer
+    .split(PICK_SEPARATOR.trim())
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+/**
+ * What a chat app's reply to a multiple-choice question means: option numbers ("1, 3" or "1 3") become
+ * the options they name; anything else is the person's own words and stays as written.
+ */
+export function typedPicks(options: readonly string[], text: string): string {
+  const numbers = text.trim().match(/^\d+(?:[\s,;]+\d+)*$/);
+  if (!numbers) return text;
+  const picked = [...new Set(text.match(/\d+/g)!.map(Number))].map((n) => options[n - 1]);
+  return picked.every((o): o is string => o !== undefined) ? joinPicks(picked) : text;
 }
 
 /** The questions on a question card: several from `ask_user`, or one from the card itself. */
@@ -557,17 +589,22 @@ export function questionItems(a: { input: Record<string, unknown>; summary: stri
   const title = typeof a.input.title === 'string' && a.input.title.trim() ? a.input.title.trim() : null;
   const raw = Array.isArray(a.input.questions) ? a.input.questions : null;
   const items = (raw ?? [])
-    .map((q) => q as { question?: unknown; context?: unknown; options?: unknown; secret?: unknown })
+    .map(
+      (q) =>
+        q as { question?: unknown; context?: unknown; options?: unknown; secret?: unknown; multi?: unknown },
+    )
     .filter((q) => typeof q.question === 'string' && q.question.trim())
     .map((q) => ({
       question: String(q.question),
       ...(typeof q.context === 'string' && q.context.trim() ? { context: q.context.trim() } : {}),
       options: Array.isArray(q.options) ? q.options.filter((o): o is string => typeof o === 'string') : [],
       secret: q.secret === true,
+      // A secret answer is one typed value, and a question with no options has nothing to tick.
+      multi: q.multi === true && q.secret !== true && Array.isArray(q.options) && q.options.length > 0,
     }));
   return items.length
     ? { title, items }
-    : { title, items: [{ question: a.summary, options: a.options, secret: false }] };
+    : { title, items: [{ question: a.summary, options: a.options, secret: false, multi: false }] };
 }
 
 /**

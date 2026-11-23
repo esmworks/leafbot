@@ -6,7 +6,9 @@ import {
   describeAction,
   emailPreview,
   outsideTrigger,
+  joinPicks,
   parseAnswers,
+  splitPicks,
   questionItems,
   type Approval,
   type Bot,
@@ -186,7 +188,11 @@ export function MessageItem({
     case 'assistant':
       return (
         // The actions sit right under the message; the row's own height takes most of the gap to the next one.
-        <div className="group/message -mb-2 flex flex-col" data-message-id={m.id}>
+        <div
+          className="group/message -mb-2 flex flex-col"
+          data-message-id={m.id}
+          data-reply-start={m.turnId ?? m.id}
+        >
           {(m.props.routineReport === true || m.props.routineInMain === true) && <RoutineReportLine m={m} />}
           {page ? (
             <BotPage
@@ -1057,6 +1063,7 @@ export function AssistantCard({
   partial,
   streaming,
   messageId,
+  replyKey,
 }: {
   text: string;
   turnId?: string | null;
@@ -1064,6 +1071,8 @@ export function AssistantCard({
   streaming?: boolean;
   /** The saved message shown, so its Markdown can be shown as written. */
   messageId?: string;
+  /** Names this reply for the conversation's scrolling, which keeps a long one's start in view. */
+  replyKey?: string;
 }) {
   const t = useT();
   const raw = useRawView((s) => !!messageId && s.ids.has(messageId));
@@ -1073,7 +1082,7 @@ export function AssistantCard({
   const long = !streaming && !whole && typed.length > LONG_MESSAGE;
   const shown = long ? `${typed.slice(0, LONG_MESSAGE)}…` : typed;
   return (
-    <div className="max-w-(--bubble-width) rounded-3xl bg-bubble px-5 py-4">
+    <div className="max-w-(--bubble-width) rounded-3xl bg-bubble px-5 py-4" data-reply-start={replyKey}>
       <div data-message-body>
         {raw ? (
           <pre className="font-mono text-[13px] leading-relaxed break-words whitespace-pre-wrap">{text}</pre>
@@ -1722,8 +1731,22 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
   const many = items.length > 1;
   const last = page === items.length - 1;
 
+  // On a question that takes several picks, the answer holds all of them (see `joinPicks`).
+  const picks = item.multi ? splitPicks(shown[page] ?? '') : [];
+  const toggle = (value: string) => {
+    if (answered || decide.isPending) return;
+    const next = picks.includes(value) ? picks.filter((p) => p !== value) : [...picks, value];
+    setAnswers(answers.map((x, i) => (i === page ? joinPicks(next) : x)));
+  };
   const choose = (value: string) => {
     if (answered || decide.isPending) return;
+    if (item.multi) {
+      // Words written beside the ticked options join them instead of replacing them.
+      if (!picks.includes(value)) toggle(value);
+      setWriting(false);
+      setDraft('');
+      return;
+    }
     const next = answers.map((x, i) => (i === page ? value : x));
     setAnswers(next);
     setWriting(false);
@@ -1744,9 +1767,18 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
     ? answered || current
       ? [{ label: t('question.secretGiven'), index: -1 }]
       : []
-    : answered
-      ? [{ label: current || t('question.empty'), index: optionIndex }]
-      : item.options.map((o, i) => ({ label: o, index: i }));
+    : item.multi
+      ? [
+          ...(answered ? [] : item.options).map((o, i) => ({ label: o, index: i })),
+          // Picks written in the person's own words, shown as ticked rows that can be unticked.
+          ...picks
+            .filter((p) => !item.options.includes(p) || answered)
+            .map((p) => ({ label: p, index: item.options.indexOf(p) })),
+        ]
+      : answered
+        ? [{ label: current || t('question.empty'), index: optionIndex }]
+        : item.options.map((o, i) => ({ label: o, index: i }));
+  if (item.multi && answered && !rows.length) rows.push({ label: t('question.empty'), index: -1 });
 
   return (
     <div className="max-w-(--bubble-width) space-y-2">
@@ -1767,12 +1799,16 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
         )}
         <div className="space-y-1">
           {rows.map((r) => {
-            const picked = !answered && (item.secret || current === r.label);
+            const picked = item.multi
+              ? !answered && picks.includes(r.label)
+              : !answered && (item.secret || current === r.label);
             return (
               <button
                 key={r.label}
+                role={item.multi && !answered ? 'checkbox' : undefined}
+                aria-checked={item.multi && !answered ? picked : undefined}
                 disabled={answered || item.secret || decide.isPending}
-                onClick={() => choose(r.label)}
+                onClick={() => (item.multi ? toggle(r.label) : choose(r.label))}
                 className={cn(
                   'flex w-full items-center gap-3 rounded-2xl px-2 py-1.5 text-start text-[15px]',
                   !answered && 'hover:bg-accent',
@@ -1787,7 +1823,9 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
                   )}
                   style={r.index >= 0 && isRefusal(r.label) ? undefined : { backgroundColor: color }}
                 >
-                  {r.index >= 0 ? (
+                  {item.multi && !answered && picked ? (
+                    <Check className="size-3.5" />
+                  ) : r.index >= 0 ? (
                     String.fromCharCode(65 + r.index)
                   ) : item.secret ? (
                     <KeyRound className="size-3.5" />
@@ -1861,6 +1899,16 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
                   onClick={() => decide.mutate({ decision: 'deny' })}
                 >
                   {t('question.skip')}
+                </Button>
+              )}
+              {!many && item.multi && !answered && (
+                <Button
+                  size="sm"
+                  className="rounded-full"
+                  disabled={!answers[0] || decide.isPending}
+                  onClick={() => decide.mutate({ decision: 'allow', answer: answers[0] })}
+                >
+                  {t('question.send')}
                 </Button>
               )}
               {many && (

@@ -382,7 +382,7 @@ export async function askPerson(
     signal: AbortSignal;
     timeoutMs?: number;
     title?: string;
-    items: { question: string; context?: string; options: string[]; secret?: boolean }[];
+    items: { question: string; context?: string; options: string[]; secret?: boolean; multi?: boolean }[];
   },
 ) {
   const summary = o.title ?? o.items[0]!.question;
@@ -596,6 +596,7 @@ export class ToolFactory {
                   .describe('A short line under the question: why you ask, or what the options mean'),
                 options: z.array(Choice).max(8).optional(),
                 secret: z.boolean().optional(),
+                multi: z.boolean().optional(),
               }),
             )
             .min(1)
@@ -611,6 +612,7 @@ export class ToolFactory {
               ...('context' in q && q.context ? { context: q.context } : {}),
               options: (q.options ?? []).map(choiceLabel),
               ...(q.secret ? { secret: true } : {}),
+              ...('multi' in q && q.multi && !q.secret && q.options?.length ? { multi: true } : {}),
             }),
           );
           if (!items.length) return t('tool.noQuestion');

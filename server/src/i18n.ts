@@ -221,6 +221,7 @@ const tr = {
   'error.fileMissing': 'Dosya yok',
   'error.fileForbidden': 'Bu dosyaya erişim yok',
   'error.fileTooLarge': 'Dosya çok büyük (en fazla {max} MB)',
+  'error.fileEmpty': 'Dosya boş (0 bayt)',
   'error.uploadType': 'Dosya application/octet-stream olarak gönderilmeli',
   'error.importFormat': 'Bu dosya bir Leaf Bot içe aktarma dosyası değil',
   'error.grokLinkInvalid': 'Bu bir Grok Bot paylaşım bağlantısı değil (x.ai/bot/… biçiminde olmalı)',
@@ -848,7 +849,7 @@ const tr = {
 
   // App tools: descriptions
   'tool.ask_user':
-    'Kullanıcıya soru sor ve cevabını bekle. Birbiriyle ilgili birkaç soruyu (en çok 6) tek kartta, kısa bir başlıkla sor: questions listesi. Seçenek verirsen kart düğmelerle gösterilir; kullanıcı kendi cevabını da yazabilir. Cevabı gizli kalması gereken bir soruda (API anahtarı, erişim kodu, tek kullanımlık kod) o soruya secret: true ver: kullanıcı cevabı gizli bir kutuya yazar, cevap yalnızca sana gelir, kartta ve sohbet geçmişinde görünmez. Site şifreleri için bunu değil browser_login kullan. Evet/hayır izni için kullanma; izinleri sistem kendisi sorar.',
+    'Kullanıcıya soru sor ve cevabını bekle. Birbiriyle ilgili birkaç soruyu (en çok 6) tek kartta, kısa bir başlıkla sor: questions listesi. Seçenek verirsen kart düğmelerle gösterilir; kullanıcı kendi cevabını da yazabilir. Cevabı gizli kalması gereken bir soruda (API anahtarı, erişim kodu, tek kullanımlık kod) o soruya secret: true ver: kullanıcı cevabı gizli bir kutuya yazar, cevap yalnızca sana gelir, kartta ve sohbet geçmişinde görünmez. Site şifreleri için bunu değil browser_login kullan. Birden fazla seçeneğin birlikte seçilebildiği bir soruda (hangi uygulamalar, hangi dosyalar gibi) o soruya multi: true ver: kullanıcı kutuları işaretler ve cevap, seçilenlerin "; " ile ayrılmış listesi olarak gelir. Tek bir seçenek yeterliyse multi verme. Evet/hayır izni için kullanma; izinleri sistem kendisi sorar.',
   'tool.reactNotNow': 'Bu tur kullanıcının yeni bir mesajına yanıt değil; emoji bırakılmadı.',
   'tool.react':
     'Kullanıcının son mesajına emoji ile tepki ver (ör. 👍 ❤️ 🙏 😂 👏 🔥). Tek emoji ver; yeniden çağırırsan önceki tepkinin yerini alır.',
@@ -1881,6 +1882,8 @@ const tr = {
   'channel.denied': 'Reddedildi',
   'channel.orType': 'Bir seçeneğe dokun ya da cevabını yaz.',
   'channel.typeAnswer': 'Cevabını yaz.',
+  'channel.pickSeveral':
+    'Birden fazla seçebilirsin: numaralarını virgülle ayırarak yaz (ör. 1, 3) ya da kendi cevabını yaz.',
   'channel.inApp':
     'Bunu Leaf Bot uygulamasında tamamla; şifre ve gizli bilgiler sohbet uygulamasından geçmez.',
   'channel.cardClosed': 'Bu kart artık açık değil.',
@@ -2136,6 +2139,7 @@ const en: Catalog<ServerKey> = {
   'error.fileMissing': 'File not found',
   'error.fileForbidden': 'No access to this file',
   'error.fileTooLarge': 'The file is too large (at most {max} MB)',
+  'error.fileEmpty': 'The file is empty (0 bytes)',
   'error.uploadType': 'Send the file as application/octet-stream',
   'error.importFormat': 'This is not a Leaf Bot import file',
   'error.grokLinkInvalid': 'That is not a Grok Bot share link (it looks like x.ai/bot/…)',
@@ -2764,7 +2768,7 @@ const en: Catalog<ServerKey> = {
   'bot.pausedTag': ' (paused, takes no work)',
 
   'tool.ask_user':
-    'Ask the user a question and wait for the answer. Ask several related questions (at most 6) on one card with a short title: the questions list. If you give options, the card shows them as buttons; the user can also write their own answer. For a question whose answer must stay private (an API key, an access code, a one-time code), give that question secret: true: the user types the answer into a hidden field, the answer reaches only you and does not show on the card or in the chat history. For website passwords use browser_login instead. Do not use it for yes/no permission; the system asks for permissions itself.',
+    'Ask the user a question and wait for the answer. Ask several related questions (at most 6) on one card with a short title: the questions list. If you give options, the card shows them as buttons; the user can also write their own answer. For a question whose answer must stay private (an API key, an access code, a one-time code), give that question secret: true: the user types the answer into a hidden field, the answer reaches only you and does not show on the card or in the chat history. For website passwords use browser_login instead. When several of the options can be chosen together (which apps, which files), give that question multi: true: the user ticks boxes and the answer comes back as the chosen options separated by "; ". Leave multi out when one option is enough. Do not use it for yes/no permission; the system asks for permissions itself.',
   'tool.reactNotNow': 'This turn does not answer a new message from the user; no emoji was left.',
   'tool.react':
     "React to the user's latest message with an emoji (e.g. 👍 ❤️ 🙏 😂 👏 🔥). Give a single emoji; calling it again replaces the earlier reaction.",
@@ -3796,6 +3800,8 @@ const en: Catalog<ServerKey> = {
   'channel.denied': 'Denied',
   'channel.orType': 'Tap a choice or type your answer.',
   'channel.typeAnswer': 'Type your answer.',
+  'channel.pickSeveral':
+    'You can pick several: write their numbers separated by commas (e.g. 1, 3) or write your own answer.',
   'channel.inApp': 'Finish this in the Leaf Bot app; passwords and secrets never go through a chat app.',
   'channel.cardClosed': 'This card is no longer open.',
   'channel.fileTooLarge': '{name} is too large to receive; add it in the Leaf Bot app.',

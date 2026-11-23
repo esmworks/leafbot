@@ -96,6 +96,14 @@ export function cardView(
     if (items.length === 1 && q && !q.secret) {
       const head = title ? `**${title}**\n` : '';
       const context = q.context ? `\n${q.context}` : '';
+      if (q.multi) {
+        // Buttons answer at once, so a question that takes several picks is numbered and answered in words.
+        const list = q.options.map((o, i) => `${i + 1}. ${o}`).join('\n');
+        return {
+          text: `❓ ${head}${q.question}${context}\n\n${list}\n\n_${t('channel.pickSeveral')}_`,
+          buttons: [],
+        };
+      }
       const hint = `\n\n_${t(q.options.length ? 'channel.orType' : 'channel.typeAnswer')}_`;
       return {
         text: `❓ ${head}${q.question}${context}${hint}`,

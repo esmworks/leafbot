@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeAction } from './actions';
+import { describeAction, joinPicks, questionItems, splitPicks, typedPicks } from './actions';
 
 describe('araç isteklerinin düz dili', () => {
   it('komut, dosya ve sayfa isteklerini araç adı ve kod göstermeden anlatır', () => {
@@ -99,5 +99,35 @@ describe('araç isteklerinin düz dili', () => {
     );
     expect(many.want).toBe('Paşa wants to upload files to a site in the browser.');
     expect(many.wont).toContain('upload these files');
+  });
+});
+
+describe('multiple-choice questions', () => {
+  const card = (questions: unknown) => ({ input: { questions }, summary: 'Q', options: [] as string[] });
+
+  it('marks a question multi only when it has options to tick and is not secret', () => {
+    const { items } = questionItems(
+      card([
+        { question: 'a', options: ['x', 'y'], multi: true },
+        { question: 'b', multi: true },
+        { question: 'c', options: ['x'], multi: true, secret: true },
+        { question: 'd', options: ['x'] },
+      ]),
+    );
+    expect(items.map((q) => q.multi)).toEqual([true, false, false, false]);
+  });
+
+  it('lists every pick in one answer and reads it back', () => {
+    const answer = joinPicks(['Mail', 'Calendar', 'my own words']);
+    expect(answer).toBe('Mail; Calendar; my own words');
+    expect(splitPicks(answer)).toEqual(['Mail', 'Calendar', 'my own words']);
+  });
+
+  it('turns option numbers typed in a chat app into the options', () => {
+    const options = ['Mail', 'Calendar', 'Files'];
+    expect(typedPicks(options, '1, 3')).toBe('Mail; Files');
+    expect(typedPicks(options, '2 2')).toBe('Calendar');
+    expect(typedPicks(options, '4')).toBe('4');
+    expect(typedPicks(options, 'only the mail')).toBe('only the mail');
   });
 });
