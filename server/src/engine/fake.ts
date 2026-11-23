@@ -14,6 +14,7 @@ import {
   type ModelTest,
   type GateRequest,
   type GateVerdict,
+  type SubagentState,
   type TurnOutcome,
   type TurnRequest,
 } from './types';
@@ -169,6 +170,28 @@ export class FakeEngine implements Engine {
       req.onSubagent?.({ ...sub, steps: 1, tool: 'Grep' });
       req.onSubagent?.({ ...sub, steps: 2, tool: 'WebSearch' });
       req.onSubagent?.({ ...sub, steps: 2, tool: 'WebSearch', state: 'done', result: 'Üç kaynak bulundu.' });
+    }
+    // Three helpers started together, two places to run in: the third waits, then all finish. The slow
+    // variant takes its time between steps, so the card can be watched as it changes.
+    if (req.prompt.includes('[alt-ajanlar]') || req.prompt.includes('[alt-ajanlar-yavaş]')) {
+      const pace = req.prompt.includes('[alt-ajanlar-yavaş]') ? 1500 : 0;
+      const show = async (sub: SubagentState) => {
+        req.onSubagent?.(sub);
+        if (pace) await new Promise((r) => setTimeout(r, pace));
+      };
+      const subs = ['Birinci daireyi incele', 'İkinci daireyi incele', 'Üçüncü daireyi incele'].map(
+        (description, i) => ({ id: `fake-sub-${i + 1}`, description, state: 'waiting' as const, steps: 0 }),
+      );
+      for (const sub of subs) req.onSubagent?.(sub);
+      if (pace) await new Promise((r) => setTimeout(r, pace));
+      const [a, b, c] = subs as [(typeof subs)[number], (typeof subs)[number], (typeof subs)[number]];
+      await show({ ...a, state: 'running' });
+      await show({ ...b, state: 'running' });
+      await show({ ...a, state: 'running', steps: 1, tool: 'WebFetch' });
+      await show({ ...a, state: 'done', steps: 1, tool: 'WebFetch', result: 'Kira uygun.' });
+      await show({ ...c, state: 'running' });
+      await show({ ...b, state: 'done', steps: 0, result: 'Evcil hayvan yasak.' });
+      await show({ ...c, state: 'failed', steps: 0, result: 'Sayfa açılmadı.' });
     }
     // A call that keeps failing the same way, past the warning: the turn is stopped.
     if (req.prompt.includes('[döngü]')) {

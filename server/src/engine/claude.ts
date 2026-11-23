@@ -634,6 +634,13 @@ export class ClaudeEngine implements Engine {
     try {
       for await (const m of q as AsyncIterable<SDKMessage>) {
         req.onActivity?.();
+        // Anything a subagent sends says it has started: the CLI may hold some back while others run.
+        const from = (m as { parent_tool_use_id?: string | null }).parent_tool_use_id;
+        const started = from ? subagents.get(from) : undefined;
+        if (started?.state === 'waiting') {
+          started.state = 'running';
+          req.onSubagent?.({ ...started });
+        }
         if (m.type === 'rate_limit_event') {
           const info = m.rate_limit_info;
           const windows = eventWindows(info);
@@ -680,7 +687,7 @@ export class ClaudeEngine implements Engine {
             if (c.type !== 'tool_result') continue;
             req.onActivity?.({ id: c.tool_use_id, name: '', running: false });
             const sub = subagents.get(c.tool_use_id);
-            if (sub && sub.state === 'running') {
+            if (sub && (sub.state === 'running' || sub.state === 'waiting')) {
               sub.state = c.is_error ? 'failed' : 'done';
               const result = subagentAnswer(c.content);
               if (result) sub.result = result;
@@ -716,10 +723,11 @@ export class ClaudeEngine implements Engine {
                   : typeof input.subagent_type === 'string'
                     ? input.subagent_type
                     : '';
+              // Waiting until it sends anything of its own (see the top of the loop).
               const sub: SubagentState = {
                 id: c.id,
                 description: description.slice(0, 200),
-                state: 'running',
+                state: 'waiting',
                 steps: 0,
               };
               subagents.set(c.id, sub);
@@ -792,7 +800,7 @@ export class ClaudeEngine implements Engine {
       req.onCompacting?.(false);
       // A subagent the run left behind did not finish.
       for (const sub of subagents.values()) {
-        if (sub.state !== 'running') continue;
+        if (sub.state !== 'running' && sub.state !== 'waiting') continue;
         sub.state = 'stopped';
         req.onSubagent?.({ ...sub });
       }

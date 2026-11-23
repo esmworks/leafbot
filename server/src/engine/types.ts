@@ -236,7 +236,8 @@ export interface TurnRequest {
 export interface SubagentState {
   id: string;
   description: string;
-  state: 'running' | 'done' | 'failed' | 'stopped';
+  /** `waiting` until a free place lets it start, when the bot started more than run at once. */
+  state: 'waiting' | 'running' | 'done' | 'failed' | 'stopped';
   /** Tool calls it has made so far. */
   steps: number;
   /** The tool it called last, by the name cards use (`Bash`, `mcp__notion__search`). */

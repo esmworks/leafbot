@@ -385,6 +385,7 @@ const tr = {
   'turn.compactedIdle':
     'Sohbet boşta beklerken buraya kadar özetlendi; bot öncesini bu özetten hatırlıyor ve bir sonraki mesaj özetlemeyi beklemez.',
   'turn.toolOff': 'Bu araç bu botta kapalı (botun ayarları → Araçlar).',
+  'turn.subagentGroup': '{count} alt görev: {names}',
   'turn.safetyFloor':
     'Bu komut hiçbir izinle çalıştırılmaz: bir diski ya da bütün ev klasörünü silebilir, bilgisayarı kapatabilir. Daha dar bir hedefle (belirli bir klasör ya da dosya) yeniden dene.',
   'turn.personDisabled': 'Bu iş, artık giriş yapamayan bir kişi adına çalışacaktı; başlatılmadı.',
@@ -564,6 +565,15 @@ const tr = {
   'engine.findToolNone': 'Eşleşen araç yok; başka sözcüklerle dene.',
   'engine.toolsSearch':
     'Bağlı uygulamaların {count} aracı ({apps}) listeye sığmadı. Onlara find_tool ile arayıp use_tool ile ulaşabilirsin.',
+  'engine.subagentTool':
+    'İşin kendi içinde tamam bir parçasını yardımcı bir ajana ver. Yardımcı yeni bir konuşmada senin araçlarınla çalışır (kendisi yardımcı başlatamaz), bitince son cevabını sana döndürür; kişi onun çalışmasını görmez. Birkaçını aynı anda çalıştırmak için bu aracı aynı mesajda birkaç kez çağır; aynı mesajdaki başka bir araç çağrısı onları sıraya sokar. Her birine eksiksiz bir görev yaz: yardımcı bu konuşmayı bilmez. Birbirinden bağımsız parçalar için kullan (birkaç şeyi ayrı ayrı incelemek, birkaç yerde aramak); küçük ya da birbirine bağlı adımları kendin yap.',
+  'engine.subagentDescription': 'Görevin 3-5 sözcüklük kısa adı; kişi bunu kartta görür.',
+  'engine.subagentPrompt': 'Yardımcının yapacağı görev, ihtiyaç duyacağı her bilgiyle birlikte.',
+  'engine.subagentSystem':
+    'Şu an daha büyük bir işin bir parçasını yapan yardımcı bir ajansın. Yalnızca sana verilen görevi araçlarınla yap, sonra bulduğunu ya da yaptığını tek bir cevapta yaz. Cevabın kişiye değil, seni başlatan bota gider. Kişiye soru soramazsın.',
+  'engine.subagentFailed': 'Yardımcı işini bitiremedi: {reason}',
+  'engine.subagentNoAnswer': 'Yardımcı bir cevap yazmadan bitti.',
+  'engine.subagentKeptFailing': 'Aynı çağrı aynı biçimde başarısız olmaya devam etti.',
   'approval.expired': 'Onay beklenirken tur durduruldu.',
   'approval.timedOut':
     'Kullanıcı başında değildi ve izin isteği zamanında yanıtlanmadı; bu işlem yapılmadı. Onsuz yapabildiğini yap ve sonunda neyin yapılamadığını yaz.',
@@ -2311,6 +2321,7 @@ const en: Catalog<ServerKey> = {
   'turn.compactedIdle':
     'While the conversation was idle it was summarised up to here; the bot remembers it from that summary, and the next message does not wait for a summary.',
   'turn.toolOff': "This tool is off for this bot (the bot's settings → Tools).",
+  'turn.subagentGroup': '{count} subtasks: {names}',
   'turn.safetyFloor':
     'This command is never run, whatever is allowed: it could wipe a disk or a whole home folder, or stop the machine. Try again with a narrower target (a particular folder or file).',
   'turn.personDisabled': 'This work would run for someone who may no longer sign in; it was not started.',
@@ -2490,6 +2501,15 @@ const en: Catalog<ServerKey> = {
   'engine.findToolNone': 'No tool matches; try other words.',
   'engine.toolsSearch':
     "{count} of the connected apps' tools ({apps}) did not fit in the list. Find them with find_tool and reach them with use_tool.",
+  'engine.subagentTool':
+    'Hand a self-contained part of the work to a helper agent. The helper works in a fresh conversation with your tools (it cannot start helpers of its own) and, when done, returns its final answer to you; the person does not see its work. To run several at once, call this tool several times in the same message; any other tool call in that message makes them take turns. Write each one a complete task: the helper knows nothing of this conversation. Use it for independent pieces (checking several items separately, searching several places); do small or dependent steps yourself.',
+  'engine.subagentDescription': 'A short name for the task, 3-5 words; the person sees it on the card.',
+  'engine.subagentPrompt': 'The task for the helper, with everything it needs to know.',
+  'engine.subagentSystem':
+    'You are now a helper agent doing one part of a larger piece of work. Do only the task you are given, with your tools, then write what you found or did in one answer. Your answer goes to the bot that started you, not to the person. You cannot ask the person anything.',
+  'engine.subagentFailed': 'The helper could not finish: {reason}',
+  'engine.subagentNoAnswer': 'The helper ended without writing an answer.',
+  'engine.subagentKeptFailing': 'The same call kept failing the same way.',
   'approval.expired': 'The turn was stopped while waiting for approval.',
   'approval.timedOut':
     'The user was not there and the request was not answered in time; this step was not done. Do what you can without it and say at the end what could not be done.',
