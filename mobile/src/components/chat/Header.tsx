@@ -128,7 +128,6 @@ function ThreadMenu({
   const groups: { label: string; items: Thread[]; icon?: IconName }[] = [
     { label: t('chat.threads'), items: listed.filter((th) => th.kind === 'user') },
     { label: t('chat.teamThreads'), items: listed.filter((th) => th.kind === 'team'), icon: 'users' },
-    { label: t('chat.botThreads'), items: listed.filter((th) => th.kind === 'bot'), icon: 'cpu' },
     // A routine's reports reach the main conversation; its own is listed only while it needs the
     // person (a card waiting) or they pinned it.
     {

@@ -618,8 +618,23 @@ export const Approval = z.object({
   firstAt: z.string().nullable().optional(),
   createdAt: z.string(),
   decidedAt: z.string().nullable(),
+  /**
+   * For a card asked in an exchange between bots, which the person does not open: the conversation
+   * it is shown and answered in (where the work began), and the props of the card's own line, as a
+   * card in that conversation would carry them. Missing for other cards and from older servers.
+   */
+  answerIn: z
+    .object({ threadId: Id, botId: Id, props: z.record(z.string(), z.unknown()) })
+    .nullable()
+    .optional(),
 });
 export type Approval = z.infer<typeof Approval>;
+
+/** Where a card is shown and answered: in its own conversation, or where the work that asked it began. */
+export const cardPlace = (a: Pick<Approval, 'threadId' | 'botId' | 'answerIn'>) => ({
+  threadId: a.answerIn?.threadId ?? a.threadId,
+  botId: a.answerIn?.botId ?? a.botId,
+});
 
 /**
  * A step that waits for a second person's yes, as that person sees it: what it is and who said

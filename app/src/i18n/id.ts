@@ -195,7 +195,6 @@ export const id: Partial<Catalog<MessageKey>> = {
   'chat.snoozeThread': 'Tunda',
   'chat.unsnoozeThread': 'Kembalikan sekarang',
   'chat.archivedThreads': 'Diarsipkan',
-  'chat.botThreads': 'Obrolan bot',
   'chat.routineThreads': 'Rutin',
   'chat.teamThreads': 'Tim (Slack, Discord)',
   'chat.ticketThreads': 'Pekerjaan papan',

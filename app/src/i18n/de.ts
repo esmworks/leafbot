@@ -906,7 +906,6 @@ export const de: Partial<Catalog<MessageKey>> = {
   'update.reloadNow': 'Jetzt neu laden',
   'chat.newThread': 'Neuer Chat',
   'chat.threads': 'Chats',
-  'chat.botThreads': 'Bot-Chats',
   'chat.routineThreads': 'Routinen',
   'chat.mainThread': 'Hauptchat',
   'chat.togglePanel': 'Seitenfenster umschalten',
@@ -917,10 +916,6 @@ export const de: Partial<Catalog<MessageKey>> = {
   'chat.waitingIn': {
     one: 'Eine Karte in „{place}“ wartet auf deine Antwort',
     other: '{count} Karten in „{place}“ warten auf deine Antwort',
-  },
-  'chat.waitingWithBot': {
-    one: 'Eine Karte im Chat mit {bot} wartet auf deine Antwort',
-    other: '{count} Karten im Chat mit {bot} warten auf deine Antwort',
   },
   'chat.waitingElsewhere': {
     one: 'Eine Karte in einem anderen Chat wartet auf deine Antwort',

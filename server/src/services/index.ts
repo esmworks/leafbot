@@ -148,7 +148,7 @@ export class Services {
     this.cards = new PaymentCardService(ctx, this.vault);
     this.claudeAuth = new ClaudeAuthService(ctx, this.vault);
     this.connections = new ConnectionService(ctx, this.vault);
-    this.approvals = new ApprovalService(ctx, this.vault);
+    this.approvals = new ApprovalService(ctx, this.vault, this.threads);
     this.actions = new ActionService(ctx);
     this.changes = new TurnChangeService(ctx, this);
     this.memory = new MemoryService(ctx);

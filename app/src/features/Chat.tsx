@@ -1,10 +1,16 @@
-import { hasSecretShape, quoteExcerpt, type Bot, type Message, type Thread } from '@leafbot/shared';
+import {
+  cardPlace,
+  hasSecretShape,
+  quoteExcerpt,
+  type Bot,
+  type Message,
+  type Thread,
+} from '@leafbot/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Archive,
   ArrowDown,
   ArrowUp,
-  Bot as BotIcon,
   Loader2,
   Mic,
   ChevronDown,
@@ -109,7 +115,7 @@ import {
   type StagedFile,
 } from './Attachments';
 import { FindBar } from './FindBar';
-import { AssistantCard, CardDock, MessageItem, replyExcerpt, Working } from './MessageItem';
+import { AssistantCard, CardDock, ExchangeCards, MessageItem, replyExcerpt, Working } from './MessageItem';
 
 export function Chat({ bot }: { bot: Bot }) {
   const selectedThread = useUi((s) => s.threadId);
@@ -119,11 +125,14 @@ export function Chat({ bot }: { bot: Bot }) {
   const thread =
     threads.find((t) => t.id === threadId) ?? (main.data?.id === threadId ? main.data : undefined);
   const waiting = useWaitingCards(bot.id);
-  // A conversation remembered from an earlier visit that is gone since: back to the main one.
+  // A conversation remembered from an earlier visit that is gone since, or an exchange between
+  // bots (opened from an older link; the person reads those where the work began): back to the
+  // main one.
   const listed = useThreads(bot.id);
   useEffect(() => {
     if (!selectedThread || !listed.data || main.data?.id === selectedThread) return;
-    if (!listed.data.some((th) => th.id === selectedThread)) useUi.getState().selectThread(null);
+    if (!listed.data.some((th) => th.id === selectedThread && th.kind !== 'bot'))
+      useUi.getState().selectThread(null);
   }, [selectedThread, listed.data, main.data?.id]);
   // What the person had read of this bot when its chat opened: the line above the first reply
   // after it marks where the new ones start. Taken once, before opening marks them read.
@@ -159,16 +168,18 @@ export function Chat({ bot }: { bot: Bot }) {
 }
 
 /**
- * The bot's cards still waiting for an answer, counted per conversation. The sidebar counts them
- * all, wherever they are, so every conversation they are in needs to be findable from here.
+ * The cards waiting for an answer in this bot's chat, counted per conversation. The sidebar counts
+ * them all, wherever they are, so every conversation they are in needs to be findable from here. A
+ * card asked between bots counts where it is shown: with the bot the work began with.
  */
 function useWaitingCards(botId: string): Map<string, number> {
   const { data: approvals } = useApprovals();
   return useMemo(() => {
     const byThread = new Map<string, number>();
     for (const a of approvals ?? []) {
-      if (a.botId === botId && a.status === 'pending')
-        byThread.set(a.threadId, (byThread.get(a.threadId) ?? 0) + 1);
+      const place = cardPlace(a);
+      if (place.botId === botId && a.status === 'pending')
+        byThread.set(place.threadId, (byThread.get(place.threadId) ?? 0) + 1);
     }
     return byThread;
   }, [approvals, botId]);
@@ -249,15 +260,11 @@ function WaitingElsewhere({
   const openRoom = useUi((s) => s.openRoom);
   const { data: rooms = [] } = useRooms();
   const name = useThreadName();
-  const { data: bots = [] } = useBots();
   const others = [...waiting].filter(([id]) => id !== threadId);
   if (!others.length) return null;
   const count = others.reduce((n, [, c]) => n + c, 0);
   const [firstId] = others[0]!;
   const first = threads.find((th) => th.id === firstId);
-  // An untitled bot conversation reads better named by the other bot than quoted.
-  const peer =
-    first && !first.title && first.peerBotId ? bots.find((b) => b.id === first.peerBotId) : undefined;
   return (
     <div className="mx-auto w-full max-w-(--chat-width) px-3 pb-2 sm:px-6">
       <div className="flex items-center gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/5 py-2 pe-2 ps-4 text-sm">
@@ -265,9 +272,7 @@ function WaitingElsewhere({
         <span className="min-w-0 flex-1">
           {others.length !== 1 || !first
             ? t('chat.waitingElsewhere', { count })
-            : peer
-              ? t('chat.waitingWithBot', { count, bot: peer.name })
-              : t('chat.waitingIn', { count, place: name(first) })}
+            : t('chat.waitingIn', { count, place: name(first) })}
         </span>
         <Button
           size="sm"
@@ -372,7 +377,6 @@ function Header({
   const archived = threads.filter((th) => th.archivedAt && away(th));
   const snoozed = threads.filter((th) => !th.archivedAt && away(th));
   const userThreads = listed.filter((th) => th.kind === 'user');
-  const botThreads = listed.filter((th) => th.kind === 'bot');
   // A routine's reports reach the main conversation; its own is listed only while it needs the
   // person (a card waiting) or they pinned it. Each run opens from its report and from the routine.
   const routineThreads = listed.filter(
@@ -579,14 +583,6 @@ function Header({
               waiting={waiting}
               onPick={selectThread}
               icon={<UsersRound />}
-            />
-            <ThreadGroup
-              label={t('chat.botThreads')}
-              items={botThreads}
-              name={name}
-              waiting={waiting}
-              onPick={selectThread}
-              icon={<BotIcon />}
             />
             <ThreadGroup
               label={t('chat.routineThreads')}
@@ -873,7 +869,6 @@ function Conversation({
   const streamDone = stream && messages.some((m) => m.turnId === stream.turnId && m.role === 'assistant');
   // A card asked while the reply streams in goes inside it, where it was asked.
   const { rows, parts } = useLiveCards(all, stream, !!streamDone);
-  const [dock, setDock] = useState<HTMLDivElement | null>(null);
   const busy = state === 'running' || state === 'queued';
   const activity = useThreadActivity(bot.id, threadId, state);
 
@@ -998,7 +993,7 @@ function Conversation({
         className="scroll-thin flex-1 overflow-y-auto"
       >
         <FileLinks.Provider value={fileLinks}>
-          <CardDock.Provider value={dock}>
+          <CardDock.Provider value>
             <div className="mx-auto flex max-w-(--chat-width) flex-col gap-4 px-3 pt-20 pb-6 sm:px-6">
               {(thread?.goal || thread?.pinned) && (
                 <div className="sticky top-16 z-[5] flex flex-col gap-1.5">
@@ -1070,8 +1065,8 @@ function Conversation({
                   </ErrorBoundary>
                 ),
               )}
-              {/* Cards waiting in an exchange between bots, out of sight where it began. */}
-              <div ref={setDock} className="flex flex-col gap-4 empty:hidden" />
+              {/* Cards waiting in exchanges between bots, out of sight where they were asked. */}
+              {threadId && <ExchangeCards threadId={threadId} bots={botMap} />}
               {activity !== 'idle' && !streamDone && (
                 <Working bot={bot} activity={activity} threadId={threadId ?? undefined} />
               )}

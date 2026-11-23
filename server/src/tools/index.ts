@@ -1537,42 +1537,52 @@ export class ToolFactory {
         'read',
       ),
       // Splits work off into a conversation of the bot's own, which the person sees in its list.
-      def(
-        'open_conversation',
-        { title: z.string().trim().min(1).max(80), message: z.string().trim().min(1).max(10_000) },
-        async ({ title, message }) => {
-          if (opened >= MAX_OPENED) return t('tool.conversationsCap', { max: MAX_OPENED });
-          opened++;
-          const fresh = await s.threads.create(bot.id, { title: title.replace(/\s+/g, ' '), userId: person });
-          // What this run had read goes along: the message may carry its words.
-          const outside = reads();
-          await s.threads.addMessage({
-            threadId: fresh.id,
-            role: 'user',
-            author: `bot:${bot.id}`,
-            text: message,
-            props: { openedFrom: thread.id, ...(outside && { outside }) },
-          });
-          // A turn of its own, as any message gets; the bot works there while this one goes on.
-          await s.turns.enqueue({
-            threadId: fresh.id,
-            botId: bot.id,
-            source: 'bot',
-            prompt: t('prompt.openedBySelf', { message }),
-            outside,
-          });
-          await s.threads.addMessage({
-            threadId: thread.id,
-            role: 'system',
-            author: `bot:${bot.id}`,
-            text: t('thread.openedNote', { title: fresh.title }),
-            props: { openedThread: fresh.id },
-            turnId: turn.id,
-          });
-          return t('tool.conversationOpened', { title: fresh.title });
-        },
-        'internal',
-      ),
+      // Not while answering another bot: the person does not open that exchange, so a conversation
+      // opened from it would be found nowhere. What the person should read goes in the answer, and
+      // a question goes on a card, which shows where the work began.
+      ...(thread.kind !== 'bot'
+        ? [
+            def(
+              'open_conversation',
+              { title: z.string().trim().min(1).max(80), message: z.string().trim().min(1).max(10_000) },
+              async ({ title, message }) => {
+                if (opened >= MAX_OPENED) return t('tool.conversationsCap', { max: MAX_OPENED });
+                opened++;
+                const fresh = await s.threads.create(bot.id, {
+                  title: title.replace(/\s+/g, ' '),
+                  userId: person,
+                });
+                // What this run had read goes along: the message may carry its words.
+                const outside = reads();
+                await s.threads.addMessage({
+                  threadId: fresh.id,
+                  role: 'user',
+                  author: `bot:${bot.id}`,
+                  text: message,
+                  props: { openedFrom: thread.id, ...(outside && { outside }) },
+                });
+                // A turn of its own, as any message gets; the bot works there while this one goes on.
+                await s.turns.enqueue({
+                  threadId: fresh.id,
+                  botId: bot.id,
+                  source: 'bot',
+                  prompt: t('prompt.openedBySelf', { message }),
+                  outside,
+                });
+                await s.threads.addMessage({
+                  threadId: thread.id,
+                  role: 'system',
+                  author: `bot:${bot.id}`,
+                  text: t('thread.openedNote', { title: fresh.title }),
+                  props: { openedThread: fresh.id },
+                  turnId: turn.id,
+                });
+                return t('tool.conversationOpened', { title: fresh.title });
+              },
+              'internal',
+            ),
+          ]
+        : []),
       def(
         'bot_send',
         {

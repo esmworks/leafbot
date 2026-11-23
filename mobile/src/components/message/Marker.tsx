@@ -26,8 +26,10 @@ export function Marker({ m, bots }: { m: Message; bots: Map<string, Bot> }) {
   const waiting = toThreadId
     ? (approvals ?? []).filter((a) => a.threadId === toThreadId && a.status === 'pending').length
     : 0;
-  // Opens by itself for a waiting card, until the person closes it.
-  const open = chosen ?? waiting > 0;
+  // A waiting card shows at the end of the conversation, with the rest of the chain's; it is
+  // answered there, and shows here with the exchange once it is.
+  const pending = new Set((approvals ?? []).filter((a) => a.status === 'pending').map((a) => a.id));
+  const open = chosen ?? false;
   // Once read, the exchange counts itself: markers written before it was cut to one request
   // counted the pair's whole history.
   const said = job.data?.messages.filter((x) => x.role === 'user' || x.role === 'assistant').length;
@@ -66,7 +68,12 @@ export function Marker({ m, bots }: { m: Message; bots: Map<string, Bot> }) {
             <Text style={[styles.small, { color: c.mutedForeground }]}>{t('common.loading')}</Text>
           ) : null}
           {job.data?.messages
-            .filter((x) => x.role === 'user' || x.role === 'assistant' || x.role === 'approval')
+            .filter(
+              (x) =>
+                x.role === 'user' ||
+                x.role === 'assistant' ||
+                (x.role === 'approval' && !pending.has(String(x.props.approvalId ?? ''))),
+            )
             .map((x) => {
               if (x.role === 'approval') {
                 return (

@@ -190,7 +190,6 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'chat.snoozeThread': '稍后处理',
   'chat.unsnoozeThread': '现在恢复',
   'chat.archivedThreads': '已归档',
-  'chat.botThreads': '机器人会话',
   'chat.routineThreads': '例程',
   'chat.teamThreads': '团队（Slack、Discord）',
   'chat.ticketThreads': '看板工作',

@@ -863,7 +863,6 @@ export const tr = {
   // Chat
   'chat.newThread': 'Yeni sohbet',
   'chat.threads': 'Sohbetler',
-  'chat.botThreads': 'Bot yazışmaları',
   'chat.routineThreads': 'Rutinler',
   'chat.mainThread': 'Ana sohbet',
   'chat.togglePanel': 'Paneli aç/kapat',
@@ -872,7 +871,6 @@ export const tr = {
   'chat.closePanel': 'Paneli kapat',
   'chat.withBot': '{bot} ile yazışma',
   'chat.waitingIn': '“{place}” sohbetinde cevabını bekleyen {count} kart var',
-  'chat.waitingWithBot': '{bot} ile yazışmada cevabını bekleyen {count} kart var',
   'chat.waitingElsewhere': 'Başka sohbetlerde cevabını bekleyen {count} kart var',
   'chat.waitingCards': 'Bekleyen {count} kart',
   'chat.replyElsewhere': '{bot} “{place}” sohbetine yazdı',

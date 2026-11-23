@@ -895,7 +895,6 @@ export const en: Catalog<MessageKey> = {
 
   'chat.newThread': 'New conversation',
   'chat.threads': 'Conversations',
-  'chat.botThreads': 'Bot conversations',
   'chat.routineThreads': 'Routines',
   'chat.mainThread': 'Main conversation',
   'chat.togglePanel': 'Toggle panel',
@@ -906,10 +905,6 @@ export const en: Catalog<MessageKey> = {
   'chat.waitingIn': {
     one: 'A card in “{place}” is waiting for your answer',
     other: '{count} cards in “{place}” are waiting for your answer',
-  },
-  'chat.waitingWithBot': {
-    one: 'A card in the conversation with {bot} is waiting for your answer',
-    other: '{count} cards in the conversation with {bot} are waiting for your answer',
   },
   'chat.waitingElsewhere': {
     one: 'A card in another conversation is waiting for your answer',

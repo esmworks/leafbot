@@ -197,7 +197,6 @@ export const it: Partial<Catalog<MessageKey>> = {
   'chat.snoozeThread': 'Rimanda',
   'chat.unsnoozeThread': 'Riporta adesso',
   'chat.archivedThreads': 'Archiviate',
-  'chat.botThreads': 'Conversazioni del bot',
   'chat.routineThreads': 'Routine',
   'chat.teamThreads': 'Squadra (Slack, Discord)',
   'chat.ticketThreads': 'Lavoro della board',
