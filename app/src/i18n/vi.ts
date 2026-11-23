@@ -194,7 +194,6 @@ export const vi: Partial<Catalog<MessageKey>> = {
   'chat.snoozeThread': 'Tạm hoãn',
   'chat.unsnoozeThread': 'Đưa lại ngay',
   'chat.archivedThreads': 'Đã lưu trữ',
-  'chat.botThreads': 'Cuộc trò chuyện của bot',
   'chat.routineThreads': 'Quy trình',
   'chat.teamThreads': 'Nhóm (Slack, Discord)',
   'chat.ticketThreads': 'Việc trên bảng',

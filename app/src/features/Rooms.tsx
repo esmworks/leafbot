@@ -55,7 +55,7 @@ import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { useFitHeight } from '@/lib/fitHeight';
 import { Field } from './RoutinePage';
-import { AssistantCard, MessageItem, replyExcerpt, Working } from './MessageItem';
+import { AssistantCard, CardDock, ExchangeCards, MessageItem, replyExcerpt, Working } from './MessageItem';
 import { MeetingBar, MeetingCard, MinutesDialog, showMinutes, useStartMeeting } from './Meetings';
 
 const heading = 'px-4 pt-3 pb-1 text-[13px] font-semibold tracking-wide text-muted-foreground uppercase';
@@ -546,69 +546,73 @@ export function RoomView({ room }: { room: Room }) {
         }}
         className="scroll-thin flex-1 overflow-y-auto"
       >
-        <div className="mx-auto flex max-w-[860px] flex-col gap-4 px-3 pt-20 pb-6 sm:px-6">
-          {!isLoading && messages.length === 0 && shown.length === 0 && (
-            <RoomEmpty room={room} members={members} />
-          )}
-          {rows.map((m, i) => {
-            const who = speakerOf(m);
-            const before = rows
-              .slice(0, i)
-              .reverse()
-              .map(speakerOf)
-              .find((s) => s !== null);
-            const bot = who && who !== 'user' ? botMap.get(who) : undefined;
-            // The room's own line about a meeting is drawn as the meeting's card.
-            if (m.role === 'system' && m.props.meeting)
+        <CardDock.Provider value>
+          <div className="mx-auto flex max-w-[860px] flex-col gap-4 px-3 pt-20 pb-6 sm:px-6">
+            {!isLoading && messages.length === 0 && shown.length === 0 && (
+              <RoomEmpty room={room} members={members} />
+            )}
+            {rows.map((m, i) => {
+              const who = speakerOf(m);
+              const before = rows
+                .slice(0, i)
+                .reverse()
+                .map(speakerOf)
+                .find((s) => s !== null);
+              const bot = who && who !== 'user' ? botMap.get(who) : undefined;
+              // The room's own line about a meeting is drawn as the meeting's card.
+              if (m.role === 'system' && m.props.meeting)
+                return (
+                  <Fragment key={m.id}>
+                    {needsDivider(rows[i - 1], m) && (
+                      <div className="py-2 text-center text-xs text-muted-foreground">
+                        {dayLabel(m.createdAt)}
+                      </div>
+                    )}
+                    <MeetingCard room={room} m={m} />
+                  </Fragment>
+                );
               return (
-                <Fragment key={m.id}>
+                <Fragment key={m.clientId ?? m.id}>
                   {needsDivider(rows[i - 1], m) && (
                     <div className="py-2 text-center text-xs text-muted-foreground">
                       {dayLabel(m.createdAt)}
                     </div>
                   )}
-                  <MeetingCard room={room} m={m} />
+                  {who && who !== 'user' && who !== before && <SpeakerLine bot={bot} />}
+                  <MessageItem
+                    m={m}
+                    bots={botMap}
+                    botId={bot?.id}
+                    onReply={m.role === 'assistant' ? setReplyTo : undefined}
+                    pending={waiting.has(m.clientId)}
+                  />
                 </Fragment>
               );
-            return (
-              <Fragment key={m.clientId ?? m.id}>
-                {needsDivider(rows[i - 1], m) && (
-                  <div className="py-2 text-center text-xs text-muted-foreground">
-                    {dayLabel(m.createdAt)}
-                  </div>
+            })}
+            {parts.length > 0 && (
+              <>
+                {speaker && speaker.id !== lastSpeaker && <SpeakerLine bot={speaker} />}
+                {parts.map((p) =>
+                  p.kind === 'text' ? (
+                    <AssistantCard
+                      key={`text-${p.from}`}
+                      text={p.text}
+                      turnId={p.live ? stream?.turnId : undefined}
+                      streaming={p.live}
+                    />
+                  ) : (
+                    <MessageItem key={p.card.id} m={p.card} bots={botMap} botId={speaker?.id} />
+                  ),
                 )}
-                {who && who !== 'user' && who !== before && <SpeakerLine bot={bot} />}
-                <MessageItem
-                  m={m}
-                  bots={botMap}
-                  botId={bot?.id}
-                  onReply={m.role === 'assistant' ? setReplyTo : undefined}
-                  pending={waiting.has(m.clientId)}
-                />
-              </Fragment>
-            );
-          })}
-          {parts.length > 0 && (
-            <>
-              {speaker && speaker.id !== lastSpeaker && <SpeakerLine bot={speaker} />}
-              {parts.map((p) =>
-                p.kind === 'text' ? (
-                  <AssistantCard
-                    key={`text-${p.from}`}
-                    text={p.text}
-                    turnId={p.live ? stream?.turnId : undefined}
-                    streaming={p.live}
-                  />
-                ) : (
-                  <MessageItem key={p.card.id} m={p.card} bots={botMap} botId={speaker?.id} />
-                ),
-              )}
-            </>
-          )}
-          {speaker && activity !== 'idle' && !(stream && !streamDone && stream.text) && (
-            <Working bot={speaker} activity={activity} threadId={room.id} />
-          )}
-        </div>
+              </>
+            )}
+            {/* Cards a member's work with other bots waits on, however far down the chain. */}
+            <ExchangeCards threadId={room.id} bots={botMap} />
+            {speaker && activity !== 'idle' && !(stream && !streamDone && stream.text) && (
+              <Working bot={speaker} activity={activity} threadId={room.id} />
+            )}
+          </div>
+        </CardDock.Provider>
       </div>
       <MinutesDialog rooms={[room]} />
       <RoomComposer

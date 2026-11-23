@@ -207,7 +207,6 @@ export const ar: Partial<Catalog<MessageKey>> = {
   'chat.snoozeThread': 'تأجيل',
   'chat.unsnoozeThread': 'إعادة الآن',
   'chat.archivedThreads': 'المؤرشفة',
-  'chat.botThreads': 'محادثات البوت',
   'chat.routineThreads': 'الروتينات',
   'chat.teamThreads': 'الفريق (Slack وDiscord)',
   'chat.ticketThreads': 'عمل اللوحة',

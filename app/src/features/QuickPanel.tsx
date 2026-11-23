@@ -1,4 +1,4 @@
-import { describeAction, questionItems, type Approval, type Bot } from '@leafbot/shared';
+import { cardPlace, describeAction, questionItems, type Approval, type Bot } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, KeyRound, ShieldAlert, MessageCircleQuestion } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -80,7 +80,8 @@ export function QuickPanel() {
   });
 
   const close = () => void desktop?.quickHide?.();
-  const open = (a: Approval) => void desktop?.openThread?.(a.threadId);
+  // A card asked between bots opens where it is shown: where the work began.
+  const open = (a: Approval) => void desktop?.openThread?.(cardPlace(a).threadId);
 
   const run = (action: QuickAction, a: Approval | null) => {
     if (action.type === 'close') return close();

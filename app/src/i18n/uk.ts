@@ -203,7 +203,6 @@ export const uk: Partial<Catalog<MessageKey>> = {
   'chat.snoozeThread': 'Відкласти',
   'chat.unsnoozeThread': 'Повернути зараз',
   'chat.archivedThreads': 'В архіві',
-  'chat.botThreads': 'Чати бота',
   'chat.routineThreads': 'Рутини',
   'chat.teamThreads': 'Команда (Slack, Discord)',
   'chat.ticketThreads': 'Робота за дошкою',

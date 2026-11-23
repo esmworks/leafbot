@@ -1,4 +1,4 @@
-import type { Bot, NoticeEvent } from '@leafbot/shared';
+import { cardPlace, type Approval, type Bot, type NoticeEvent } from '@leafbot/shared';
 import type { QueryClient } from '@tanstack/react-query';
 import { create } from 'zustand';
 import { getT } from '@/i18n';
@@ -253,9 +253,10 @@ export function closeAnswered(waitingThreads: ReadonlySet<string>) {
 export function watchAnswered(qc: QueryClient): () => void {
   return qc.getQueryCache().subscribe((event) => {
     if (event.type !== 'updated' || event.query.queryKey[0] !== 'approvals') return;
-    const list = event.query.state.data as { threadId: string; status: string }[] | undefined;
+    const list = event.query.state.data as Approval[] | undefined;
     if (!Array.isArray(list)) return;
-    closeAnswered(new Set(list.filter((a) => a.status === 'pending').map((a) => a.threadId)));
+    // A card asked between bots was told of where it is shown.
+    closeAnswered(new Set(list.filter((a) => a.status === 'pending').map((a) => cardPlace(a).threadId)));
   });
 }
 

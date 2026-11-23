@@ -779,7 +779,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       })
       .parse(req.query);
     const { seen } = await s.access.summaryScope(me(req));
-    return s.threads.search(q.q, { threadId: q.threadId, limit: q.limit, seen });
+    return s.threads.search(q.q, { threadId: q.threadId, limit: q.limit, seen, noExchanges: true });
   });
   app.get('/api/usage', async (req) => {
     const q = z

@@ -53,11 +53,12 @@ export default function Chat() {
     if (signedOut) void qc.invalidateQueries({ queryKey: ['session', origin] });
   }, [signedOut, qc, origin]);
 
-  // A conversation named by a link or remembered from before that is gone since: the main one.
+  // A conversation named by a link or remembered from before that is gone since, or an exchange
+  // between bots (read where the work began): the main one.
   useEffect(() => {
     // Not while the list is being refreshed: it may be about to list a conversation just made.
     if (!threadParam || !threadsQ.data || threadsQ.isFetching || !mainId || threadParam === mainId) return;
-    if (!threadsQ.data.some((th) => th.id === threadParam)) nav.replaceChat(botId);
+    if (!threadsQ.data.some((th) => th.id === threadParam && th.kind !== 'bot')) nav.replaceChat(botId);
   }, [threadParam, threadsQ.data, threadsQ.isFetching, mainId, botId]);
 
   // What the person had read of this bot when its chat opened: the line above the first reply

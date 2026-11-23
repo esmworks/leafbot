@@ -57,6 +57,12 @@ export interface SummaryScope {
   /** Of the cards in `seen`, those the viewer may answer. */
   answerable?: SQL;
 }
+/** Where a card asked in an exchange between bots is shown and answered. */
+export interface AnswerPlace {
+  threadId: string;
+  botId: string;
+}
+
 /** Messages read back at a time while a search matches sealed text in the server. */
 const SEARCH_PAGE = 1000;
 
@@ -201,6 +207,107 @@ export class ThreadService {
   }
 
   /** The pinned message of a conversation, with the start of its text; null when it has none. */
+  /**
+   * Where each card asked in an exchange between bots is shown. The person never opens those
+   * exchanges: a card in one is answered in the conversation the work began in, the one where the
+   * person (or their routine, ticket, room) asked the first bot. That is the sender of the chain's
+   * first request, the same however deep the card was asked. When it is gone, the person's main
+   * conversation with the bot that asked. Cards in other conversations are left out: they are
+   * answered where they are.
+   */
+  async answerPlaces(
+    cards: { id: string; threadId: string; turnId: string | null }[],
+  ): Promise<Map<string, AnswerPlace>> {
+    const places = new Map<string, AnswerPlace>();
+    if (!cards.length) return places;
+    const exchanges = await this.ctx.db
+      .select()
+      .from(schema.threads)
+      .where(
+        and(
+          inArray(schema.threads.id, [...new Set(cards.map((c) => c.threadId))]),
+          eq(schema.threads.kind, 'bot'),
+        ),
+      );
+    if (!exchanges.length) return places;
+    const exchangeOf = new Map(exchanges.map((r) => [r.id, r]));
+    const inExchange = cards.filter((c) => exchangeOf.has(c.threadId));
+    // The card's turn ran for a request (or read the answer of one it made); every request of a
+    // chain carries the chain's root.
+    const turnIds = [...new Set(inExchange.map((c) => c.turnId).filter((id): id is string => !!id))];
+    const turns = turnIds.length
+      ? await this.ctx.db
+          .select({ id: schema.turns.id, jobId: schema.turns.jobId })
+          .from(schema.turns)
+          .where(inArray(schema.turns.id, turnIds))
+      : [];
+    const jobOfTurn = new Map(turns.map((r) => [r.id, r.jobId]));
+    const jobIds = [...new Set(turns.map((r) => r.jobId).filter((id): id is string => !!id))];
+    const jobs = jobIds.length
+      ? await this.ctx.db
+          .select({ id: schema.jobs.id, rootId: schema.jobs.rootId })
+          .from(schema.jobs)
+          .where(inArray(schema.jobs.id, jobIds))
+      : [];
+    const rootOfJob = new Map(jobs.map((r) => [r.id, r.rootId]));
+    const rootIds = [...new Set(jobs.map((r) => r.rootId))];
+    const firsts = rootIds.length
+      ? await this.ctx.db
+          .select({
+            rootId: schema.jobs.rootId,
+            fromBotId: schema.jobs.fromBotId,
+            fromThreadId: schema.jobs.fromThreadId,
+          })
+          .from(schema.jobs)
+          .where(and(inArray(schema.jobs.rootId, rootIds), eq(schema.jobs.depth, 1)))
+      : [];
+    const firstOf = new Map(firsts.map((r) => [r.rootId, r]));
+    // The sender's conversation has no foreign key: it may be gone.
+    const fromIds = [...new Set(firsts.map((r) => r.fromThreadId))];
+    const froms = fromIds.length
+      ? await this.ctx.db
+          .select({ id: schema.threads.id, botId: schema.threads.botId, kind: schema.threads.kind })
+          .from(schema.threads)
+          .where(inArray(schema.threads.id, fromIds))
+      : [];
+    const fromOf = new Map(froms.map((r) => [r.id, r]));
+    for (const card of inExchange) {
+      const exchange = exchangeOf.get(card.threadId)!;
+      const jobId = card.turnId ? jobOfTurn.get(card.turnId) : null;
+      const rootId = jobId ? rootOfJob.get(jobId) : undefined;
+      const first = rootId ? firstOf.get(rootId) : undefined;
+      const from = first ? fromOf.get(first.fromThreadId) : undefined;
+      if (from && from.kind !== 'bot') {
+        places.set(card.id, { threadId: from.id, botId: from.botId });
+        continue;
+      }
+      const asker = first?.fromBotId ?? exchange.peerBotId;
+      if (!asker || !exchange.userId) continue;
+      const main = await this.main(asker, exchange.userId).catch(() => null);
+      if (main) places.set(card.id, { threadId: main.id, botId: asker });
+    }
+    return places;
+  }
+
+  /** The props of each card's own line in its conversation, by card. */
+  async cardLines(cards: { id: string; threadId: string }[]): Promise<Map<string, Record<string, unknown>>> {
+    if (!cards.length) return new Map();
+    const rows = await this.ctx.db
+      .select({ props: schema.messages.props })
+      .from(schema.messages)
+      .where(
+        and(
+          inArray(schema.messages.threadId, [...new Set(cards.map((c) => c.threadId))]),
+          eq(schema.messages.role, 'approval'),
+          inArray(
+            sql`${schema.messages.props}->>'approvalId'`,
+            cards.map((c) => c.id),
+          ),
+        ),
+      );
+    return new Map(rows.map((r) => [String((r.props as { approvalId?: unknown }).approvalId), r.props]));
+  }
+
   private async pinned(row: ThreadRow): Promise<Thread['pinned']> {
     if (!row.pinnedMessageId) return null;
     const [m] = await this.ctx.db
@@ -576,7 +683,14 @@ export class ThreadService {
   /** Messages that contain `query`, newest first; with `threadId`, only that conversation's. */
   async search(
     query: string,
-    opts: { threadId?: string; botId?: string; limit?: number; seen?: SQL } = {},
+    opts: {
+      threadId?: string;
+      botId?: string;
+      limit?: number;
+      seen?: SQL;
+      /** Leaves out exchanges between bots, which the person reads only where the work began. */
+      noExchanges?: boolean;
+    } = {},
   ): Promise<SearchHit[]> {
     const limit = opts.limit ?? 30;
     // A phrase the text breaks over two lines is still found: spaces and line breaks count as one.
@@ -610,6 +724,7 @@ export class ThreadService {
             isNull(schema.bots.archivedAt),
             // What a rehearsal wrote is not something the person said or was told.
             ne(schema.threads.kind, 'rehearsal'),
+            opts.noExchanges ? ne(schema.threads.kind, 'bot') : undefined,
             opts.threadId ? eq(schema.messages.threadId, opts.threadId) : undefined,
             opts.botId ? eq(schema.threads.botId, opts.botId) : undefined,
             opts.seen,
@@ -849,16 +964,20 @@ export class ThreadService {
       )
       .orderBy(desc(schema.threads.updatedAt));
     const ids = threads.map((t) => t.id);
-    const shown = threads.filter((t) => t.kind !== 'ticket').map((t) => t.id);
+    // An exchange between bots is not opened by the person: it counts for whether a bot is at
+    // work, not as what the bot last said.
+    const shown = threads.filter((t) => t.kind !== 'ticket' && t.kind !== 'bot').map((t) => t.id);
     const [states, previews, replies] = await Promise.all([
       this.states(ids),
       this.previews(shown),
       this.lastReplies(shown),
     ]);
-    const pending = await this.ctx.db
+    const asked = await this.ctx.db
       .select({
+        id: schema.approvals.id,
         botId: schema.approvals.botId,
         threadId: schema.approvals.threadId,
+        turnId: schema.approvals.turnId,
         kind: schema.approvals.kind,
         summary: schema.approvals.summary,
       })
@@ -866,6 +985,9 @@ export class ThreadService {
       .innerJoin(schema.threads, eq(schema.threads.id, schema.approvals.threadId))
       .where(and(eq(schema.approvals.status, 'pending'), scope?.seen, scope?.answerable))
       .orderBy(asc(schema.approvals.createdAt));
+    // A card asked between bots waits with the bot the work began with, where it is answered.
+    const places = await this.answerPlaces(asked);
+    const pending = asked.map((p) => ({ ...p, ...places.get(p.id) }));
     const pendingBy = new Map<string, number>();
     const waitingBy = new Map<string, BotSummary['waiting']>();
     for (const p of pending) {

@@ -31,6 +31,7 @@ import type { T } from '../i18n';
 import { HttpError, newId, notFound, truncate } from '../util';
 import { toApproval, toRule } from './mappers';
 import { serverTranslator } from './settings';
+import type { ThreadService } from './threads';
 import type { VaultService } from './vault';
 import { OWNER_ID } from '../users';
 import { botLevel, managesServer } from './access';
@@ -527,9 +528,13 @@ export class ApprovalService {
   constructor(
     private ctx: Ctx,
     private vault: VaultService,
+    private threads: ThreadService,
   ) {}
 
-  /** Cards, newest first; with `seen`, only those in conversations it lets through. */
+  /**
+   * Cards, newest first; with `seen`, only those in conversations it lets through. A card asked in
+   * an exchange between bots says where it is shown instead.
+   */
   async list(opts: { status?: Approval['status']; seen?: SQL; answerable?: SQL } = {}): Promise<Approval[]> {
     const rows = await this.ctx.db
       .select({ approval: schema.approvals })
@@ -540,7 +545,16 @@ export class ApprovalService {
       )
       .orderBy(desc(schema.approvals.createdAt))
       .limit(200);
-    return rows.map((r) => toApproval(r.approval));
+    const cards = rows.map((r) => r.approval);
+    const places = await this.threads.answerPlaces(cards);
+    const lines = await this.threads.cardLines(cards.filter((c) => places.has(c.id)));
+    return cards.map((c) => {
+      const place = places.get(c.id);
+      return {
+        ...toApproval(c),
+        ...(place && { answerIn: { ...place, props: lines.get(c.id) ?? { approvalId: c.id } } }),
+      };
+    });
   }
 
   /**
@@ -714,11 +728,13 @@ export class ApprovalService {
     timer?.unref();
     await opts.onCreated?.(toApproval(row!));
     this.ctx.bus.refresh({ scope: 'approvals' });
+    // A card asked between bots is shown where the work began; the notice leads there.
+    const place = (await this.threads.answerPlaces([row!]).catch(() => null))?.get(id);
     this.ctx.bus.notice({
       kind: 'needsYou',
       need: row!.kind,
-      botId: opts.botId,
-      threadId: opts.threadId,
+      botId: place?.botId ?? opts.botId,
+      threadId: place?.threadId ?? opts.threadId,
       text: truncate(row!.summary, 200),
     });
     try {

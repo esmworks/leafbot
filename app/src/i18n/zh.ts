@@ -827,7 +827,6 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'update.reloadNow': '立即重新加载',
   'chat.newThread': '新建会话',
   'chat.threads': '会话',
-  'chat.botThreads': '机器人会话',
   'chat.routineThreads': '例程',
   'chat.mainThread': '主会话',
   'chat.togglePanel': '显示或隐藏面板',
@@ -836,9 +835,6 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'chat.closePanel': '关闭面板',
   'chat.withBot': '与 {bot}',
   'chat.waitingIn': { other: '「{place}」中有 {count} 张卡片等待你回答' },
-  'chat.waitingWithBot': {
-    other: '与 {bot} 的会话中有 {count} 张卡片等待你回答',
-  },
   'chat.waitingElsewhere': {
     other: '其他会话中有 {count} 张卡片等待你回答',
   },

@@ -1,4 +1,4 @@
-import type { Bot, Message, Thread } from '@leafbot/shared';
+import { cardPlace, type Bot, type Message, type Thread } from '@leafbot/shared';
 import { conversationMarkdown } from '@leafbot/app/src/lib/exportChat';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
@@ -33,9 +33,11 @@ export function useWaitingCards(botId: string | undefined): Map<string, number> 
   const { data: approvals } = useApprovals();
   return useMemo(() => {
     const byThread = new Map<string, number>();
+    // A card asked between bots counts where it is shown: with the bot the work began with.
     for (const a of approvals ?? []) {
-      if (a.botId === botId && a.status === 'pending')
-        byThread.set(a.threadId, (byThread.get(a.threadId) ?? 0) + 1);
+      const place = cardPlace(a);
+      if (place.botId === botId && a.status === 'pending')
+        byThread.set(place.threadId, (byThread.get(place.threadId) ?? 0) + 1);
     }
     return byThread;
   }, [approvals, botId]);

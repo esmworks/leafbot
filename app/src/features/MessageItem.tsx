@@ -61,7 +61,6 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react';
-import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { create } from 'zustand';
 import { BotAvatar } from '@/components/BotAvatar';
@@ -1225,11 +1224,59 @@ function OpenedFrom({ threadId }: { threadId: string }) {
 }
 
 /**
- * The place at the end of a conversation for cards waiting in an exchange between bots. The exchange
- * sits where it began, often far above what the bot wrote since, so a card asked in it would be out
- * of sight; it shows at the end until it is answered, then in the exchange with the rest.
+ * True where cards waiting in exchanges between bots show at the end of the conversation. The
+ * exchange sits where it began, often far above what the bot wrote since, and a card may be asked
+ * further down the chain, in an exchange this one never shows; so every card of the work that began
+ * here waits at the end until it is answered, then shows in the exchange with the rest.
  */
-export const CardDock = createContext<HTMLElement | null>(null);
+export const CardDock = createContext(false);
+
+/** A card asked in an exchange between bots, as its own line there describes it. */
+function ExchangeCard({
+  approvalId,
+  fallback,
+  props,
+  bots,
+}: {
+  approvalId: string;
+  fallback: string;
+  props: Record<string, unknown>;
+  bots: Map<string, Bot>;
+}) {
+  return (
+    <ApprovalCard
+      approvalId={approvalId}
+      fallback={fallback}
+      bots={bots}
+      heldBy={typeof props.heldBy === 'string' ? props.heldBy : undefined}
+      askRule={typeof props.askRule === 'string' ? props.askRule : undefined}
+      outside={outsideTrigger(props.outside)}
+      noAlways={props.noAlways === true}
+      resembles={typeof props.resembles === 'string' ? props.resembles : undefined}
+    />
+  );
+}
+
+/**
+ * The cards waiting in exchanges between bots for the work that began in this conversation, however
+ * far down the chain each was asked: the person answers them here, never in the exchange itself.
+ */
+export function ExchangeCards({ threadId, bots }: { threadId: string; bots: Map<string, Bot> }) {
+  const { data: approvals } = useApprovals();
+  const waiting = (approvals ?? [])
+    .filter((a) => a.status === 'pending' && a.answerIn?.threadId === threadId)
+    // Oldest first, as they were asked.
+    .reverse();
+  return waiting.map((a) => (
+    <ExchangeCard
+      key={a.id}
+      approvalId={a.id}
+      fallback={a.summary}
+      props={a.answerIn?.props ?? {}}
+      bots={bots}
+    />
+  ));
+}
 
 /** One line in the thread for a bot-to-bot exchange; opens to show it. */
 function Marker({ m, bots }: { m: Message; bots: Map<string, Bot> }) {
@@ -1254,19 +1301,17 @@ function Marker({ m, bots }: { m: Message; bots: Map<string, Bot> }) {
   const shown = (job.data?.messages ?? []).filter(
     (x) => x.role === 'user' || x.role === 'assistant' || x.role === 'approval',
   );
+  // Waiting cards show at the end of the conversation instead, with the rest of the chain's.
   const docked = dock
     ? shown.filter((x) => x.role === 'approval' && pending.has(String(x.props.approvalId ?? '')))
     : [];
   const card = (x: Message) => (
-    <ApprovalCard
+    <ExchangeCard
       key={x.id}
       approvalId={String(x.props.approvalId ?? '')}
       fallback={x.text}
+      props={x.props}
       bots={bots}
-      heldBy={typeof x.props.heldBy === 'string' ? x.props.heldBy : undefined}
-      askRule={typeof x.props.askRule === 'string' ? x.props.askRule : undefined}
-      outside={outsideTrigger(x.props.outside)}
-      noAlways={x.props.noAlways === true}
     />
   );
   // Once read, the exchange counts itself: markers written before it was cut to one request
@@ -1325,7 +1370,6 @@ function Marker({ m, bots }: { m: Message; bots: Map<string, Bot> }) {
           </motion.div>
         )}
       </AnimatePresence>
-      {dock && docked.length > 0 && createPortal(docked.map(card), dock)}
     </div>
   );
 }

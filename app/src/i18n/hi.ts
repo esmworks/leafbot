@@ -194,7 +194,6 @@ export const hi: Partial<Catalog<MessageKey>> = {
   'chat.snoozeThread': 'बाद के लिए टालें',
   'chat.unsnoozeThread': 'अभी वापस लाएँ',
   'chat.archivedThreads': 'संग्रहीत',
-  'chat.botThreads': 'बॉट की बातचीतें',
   'chat.routineThreads': 'रूटीन',
   'chat.teamThreads': 'टीम (Slack, Discord)',
   'chat.ticketThreads': 'बोर्ड का काम',

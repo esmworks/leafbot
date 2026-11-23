@@ -27,7 +27,7 @@ import { formatters, needsDivider } from '@/lib/format';
 import { nav } from '@/lib/nav';
 import { endWorkSeen, showWork, useLiveActivityChoice } from '@/lib/liveActivity';
 import { useLiveCards } from '@/lib/liveCards';
-import { useMessages } from '@/lib/queries';
+import { useApprovals, useMessages } from '@/lib/queries';
 import { useLiveState, useStream } from '@/lib/realtime';
 import { useApi, useServer } from '@/lib/server';
 import { newClientId, streamSaved, withPending } from '@/lib/stream';
@@ -167,6 +167,26 @@ export function Conversation({
   const { messages: shown, cards, head, end } = useLiveCards(listed, stream, streamDone);
   // Whether anything was written after the last card: until then the turn waits on its answer.
   const tail = (stream?.text.length ?? 0) > end;
+  // Cards waiting in exchanges between bots for the work that began here, however far down the
+  // chain each was asked: the person answers them at the end of this conversation, as its own.
+  const { data: approvals } = useApprovals();
+  const exchangeCards = useMemo(
+    () =>
+      (approvals ?? [])
+        .filter((a) => a.status === 'pending' && a.answerIn?.threadId === threadId)
+        .map((a): Message => ({
+          id: `exchange-${a.id}`,
+          threadId,
+          role: 'approval',
+          author: `bot:${a.botId}`,
+          text: a.summary,
+          props: a.answerIn?.props ?? { approvalId: a.id },
+          clientId: null,
+          turnId: null,
+          createdAt: a.createdAt,
+        })),
+    [approvals, threadId],
+  );
   const rows = useMemo(() => {
     const firstNew =
       readUntil == null
@@ -187,6 +207,8 @@ export function Conversation({
           : { kind: 'message', key: p.card.id, m: p.card },
       );
     out.reverse();
+    // Newest at the bottom, above what the bot is doing now (the list is drawn upside down).
+    for (const m of [...exchangeCards].reverse()) out.unshift({ kind: 'message', key: m.id, m });
     const held = cards.length > 0 && !tail && state === 'waiting';
     if (!streamDone && (hasText || working) && !held) out.unshift({ kind: 'live', key: 'live', from: end });
     // A turn held on the person's answer says so under the card that asks.
@@ -196,6 +218,7 @@ export function Conversation({
     return out;
   }, [
     shown,
+    exchangeCards,
     cards,
     head,
     end,
