@@ -244,6 +244,7 @@ function MessageSheet({
   const qc = useQueryClient();
   const react = useReact(m);
   const [picking, setPicking] = useState(false);
+  const [selecting, setSelecting] = useState(false);
   const [undoing, setUndoing] = useState(false);
   // Only turns that changed something, and only for the person whose turn it was.
   const { data: undoable } = useTurnChanges(m.threadId);
@@ -290,6 +291,10 @@ function MessageSheet({
     items.push({ icon: 'copy', label: t('message.copyDetails'), onPress: () => void copyText(details) });
   if (m.role === 'assistant' || m.role === 'user') {
     if (m.text) items.push({ icon: 'copy', label: t('message.copy'), onPress: () => void copyText(m.text) });
+    // A long press on a message opens this sheet, so the phone's own text selection never starts
+    // on the message; here the text is shown where it can be selected and copied in part.
+    if (m.text)
+      items.push({ icon: 'type', label: t('message.selectText'), onPress: () => setSelecting(true) });
   }
   if (m.role === 'assistant' && m.text && onToggleRaw) {
     items.push({
@@ -350,6 +355,9 @@ function MessageSheet({
         </View>
       ) : null}
       <Sheet open={open} onClose={onClose} items={items} />
+      <Sheet open={selecting} onClose={() => setSelecting(false)} title={t('message.selectTextHint')}>
+        <SelectableText text={m.text} />
+      </Sheet>
       {m.turnId ? (
         <UndoTurnSheet
           turnId={m.turnId}
@@ -378,6 +386,22 @@ function MessageSheet({
         </View>
       </Sheet>
     </>
+  );
+}
+
+/**
+ * A message's text where any part of it can be selected and copied. iOS selects within text only in
+ * a text box, so there it is a box that cannot be edited; Android selects within plain text.
+ */
+function SelectableText({ text }: { text: string }) {
+  const c = useColors();
+  const style = [styles.selectable, { color: c.foreground }];
+  return Platform.OS === 'ios' ? (
+    <TextInput value={text} editable={false} multiline scrollEnabled={false} style={style} />
+  ) : (
+    <Text selectable style={style}>
+      {text}
+    </Text>
   );
 }
 
@@ -983,6 +1007,7 @@ function Elapsed({ c }: { c: Colors }) {
 const styles = StyleSheet.create({
   highlight: { borderRadius: 20, marginHorizontal: -6, paddingHorizontal: 6, paddingVertical: 4 },
   pressable: { alignSelf: 'stretch' },
+  selectable: { fontSize: 17, lineHeight: 24, paddingHorizontal: 20, paddingBottom: 12 },
   actions: { flexDirection: 'row', alignSelf: 'flex-start', gap: 2, marginTop: 2 },
   actionsEnd: { alignSelf: 'flex-end' },
   rowReaction: {

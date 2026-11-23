@@ -1189,7 +1189,7 @@ function ToBottom({ unread, onClick }: { unread: number; onClick(): void }) {
         onClick={onClick}
         aria-label={label}
         title={label}
-        className="pointer-events-auto absolute bottom-2 start-1/2 flex h-9 -translate-x-1/2 items-center gap-1.5 rounded-full border bg-background/95 px-3 text-sm shadow-md backdrop-blur hover:bg-accent"
+        className="pointer-events-auto absolute bottom-2 left-1/2 flex h-9 -translate-x-1/2 items-center gap-1.5 rounded-full border bg-background/95 px-3 text-sm shadow-md backdrop-blur hover:bg-accent"
       >
         <ArrowDown className="size-4" />
         {unread > 0 && <span className="tabular-nums">{t('chat.newMessages', { count: unread })}</span>}

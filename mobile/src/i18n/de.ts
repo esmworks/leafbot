@@ -22,7 +22,7 @@ export const de: Partial<Record<OwnKey, string>> = {
   'panel.filesFailed': 'Die Dateien konnten nicht geladen werden',
   'preview.more': 'Weitere Aktionen',
   'computer.desktopNoScreen':
-    'Der Live-Bildschirm des Computers des Bots kann auf dem Handy noch nicht angezeigt werden. Sieh ihn dir in der Desktop-App an.',
+    'Dieser Server zeigt den Live-Bildschirm des Computers des Bots nicht auf dem Handy. Nach einem Server-Update erscheint er hier; bis dahin sieh ihn dir in der Desktop-App an.',
   'computer.unavailable': 'Dieser Server hat keinen Browser und keinen Computer für den Bot.',
   'computer.windowHint': 'In einem eigenen Fenster auf deinem Computer öffnen; der Bot wartet.',
   'dialogs.discard': 'Änderungen verwerfen',
