@@ -91,7 +91,7 @@ export function RightPanel({ bot, beside }: { bot: Bot; beside?: boolean }) {
     <aside
       className={cn(
         'scroll-thin relative flex h-full shrink-0 flex-col overflow-y-auto px-5 py-6',
-        beside ? 'w-[360px] border-s' : 'w-full',
+        beside ? 'wallpaper-glass w-[360px] border-s' : 'w-full',
       )}
     >
       <div className="window-drag absolute inset-x-0 top-0 h-6" />

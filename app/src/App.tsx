@@ -4,6 +4,7 @@ import { Loader2, Plus } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { AppMascot } from '@/components/AppMascot';
+import { Wallpaper } from '@/components/Wallpaper';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { toast } from 'sonner';
@@ -230,12 +231,21 @@ function Workspace() {
 
   // A phone shows the list or the chat, never both; the chat needs a bot to show.
   const pane = phone ? (bot || room || routine || botPage || apps ? phonePane : 'list') : null;
+  const seeThrough = !apps && !botPage && !routine && !!(room || bot);
 
   return (
     <>
+      <Wallpaper />
       <div className="workspace flex h-full overflow-hidden" inert={settingsOpen}>
         {pane !== 'chat' && <Sidebar />}
-        <main className={cn('safe-pane min-w-0 flex-1 bg-background', pane === 'list' ? 'hidden' : 'flex')}>
+        <main
+          className={cn(
+            'safe-pane min-w-0 flex-1 bg-background',
+            pane === 'list' ? 'hidden' : 'flex',
+            // The picture behind the window shows through a chat or a room; forms and pages keep their fill.
+            seeThrough && 'wallpaper-clear',
+          )}
+        >
           {/* The apps page covers the rest, which stays as it was (typed changes too) under it. */}
           {apps && <AppsPage />}
           <div className={cn('flex min-w-0 flex-1', apps && 'hidden')}>

@@ -143,7 +143,7 @@ function SidebarPanel({
   if (rail) {
     return (
       <aside
-        className="safe-pane relative flex h-full shrink-0 flex-col bg-sidebar shadow-[inset_-1px_0_0_var(--color-border)]"
+        className="safe-pane relative flex h-full shrink-0 flex-col wallpaper-glass bg-sidebar shadow-[inset_-1px_0_0_var(--color-border)]"
         style={{ width }}
       >
         {/* Room for the window buttons; empty in a browser. */}
@@ -248,7 +248,7 @@ function SidebarPanel({
   return (
     <aside
       className={cn(
-        'safe-pane relative flex h-full shrink-0 flex-col bg-sidebar',
+        'safe-pane relative flex h-full shrink-0 flex-col wallpaper-glass bg-sidebar',
         // A line drawn inside, since the border holds the clear room the screen edges need.
         phone ? 'w-full' : 'shadow-[inset_-1px_0_0_var(--color-border)]',
       )}
