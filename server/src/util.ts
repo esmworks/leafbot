@@ -121,11 +121,35 @@ const STOP: Record<'words' | 'fillers', Record<Locale, string[]>> = {
     en: ['stop', 'halt', 'cancel', 'abort'],
     tr: ['dur', 'durdur', 'iptal', 'vazgeç', 'kes', 'bırak'],
     de: ['stopp', 'stop', 'halt', 'abbrechen', 'aufhören', 'anhalten'],
+    ar: ['توقف', 'توقفي', 'إيقاف', 'إلغاء', 'أوقف'],
+    es: ['detente', 'detener', 'cancela', 'cancelar', 'aborta', 'basta'],
+    fr: ['stop', 'arrête', 'arrêter', 'annule', 'annuler', 'abandonne'],
+    hi: ['रुको', 'रोको', 'बंद', 'रद्द'],
+    id: ['stop', 'berhenti', 'batalkan', 'batal', 'hentikan'],
+    it: ['stop', 'ferma', 'fermati', 'annulla', 'interrompi', 'basta'],
+    pl: ['stop', 'zatrzymaj', 'anuluj', 'przerwij'],
+    pt: ['pare', 'parar', 'cancele', 'cancelar', 'aborte'],
+    ru: ['стоп', 'остановись', 'остановить', 'отмена', 'отмени', 'прекрати'],
+    uk: ['стоп', 'зупинись', 'зупинити', 'скасувати', 'скасуй', 'припини'],
+    vi: ['dừng', 'hủy'],
+    zh: ['停止', '停下', '取消', '终止'],
   },
   fillers: {
     en: ['now', 'please', 'it', 'that'],
     tr: ['şimdi', 'lütfen', 'hemen', 'artık', 'et', 'yeter'],
     de: ['jetzt', 'bitte', 'sofort', 'das', 'es'],
+    ar: ['الآن', 'رجاءً', 'من فضلك', 'هذا', 'هذه'],
+    es: ['ahora', 'por favor', 'esto', 'eso', 'ya'],
+    fr: ['maintenant', 'svp', 'stp', 'ça', 'cela'],
+    hi: ['अभी', 'कृपया', 'यह', 'बस'],
+    id: ['sekarang', 'tolong', 'itu', 'ini'],
+    it: ['ora', 'adesso', 'per favore', 'questo', 'subito'],
+    pl: ['teraz', 'proszę', 'to', 'już'],
+    pt: ['agora', 'por favor', 'isso', 'isto', 'já'],
+    ru: ['сейчас', 'пожалуйста', 'это', 'уже'],
+    uk: ['зараз', 'будь ласка', 'це', 'вже'],
+    vi: ['ngay', 'làm', 'ơn', 'đó', 'này'],
+    zh: ['现在', '请', '一下'],
   },
 };
 // A message may mix languages ("stop lütfen"), so every language's words count.
@@ -137,17 +161,19 @@ const STOP_FILLERS = new Set(Object.values(STOP.fillers).flat());
  * stops the turn as the Stop button does instead of waiting behind it. "stop using tabs" is not one.
  */
 export function isStopRequest(text: string): boolean {
-  const words = text
-    .toLocaleLowerCase('tr')
-    .replace(/[^\p{L}\s]/gu, ' ')
-    .split(/\s+/)
-    .filter(Boolean);
-  return (
-    words.length > 0 &&
-    words.length <= 4 &&
-    words.some((w) => STOP_WORDS.has(w)) &&
-    words.every((w) => STOP_WORDS.has(w) || STOP_FILLERS.has(w))
-  );
+  // Turkish casing turns I into ı, so both casings are tried: the message may be Turkish or not.
+  return [text.toLocaleLowerCase('tr'), text.toLowerCase()].some((lowered) => {
+    const words = lowered
+      .replace(/[^\p{L}\s]/gu, ' ')
+      .split(/\s+/)
+      .filter(Boolean);
+    return (
+      words.length > 0 &&
+      words.length <= 4 &&
+      words.some((w) => STOP_WORDS.has(w)) &&
+      words.every((w) => STOP_WORDS.has(w) || STOP_FILLERS.has(w))
+    );
+  });
 }
 
 /** ı and İ, which a search reads as i: the database folds I to i, never to the dotless ı. */

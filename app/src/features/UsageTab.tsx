@@ -139,7 +139,7 @@ function SpendLimit({ period, spend }: { period: 'month' | 'day'; spend?: UsageR
             onChange={(e) => setDraft(e.target.value)}
             onBlur={commit}
             onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && commit()}
-            className="h-8 w-24 rounded-full text-right tabular-nums"
+            className="h-8 w-24 rounded-full text-end tabular-nums"
             aria-label={t('usage.limit')}
           />
         </label>
@@ -424,7 +424,7 @@ function Report({
                   type="button"
                   key={b.botId}
                   title={t('usage.showBot')}
-                  className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-accent/50"
+                  className="flex w-full items-center gap-3 px-4 py-3 text-start hover:bg-accent/50"
                   onClick={() => onPickBot(b.botId)}
                 >
                   {bot ? (
@@ -444,10 +444,10 @@ function Report({
                       <div className="h-full rounded-full bg-primary" style={{ width: `${share * 100}%` }} />
                     </div>
                   </div>
-                  <div className="w-20 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+                  <div className="w-20 shrink-0 text-end text-xs text-muted-foreground tabular-nums">
                     {t('usage.turnCount', { count: b.turns })}
                   </div>
-                  <div className="w-20 shrink-0 text-right text-sm font-medium tabular-nums">
+                  <div className="w-20 shrink-0 text-end text-sm font-medium tabular-nums">
                     {f.usd(b.costUsd)}
                   </div>
                 </button>
@@ -481,10 +481,10 @@ function Report({
                     <div className="h-full rounded-full bg-primary" style={{ width: `${share * 100}%` }} />
                   </div>
                 </div>
-                <div className="w-20 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+                <div className="w-20 shrink-0 text-end text-xs text-muted-foreground tabular-nums">
                   {t('usage.turnCount', { count: m.turns })}
                 </div>
-                <div className="w-20 shrink-0 text-right text-sm font-medium tabular-nums">
+                <div className="w-20 shrink-0 text-end text-sm font-medium tabular-nums">
                   {f.usd(m.costUsd)}
                 </div>
               </div>
@@ -518,10 +518,10 @@ function Report({
                     <div className="h-full rounded-full bg-primary" style={{ width: `${share * 100}%` }} />
                   </div>
                 </div>
-                <div className="w-20 shrink-0 text-right text-xs text-muted-foreground tabular-nums">
+                <div className="w-20 shrink-0 text-end text-xs text-muted-foreground tabular-nums">
                   {t('usage.turnCount', { count: r.turns })}
                 </div>
-                <div className="w-20 shrink-0 text-right text-sm font-medium tabular-nums">
+                <div className="w-20 shrink-0 text-end text-sm font-medium tabular-nums">
                   {f.usd(r.costUsd)}
                 </div>
               </div>
@@ -687,9 +687,7 @@ function Storage() {
                   </div>
                   {bar(g.bytes)}
                 </div>
-                <div className="w-24 shrink-0 text-right text-sm tabular-nums">
-                  {size(g.bytes, g.partial)}
-                </div>
+                <div className="w-24 shrink-0 text-end text-sm tabular-nums">{size(g.bytes, g.partial)}</div>
               </div>
             ))}
           {(data.staged.bytes > 0 || data.staged.partial) && (
@@ -699,7 +697,7 @@ function Storage() {
                 <div className="text-xs text-muted-foreground">{t('storage.stagedHint')}</div>
                 {bar(data.staged.bytes)}
               </div>
-              <div className="w-24 shrink-0 text-right text-sm tabular-nums">
+              <div className="w-24 shrink-0 text-end text-sm tabular-nums">
                 {size(data.staged.bytes, data.staged.partial)}
               </div>
             </div>
@@ -741,11 +739,11 @@ function StorageBotRow({
           </div>
           {bar(b.bytes)}
         </div>
-        <div className="w-24 shrink-0 text-right text-sm font-medium tabular-nums">
+        <div className="w-24 shrink-0 text-end text-sm font-medium tabular-nums">
           {size(b.bytes, b.partial)}
         </div>
       </div>
-      <div className="mt-2 space-y-0.5 pl-10">
+      <div className="mt-2 space-y-0.5 ps-10">
         {b.own.bytes > 0 && (
           <div className="flex items-center gap-3 py-1 text-xs text-muted-foreground">
             <span className="min-w-0 flex-1 truncate">{t('storage.ownFolder')}</span>
@@ -759,7 +757,7 @@ function StorageBotRow({
               key={th.threadId}
               onClick={() => onOpen(b.botId, th.threadId)}
               title={t('storage.openThread')}
-              className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-lg px-2 py-1 text-left text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+              className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-3 rounded-lg px-2 py-1 text-start text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground"
             >
               <span className="min-w-0 flex-1 truncate">{th.title || t('chat.newThread')}</span>
               <span className="shrink-0 tabular-nums">{size(th.bytes, th.partial)}</span>

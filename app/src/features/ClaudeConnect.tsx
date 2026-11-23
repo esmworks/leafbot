@@ -151,7 +151,7 @@ export function ClaudeConnect({ checking = false }: { checking?: boolean }) {
                   setResult(null);
                 }}
                 className={cn(
-                  'rounded-2xl border px-4 py-3 text-left transition-colors hover:bg-accent',
+                  'rounded-2xl border px-4 py-3 text-start transition-colors hover:bg-accent',
                   method === m && 'border-[var(--brand)]/60 bg-[var(--brand)]/10 hover:bg-[var(--brand)]/15',
                 )}
               >

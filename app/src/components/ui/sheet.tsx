@@ -21,14 +21,14 @@ function SheetContent({
       <DialogPrimitive.Content
         data-slot="sheet-content"
         className={cn(
-          'screen-edges fixed inset-y-0 right-0 z-50 flex w-full flex-col bg-background shadow-xl outline-none sm:w-[360px] sm:border-l',
-          'duration-200 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:slide-in-from-right',
+          'screen-edges fixed inset-y-0 end-0 z-50 flex w-full flex-col bg-background shadow-xl outline-none sm:w-[360px] sm:border-s',
+          'duration-200 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-end data-[state=open]:animate-in data-[state=open]:slide-in-from-end',
           className,
         )}
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute top-3 right-3 flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
+        <DialogPrimitive.Close className="absolute top-3 end-3 flex size-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground">
           <XIcon className="size-5" />
           <span className="sr-only">{t('common.close')}</span>
         </DialogPrimitive.Close>

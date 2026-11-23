@@ -56,7 +56,7 @@ export function EmailApprovalCard({
           type="button"
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
-          className="flex w-full min-w-0 items-center gap-3 px-5 py-3 text-left text-[15px]"
+          className="flex w-full min-w-0 items-center gap-3 px-5 py-3 text-start text-[15px]"
         >
           <Mail className="size-4 shrink-0 text-muted-foreground" />
           <span className="shrink-0 font-medium">{t(`email.kind.${mail.kind}`)}</span>
@@ -96,7 +96,7 @@ export function EmailApprovalCard({
         <div className="flex">
           <Button
             size="sm"
-            className="rounded-l-full rounded-r-none pr-3"
+            className="rounded-s-full rounded-e-none pe-3"
             disabled={busy}
             onClick={() => onDecide({ decision: 'allow' })}
           >
@@ -106,7 +106,7 @@ export function EmailApprovalCard({
             <DropdownMenuTrigger asChild>
               <Button
                 size="sm"
-                className="rounded-l-none rounded-r-full border-l border-primary-foreground/20 px-2"
+                className="rounded-s-none rounded-e-full border-s border-primary-foreground/20 px-2"
                 disabled={busy}
                 aria-label={t('email.more')}
               >

@@ -140,7 +140,7 @@ function ServiceForm({
         autoComplete="new-password"
       />
       <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
-        {extra && <span className="mr-auto text-xs text-muted-foreground">{extra}</span>}
+        {extra && <span className="me-auto text-xs text-muted-foreground">{extra}</span>}
         {current.source === 'settings' && (
           <Button type="button" variant="ghost" className="rounded-full" onClick={() => clear.mutate()}>
             {t('ai.clear')}

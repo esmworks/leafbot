@@ -392,11 +392,11 @@ function CodeBlock({ children, language }: { children: ReactNode; language: stri
   return (
     <div className="group/code relative">
       {language && (
-        <span className="pointer-events-none absolute top-3.5 left-3 font-mono text-[11px] opacity-60 select-none">
+        <span className="pointer-events-none absolute top-3.5 start-3 font-mono text-[11px] opacity-60 select-none">
           {language}
         </span>
       )}
-      <pre ref={ref} data-language={language ?? undefined}>
+      <pre ref={ref} dir="ltr" data-language={language ?? undefined}>
         {tokens ? (
           <code>
             {tokens.map((line, i) => (
@@ -419,7 +419,7 @@ function CodeBlock({ children, language }: { children: ReactNode; language: stri
         aria-label={copied ? t('message.copied') : t('message.copyCode')}
         title={copied ? t('message.copied') : t('message.copyCode')}
         onClick={() => void copy()}
-        className="absolute top-1.5 right-1.5 flex size-7 items-center justify-center rounded-lg bg-background/70 text-muted-foreground opacity-0 transition-opacity group-hover/code:opacity-100 hover:text-foreground focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+        className="absolute top-1.5 end-1.5 flex size-7 items-center justify-center rounded-lg bg-background/70 text-muted-foreground opacity-0 transition-opacity group-hover/code:opacity-100 hover:text-foreground focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
       >
         {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
       </button>
@@ -428,7 +428,7 @@ function CodeBlock({ children, language }: { children: ReactNode; language: stri
         aria-label={t('message.saveCode')}
         title={t('message.saveCode')}
         onClick={save}
-        className="absolute top-1.5 right-9.5 flex size-7 items-center justify-center rounded-lg bg-background/70 text-muted-foreground opacity-0 transition-opacity group-hover/code:opacity-100 hover:text-foreground focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+        className="absolute top-1.5 end-9.5 flex size-7 items-center justify-center rounded-lg bg-background/70 text-muted-foreground opacity-0 transition-opacity group-hover/code:opacity-100 hover:text-foreground focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
       >
         <Download className="size-3.5" />
       </button>
@@ -647,7 +647,7 @@ function Table({ children }: { children: ReactNode }) {
       <div className="overflow-x-auto">
         <table ref={ref}>{sortable(children, sort, onSort, locale)}</table>
       </div>
-      <div className="absolute top-full right-0 z-10 mt-0.5 flex gap-1 whitespace-nowrap opacity-0 transition-opacity group-hover/table:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
+      <div className="absolute top-full end-0 z-10 mt-0.5 flex gap-1 whitespace-nowrap opacity-0 transition-opacity group-hover/table:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
         {(['markdown', 'csv'] as const).map((as) => (
           <button
             key={as}

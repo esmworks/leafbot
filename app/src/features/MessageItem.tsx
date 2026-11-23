@@ -613,7 +613,7 @@ function QuoteLine({ quote, threadId }: { quote: ReplyQuote; threadId: string })
       type="button"
       onClick={jump}
       aria-label={t('message.replyTo', { text: quote.text })}
-      className="flex max-w-[80%] items-start gap-1.5 rounded-2xl px-3 py-1 text-left text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      className="flex max-w-[80%] items-start gap-1.5 rounded-2xl px-3 py-1 text-start text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
     >
       <Reply className="mt-0.5 size-3.5 shrink-0" />
       <span className="line-clamp-2 [overflow-wrap:anywhere]">{quote.text}</span>
@@ -708,7 +708,7 @@ function MessageActions({ m, onReply }: { m: Message; onReply?(m: Message): void
               transition={{ type: 'spring', stiffness: 500, damping: 18 }}
               onClick={() => react.mutate(null)}
               aria-label={t('message.yourReaction', { emoji: reaction })}
-              className="mr-1 flex h-7 min-w-7 items-center justify-center rounded-lg bg-secondary px-1.5 text-base leading-none transition-colors hover:bg-accent"
+              className="me-1 flex h-7 min-w-7 items-center justify-center rounded-lg bg-secondary px-1.5 text-base leading-none transition-colors hover:bg-accent"
             >
               {reaction}
             </motion.button>
@@ -934,6 +934,7 @@ function QueuedMessage({ m, tint, hasFiles }: { m: Message; tint?: string; hasFi
         }}
       >
         <textarea
+          dir="auto"
           autoFocus
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -1033,7 +1034,7 @@ function Reaction({ emoji }: { emoji: string }) {
       initial={{ scale: 0, opacity: 0 }}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ type: 'spring', stiffness: 500, damping: 18 }}
-      className="absolute -bottom-4 left-3 flex h-7 min-w-7 items-center justify-center rounded-full border-2 border-background bg-secondary px-1 text-base leading-none shadow-sm select-none"
+      className="absolute -bottom-4 start-3 flex h-7 min-w-7 items-center justify-center rounded-full border-2 border-background bg-secondary px-1 text-base leading-none shadow-sm select-none"
     >
       {emoji}
     </motion.span>
@@ -1314,7 +1315,7 @@ function Marker({ m, bots }: { m: Message; bots: Map<string, Bot> }) {
                         {who && <BotAvatar avatar={who.avatar} color={who.color} seed={who.id} size={16} />}
                         <span className="font-medium">{who?.name ?? t('common.bot')}</span>
                       </div>
-                      <div className="pl-6 text-sm">
+                      <div className="ps-6 text-sm">
                         <Markdown text={x.text} />
                       </div>
                     </div>
@@ -1465,7 +1466,7 @@ function ApprovalCard({
           {action.detail && <Detail text={action.detail} />}
         </div>
       </div>
-      <div className="flex flex-wrap gap-2 pl-8">
+      <div className="flex flex-wrap gap-2 ps-8">
         {/* After the first yes the second must come from someone else: no button for it here. */}
         {!waitingSecond && (
           <Button
@@ -1547,7 +1548,7 @@ function LoginCard({ a }: { a: Approval }) {
           <div className="text-sm text-muted-foreground">{t('signin.hint')}</div>
         </div>
       </div>
-      <div className="space-y-2 pl-8">
+      <div className="space-y-2 ps-8">
         <Input
           value={username}
           onChange={(e) => setUsername(e.target.value)}
@@ -1576,7 +1577,7 @@ function LoginCard({ a }: { a: Approval }) {
           </label>
         )}
       </div>
-      <div className="flex flex-wrap gap-2 pl-8">
+      <div className="flex flex-wrap gap-2 ps-8">
         <Button type="submit" size="sm" className="rounded-full" disabled={decide.isPending || !password}>
           <Check /> {t('signin.submit')}
         </Button>
@@ -1628,9 +1629,7 @@ export function answeredText(a: Approval, botName: string, t: T, locale: Locale,
 
 function AnsweredLine({ text }: { text: string }) {
   return (
-    <div className="max-w-(--bubble-width) self-end px-2 text-right text-sm text-muted-foreground">
-      {text}
-    </div>
+    <div className="max-w-(--bubble-width) self-end px-2 text-end text-sm text-muted-foreground">{text}</div>
   );
 }
 
@@ -1731,7 +1730,7 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
                 disabled={answered || item.secret || decide.isPending}
                 onClick={() => choose(r.label)}
                 className={cn(
-                  'flex w-full items-center gap-3 rounded-2xl px-2 py-1.5 text-left text-[15px]',
+                  'flex w-full items-center gap-3 rounded-2xl px-2 py-1.5 text-start text-[15px]',
                   !answered && 'hover:bg-accent',
                   picked && 'bg-accent',
                 )}
@@ -1784,7 +1783,7 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
             ) : (
               <button
                 onClick={() => setWriting(true)}
-                className="flex w-full items-center gap-3 rounded-2xl px-2 py-1.5 text-left text-[15px] text-muted-foreground hover:bg-accent"
+                className="flex w-full items-center gap-3 rounded-2xl px-2 py-1.5 text-start text-[15px] text-muted-foreground hover:bg-accent"
               >
                 <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-secondary">
                   <PenLine className="size-3.5" />
@@ -1808,7 +1807,7 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
                 ))}
               </div>
             )}
-            <div className="ml-auto flex gap-2">
+            <div className="ms-auto flex gap-2">
               {!answered && (
                 <Button
                   size="sm"

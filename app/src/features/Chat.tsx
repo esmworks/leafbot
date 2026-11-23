@@ -260,7 +260,7 @@ function WaitingElsewhere({
     first && !first.title && first.peerBotId ? bots.find((b) => b.id === first.peerBotId) : undefined;
   return (
     <div className="mx-auto w-full max-w-(--chat-width) px-3 pb-2 sm:px-6">
-      <div className="flex items-center gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/5 py-2 pr-2 pl-4 text-sm">
+      <div className="flex items-center gap-3 rounded-2xl border border-amber-500/40 bg-amber-500/5 py-2 pe-2 ps-4 text-sm">
         <ShieldAlert className="size-4 shrink-0 text-amber-500" />
         <span className="min-w-0 flex-1">
           {others.length !== 1 || !first
@@ -314,7 +314,7 @@ function ReplyElsewhere({
   if (!target) return null;
   return (
     <div className="mx-auto w-full max-w-(--chat-width) px-3 pb-2 sm:px-6">
-      <div className="flex items-center gap-3 rounded-2xl border bg-muted/40 py-2 pr-2 pl-4 text-sm">
+      <div className="flex items-center gap-3 rounded-2xl border bg-muted/40 py-2 pe-2 ps-4 text-sm">
         <MessageSquareText className="size-4 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1 truncate">
           {t('chat.replyElsewhere', { bot: bot.name, place: name(target) })}
@@ -446,7 +446,7 @@ function Header({
                 onClick={showList}
                 aria-label={t('chat.backToList')}
               >
-                <ChevronLeft className="size-5" />
+                <ChevronLeft className="size-5 rtl:-scale-x-100" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>{t('chat.backToList')}</TooltipContent>
@@ -454,7 +454,7 @@ function Header({
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="pointer-events-auto flex max-w-full min-w-0 items-center gap-2 rounded-full border bg-background/80 py-1.5 pr-3 pl-1.5 shadow-sm backdrop-blur transition-colors hover:bg-accent">
+            <button className="pointer-events-auto flex max-w-full min-w-0 items-center gap-2 rounded-full border bg-background/80 py-1.5 pe-3 ps-1.5 shadow-sm backdrop-blur transition-colors hover:bg-accent">
               <BotAvatar
                 avatar={bot.avatar}
                 color={bot.color}
@@ -1561,7 +1561,7 @@ function Composer({
           <div
             role="listbox"
             aria-label={t('slash.title')}
-            className="absolute bottom-1 left-0 z-20 w-full max-w-sm overflow-hidden rounded-2xl border bg-popover p-1 text-popover-foreground shadow-lg"
+            className="absolute bottom-1 start-0 z-20 w-full max-w-sm overflow-hidden rounded-2xl border bg-popover p-1 text-popover-foreground shadow-lg"
           >
             {slashOptions.map((o, i) => (
               <button
@@ -1574,7 +1574,7 @@ function Composer({
                   runOption(o);
                 }}
                 className={cn(
-                  'flex w-full items-baseline gap-2 rounded-xl px-2.5 py-1.5 text-left text-sm',
+                  'flex w-full items-baseline gap-2 rounded-xl px-2.5 py-1.5 text-start text-sm',
                   i === skillPick % slashOptions.length && 'bg-accent text-accent-foreground',
                 )}
               >
@@ -1604,7 +1604,7 @@ function Composer({
           <div
             role="listbox"
             aria-label={t('chat.skillPick')}
-            className="absolute bottom-1 left-0 z-20 w-full max-w-sm overflow-hidden rounded-2xl border bg-popover p-1 text-popover-foreground shadow-lg"
+            className="absolute bottom-1 start-0 z-20 w-full max-w-sm overflow-hidden rounded-2xl border bg-popover p-1 text-popover-foreground shadow-lg"
           >
             {skillOptions.map((k, i) => (
               <button
@@ -1617,7 +1617,7 @@ function Composer({
                   chooseSkill(k.name);
                 }}
                 className={cn(
-                  'flex w-full items-start gap-2 rounded-xl px-2.5 py-1.5 text-left text-sm',
+                  'flex w-full items-start gap-2 rounded-xl px-2.5 py-1.5 text-start text-sm',
                   i === skillPick % skillOptions.length && 'bg-accent text-accent-foreground',
                 )}
               >
@@ -1641,7 +1641,7 @@ function Composer({
         className="mx-auto flex max-w-(--chat-width) flex-col rounded-[24px] border bg-card p-1 shadow-sm focus-within:ring-2 focus-within:ring-ring/30"
       >
         {replyTo && (
-          <div className="mx-1 mt-1 flex items-center gap-2 rounded-2xl bg-secondary py-1.5 pr-1.5 pl-3 text-sm text-muted-foreground">
+          <div className="mx-1 mt-1 flex items-center gap-2 rounded-2xl bg-secondary py-1.5 pe-1.5 ps-3 text-sm text-muted-foreground">
             <Reply className="size-4 shrink-0" />
             <span className="min-w-0 flex-1 truncate">{replyExcerpt(replyTo)}</span>
             <Button
@@ -1661,7 +1661,7 @@ function Composer({
           // where no bot sees it. Sending is still the person's call.
           <div
             role="status"
-            className="mx-1 mb-1 flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/5 py-1.5 pr-1.5 pl-3 text-xs"
+            className="mx-1 mb-1 flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/5 py-1.5 pe-1.5 ps-3 text-xs"
           >
             <ShieldAlert className="size-4 shrink-0 text-amber-500" />
             <span className="flex-1">{t('chat.secretWarning')}</span>
@@ -1715,6 +1715,7 @@ function Composer({
           </Tooltip>
           <EmojiButton onPick={insertEmoji} />
           <textarea
+            dir="auto"
             ref={ref}
             rows={1}
             value={text}
@@ -1990,7 +1991,7 @@ function PinnedBar({
       <Pin className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <button
         type="button"
-        className="min-w-0 flex-1 truncate text-left hover:underline"
+        className="min-w-0 flex-1 truncate text-start hover:underline"
         onClick={() => useUi.getState().focusMessage({ id: pinned.id, threadId })}
         title={t('pin.jump')}
       >
@@ -2012,7 +2013,7 @@ function PinnedBar({
 /** The bot's suggested answers under its reply; a press sends that text as the person's message. */
 function QuickReplies({ options, onPick }: { options: string[]; onPick(text: string): void }) {
   return (
-    <div className="flex flex-wrap gap-2 pl-1" role="group">
+    <div className="flex flex-wrap gap-2 ps-1" role="group">
       {options.map((o) => (
         <Button
           key={o}

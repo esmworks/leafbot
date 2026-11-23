@@ -247,7 +247,7 @@ function WhatsAppForm({ status, bots }: { status: WhatsAppStatus; bots: Bot[] })
               type="button"
               onClick={() => setMode(m)}
               className={cn(
-                'rounded-2xl border px-4 py-3 text-left',
+                'rounded-2xl border px-4 py-3 text-start',
                 mode === m ? 'border-primary bg-primary/5' : 'bg-card/50',
               )}
             >

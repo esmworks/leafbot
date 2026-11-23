@@ -60,7 +60,7 @@ export function PromptHistory({
                     type="button"
                     onClick={() => setChosen(r.id === chosen ? null : r.id)}
                     className={cn(
-                      'flex w-full items-center gap-2 rounded-xl px-2 py-1 text-left text-sm hover:bg-accent',
+                      'flex w-full items-center gap-2 rounded-xl px-2 py-1 text-start text-sm hover:bg-accent',
                       r.id === chosen && 'bg-accent',
                     )}
                   >

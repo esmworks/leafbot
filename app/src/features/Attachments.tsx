@@ -285,7 +285,7 @@ export function AttachmentChips({
         <div
           key={a.key}
           className={cn(
-            'flex max-w-60 items-center gap-2 rounded-xl border bg-background py-1.5 pr-1.5 pl-1.5 text-sm',
+            'flex max-w-60 items-center gap-2 rounded-xl border bg-background py-1.5 pe-1.5 ps-1.5 text-sm',
             !a.saved && !a.error && 'opacity-70',
             a.error && 'border-destructive/50',
           )}
@@ -423,7 +423,7 @@ export function MessageFiles({
                 type="button"
                 onClick={open ?? undefined}
                 title={t('preview.open', { name: f.name })}
-                className="truncate px-1 text-left text-xs text-muted-foreground hover:text-foreground"
+                className="truncate px-1 text-start text-xs text-muted-foreground hover:text-foreground"
               >
                 {f.name} · {fileSize(f.size)}
               </button>
@@ -475,7 +475,7 @@ export function MessageFiles({
             <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-secondary">
               <FileText className="size-4" />
             </span>
-            <span className="min-w-0 text-left leading-tight">
+            <span className="min-w-0 text-start leading-tight">
               <span className="block truncate text-sm font-medium">{f.name}</span>
               <span className="block text-xs text-muted-foreground">{fileSize(f.size)}</span>
             </span>

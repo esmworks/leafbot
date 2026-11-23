@@ -69,7 +69,7 @@ export function TicketCard({
         }
       }}
       className={cn(
-        'group/card @container relative flex cursor-default flex-col gap-1.5 rounded-xl border bg-card p-3 text-left shadow-xs transition-[box-shadow,border-color,opacity] outline-none select-none',
+        'group/card @container relative flex cursor-default flex-col gap-1.5 rounded-xl border bg-card p-3 text-start shadow-xs transition-[box-shadow,border-color,opacity] outline-none select-none',
         'hover:border-foreground/15 hover:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/50',
         selected && 'border-foreground/30 ring-1 ring-foreground/15 hover:border-foreground/30',
         lifted && 'rotate-[1.5deg] cursor-grabbing border-foreground/15 shadow-xl',

@@ -595,7 +595,7 @@ export function RunSteps({ run }: { run: RoutineRun }) {
   if (!run.steps?.length) return null;
   const halted = run.status === 'error' || run.status === 'stopped';
   return (
-    <div className="mt-1 ml-4 space-y-1 border-l pl-3">
+    <div className="mt-1 ms-4 space-y-1 border-s ps-3">
       {run.steps.map((s) => {
         const Icon = STEP_ICON[s.status] ?? CircleDashed;
         return (

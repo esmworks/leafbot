@@ -301,7 +301,7 @@ export function SettingsPage() {
       className="screen-edges sidebar-top fixed inset-0 z-40 flex animate-in bg-background duration-150 fade-in-0 phone:flex-col"
     >
       {(!phone || listing) && (
-        <nav className="scroll-thin flex shrink-0 flex-col gap-1 overflow-y-auto bg-sidebar px-3 pb-3 phone:min-h-0 phone:flex-1 roomy:w-64 roomy:border-r">
+        <nav className="scroll-thin flex shrink-0 flex-col gap-1 overflow-y-auto bg-sidebar px-3 pb-3 phone:min-h-0 phone:flex-1 roomy:w-64 roomy:border-e">
           {/* Room for the window buttons; empty in a browser. */}
           <div className="window-drag h-12 shrink-0 phone:hidden" />
           <div className="flex shrink-0 items-center gap-1 pb-3 phone:pt-1">
@@ -312,7 +312,7 @@ export function SettingsPage() {
               aria-label={t('settings.close')}
               title={t('settings.close')}
             >
-              <ChevronLeft className="size-5" />
+              <ChevronLeft className="size-5 rtl:-scale-x-100" />
             </Button>
             <h1 className="text-base font-semibold phone:text-lg">{t('settings.title')}</h1>
           </div>
@@ -340,8 +340,8 @@ export function SettingsPage() {
               )}
             >
               {tb.icon}
-              <span className="flex-1 text-left">{t(`settings.tab.${tb.id}`)}</span>
-              {phone && <ChevronRight className="text-muted-foreground" />}
+              <span className="flex-1 text-start">{t(`settings.tab.${tb.id}`)}</span>
+              {phone && <ChevronRight className="text-muted-foreground rtl:-scale-x-100" />}
             </button>
           ))}
           {appsFound && (
@@ -350,7 +350,7 @@ export function SettingsPage() {
               className="flex shrink-0 items-center gap-3 rounded-xl px-3 py-2 text-sm whitespace-nowrap transition-colors hover:bg-accent [&>svg]:size-4 phone:py-3 phone:text-base"
             >
               <Plug />
-              <span className="flex-1 truncate text-left">
+              <span className="flex-1 truncate text-start">
                 {appsFound.name
                   ? t('settings.appsResultFor', { name: appsFound.name })
                   : t('settings.appsResult')}
@@ -366,7 +366,7 @@ export function SettingsPage() {
             // The section's own title bar, with the way back to the list.
             <div className="flex h-14 shrink-0 items-center gap-1 border-b bg-sidebar px-1">
               <Button variant="ghost" size="icon" onClick={toList} aria-label={t('settings.back')}>
-                <ChevronLeft className="size-5" />
+                <ChevronLeft className="size-5 rtl:-scale-x-100" />
               </Button>
               <h1 className="truncate text-lg font-semibold">{t(`settings.tab.${current.id}`)}</h1>
             </div>
@@ -547,6 +547,7 @@ function General() {
   const theme = useTheme();
   const locale = useLocale((s) => s.locale);
   const setLocale = useLocale((s) => s.setLocale);
+  const missing = useLocale((s) => s.missing);
   const font = useFont((s) => s.font);
   const setFont = useFont((s) => s.set);
   const chatWidth = useChatWidth((s) => s.width);
@@ -657,6 +658,11 @@ function General() {
             </SelectContent>
           </Select>
         </Row>
+        {missing ? (
+          <p className="px-4 pb-3 text-xs leading-relaxed text-muted-foreground">
+            {t('settings.partialLanguage')}
+          </p>
+        ) : null}
       </Card>
       <Card title={t('general.behavior')}>
         <Row label={t('general.sendKey')} hint={t('general.sendKeyHint')}>
@@ -685,7 +691,7 @@ function General() {
                 type="button"
                 onClick={() => setSpeechRate(1)}
                 title={t('general.speechRateReset')}
-                className="w-12 shrink-0 text-right text-sm tabular-nums text-muted-foreground hover:text-foreground"
+                className="w-12 shrink-0 text-end text-sm tabular-nums text-muted-foreground hover:text-foreground"
               >
                 {`${speechRate.toLocaleString(INTL_LOCALE[locale], { minimumFractionDigits: 2, maximumFractionDigits: 2 })}×`}
               </button>
@@ -1787,7 +1793,7 @@ function MemoryTab() {
                   type="button"
                   aria-expanded={isOpen}
                   onClick={() => toggle(g.botId)}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  className="flex min-w-0 flex-1 items-center gap-3 text-start"
                 >
                   <ChevronRight
                     className={cn(
@@ -1841,7 +1847,7 @@ function MemoryTab() {
                   type="button"
                   aria-expanded={isOpen}
                   onClick={() => toggle(g.place)}
-                  className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-left"
+                  className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-start"
                 >
                   <ChevronRight
                     className={cn(

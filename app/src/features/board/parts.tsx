@@ -174,7 +174,7 @@ export const NOBODY = '__nobody__';
 
 /** A property control that reads as plain text until pointed at, as in the ticket's side panel. */
 const QUIET =
-  'h-8 w-full justify-start gap-2 rounded-lg border-transparent bg-transparent px-2 shadow-none hover:bg-accent dark:bg-transparent dark:hover:bg-accent [&>svg:last-child]:ml-auto [&>svg:last-child]:opacity-0 hover:[&>svg:last-child]:opacity-50';
+  'h-8 w-full justify-start gap-2 rounded-lg border-transparent bg-transparent px-2 shadow-none hover:bg-accent dark:bg-transparent dark:hover:bg-accent [&>svg:last-child]:ms-auto [&>svg:last-child]:opacity-0 hover:[&>svg:last-child]:opacity-50';
 
 export function StatusSelect({
   value,

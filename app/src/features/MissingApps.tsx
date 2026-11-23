@@ -35,7 +35,7 @@ export function MissingApps({ text, botId }: { text: string; botId: string | nul
           })}
         </span>
       </div>
-      <div className="flex flex-wrap gap-1.5 pl-6">
+      <div className="flex flex-wrap gap-1.5 ps-6">
         {missing.map((e) => (
           <Button
             key={e.id}

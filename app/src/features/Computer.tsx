@@ -111,11 +111,11 @@ export function ComputerButton({ bot }: { bot: Bot }) {
           <Monitor className="size-5" />
           {desktop
             ? desktopActive && (
-                <StatusDot status="bot" className="absolute top-1.5 right-1.5 ring-2 ring-background" />
+                <StatusDot status="bot" className="absolute top-1.5 end-1.5 ring-2 ring-background" />
               )
             : status !== 'off' &&
               status !== 'idle' && (
-                <StatusDot status={status} className="absolute top-1.5 right-1.5 ring-2 ring-background" />
+                <StatusDot status={status} className="absolute top-1.5 end-1.5 ring-2 ring-background" />
               )}
         </Button>
       </TooltipTrigger>
@@ -144,7 +144,7 @@ function BrowserCard({ bot }: { bot: Bot }) {
       </div>
       <button
         onClick={() => open(bot.id)}
-        className="group block w-full overflow-hidden rounded-2xl border bg-secondary/60 text-left transition-colors hover:border-foreground/20"
+        className="group block w-full overflow-hidden rounded-2xl border bg-secondary/60 text-start transition-colors hover:border-foreground/20"
         aria-label={t('computer.browserOpen')}
       >
         <div className="relative w-full" style={{ aspectRatio: ASPECT }}>
@@ -337,7 +337,7 @@ function CompactView({
   const t = useT();
   return (
     <>
-      <div className="flex items-start gap-3 pr-8">
+      <div className="flex items-start gap-3 pe-8">
         <StatusDot status={state.status} className="mt-2" />
         <div className="min-w-0">
           <DialogTitle className="text-base">{t('computer.browserTitleOf', { name: bot.name })}</DialogTitle>
@@ -394,7 +394,7 @@ function ComputerView({ bot }: { bot: Bot }) {
 
   return (
     <>
-      <div className="flex items-center gap-3 pr-8">
+      <div className="flex items-center gap-3 pe-8">
         <StatusDot status={state.status} />
         <div className="min-w-0">
           <DialogTitle className="truncate text-base">
@@ -408,7 +408,7 @@ function ComputerView({ bot }: { bot: Bot }) {
         <Button
           variant="ghost"
           size="icon-sm"
-          className="ml-auto shrink-0 rounded-full phone:hidden"
+          className="ms-auto shrink-0 rounded-full phone:hidden"
           onClick={() => floatComputer(true)}
           aria-label={t('computer.float')}
           title={t('computer.float')}
@@ -423,14 +423,14 @@ function ComputerView({ bot }: { bot: Bot }) {
           disabled={!control}
           onClick={() => send({ type: 'nav', action: 'back' })}
         >
-          <ArrowLeft />
+          <ArrowLeft className="rtl:-scale-x-100" />
         </NavButton>
         <NavButton
           label={t('computer.forward')}
           disabled={!control}
           onClick={() => send({ type: 'nav', action: 'forward' })}
         >
-          <ArrowRight />
+          <ArrowRight className="rtl:-scale-x-100" />
         </NavButton>
         <NavButton
           label={t('computer.reload')}
@@ -563,25 +563,25 @@ function FloatingBrowser({ bot }: { bot: Bot }) {
         onPointerUp={end}
         onPointerCancel={end}
         className={cn(
-          'flex h-11 shrink-0 touch-none items-center gap-1 border-b pr-1.5 pl-3 select-none',
+          'flex h-11 shrink-0 touch-none items-center gap-1 border-b pe-1.5 ps-3 select-none',
           dragging ? 'cursor-grabbing' : 'cursor-grab',
         )}
       >
         <StatusDot status={state.status} />
-        <span className="ml-1 min-w-0 flex-1 truncate text-sm font-medium" title={state.url ?? undefined}>
+        <span className="ms-1 min-w-0 flex-1 truncate text-sm font-medium" title={state.url ?? undefined}>
           {bot.name}
           {state.title && <span className="font-normal text-muted-foreground"> · {state.title}</span>}
         </span>
         {control && (
           <>
             <IconAction label={t('computer.back')} onClick={() => send({ type: 'nav', action: 'back' })}>
-              <ArrowLeft />
+              <ArrowLeft className="rtl:-scale-x-100" />
             </IconAction>
             <IconAction
               label={t('computer.forward')}
               onClick={() => send({ type: 'nav', action: 'forward' })}
             >
-              <ArrowRight />
+              <ArrowRight className="rtl:-scale-x-100" />
             </IconAction>
             <IconAction label={t('computer.reload')} onClick={() => send({ type: 'nav', action: 'reload' })}>
               <RotateCw />
@@ -619,7 +619,7 @@ function FloatingBrowser({ bot }: { bot: Bot }) {
         onPointerUp={end}
         onPointerCancel={end}
         title={t('computer.resize')}
-        className="absolute bottom-0 left-0 z-10 size-5 cursor-nesw-resize touch-none"
+        className="absolute bottom-0 start-0 z-10 size-5 cursor-nesw-resize touch-none"
       />
     </section>
   );

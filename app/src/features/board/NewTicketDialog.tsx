@@ -81,6 +81,7 @@ function NewTicketForm({
           className="w-full bg-transparent py-1 text-lg font-semibold outline-none placeholder:text-muted-foreground/70"
         />
         <textarea
+          dir="auto"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder={t('board.descriptionPlaceholder')}

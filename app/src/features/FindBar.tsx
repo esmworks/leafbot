@@ -94,7 +94,7 @@ export function FindBar({
   }, [q, scroller]);
 
   return (
-    <div className="pointer-events-auto absolute top-16 right-3 z-20 flex w-[min(24rem,calc(100%-1.5rem))] items-center gap-1 rounded-full border bg-background/95 py-1 pr-1 pl-3 shadow-md backdrop-blur sm:right-4">
+    <div className="pointer-events-auto absolute top-16 end-3 z-20 flex w-[min(24rem,calc(100%-1.5rem))] items-center gap-1 rounded-full border bg-background/95 py-1 pe-1 ps-3 shadow-md backdrop-blur sm:end-4">
       <Search className="size-4 shrink-0 text-muted-foreground" />
       <input
         ref={input}

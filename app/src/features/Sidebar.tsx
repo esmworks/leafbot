@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { BotDragProvider, useBotDrag, useDragItem, useSectionOver } from '@/features/botDrag';
 import { RoomRail, RoomsSection } from '@/features/Rooms';
 import { BotMenu, GroupMenu, SidebarMenu } from '@/features/SidebarMenus';
+import { isRtl } from '@leafbot/shared';
 import { useLocale, useT } from '@/i18n';
 import { botState, useBotActivity } from '@/lib/botActivity';
 import { PINNED, UNGROUPED, type SectionKey } from '@/lib/botLayout';
@@ -228,7 +229,7 @@ function SidebarPanel({
                 {initials(userName, intl)}
                 <span
                   className={cn(
-                    'absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-sidebar',
+                    'absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-sidebar',
                     connected ? 'bg-emerald-500' : 'bg-amber-500',
                   )}
                 />
@@ -253,20 +254,20 @@ function SidebarPanel({
       )}
       style={phone ? undefined : { width }}
     >
-      <div className="window-drag flex items-center gap-2 px-4 pt-1 pb-1 frameless:pl-[88px] phone:pt-2">
+      <div className="window-drag flex items-center gap-2 px-4 pt-1 pb-1 frameless:ps-[88px] phone:pt-2">
         {searching ? (
           <div className="relative flex-1">
-            <Search className="absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute top-1/2 start-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
             <input
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Escape' && (setQuery(''), setSearching(false))}
               placeholder={t('sidebar.searchPlaceholder')}
-              className="h-10 w-full rounded-full bg-secondary pr-10 pl-10 text-base outline-none md:text-sm placeholder:text-muted-foreground"
+              className="h-10 w-full rounded-full bg-secondary pe-10 ps-10 text-base outline-none md:text-sm placeholder:text-muted-foreground"
             />
             <button
-              className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              className="absolute top-1/2 end-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
               onClick={() => (setQuery(''), setSearching(false))}
               aria-label={t('sidebar.closeSearch')}
             >
@@ -276,7 +277,7 @@ function SidebarPanel({
         ) : (
           <>
             {phone ? (
-              <h1 className="flex-1 pl-1 text-xl font-semibold">Leaf Bot</h1>
+              <h1 className="flex-1 ps-1 text-xl font-semibold">Leaf Bot</h1>
             ) : (
               <div className="flex-1" />
             )}
@@ -296,11 +297,11 @@ function SidebarPanel({
             <button
               type="button"
               onClick={() => useUi.getState().openSearch(true, query.trim())}
-              className="mx-1 mb-2 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-xl px-3 py-2 text-left text-sm text-muted-foreground hover:bg-accent/60 hover:text-foreground"
+              className="mx-1 mb-2 flex w-[calc(100%-0.5rem)] items-center gap-2 rounded-xl px-3 py-2 text-start text-sm text-muted-foreground hover:bg-accent/60 hover:text-foreground"
             >
               <Search className="size-4 shrink-0" />
               <span className="truncate">{t('search.inMessages', { query: query.trim() })}</span>
-              <kbd className="ml-auto shrink-0 rounded border px-1 text-[10px]">{SEARCH_KEYS}</kbd>
+              <kbd className="ms-auto shrink-0 rounded border px-1 text-[10px]">{SEARCH_KEYS}</kbd>
             </button>
           )}
           {needsYou.length > 0 && (
@@ -374,13 +375,13 @@ function SidebarPanel({
           onClick={() => openSettings('profile')}
           title={`${userName} · ${connected ? t('sidebar.connected') : t('sidebar.connecting')}`}
           aria-label={t('profile.open')}
-          className="mr-auto flex min-w-0 items-center gap-3 rounded-2xl p-0.5 text-left transition-colors hover:bg-accent @xs:mr-0 @xs:flex-1 @xs:px-2 @xs:py-1.5"
+          className="me-auto flex min-w-0 items-center gap-3 rounded-2xl p-0.5 text-start transition-colors hover:bg-accent @xs:me-0 @xs:flex-1 @xs:px-2 @xs:py-1.5"
         >
           <span className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold">
             {initials(userName, intl)}
             <span
               className={cn(
-                'absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-sidebar @xs:hidden',
+                'absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-sidebar @xs:hidden',
                 connected ? 'bg-emerald-500' : 'bg-amber-500',
               )}
             />
@@ -472,6 +473,7 @@ function RailHint({ label }: { label: string }) {
 function ResizeHandle({ width }: { width: number }) {
   const t = useT();
   const resize = useUi((s) => s.resizeSidebar);
+  const rtl = useLocale((s) => isRtl(s.locale));
 
   const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -481,7 +483,8 @@ function ResizeHandle({ width }: { width: number }) {
     el.setPointerCapture(e.pointerId);
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-    const move = (ev: PointerEvent) => resize(width + ev.clientX - startX);
+    // The panel sits at the end side, so dragging left widens it in a right-to-left language.
+    const move = (ev: PointerEvent) => resize(width + (rtl ? startX - ev.clientX : ev.clientX - startX));
     const end = () => {
       el.removeEventListener('pointermove', move);
       el.removeEventListener('pointerup', end);
@@ -516,7 +519,7 @@ function ResizeHandle({ width }: { width: number }) {
       onPointerDown={onPointerDown}
       onDoubleClick={() => resize(SIDEBAR.default)}
       onKeyDown={onKeyDown}
-      className="absolute inset-y-0 -right-1.5 z-20 w-3 cursor-col-resize outline-none [-webkit-app-region:no-drag] after:absolute after:inset-y-0 after:left-1/2 after:w-px after:bg-ring after:opacity-0 after:transition-opacity hover:after:opacity-60 focus-visible:after:opacity-100 active:after:opacity-100"
+      className="absolute inset-y-0 -end-1.5 z-20 w-3 cursor-col-resize outline-none [-webkit-app-region:no-drag] after:absolute after:inset-y-0 after:start-1/2 after:w-px after:bg-ring after:opacity-0 after:transition-opacity hover:after:opacity-60 focus-visible:after:opacity-100 active:after:opacity-100"
     />
   );
 }
@@ -558,7 +561,7 @@ function StateDot({ summary }: { summary?: BotSummary }) {
   const state = botState(live, summary?.state);
   if (summary?.pendingApprovals) {
     return (
-      <span className="absolute -right-0.5 -bottom-0.5 flex size-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-black ring-2 ring-sidebar">
+      <span className="absolute -end-0.5 -bottom-0.5 flex size-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-black ring-2 ring-sidebar">
         {summary.pendingApprovals}
       </span>
     );
@@ -582,7 +585,7 @@ function StateDot({ summary }: { summary?: BotSummary }) {
         onClick={open}
         onPointerDown={(e) => routineId && e.stopPropagation()}
         className={cn(
-          'absolute -right-0.5 -bottom-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white ring-2 ring-sidebar',
+          'absolute -end-0.5 -bottom-0.5 flex size-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-white ring-2 ring-sidebar',
           routineId && 'cursor-pointer',
         )}
       >
@@ -591,7 +594,7 @@ function StateDot({ summary }: { summary?: BotSummary }) {
     );
   }
   return (
-    <span className="absolute -right-0.5 -bottom-0.5 size-3 rounded-full bg-emerald-500 ring-2 ring-sidebar">
+    <span className="absolute -end-0.5 -bottom-0.5 size-3 rounded-full bg-emerald-500 ring-2 ring-sidebar">
       <span className="absolute inset-0 animate-ping rounded-full bg-emerald-500/60" />
     </span>
   );
@@ -628,11 +631,11 @@ function Badges({
 }) {
   return (
     <>
-      {unread && <UnreadDot summary={summary} className="absolute -top-0.5 -left-0.5 ring-2 ring-sidebar" />}
+      {unread && <UnreadDot summary={summary} className="absolute -top-0.5 -start-0.5 ring-2 ring-sidebar" />}
       {bot.isManager && (
         <span
           className={cn(
-            'absolute -top-1 -right-1 flex items-center justify-center rounded-full bg-background ring-1 ring-border',
+            'absolute -top-1 -end-1 flex items-center justify-center rounded-full bg-background ring-1 ring-border',
             small ? 'size-4' : 'size-5',
           )}
         >
@@ -656,7 +659,7 @@ function PausedBadge({ bot, small = false }: { bot: Bot; small?: boolean }) {
       aria-label={t('pause.badge')}
       title={t('pause.badge')}
       className={cn(
-        'absolute -bottom-1 -left-1 flex items-center justify-center rounded-full bg-background ring-1 ring-border',
+        'absolute -bottom-1 -start-1 flex items-center justify-center rounded-full bg-background ring-1 ring-border',
         small ? 'size-4' : 'size-5',
       )}
     >
@@ -766,7 +769,7 @@ function BotRow({ bot, summary }: { bot: Bot; summary?: BotSummary }) {
           }}
           onPointerDown={d.onGrab}
           className={cn(
-            'flex w-full items-center gap-3 rounded-2xl px-3 text-left transition-colors select-none hover:bg-accent/60',
+            'flex w-full items-center gap-3 rounded-2xl px-3 text-start transition-colors select-none hover:bg-accent/60',
             compact ? 'py-1' : 'py-1.5',
             selected && 'bg-accent',
           )}
@@ -794,7 +797,7 @@ function BotRow({ bot, summary }: { bot: Bot; summary?: BotSummary }) {
               {summary?.previewAt && (
                 <span
                   className={cn(
-                    'ml-auto shrink-0 text-[13px] text-muted-foreground',
+                    'ms-auto shrink-0 text-[13px] text-muted-foreground',
                     unread && 'font-semibold text-foreground',
                   )}
                 >

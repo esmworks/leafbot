@@ -366,13 +366,13 @@ export function RoutineFlow({
       >
         {o.id !== 'start' && (
           <span
-            className="absolute -left-1.5 size-3 rounded-full border bg-background"
+            className="absolute -start-1.5 size-3 rounded-full border bg-background"
             style={{ top: PORT_Y - 6 }}
             aria-hidden
           />
         )}
         <span
-          className="absolute -right-1.5 size-3 rounded-full border bg-background"
+          className="absolute -end-1.5 size-3 rounded-full border bg-background"
           style={{ top: PORT_Y - 6 }}
           aria-hidden
         />
@@ -405,7 +405,7 @@ export function RoutineFlow({
           type="button"
           size="icon"
           variant="ghost"
-          className="-mr-1.5 size-7 rounded-full"
+          className="-me-1.5 size-7 rounded-full"
           aria-label={t('flow.options')}
         >
           <MoreHorizontal className="size-4" />
@@ -453,7 +453,7 @@ export function RoutineFlow({
     >
       {fullScreen && (
         // Over the whole window the bar keeps clear of the window's own buttons and moves the window.
-        <div className="window-drag flex items-center justify-end gap-2 frameless:pl-[88px]">
+        <div className="window-drag flex items-center justify-end gap-2 frameless:ps-[88px]">
           {fullScreenBar}
         </div>
       )}
@@ -466,7 +466,7 @@ export function RoutineFlow({
       >
         {/* Sized by the room it is given; the boxes scroll inside it instead of stretching the page. */}
         <div className="relative min-w-0 flex-1 contain-size">
-          <div className="absolute top-2 right-2 z-10 flex gap-1.5">
+          <div className="absolute top-2 end-2 z-10 flex gap-1.5">
             {settings && (
               <Button
                 type="button"
@@ -637,7 +637,7 @@ export function RoutineFlow({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="-mr-1.5 size-7 rounded-full"
+                className="-me-1.5 size-7 rounded-full"
                 onClick={() => setSettingsOpen(false)}
                 aria-label={t('flow.closeSettings')}
               >

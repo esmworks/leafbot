@@ -313,13 +313,13 @@ function Browse({
           onClick={onClose}
           aria-label={t('common.back')}
         >
-          <ChevronLeft className="size-5" />
+          <ChevronLeft className="size-5 rtl:-scale-x-100" />
         </Button>
         <h1 className="text-xl font-semibold">{t('apps.title')}</h1>
         {connectedCount > 0 && (
           <button
             onClick={() => setFilter('connected')}
-            className="ml-auto flex items-center gap-2 rounded-full px-2 py-1 text-sm text-muted-foreground hover:bg-accent"
+            className="ms-auto flex items-center gap-2 rounded-full px-2 py-1 text-sm text-muted-foreground hover:bg-accent"
           >
             <span className="flex -space-x-2">
               {services.slice(0, 4).map((s) => (
@@ -327,19 +327,19 @@ function Browse({
               ))}
             </span>
             {t('apps.connectedCount', { count: connectedCount })}
-            <ChevronRight className="size-4" />
+            <ChevronRight className="size-4 rtl:-scale-x-100" />
           </button>
         )}
       </div>
       <p className="sr-only">{t('apps.subtitle')}</p>
       <div className="flex gap-2 px-5 sm:px-8">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={t('apps.search')}
-            className="h-10 rounded-full pl-9"
+            className="h-10 rounded-full ps-9"
           />
         </div>
         <Button
@@ -496,7 +496,7 @@ function Header({
         onClick={onBack}
         aria-label={t('apps.back')}
       >
-        <ArrowLeft />
+        <ArrowLeft className="rtl:-scale-x-100" />
       </Button>
       <AppLogo id={logo} name={title} size={36} />
       <div className="min-w-0 flex-1">
@@ -968,7 +968,7 @@ function Detail({
           {accounts.length > 1 && <span className="text-sm font-semibold">{c.name}</span>}
           <span
             className={cn(
-              'mr-auto inline-flex items-center gap-2 text-sm font-medium',
+              'me-auto inline-flex items-center gap-2 text-sm font-medium',
               c.status === 'connected'
                 ? 'text-emerald-600 dark:text-emerald-400'
                 : 'text-amber-600 dark:text-amber-400',
@@ -1256,7 +1256,7 @@ function Accounts({
         <button
           type="button"
           onClick={onAdd}
-          className="flex w-full items-center gap-2 rounded-b-2xl px-4 py-3 text-left text-sm text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+          className="flex w-full items-center gap-2 rounded-b-2xl px-4 py-3 text-start text-sm text-muted-foreground hover:bg-accent/50 hover:text-foreground"
         >
           <Plus className="size-4" /> {t('apps.addAccount')}
         </button>
@@ -1332,7 +1332,7 @@ function AccountRow({
         onClick={onOpen}
         disabled={current}
         aria-current={current ? 'true' : undefined}
-        className="min-w-0 truncate text-left text-sm font-medium enabled:hover:underline"
+        className="min-w-0 truncate text-start text-sm font-medium enabled:hover:underline"
       >
         {a.name}
       </button>
@@ -1351,7 +1351,7 @@ function AccountRow({
       </Button>
       <span
         className={cn(
-          'ml-auto inline-flex shrink-0 items-center gap-1.5 text-xs',
+          'ms-auto inline-flex shrink-0 items-center gap-1.5 text-xs',
           a.status === 'connected'
             ? 'text-emerald-600 dark:text-emerald-400'
             : 'text-amber-600 dark:text-amber-400',
@@ -1488,11 +1488,11 @@ function Tools({ connection: c }: { connection: Connection }) {
         type="button"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2 text-left"
+        className="flex w-full items-center gap-2 text-start"
       >
         <ChevronRight className={cn('size-4 shrink-0 transition-transform', open && 'rotate-90')} />
         <span className="text-sm font-semibold">{t('apps.tools', { count: c.tools.length })}</span>
-        <span className="ml-auto text-xs text-muted-foreground">
+        <span className="ms-auto text-xs text-muted-foreground">
           {t('apps.toolsSummary', { read: reads, write: c.tools.length - reads })}
           {off > 0 && ` · ${t('apps.toolsOff', { count: off })}`}
         </span>
