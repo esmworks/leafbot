@@ -946,6 +946,7 @@ export const tr = {
   'chat.dropFiles': 'Dosyaları buraya bırakın',
   'chat.imageLink': 'Görseli yeni sekmede aç',
   'chat.fileTooLarge': '{name} çok büyük (en fazla {max} MB)',
+  'chat.fileEmpty': '{name} boş olduğu için eklenmedi',
   'chat.tooManyFiles': 'Bir mesaja en fazla {max} dosya eklenebilir',
   'chat.uploadFailed': '{name} yüklenemedi: {error}',
   'chat.uploading': 'Yükleniyor',
@@ -1021,6 +1022,9 @@ export const tr = {
   'message.tableCopiedMd': 'Tablo Markdown olarak kopyalandı',
   'message.tableCopiedCsv': 'Tablo CSV olarak kopyalandı',
   'message.readAloud': 'Sesli oku',
+  'speech.serverFailed': 'Sunucu seslendiremedi ({message}); bu cihazın sesiyle okunuyor.',
+  'speech.playFailed': 'Sesli okuma oynatılamadı.',
+  'speech.unsupported': 'Bu cihazda sesli okuma için bir ses yok.',
   'message.stopReading': 'Okumayı durdur',
   'message.signIn': 'Oturum aç',
   'message.enterKey': 'Anahtar gir',
@@ -2679,6 +2683,8 @@ export const tr = {
     'Bu numara başka bir yerde açıldı, bu yüzden bağlantı durdu. Burada kullanmak için yeniden bağlayın.',
   'whatsapp.error.unreachable': 'WhatsApp’a ulaşılamadı. İnternet bağlantısını kontrol edip yeniden deneyin.',
   'whatsapp.error.failing': 'WhatsApp’a bağlanılamıyor; yeniden deneniyor.',
+  'whatsapp.error.keysUnreadable':
+    'Kayıtlı WhatsApp anahtarları okunamıyor (büyük olasılıkla sunucunun gizli anahtarı değişti). Yeniden bağlayıp QR kodunu okutun.',
   'whatsapp.mode.separate': 'Ayrı bir bot numarası',
   'whatsapp.modeHint.separate':
     'Önerilen. Bot olacak ikinci bir numara (ör. bir şirket hattı) bağlanır; siz ona başka bir numaradan yazarsınız.',

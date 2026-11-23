@@ -29,7 +29,9 @@ import {
   type DesktopConfig,
 } from './desktop-config';
 import { createCrashGuard, isCrash } from './crash-guard';
+import { DISPLAY_POLL_MS, keepDisplayOn } from './display-awake';
 import { startEgress } from './egress';
+import { readMoveDeclined, runsFromTransientPlace, writeMoveDeclined } from './install-location';
 import { readSpellingOn, spellingEntries, spellingLanguages, writeSpellingOn } from './spelling';
 import { isLocale } from '@leafbot/shared/i18n';
 import { loadLocale, locale, saveLocale, setLocale, t, type DesktopKey } from './i18n';
@@ -125,6 +127,9 @@ let stopped = false;
 let unread = 0;
 /** Keeps the computer from sleeping while a bot works; null while none does. */
 let awake: number | null = null;
+/** Keeps the screen on while a bot uses this Mac, so its screenshots are not black; null while not. */
+let displayAwake: number | null = null;
+let displayTimer: ReturnType<typeof setInterval> | null = null;
 let updates: Updates | null = null;
 /** A downloaded version waiting for a restart. */
 let updateReady: string | null = null;
@@ -198,6 +203,68 @@ async function boot() {
   watchForUpdates();
   config = readDesktopConfig(userData, safeStorage);
   await connect();
+  void offerMove();
+}
+
+/**
+ * An app opened from a disk image or straight from a download cannot replace itself, so updates
+ * would never install. The person is asked once to move it to Applications; a "not now" is kept.
+ */
+async function offerMove() {
+  if (!app.isPackaged || process.platform !== 'darwin') return;
+  if (!runsFromTransientPlace(process.platform, process.execPath, app.isInApplicationsFolder())) return;
+  if (readMoveDeclined(userData)) return;
+  const { response } = await dialog.showMessageBox({
+    type: 'question',
+    message: t('move.title'),
+    detail: t('move.detail'),
+    buttons: [t('move.move'), t('move.notNow')],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (response !== 0) {
+    try {
+      writeMoveDeclined(userData, true);
+    } catch (err) {
+      log.warn('could not remember the move choice', err);
+    }
+    return;
+  }
+  try {
+    // On success the app restarts from Applications; the server stops through before-quit.
+    if (app.moveToApplicationsFolder()) return;
+  } catch (err) {
+    log.warn('could not move to Applications', err);
+  }
+  void dialog.showMessageBox({ type: 'error', message: t('move.failed') });
+}
+
+/** The person asked for a check (the menu): the answer is shown, whatever it is. */
+async function checkForUpdatesNow() {
+  if (!updates) return;
+  const result = await updates.checkNow();
+  if (result.status === 'failed') {
+    log.warn(`update check failed: ${result.message}`);
+    await dialog.showMessageBox({
+      type: 'warning',
+      message: t('update.failed'),
+      detail: result.offline ? t('update.failedOffline') : result.message,
+    });
+  } else if (result.status === 'current') {
+    await dialog.showMessageBox({
+      type: 'info',
+      message: t('update.current'),
+      detail: t('update.currentDetail', { version: app.getVersion() }),
+    });
+  } else if (result.status === 'downloading') {
+    await dialog.showMessageBox({
+      type: 'info',
+      message: t('update.downloading', { version: result.version }),
+      detail: t('update.downloadingDetail'),
+    });
+  } else {
+    void updates.install();
+  }
 }
 
 async function connect() {
@@ -317,6 +384,7 @@ function watchForUpdates() {
       setStatus('status.quitting');
       if (awake !== null) powerSaveBlocker.stop(awake);
       awake = null;
+      stopDisplayWatch();
       await server?.stop();
       stopped = true;
     },
@@ -698,15 +766,18 @@ function registerIpc() {
     unread = n;
     showUnread();
   });
-  // While a bot works on this computer, the computer stays awake (the screen may still turn off),
-  // so a routine or a long reply is not cut short by sleep.
+  // While a bot works on this computer, the computer stays awake, so a routine or a long reply is
+  // not cut short by sleep. The screen may still turn off, except while a bot is using this Mac
+  // (see `startDisplayWatch`).
   ipcMain.handle('leafbot:set-busy', (e, busy: unknown) => {
     if (!fromMainPage(e) || config.mode !== 'local') return;
     if (busy === true && awake === null) awake = powerSaveBlocker.start('prevent-app-suspension');
+    if (busy === true) startDisplayWatch();
     if (busy !== true && awake !== null) {
       powerSaveBlocker.stop(awake);
       awake = null;
     }
+    if (busy !== true) stopDisplayWatch();
   });
   ipcMain.handle('leafbot:open-at-login', (e, on?: unknown) => {
     if (!fromMainPage(e)) return null;
@@ -725,6 +796,33 @@ function registerIpc() {
     await switchTo({ mode: 'local' });
     connectWin?.close();
   });
+}
+
+/**
+ * While bots work, asks the server now and then whether one is using this Mac, and keeps the screen
+ * on for that time only: a sleeping display makes the bot's screenshots black.
+ */
+function startDisplayWatch() {
+  if (displayTimer) return;
+  const tick = async () => {
+    if (config.mode !== 'local') return;
+    const { personComputerIdleMs } = await localTurns();
+    const on = keepDisplayOn(personComputerIdleMs);
+    if (on && displayAwake === null) displayAwake = powerSaveBlocker.start('prevent-display-sleep');
+    if (!on && displayAwake !== null) releaseDisplay();
+  };
+  displayTimer = setInterval(() => void tick(), DISPLAY_POLL_MS);
+}
+
+function releaseDisplay() {
+  if (displayAwake !== null) powerSaveBlocker.stop(displayAwake);
+  displayAwake = null;
+}
+
+function stopDisplayWatch() {
+  if (displayTimer) clearInterval(displayTimer);
+  displayTimer = null;
+  releaseDisplay();
 }
 
 async function switchTo(next: DesktopConfig) {
@@ -917,6 +1015,7 @@ function rebuildMenu() {
       },
       { label: t('menu.showLogs'), click: () => shell.showItemInFolder(log.transports.file.getFile().path) },
       { type: 'separator' },
+      ...(updates ? [{ label: t('menu.checkUpdates'), click: () => void checkForUpdatesNow() }] : []),
       ...(updateReady
         ? [
             {
@@ -931,17 +1030,25 @@ function rebuildMenu() {
 }
 
 app.on('activate', () => showWindow());
-app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+  stopDisplayWatch();
+});
 // Keep running in the menu bar when every window is closed.
 app.on('window-all-closed', () => {});
 /** How many bots are working on the local server; a server that does not answer counts as none. */
 async function runningBotCount(): Promise<number> {
-  if (config.mode !== 'local' || !origin) return 0;
-  const count = await session.defaultSession
-    .fetch(`${origin}/api/turns/running`, { signal: AbortSignal.timeout(2000) })
-    .then(async (res) => (res.ok ? ((await res.json()) as { count?: unknown }).count : 0))
-    .catch(() => 0);
+  const { count } = await localTurns();
   return typeof count === 'number' ? count : 0;
+}
+
+/** What the local server says about running turns; a server that does not answer says nothing. */
+async function localTurns(): Promise<{ count?: unknown; personComputerIdleMs?: unknown }> {
+  if (config.mode !== 'local' || !origin) return {};
+  return session.defaultSession
+    .fetch(`${origin}/api/turns/running`, { signal: AbortSignal.timeout(2000) })
+    .then(async (res) => (res.ok ? ((await res.json()) as object) : {}))
+    .catch(() => ({}));
 }
 
 /**

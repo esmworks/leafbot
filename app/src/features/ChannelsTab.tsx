@@ -35,6 +35,7 @@ const ERRORS: Record<string, MessageKey> = {
   replaced: 'whatsapp.error.replaced',
   unreachable: 'whatsapp.error.unreachable',
   failing: 'whatsapp.error.failing',
+  keysUnreadable: 'whatsapp.error.keysUnreadable',
 };
 
 /**

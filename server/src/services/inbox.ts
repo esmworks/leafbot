@@ -1,8 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { extname, join, relative, resolve } from 'node:path';
 import {
+  questionItems,
   quoteExcerpt,
   titleFrom,
+  typedPicks,
   type Approval,
   type Message,
   type MessageFile,
@@ -42,6 +44,12 @@ export const replyQuote = (m: Message): ReplyQuote => ({
  * into a conversation, so a stop word, an answer to a waiting card and a queued message behave the
  * same wherever it was typed.
  */
+/** What a typed reply answers on a one-question card: for several picks, option numbers become the options. */
+function typedAnswer(card: Approval, text: string): string {
+  const q = questionItems(card).items[0];
+  return q?.multi ? typedPicks(q.options, text) : text;
+}
+
 export class Inbox {
   constructor(
     private ctx: Ctx,
@@ -178,7 +186,8 @@ export class Inbox {
       const { message } = await s.threads.addMessage({ ...plain, props: extra });
       await s.approvals.answer(
         card.id,
-        { decision: 'allow', answer: input.text, remember: false },
+        // On a question that takes several picks, "1, 3" names options.
+        { decision: 'allow', answer: typedAnswer(card, input.text), remember: false },
         input.userId ?? null,
       );
       return { message, created: true };

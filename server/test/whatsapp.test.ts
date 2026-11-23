@@ -6,6 +6,8 @@ import type { Approval, Routine, RoutineRun, Thread, WhatsAppStatus } from '@lea
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  cardsText,
+  contentOf,
   WhatsAppChannel,
   type WaConnectOptions,
   type WaLibrary,
@@ -481,6 +483,29 @@ describe('WhatsApp', () => {
     expect(await again.keyCount('link/')).toBe(0);
     expect(await again.keyCount('creds')).toBe(1);
     await waitFor(async () => wa.connects() === before + 1);
+    await again.stop();
+  });
+
+  it('kayıtlı anahtarlar okunamazsa bağlantının üzerine yenisi yazılmaz ve hata gösterilir', async () => {
+    const { wa } = await setUp();
+    const before = wa.connects();
+    wa.socket().emit('creds.update', { me: { id: `${BOT_NUMBER}:3@s.whatsapp.net` } });
+    await t.services.whatsapp.stop();
+    // The server's secret key is not the one the keys were sealed with.
+    const other = Object.create(t.services.vault, {
+      open: {
+        value: () => {
+          throw new Error('wrong key');
+        },
+      },
+    });
+    const again = new WhatsAppChannel(t.services.ctx, t.services, other);
+    again.library = async () => wa.lib;
+    again.paceMs = 0;
+    await again.start();
+    expect(await again.status()).toMatchObject({ state: 'error', error: 'keysUnreadable' });
+    expect(wa.connects()).toBe(before);
+    expect(await again.keyCount('creds')).toBe(1);
     await again.stop();
   });
 
@@ -1908,5 +1933,61 @@ describe('WhatsApp grubunu adla seçme', () => {
     expect(pickGroup(groups, '3E Soğutma')).toEqual({ many: ['3E Soğutma - Finans', '3E Soğutma - Üretim'] });
     expect(pickGroup(groups, '2@g.us')).toEqual({ group: groups[1] });
     expect(pickGroup(groups, 'muhasebe')).toBeNull();
+  });
+});
+
+describe('WhatsApp kişi kartları', () => {
+  const vcard = [
+    'BEGIN:VCARD',
+    'VERSION:3.0',
+    'N:Yılmaz;Ayşe;;;',
+    'FN:Ayşe Yılmaz',
+    'item1.TEL;type=CELL;type=VOICE;waid=905551234567:+90 555 123 45 67',
+    'TEL;type=WORK:+90 212 000 00 00',
+    'END:VCARD',
+  ].join('\n');
+  const t = ((key: string, p?: Record<string, unknown>) => `${key}|${p?.cards ?? ''}`) as never;
+
+  it('tek kartın adını ve numaralarını okur', () => {
+    const c = contentOf({
+      key: {},
+      message: { contactMessage: { displayName: 'Ayşe', vcard } },
+    });
+    expect(c.text).toBe('');
+    expect(c.cards).toEqual([{ name: 'Ayşe Yılmaz', numbers: ['+90 555 123 45 67', '+90 212 000 00 00'] }]);
+    expect(cardsText(c.cards, t)).toBe(
+      'whatsapp.contactCard|Ayşe Yılmaz, +90 555 123 45 67, +90 212 000 00 00',
+    );
+  });
+
+  it('birden çok kartı okur ve vCard olmayan karttaki görünen adı kullanır', () => {
+    const c = contentOf({
+      key: {},
+      message: {
+        contactsArrayMessage: {
+          contacts: [
+            { displayName: 'Mehmet', vcard: 'TEL:+49 170 111' },
+            { displayName: 'Boş', vcard: '' },
+          ],
+        },
+      },
+    });
+    expect(c.cards).toEqual([
+      { name: 'Mehmet', numbers: ['+49 170 111'] },
+      { name: 'Boş', numbers: [] },
+    ]);
+  });
+
+  it('kart alanlarındaki satır sonlarını ve denetim karakterlerini temizler', () => {
+    const c = contentOf({
+      key: {},
+      message: { contactMessage: { vcard: 'FN:Ali\\nVeli\u0007\nTEL:123' } },
+    });
+    expect(c.cards[0]).toEqual({ name: 'Ali Veli', numbers: ['123'] });
+  });
+
+  it('kartı olmayan iletide kart listesi boştur', () => {
+    expect(contentOf({ key: {}, message: { conversation: 'selam' } }).cards).toEqual([]);
+    expect(cardsText([], t)).toBe('');
   });
 });

@@ -126,6 +126,8 @@ export interface AcpEngineOptions {
   env?: NodeJS.ProcessEnv;
   /** How long a stopped agent has before it is ended; `CANCEL_GRACE_MS` unless a test says. */
   cancelGraceMs?: number;
+  /** How long an agent has to open its session; `START_TIMEOUT_MS` unless a test says. */
+  startTimeoutMs?: number;
   /** How each agent's tool starts, where it differs from `ACP_COMMANDS`; for tests. */
   commands?: Partial<typeof ACP_COMMANDS>;
   version: string;
@@ -351,6 +353,14 @@ export const refusingEngine = (
 /** How long an agent has to stop after it was told to, before it is ended. */
 export const CANCEL_GRACE_MS = 5000;
 
+/**
+ * How long an agent has to answer `initialize` and open its session. One that never answers would
+ * hold the turn and the bot's queue for good, and Stop has nothing to cancel yet.
+ */
+export const START_TIMEOUT_MS = 90_000;
+
+const START_TIMEOUT = 'START_TIMEOUT';
+
 /** The agent says it needs its own login (the protocol's "auth required"). */
 const AUTH_REQUIRED = -32000;
 
@@ -451,12 +461,46 @@ export class AcpEngine implements Engine {
       });
 
     const work = async (peer: ClientContext): Promise<TurnOutcome> => {
-      const init = await peer.request('initialize', {
-        protocolVersion: PROTOCOL_VERSION,
-        // Files and commands stay the agent's own: the app lends it neither.
-        clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
-        clientInfo: { name: 'leafbot', version: this.opts.version },
+      // Until the session exists there is nothing to cancel, so a stop or a silent agent ends the
+      // start itself: the rejection reaches the handler below, which ends the process.
+      let startTimer: NodeJS.Timeout | undefined;
+      let startAbort: (() => void) | undefined;
+      const starting = new Promise<never>((_, reject) => {
+        startTimer = setTimeout(
+          () => reject(Object.assign(new Error('start timeout'), { code: START_TIMEOUT })),
+          this.opts.startTimeoutMs ?? START_TIMEOUT_MS,
+        );
+        startTimer.unref();
+        startAbort = () => reject(new Error('stopped'));
+        if (req.signal.aborted) startAbort();
+        else req.signal.addEventListener('abort', startAbort, { once: true });
       });
+      starting.catch(() => {});
+      const early = <T>(p: Promise<T>): Promise<T> => Promise.race([p, starting]);
+      const startDone = () => {
+        clearTimeout(startTimer);
+        if (startAbort) req.signal.removeEventListener('abort', startAbort);
+      };
+      try {
+        return await opened(peer, early, startDone);
+      } finally {
+        startDone();
+      }
+    };
+
+    const opened = async (
+      peer: ClientContext,
+      early: <T>(p: Promise<T>) => Promise<T>,
+      startDone: () => void,
+    ): Promise<TurnOutcome> => {
+      const init = await early(
+        peer.request('initialize', {
+          protocolVersion: PROTOCOL_VERSION,
+          // Files and commands stay the agent's own: the app lends it neither.
+          clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
+          clientInfo: { name: 'leafbot', version: this.opts.version },
+        }),
+      );
       const caps = init.agentCapabilities ?? {};
       // The app's tools reach an agent that takes MCP servers over HTTP; others go without them.
       if (req.tools.length && caps.mcpCapabilities?.http) tools = await serveTools(req, t);
@@ -467,7 +511,7 @@ export class AcpEngine implements Engine {
       let fresh = false;
       if (sessionId && caps.loadSession) {
         try {
-          await peer.request('session/load', { ...base, sessionId });
+          await early(peer.request('session/load', { ...base, sessionId }));
         } catch (err) {
           // A missing login is told as such; anything else means the session is gone.
           if ((err as { code?: unknown }).code === AUTH_REQUIRED) throw err;
@@ -477,12 +521,13 @@ export class AcpEngine implements Engine {
         // An agent that cannot load a past session starts over: the turn hands the recent exchange
         // over as it does when a session is lost.
         if (sessionId) return { ok: false, kind: 'lostSession', message: '', text: '', sessionId: null };
-        const created: NewSessionResponse = await peer.request('session/new', base);
+        const created: NewSessionResponse = await early(peer.request('session/new', base));
         sessionId = created.sessionId;
         req.onSession(created.sessionId);
         fresh = true;
       }
       live = true;
+      startDone();
       const sid = sessionId!;
       // Told to stop; an agent that does not is ended, along with what it started.
       let grace: NodeJS.Timeout | undefined;
@@ -505,7 +550,8 @@ export class AcpEngine implements Engine {
           return { ok: false, kind: 'interrupted', message: t('engine.stopped'), text, sessionId };
         if (stopReason === 'max_tokens' || stopReason === 'max_turn_requests')
           return fail(t('engine.acpLimit', { agent: agent.name }), { stepLimit: true });
-        if (stopReason === 'refusal') return fail(t('engine.acpRefused', { agent: agent.name }));
+        if (stopReason === 'refusal')
+          return fail(t('engine.acpRefused', { agent: agent.name }), { refused: true });
         return { ok: true, text, sessionId, costUsd: null };
       } finally {
         clearTimeout(grace);
@@ -532,6 +578,7 @@ export class AcpEngine implements Engine {
       if (e.code === AUTH_REQUIRED) return fail(t('engine.acpLogin', { agent: agent.name }));
       if (req.signal.aborted)
         return { ok: false, kind: 'interrupted', message: t('engine.stopped'), text, sessionId };
+      if (e.code === START_TIMEOUT) return fail(t('engine.acpStartTimeout', { agent: agent.name }));
       return fail(t('engine.acpFailed', { agent: agent.name, detail: e.message.slice(0, 500) }), {
         ...(e.exit && { crashed: true }),
       });

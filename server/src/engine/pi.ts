@@ -53,6 +53,10 @@ import {
   withContext,
   resultImages,
   resultText,
+  announcesAction,
+  ENCRYPTED_REASONING,
+  GO_ON,
+  MAX_NUDGES,
   toolPermName,
   type AppTool,
   type CompleteRequest,
@@ -213,27 +217,6 @@ export function findTools(
     .join('\n');
 }
 
-/** How many times one turn tells the model to do what it announced. */
-const MAX_NUDGES = 2;
-const GO_ON =
-  'You said what you would do next but made no tool call. Do it now with your tools, or say why you cannot.';
-
-/**
- * A reply that only announces the next step and stops: short, no question, and ending on a colon,
- * a dash or an ellipsis, or opening with "Let me", "I'll", "Şimdi bakıyorum" and the like.
- */
-export function announcesAction(text: string): boolean {
-  const reply = text.trim();
-  if (!reply || reply.length > 400 || /[?\uff1f]/.test(reply)) return false;
-  return (
-    /(?:[:\uff1a\u2014\u2013]|\.\.\.|\u2026)$/.test(reply) ||
-    /^(?:checking|let me|i'll|i will|i'm going to|i am going to|opening|looking|searching|reading|fetching|now (?:i'll|let me))\b/i.test(
-      reply,
-    ) ||
-    /^(?:şimdi|hemen|önce)\s+(?:\S+\s+)?\S+(?:yorum|acağım|eceğim|ayım|eyim)\b/i.test(reply)
-  );
-}
-
 function textOf(m: AssistantMessage) {
   return m.content.flatMap((c) => (c.type === 'text' ? [c.text] : [])).join('');
 }
@@ -263,7 +246,7 @@ const fail = (
   costUsd?: number,
 ): TurnOutcome => ({ ok: false, kind, message, text, sessionId, costUsd: costUsd || null });
 
-export { providerTrouble };
+export { announcesAction, providerTrouble };
 
 /**
  * API-key models through pi-agent-core. File tools are limited to the bot's folders; shell commands
@@ -334,6 +317,7 @@ export class PiEngine implements Engine {
     previous: string | null,
     messages: AgentMessage[],
     signal: AbortSignal | undefined,
+    onActivity?: () => void,
   ): Promise<{ summary: string | null; costUsd: number; partial?: boolean }> {
     const window = model.contextWindow || 32_000;
     // Each step's input stays well inside the window, with room for the summary it builds on.
@@ -357,6 +341,7 @@ export class PiEngine implements Engine {
             ...(signal && { signal }),
           },
         );
+        onActivity?.();
         costUsd += reply.usage?.cost?.total ?? 0;
         const text = textOf(reply).trim();
         if (reply.stopReason === 'error' || reply.stopReason === 'aborted' || !text) {
@@ -693,6 +678,9 @@ export class PiEngine implements Engine {
       if (tokensOf(light.slice(fold.folded)) + introTokens(intro(fold)) > budget * COMPACT_AT) {
         const cut = cutPoint(light, fold.folded, budget * KEEP_AFTER_COMPACT);
         if (cut > fold.folded) {
+          // The summary call is silent until it ends; the turn must not be taken for stalled meanwhile.
+          req.onCompacting?.(true);
+          req.onActivity?.();
           const made = await this.summarize(
             model,
             apiKey,
@@ -700,7 +688,11 @@ export class PiEngine implements Engine {
             fold.summary,
             rest.slice(fold.folded, cut),
             signal ?? req.signal,
-          );
+            () => req.onActivity?.(),
+          ).finally(() => {
+            req.onCompacting?.(false);
+            req.onActivity?.();
+          });
           costUsd += made.costUsd;
           // Without a summary the older part is still left out, since a request that does not fit
           // fails; its newest messages stay word for word in place of the summary.
@@ -902,7 +894,8 @@ export class PiEngine implements Engine {
         const said = [...agent.state.messages]
           .reverse()
           .find((m): m is AssistantMessage => m.role === 'assistant');
-        if (said?.stopReason !== 'stop' || !announcesAction(textOf(said))) break;
+        if (said?.stopReason !== 'stop' || !announcesAction(textOf(said)) || (await req.awaitsAnswers?.()))
+          break;
         await agent.prompt(GO_ON);
         await agent.waitForIdle();
       }
@@ -946,6 +939,11 @@ export class PiEngine implements Engine {
     if (error || !last) {
       await keepHistory(!resumed);
       if (!error) return fail('engine', t('engine.noResponse'), text, sessionId, costUsd);
+      // A replayed reasoning item the provider cannot verify fails every later turn the same way:
+      // a new session carries on with the recent exchange instead.
+      if (resumed && ENCRYPTED_REASONING.test(error)) {
+        return { ok: false, kind: 'lostSession', message: '', text: '', sessionId: null };
+      }
       const why = providerTrouble(error, target.provider, t);
       return {
         ok: false,
@@ -958,6 +956,7 @@ export class PiEngine implements Engine {
         ...(why.cut && { cut: true }),
         ...(why.billing && { billing: true }),
         ...(why.modelGone && { modelGone: true }),
+        ...(why.refused && { refused: true }),
         // Only this run's own failed reply tells: an earlier one, or a reply that went through, does not.
         // With the summary of what came before, which the new session that carries on is handed.
         ...(failed &&

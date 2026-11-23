@@ -60,6 +60,17 @@ describe('tur bekçisi', () => {
     second.dog.stop();
   });
 
+  it('özet yazılırken araç sınırı kadar bekler; özet bitince sessizlik sınırı yeniden geçerli olur', () => {
+    const { dog, stalls, pass } = watched();
+    dog.compacting(true);
+    pass(300_000);
+    expect(stalls).toEqual([]);
+    dog.compacting(false);
+    pass(60_000);
+    expect(stalls).toEqual([{ cause: 'silent', ms: 60_000 }]);
+    dog.stop();
+  });
+
   it('kişinin cevabını bekleyen tur sessiz sayılmaz; bekleme bitince saat oradan başlar', () => {
     let waiting = true;
     const { stalls, pass, dog } = watched({ waiting: () => waiting });

@@ -1227,6 +1227,27 @@ describe('rutinler', () => {
     expect((await all()).some((r) => r.id === mine.id)).toBe(false);
   });
 
+  it('bot rutinini okuyabilir, başkasınınkini okuyamaz; okuma kart istemez', async () => {
+    const a = await t.bot({ name: 'Ali' });
+    const b = await t.bot({ name: 'Veli' });
+    await routine(a.id);
+    await routine(b.id);
+    const thread = (await t.api<Thread>('GET', `/api/bots/${a.id}/main-thread`)).body;
+    const last = async () => (await t.messages(thread.id)).at(-1)!.text;
+
+    // Default permission mode: a changing tool would wait for a card, a read does not.
+    await t.send(thread.id, '[araç:routine_read {"routine":"rapor"}]');
+    await t.services.turns.idle();
+    const text = await last();
+    expect(text).toContain('"Rapor" rutini');
+    expect(text).toContain('Talimat:\nRaporu yaz');
+    expect(text).toContain('Son çalışma: henüz çalışmadı');
+
+    await t.send(thread.id, '[araç:routine_read {"routine":"Rapor","bot":"Veli"}]');
+    await t.services.turns.idle();
+    expect(await last()).toContain('Yalnız kendi rutinlerini');
+  });
+
   it('yönetici bot başka botların rutinlerini kapatıp silebilir, başka yöneticininkini değil', async () => {
     const m = await t.bot({ name: 'Müdür', isManager: true, permissionMode: 'auto' });
     const other = await t.bot({ name: 'Şef', isManager: true });

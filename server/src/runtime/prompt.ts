@@ -240,6 +240,9 @@ export function buildSystemPrompt(opts: {
     // next message; on the board it stays where the person follows their work.
     ...(opts.board ? [t('prompt.ruleChecklistBoard')] : []),
     t('prompt.ruleFacts'),
+    t('prompt.ruleStatus'),
+    // Only where the bot has routine tools: a team or chat-app conversation has none to offer to change.
+    ...(opts.team || opts.contact ? [] : [t('prompt.ruleRoutineFacts')]),
     t('prompt.ruleDraft'),
     t('prompt.ruleFiles'),
     t('prompt.ruleFormat'),

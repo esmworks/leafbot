@@ -187,6 +187,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     callMs: config.browserCallMs,
     localHosts: config.browserLocalHosts,
     windows: config.onUserComputer,
+    language: () => serverLocale(ctx),
     ...(localSocks && { proxy: `socks5://127.0.0.1:${localSocks.port}` }),
     ...(computer && {
       connect: async (botId: string) => {

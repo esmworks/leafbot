@@ -59,7 +59,8 @@ function numbered(name: string, n: number) {
 
 /**
  * Writes an upload into `dir` under a free name; an existing file is never replaced and a link
- * is never followed. A body over the limit is cut off and the partial file removed.
+ * is never followed. A body over the limit is cut off and the partial file removed; an empty one
+ * is refused.
  */
 export async function saveUpload(
   dir: string,
@@ -92,6 +93,8 @@ export async function saveUpload(
       hash.update(buf);
       await fh.write(buf);
     }
+    // An empty file gives the bot nothing to read, and is more often a failed copy than a wish.
+    if (size === 0) throw new HttpError(400, 'error.fileEmpty');
     await fh.close();
   } catch (err) {
     await fh.close().catch(() => {});

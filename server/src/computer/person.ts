@@ -331,6 +331,8 @@ const HOLD_MS = 2 * 60_000;
  */
 export class PersonComputer {
   private holder: { botId: string; until: number } | null = null;
+  private running = 0;
+  private lastUsedAt: number | null = null;
 
   constructor(
     private driver: PersonComputerDriver,
@@ -366,11 +368,23 @@ export class PersonComputer {
       throw new PersonComputerError('busy');
     }
     this.holder = { botId, until: now + HOLD_MS };
+    this.running++;
     try {
       return await fn();
     } finally {
+      this.running--;
+      this.lastUsedAt = Date.now();
       this.holder = { botId, until: Date.now() + HOLD_MS };
     }
+  }
+
+  /**
+   * Milliseconds since a bot last used the computer (0 while one is at it), or null if none has
+   * since the server started. The desktop app reads it to keep the screen on while a bot looks at it.
+   */
+  idleMs(now = Date.now()): number | null {
+    if (this.running > 0) return 0;
+    return this.lastUsedAt === null ? null : Math.max(0, now - this.lastUsedAt);
   }
 
   /** A picture of the main screen, scaled to `shotSize`. */

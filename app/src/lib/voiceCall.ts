@@ -174,20 +174,43 @@ export function useVoiceCall(opts: {
   // speech written out after hang-up) sees a different number and is dropped.
   const callNo = useRef(0);
 
-  // The answer to what was sent: read aloud, then the call listens again.
-  useEffect(() => {
-    if (state !== 'waiting') return;
-    const answer = answerAfter(opts.messages, before.current, opts.busy);
-    if (!answer) return;
-    if (answer.role === 'error' || !answer.text.trim()) {
-      call.current?.listen();
-      return;
-    }
+  // Answers and errors the call has dealt with or that were there before it: never read as news.
+  const heard = useRef<Set<string>>(new Set());
+  const markHeard = () => answerIds(latest.current.messages).forEach((id) => heard.current.add(id));
+
+  /** Reads an answer aloud, then the call listens again. */
+  const speak = (answer: Message) => {
     set('speaking');
     call.current?.pause();
     void speakAndWait(answer.id, answer.text, latest.current.locale, latest.current.serverVoice).then(() => {
       if (stateRef.current === 'speaking') call.current?.listen();
     });
+  };
+
+  // The answer to what was sent: read aloud, then the call listens again.
+  useEffect(() => {
+    if (state !== 'waiting') return;
+    const answer = answerAfter(opts.messages, before.current, opts.busy);
+    if (!answer) return;
+    markHeard();
+    if (answer.role === 'error' || !answer.text.trim()) {
+      call.current?.listen();
+      return;
+    }
+    speak(answer);
+    // `speak` only reads refs and sets the state; it is not a reason to run again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state, opts.messages, opts.busy]);
+
+  // A reply from a turn the bot started itself (a routine, a teammate's result, a follow-up) that
+  // finishes while the call is listening is read too, or the person would never know it came.
+  useEffect(() => {
+    if (state !== 'listening' || opts.busy) return;
+    const fresh = opts.messages.filter((m) => !heard.current.has(m.id));
+    const reply = fresh.filter((m) => m.role === 'assistant' && m.text.trim()).at(-1);
+    if (fresh.length) markHeard();
+    if (reply) speak(reply);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state, opts.messages, opts.busy]);
 
   const said = (no: number, text: string) => {
@@ -195,6 +218,7 @@ export function useVoiceCall(opts: {
     const clean = text.trim();
     if (!clean) return call.current?.listen();
     before.current = answerIds(latest.current.messages);
+    markHeard();
     set('waiting');
     latest.current.send(clean);
   };
@@ -299,8 +323,11 @@ export function useVoiceCall(opts: {
         if (!recorder) record();
         set('listening');
       },
-      // The microphone stays on while the answer is read, to hear the person talk over it.
-      pause() {},
+      // The microphone stays on while the answer is read, to hear the person talk over it; only the
+      // recording stops, so the answer's own voice is not sent back as something said.
+      pause() {
+        finish(false);
+      },
       stop() {
         clearInterval(timer);
         finish(false);
@@ -393,6 +420,7 @@ export function useVoiceCall(opts: {
   const start = () => {
     if (stateRef.current !== 'off') return;
     const no = ++callNo.current;
+    heard.current = new Set(answerIds(latest.current.messages));
     set('listening');
     if (server) void startServer(no);
     else if (Browser) startBrowser(no);

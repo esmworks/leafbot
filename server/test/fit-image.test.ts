@@ -1,6 +1,6 @@
 import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
-import { fitImage, fitResult, IMAGE_MAX_SIDE } from '../src/engine/fit-image';
+import { fitImage, fitResult, IMAGE_MAX_SIDE, screenshotImage } from '../src/engine/fit-image';
 
 const picture = async (width: number, height: number, format: 'jpeg' | 'png') =>
   (
@@ -39,5 +39,20 @@ describe('modele giden resim', () => {
       Buffer.from(typeof r !== 'string' ? r.images[0]!.data : '', 'base64'),
     ).metadata();
     expect(meta.width).toBe(IMAGE_MAX_SIDE);
+  });
+});
+
+describe('ekran görüntüsü', () => {
+  it('modele JPEG gider ve ölçüsü aynı kalır', async () => {
+    const png = await picture(1280, 800, 'png');
+    const shot = await screenshotImage(png);
+    expect(shot.mimeType).toBe('image/jpeg');
+    const meta = await sharp(Buffer.from(shot.data, 'base64')).metadata();
+    expect([meta.format, meta.width, meta.height]).toEqual(['jpeg', 1280, 800]);
+  });
+
+  it('okunamayan veri olduğu gibi PNG kalır', async () => {
+    const broken = Buffer.from('resim değil').toString('base64');
+    expect(await screenshotImage(broken)).toEqual({ data: broken, mimeType: 'image/png' });
   });
 });

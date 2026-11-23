@@ -37,6 +37,7 @@ import {
  *   [çöktü]              after the directives before it, the Claude Code process dies on the turn's first run
  *   [çöktü-hep]          after the directives before it, it dies on every run of a Claude model
  *   [bakiye]             fail as if the provider's balance were spent (a backup is not under it)
+ *   [reddedildi]         fail as if the provider refused the request on content grounds (a backup is not under it)
  *   [giriş-yok]          fail as if logged out
  *   [sınır]              fail as if the usage limit were spent until 2026-11-16 09:00 UTC
  *   [sınır-sonra]        after the directives before it, fail as [sınır] does
@@ -220,6 +221,16 @@ export class FakeEngine implements Engine {
         text: '',
         sessionId,
         modelGone: true,
+      };
+    }
+    if (req.prompt.includes('[reddedildi]') && !req.model.includes('/')) {
+      return {
+        ok: false,
+        kind: 'engine',
+        message: 'The model refused to complete the request',
+        text: '',
+        sessionId,
+        refused: true,
       };
     }
     if (req.prompt.includes('[giriş-yok]') && !req.model.includes('/')) {

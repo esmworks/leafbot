@@ -1267,6 +1267,28 @@ describe('sohbet', () => {
     expect(msgs.some((m) => m.role === 'error')).toBe(false);
   });
 
+  it('sağlayıcı isteği reddederse yedek model işi sürdürür ve aynı model yeniden denenmez', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    await t.api('PATCH', '/api/settings', { backupModel: 'openrouter/yedek' });
+    await t.send(thread.id, '[reddedildi] bak');
+    await t.services.turns.idle();
+    expect(t.engine.requests.map((r) => r.model)).toEqual([bot.model, 'openrouter/yedek']);
+    const msgs = await t.messages(thread.id);
+    expect(msgs.find((m) => m.props.kind === 'backupModel')!.text).toContain('reddetti');
+    expect(msgs.some((m) => m.role === 'error')).toBe(false);
+  });
+
+  it('sağlayıcı isteği reddedip yedek model yoksa tur hatayla biter', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    await t.send(thread.id, '[reddedildi] bak');
+    await t.services.turns.idle();
+    expect(t.engine.requests).toHaveLength(1);
+    const msgs = await t.messages(thread.id);
+    expect(msgs.at(-1)!.role).toBe('error');
+  });
+
   it('bakiye bitince yedek model yoksa tur hatayla biter', async () => {
     const bot = await t.bot();
     const thread = await main(bot.id);

@@ -3,7 +3,9 @@ import {
   catalogEntry,
   connectionToolParts,
   describeAction,
+  joinPicks,
   parseAnswers,
+  splitPicks,
   questionItems,
   subagentCounts,
   subagentTime,
@@ -341,8 +343,22 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
   const many = items.length > 1;
   const last = page === items.length - 1;
 
+  // On a question that takes several picks, the answer holds all of them (see `joinPicks`).
+  const picks = item.multi ? splitPicks(shown[page] ?? '') : [];
+  const toggle = (value: string) => {
+    if (answered || decide.isPending) return;
+    const next = picks.includes(value) ? picks.filter((p) => p !== value) : [...picks, value];
+    setAnswers(answers.map((x, i) => (i === page ? joinPicks(next) : x)));
+  };
   const choose = (value: string) => {
     if (answered || decide.isPending) return;
+    if (item.multi) {
+      // Words written beside the ticked options join them instead of replacing them.
+      if (!picks.includes(value)) toggle(value);
+      setWriting(false);
+      setDraft('');
+      return;
+    }
     setAnswers(answers.map((x, i) => (i === page ? value : x)));
     setWriting(false);
     setDraft('');
@@ -362,9 +378,18 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
     ? answered || current
       ? [{ label: t('question.secretGiven'), index: -1 }]
       : []
-    : answered
-      ? [{ label: current || t('question.empty'), index: optionIndex }]
-      : item.options.map((o, i) => ({ label: o, index: i }));
+    : item.multi
+      ? [
+          ...(answered ? [] : item.options).map((o, i) => ({ label: o, index: i })),
+          // Picks written in the person's own words, shown as ticked rows that can be unticked.
+          ...picks
+            .filter((p) => !item.options.includes(p) || answered)
+            .map((p) => ({ label: p, index: item.options.indexOf(p) })),
+        ]
+      : answered
+        ? [{ label: current || t('question.empty'), index: optionIndex }]
+        : item.options.map((o, i) => ({ label: o, index: i }));
+  if (item.multi && answered && !rows.length) rows.push({ label: t('question.empty'), index: -1 });
   const palette = bubblePalette(c);
 
   return (
@@ -391,18 +416,23 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
         <View style={styles.gap4}>
           {rows.map((r) => {
             const refusal = r.index >= 0 && isRefusal(r.label);
-            const picked = !answered && (item.secret || current === r.label);
+            const picked = item.multi
+              ? !answered && picks.includes(r.label)
+              : !answered && (item.secret || current === r.label);
             return (
               <Pressable
                 key={r.label}
-                accessibilityRole="button"
+                accessibilityRole={item.multi && !answered ? 'checkbox' : 'button'}
+                accessibilityState={item.multi && !answered ? { checked: picked } : undefined}
                 disabled={answered || item.secret || decide.isPending}
-                onPress={() => choose(r.label)}
+                onPress={() => (item.multi ? toggle(r.label) : choose(r.label))}
                 style={[styles.option, picked && { backgroundColor: c.accent }]}
               >
                 {/* A choice that declines (No, Cancel) reads quieter than the ones that go ahead. */}
                 <View style={[styles.badge, { backgroundColor: refusal ? c.muted : color }]}>
-                  {r.index >= 0 ? (
+                  {item.multi && !answered && picked ? (
+                    <Feather name="check" size={16} color="#FFFFFF" />
+                  ) : r.index >= 0 ? (
                     <Text style={[styles.badgeText, { color: refusal ? c.mutedForeground : '#FFFFFF' }]}>
                       {String.fromCharCode(65 + r.index)}
                     </Text>
@@ -475,6 +505,14 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
                   variant="ghost"
                   disabled={decide.isPending}
                   onPress={() => decide.mutate({ decision: 'deny' })}
+                />
+              ) : null}
+              {!many && item.multi && !answered ? (
+                <PillButton
+                  label={t('question.send')}
+                  variant="primary"
+                  disabled={!answers[0] || decide.isPending}
+                  onPress={() => decide.mutate({ decision: 'allow', answer: answers[0] })}
                 />
               ) : null}
               {many ? (

@@ -380,6 +380,17 @@ describe('saveUpload', () => {
     expect(readdirSync(dir)).toEqual([]);
   });
 
+  it('boş dosyayı 400 ile reddeder ve geride dosya bırakmaz', async () => {
+    await expect(saveUpload(dir, 'bos.txt', Readable.from([]))).rejects.toMatchObject({
+      status: 400,
+      key: 'error.fileEmpty',
+    });
+    await expect(saveUpload(dir, 'bos.txt', Readable.from([Buffer.alloc(0)]))).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(readdirSync(dir)).toEqual([]);
+  });
+
   it('dosya adını temizler', () => {
     expect(safeFileName('C:\\Users\\x\\belge.pdf')).toBe('belge.pdf');
     expect(safeFileName('.gizli')).toBe('gizli');

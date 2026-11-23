@@ -2,6 +2,7 @@ import { DESKTOP_SIZE, type Bot, type DesktopAction } from '@leafbot/shared';
 import { z } from 'zod';
 import { ComputerError, type ComputerClient } from '../computer/client';
 import type { ComputerService } from '../computer/service';
+import { screenshotImage } from '../engine/fit-image';
 import type { AppTool, ToolResult } from '../engine/types';
 import type { T } from '../i18n';
 import type { Define } from './index';
@@ -88,7 +89,7 @@ export function computerTools(opts: {
     const shot = await c.screenshot(bot.id);
     return {
       text: t('computer.screen', { width: shot.width, height: shot.height }),
-      images: [{ data: shot.png, mimeType: 'image/png' }],
+      images: [await screenshotImage(shot.png)],
     };
   };
 

@@ -3,6 +3,8 @@ import { api } from './api';
 import { clampRate, pickVoice, speakable, speakAndWait, speechLanguage, useSpeech } from './speech';
 
 vi.mock('./api', () => ({ api: { speech: vi.fn() } }));
+const toastError = vi.hoisted(() => vi.fn());
+vi.mock('sonner', () => ({ toast: { error: toastError } }));
 
 const voice = (name: string, lang: string, extra: Partial<SpeechSynthesisVoice> = {}) =>
   ({ name, lang, localService: true, default: false, voiceURI: name, ...extra }) as SpeechSynthesisVoice;
@@ -89,10 +91,14 @@ describe('sesli okumayı bekleme', () => {
     const voiceOut = systemVoice();
     vi.mocked(api.speech).mockRejectedValue(new Error('down'));
     vi.spyOn(console, 'warn').mockImplementation(() => {});
+    toastError.mockReset();
     let done = false;
     const p = speakAndWait('m1', 'Merhaba', 'tr', true).then(() => (done = true));
     await vi.waitFor(() => expect(voiceOut.said).toHaveLength(1));
     expect(done).toBe(false);
+    // The person is told why the server's voice is not the one they hear.
+    expect(toastError).toHaveBeenCalledOnce();
+    expect(toastError.mock.calls[0]![0]).toContain('down');
     expect(useSpeech.getState().speaking).toBe('m1');
     voiceOut.finish();
     await p;

@@ -7,12 +7,16 @@ import {
   type UploadOptions,
 } from '@leafbot/client';
 import { locale, t } from '@/i18n';
+import { xhrUpload } from './xhrUpload';
 
 export { ApiError, NoAnswerError };
 export type { JobView, LibraryFile, Settings } from '@leafbot/client';
 
 /** How long a request may wait for the server before it counts as unreachable. */
 const TIMEOUT_MS = 15_000;
+
+/** How long an upload may go without progress before it counts as stalled. */
+const UPLOAD_IDLE_MS = 60_000;
 
 /**
  * `fetch` that gives up after `ms`, so an address that never answers does not hang the screen;
@@ -60,23 +64,37 @@ async function request<T>(
   // The server takes a signed-in write only from a page of its own origin; a browser says so in
   // this header, and the app, which has no page, says it for itself.
   if (method !== 'GET') headers.origin = origin;
-  const res = await fetchWithin(
-    `${origin}${path}`,
-    {
-      method,
-      credentials: 'include',
-      headers,
-      body: hasBody ? (raw ? body : JSON.stringify(body ?? {})) : undefined,
-    },
-    // A large file may take a while to go up over a home network.
-    raw ? 10 * 60_000 : TIMEOUT_MS,
-    opts.signal,
-  );
-  const { data, reason } = readAnswer(await res.text());
-  if (!res.ok) {
+  const url = `${origin}${path}`;
+  // A file may take as long as the connection needs, so it is cut off only after UPLOAD_IDLE_MS
+  // without progress; everything else waits TIMEOUT_MS in all. Only a runtime with
+  // XMLHttpRequest (the phone) reports upload progress.
+  const answer =
+    raw && typeof XMLHttpRequest !== 'undefined'
+      ? await xhrUpload({
+          url,
+          method,
+          headers,
+          body: body as Blob,
+          idleMs: UPLOAD_IDLE_MS,
+          signal: opts.signal,
+          onProgress: opts.onProgress,
+        })
+      : await fetchWithin(
+          url,
+          {
+            method,
+            credentials: 'include',
+            headers,
+            body: hasBody ? (raw ? body : JSON.stringify(body ?? {})) : undefined,
+          },
+          raw ? 10 * 60_000 : TIMEOUT_MS,
+          opts.signal,
+        ).then(async (res) => ({ ok: res.ok, status: res.status, text: await res.text() }));
+  const { data, reason } = readAnswer(answer.text);
+  if (!answer.ok) {
     throw new ApiError(
-      res.status,
-      reason ?? t('error.requestFailed', { status: res.status }),
+      answer.status,
+      reason ?? t('error.requestFailed', { status: answer.status }),
       reason !== null,
     );
   }

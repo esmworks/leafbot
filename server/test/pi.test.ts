@@ -1286,6 +1286,40 @@ describe('Pi motoru', () => {
       expect(out).toMatchObject({ ok: false, contextFull: true, summary: 'ÖZET: devredilen' });
     });
 
+    it('özet yazılırken turun sessiz sayılmaması için başlangıcı ve bitişi bildirir', async () => {
+      const id = oldSession(20);
+      const events: string[] = [];
+      const complete = (async () => {
+        events.push('özet');
+        return fauxAssistantMessage('ÖZET: kısa');
+      }) as typeof completeSimple;
+      faux.setResponses([fauxAssistantMessage('tamam')]);
+      const out = await small(complete).run(
+        request({
+          sessionId: id,
+          prompt: 'devam',
+          onCompacting: (on) => events.push(on ? 'başladı' : 'bitti'),
+        }).req,
+      );
+      expect(out.ok).toBe(true);
+      expect(events[0]).toBe('başladı');
+      expect(events.at(-1)).toBe('bitti');
+      expect(events).toContain('özet');
+    });
+
+    it('OpenAI doğrulayamadığı şifreli akıl yürütmeyi reddederse yeni oturumla devam edilsin diye oturum kayıp sayılır', async () => {
+      const id = oldSession(2);
+      faux.setResponses([
+        fauxAssistantMessage([fauxText('')], {
+          stopReason: 'error',
+          errorMessage:
+            '400 {"error":{"code":"invalid_encrypted_content","message":"The encrypted content gAAA could not be verified."}}',
+        }),
+      ]);
+      const out = await engine().run(request({ sessionId: id, prompt: 'devam' }).req);
+      expect(out).toMatchObject({ ok: false, kind: 'lostSession', sessionId: null });
+    });
+
     it('özete sığmayan en eski kısmı kayıp sayar ve bota söyler', () => {
       const msgs = Array.from({ length: 12 }, (_, i) => ({
         role: 'user' as const,
@@ -1845,6 +1879,20 @@ describe('sağlayıcı hataları', () => {
       message: expect.stringContaining('çok büyük'),
     });
     expect(CONTEXT_FULL.test(providerTrouble('413 Payload Too Large', 'openai', t).message)).toBe(true);
+    for (const raw of [
+      'The model refused to complete the request',
+      'Provider finish_reason: content_filter',
+      'Provider stopped with: SAFETY',
+      'Provider stopped with: PROHIBITED_CONTENT',
+      'Provider stopped with: sensitive',
+    ]) {
+      expect(providerTrouble(raw, 'openai', t), raw).toMatchObject({
+        kind: 'engine',
+        refused: true,
+        message: expect.stringContaining('reddetti'),
+      });
+    }
+    expect(providerTrouble('Provider stopped with: MAX_TOKENS', 'google', t).refused).toBeUndefined();
     expect(providerTrouble('429 Too Many Requests', 'groq', t)).toMatchObject({ kind: 'limit' });
     expect(providerTrouble('503 Service Unavailable', 'groq', t)).toMatchObject({ transient: true });
     expect(providerTrouble('fetch failed: ECONNREFUSED', 'custom-ev', t).message).toContain('ulaşılamadı');

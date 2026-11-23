@@ -61,6 +61,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { snoozeTimes, useMinuteClock } from '@/lib/snooze';
+import { followTarget } from '@/lib/followReply';
 import { threadLink } from '@/lib/threadLink';
 import { copyText } from '@/lib/clipboard';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -875,9 +876,57 @@ function Conversation({
   const busy = state === 'running' || state === 'queued';
   const activity = useThreadActivity(bot.id, threadId, state);
 
-  useLayoutEffect(() => {
+  // The reply the conversation ends with, if it does: a long one is followed only until its start
+  // reaches the top, so it can be read from its first line. The person's own message, a card or
+  // nothing at the end means the conversation simply follows to the end.
+  const lastPart = parts.at(-1);
+  const lastRow = rows.at(-1);
+  const replyKey = lastPart
+    ? lastPart.kind === 'text' && lastPart.live
+      ? (stream?.turnId ?? null)
+      : null
+    : !shown.length && lastRow?.role === 'assistant'
+      ? (lastRow.turnId ?? lastRow.id)
+      : null;
+  const newest = useRef<string | null>(null);
+  // The reply already let go of, so the person's own scrolling to the end is not undone.
+  const released = useRef<string | null>(null);
+  const openedFor = useRef<string | null>(null);
+  const follow = () => {
     const el = scroller.current;
-    if (el && stick.current) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    if (openedFor.current !== threadId && !isLoading) {
+      // A conversation opens at its end; only replies that come after that are held at their start.
+      openedFor.current = threadId;
+      released.current = newest.current;
+    }
+    if (!stick.current) return;
+    const key = newest.current;
+    const reply = key ? el.querySelector<HTMLElement>(`[data-reply-start="${CSS.escape(key)}"]`) : null;
+    const target = followTarget({
+      scrollTop: el.scrollTop,
+      scrollHeight: el.scrollHeight,
+      clientHeight: el.clientHeight,
+      replyTop: reply
+        ? reply.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop
+        : null,
+      released: key !== null && released.current === key,
+    });
+    if (target.release) {
+      released.current = key;
+      stick.current = false;
+    }
+    el.scrollTop = target.top;
+  };
+  const followNow = useRef(follow);
+  useLayoutEffect(() => {
+    newest.current = replyKey;
+    followNow.current = follow;
+  });
+  useLayoutEffect(() => {
+    follow();
+    // `follow` reads refs and the element itself: only new content is a reason to follow.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length, shown.length, stream?.text, busy]);
 
   // A message picked in the search: brought into view once it is here, and lit for a moment.
@@ -935,9 +984,7 @@ function Conversation({
     const el = scroller.current;
     const content = el?.firstElementChild;
     if (!el || !content) return;
-    const ro = new ResizeObserver(() => {
-      if (stick.current) el.scrollTop = el.scrollHeight;
-    });
+    const ro = new ResizeObserver(() => followNow.current());
     ro.observe(content);
     return () => ro.disconnect();
   }, []);
@@ -1055,6 +1102,7 @@ function Conversation({
                     text={p.text}
                     turnId={p.live ? stream?.turnId : undefined}
                     streaming={p.live}
+                    replyKey={p.live ? stream?.turnId : undefined}
                   />
                 ) : (
                   <ErrorBoundary key={p.card.id} fallback={<BrokenMessage />}>
