@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { create } from 'zustand';
 import { INTL_LOCALE, type Locale } from '@leafbot/shared';
+import { getT } from '@/i18n';
 import { api } from './api';
 
 const RATE_KEY = 'leafbot.speech.rate';
@@ -178,6 +180,11 @@ export function useServerVoice(): boolean {
   return !!data?.available;
 }
 
+/** Tells the person why a reading did not happen; one notice at a time, however many replies fail. */
+function notice(text: string) {
+  toast.error(text, { id: 'speech' });
+}
+
 /** The reply the server is reading aloud, so another one, or the same again, stops it. */
 let playing: HTMLAudioElement | null = null;
 
@@ -211,13 +218,24 @@ export function toggleSpeech(id: string, markdown: string, locale: Locale, serve
           if (playing === audio) stopAll();
           if (useSpeech.getState().speaking === id) useSpeech.setState({ speaking: null });
         };
+        // A reading that cannot start (blocked until the person touches the page, a file the
+        // browser cannot play) would otherwise end at once, as if nothing had been asked.
+        const failed = () => {
+          if (useSpeech.getState().speaking === id) notice(getT()('speech.playFailed'));
+          done();
+        };
         audio.onended = done;
-        audio.onerror = done;
+        audio.onerror = failed;
         playing = audio;
-        void audio.play().catch(done);
+        void audio.play().catch(failed);
       },
       (err) => {
         console.warn('Server speech failed; reading with the system voice', err);
+        if (useSpeech.getState().speaking === id) {
+          notice(
+            getT()('speech.serverFailed', { message: err instanceof Error ? err.message : String(err) }),
+          );
+        }
         // Straight on with the system voice: the reply stays the one being read, so whoever waits
         // for it to end does not take the switch for its end.
         if (useSpeech.getState().speaking === id) speakSystem(id, markdown, locale);
@@ -231,7 +249,10 @@ export function toggleSpeech(id: string, markdown: string, locale: Locale, serve
 /** Reads a message with the system's voice for its language; ends at once where there is none. */
 function speakSystem(id: string, markdown: string, locale: Locale) {
   if (!speechSupported()) {
-    if (useSpeech.getState().speaking === id) useSpeech.setState({ speaking: null });
+    if (useSpeech.getState().speaking === id) {
+      useSpeech.setState({ speaking: null });
+      notice(getT()('speech.unsupported'));
+    }
     return;
   }
   const text = speakable(markdown);
@@ -249,7 +270,13 @@ function speakSystem(id: string, markdown: string, locale: Locale) {
       if (useSpeech.getState().speaking === id) useSpeech.setState({ speaking: null });
     };
     u.onend = done;
-    u.onerror = done;
+    u.onerror = (e) => {
+      // Stopping a reading is not a failure.
+      if (e.error !== 'canceled' && e.error !== 'interrupted' && useSpeech.getState().speaking === id) {
+        notice(getT()('speech.playFailed'));
+      }
+      done();
+    };
     window.speechSynthesis.speak(u);
   });
 }

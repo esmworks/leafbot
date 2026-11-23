@@ -97,6 +97,27 @@ export function replyOf(steps: ModelStep[]): string {
   return before.some(Boolean) ? [...before, last.text.trim()].filter(Boolean).join('\n\n') : last.text;
 }
 
+/** How many times one turn tells the model to do what it announced. */
+export const MAX_NUDGES = 2;
+export const GO_ON =
+  'You said what you would do next but made no tool call. Do it now with your tools, or say why you cannot.';
+
+/**
+ * A reply that only announces the next step and stops: short, no question, and ending on a colon,
+ * a dash or an ellipsis, or opening with "Let me", "I'll", "Şimdi bakıyorum" and the like.
+ */
+export function announcesAction(text: string): boolean {
+  const reply = text.trim();
+  if (!reply || reply.length > 400 || /[?\uff1f]/.test(reply)) return false;
+  return (
+    /(?:[:\uff1a\u2014\u2013]|\.\.\.|\u2026)$/.test(reply) ||
+    /^(?:checking|let me|i'll|i will|i'm going to|i am going to|opening|looking|searching|reading|fetching|now (?:i'll|let me))\b/i.test(
+      reply,
+    ) ||
+    /^(?:şimdi|hemen|önce)\s+(?:\S+\s+)?\S+(?:yorum|acağım|eceğim|ayım|eyim)\b/i.test(reply)
+  );
+}
+
 /** The name permission rules and cards use for a tool. */
 export const toolPermName = (t: Pick<AppTool, 'name' | 'server'>) =>
   `mcp__${t.server ?? APP_SERVER}__${t.name}`;
@@ -183,6 +204,11 @@ export interface TurnRequest {
    * (the bot answered without another tool call) gets a turn of its own afterwards.
    */
   steering?(): string[];
+  /**
+   * Work this turn handed to other bots is still out: ending without a tool call is waiting for
+   * their answers, not stopping after an announcement.
+   */
+  awaitsAnswers?(): Promise<boolean>;
   /** How much of the Claude plan's usage windows is used, as the engine last heard. */
   onPlanUsage?(windows: PlanWindow[]): void;
   /** The account is close to its usage limit: how much is used (0–1) and when it resets. */
@@ -195,6 +221,8 @@ export interface TurnRequest {
    * or ended. A turn silent for too long is stopped as stalled.
    */
   onActivity?(tool?: { id: string; name: string; running: boolean }): void;
+  /** The engine started (`true`) or finished folding the conversation into a summary, which is quiet meanwhile. */
+  onCompacting?(on: boolean): void;
   /**
    * The same tool call failed the same way `count` times in a row, past the point where the bot
    * was told to stop: the turn ends instead of spending more on it.
@@ -336,6 +364,11 @@ export type TurnOutcome = (
       restarted?: boolean;
       /** What the turn spent before it failed, when the engine knows: it counts toward the limit. */
       costUsd?: number | null;
+      /**
+       * The provider refused the request on content or safety grounds. The same model would refuse
+       * again, so it is never retried; another model may carry the turn.
+       */
+      refused?: boolean;
       /** It ran out of steps mid-task; the session holds the work so far, and the person may go on. */
       stepLimit?: boolean;
       /** It was stopped because its bot was paused, not by the person's Stop. */
@@ -374,6 +407,22 @@ export const MODEL_GONE =
   /(?:^|api error|status(?: code)?|\bcode|\bhttp(?:\/[\d.]+)?)\W{0,3}410\b|not_found_error[^\n]{0,200}\bmodel\b|model_not_found|\bmodels?\b[^\n]{0,80}?\b(?:not found|does not exist|doesn't exist|no longer (?:available|supported|offered)|(?:has been|was|is) (?:deprecated|retired|removed|decommissioned)|is unknown)|unknown model|invalid model(?: name| id)?\b|not a valid model|no endpoints found for|issue with the selected model/i;
 
 /**
+ * A refusal on content or safety grounds, as the providers' client libraries word it: Anthropic's
+ * "refusal" stop, an OpenAI-style `content_filter` finish and Gemini's safety, blocklist and
+ * prohibited-content finishes.
+ */
+export const REFUSED =
+  /refused to (?:complete|answer|do)|\brefusal\b|finish_reason: content_filter|content[_ ]filter|stopped with: (?:sensitive|safety|blocklist|prohibited_content|spii|image_safety|image_prohibited_content|recitation)\b|violates? (?:our )?(?:usage|content) polic/i;
+
+/**
+ * OpenAI's Responses API rejects a replayed reasoning item it cannot verify (another key, another
+ * organization, or a model that reasons differently now). Every later turn of that session would
+ * send the same item again and fail the same way.
+ */
+export const ENCRYPTED_REASONING =
+  /invalid_encrypted_content|encrypted content[^\n]{0,160}(?:could not be|cannot be|can't be|unable to be) (?:verified|decrypted)|could not be verified|failed to (?:verify|decrypt) (?:the )?encrypted/i;
+
+/**
  * A provider's error in words the person can act on: a refused key, an empty balance, a rate
  * limit, an overloaded or unreachable server. The provider's own text follows as the detail.
  */
@@ -388,6 +437,7 @@ export function providerTrouble(
   cut?: boolean;
   billing?: boolean;
   modelGone?: boolean;
+  refused?: boolean;
 } {
   const detail = readableError(raw.trim(), 300);
   const said = (key: Parameters<T>[0]) => `${t(key, { provider })} (${detail})`;
@@ -399,6 +449,7 @@ export function providerTrouble(
   ) {
     return { kind: 'engine', message: said('engine.providerBilling'), billing: true };
   }
+  if (REFUSED.test(raw)) return { kind: 'engine', message: said('engine.providerRefused'), refused: true };
   if (MODEL_GONE.test(raw)) {
     return { kind: 'engine', message: said('engine.providerModelGone'), modelGone: true };
   }

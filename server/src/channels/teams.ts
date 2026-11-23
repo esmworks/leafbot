@@ -17,7 +17,7 @@ import type { Services } from '../services';
 import type { VaultService } from '../services/vault';
 import { OWNER_ID } from '../users';
 import { HttpError, newId, truncate } from '../util';
-import { cardView, lastWroteVia, messageFiles, parseChoice, SendQueue } from './common';
+import { canOpen, cardView, lastWroteVia, messageFiles, parseChoice, SendQueue } from './common';
 import { namedBot } from './slack';
 import {
   TeamsAuth,
@@ -121,8 +121,9 @@ export class TeamsChannel {
       .innerJoin(schema.users, eq(schema.users.id, schema.teamsPeople.userId))
       .orderBy(schema.teamsPeople.createdAt);
     const base = this.ctx.config.publicUrl;
+    const unreadable = !!row?.secret && !canOpen(this.vault, row.secret);
     return {
-      connected: !!row?.secret,
+      connected: !!row?.secret && !unreadable,
       appId: account?.appId ?? null,
       tenantId: account?.tenantId ?? null,
       botId: row?.botId ?? null,
@@ -132,7 +133,9 @@ export class TeamsChannel {
         name: p.displayName || p.username || '',
         teamsName: p.teamsName,
       })),
-      error: row?.error ?? null,
+      error: unreadable
+        ? (await this.services.settings.translator())('channel.secretUnreadable')
+        : (row?.error ?? null),
     };
   }
 

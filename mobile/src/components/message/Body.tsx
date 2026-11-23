@@ -186,9 +186,9 @@ function inline(tokens: Token[], p: Palette, find: string): ReactNode[] {
   });
 }
 
-/** Only web and mail links open; anything else a bot wrote stays text. */
+/** Only web, mail, phone and text-message links open; anything else a bot wrote stays text. */
 async function openLink(href: string) {
-  if (!/^(https?|mailto):/i.test(href)) return;
+  if (!/^(https?|mailto|tel|sms):/i.test(href)) return;
   try {
     await Linking.openURL(href);
   } catch {

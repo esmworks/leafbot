@@ -394,18 +394,70 @@ export function isAssociatedChild(m: WaMessage): boolean {
   return !!link?.parentMessageKey && HD_ASSOCIATIONS.has(Number(link.associationType));
 }
 
+/** A saved key exists but cannot be opened, as when the server's secret key is not the one it was sealed with. */
+class UnreadableKey extends Error {
+  constructor() {
+    super('A saved WhatsApp key cannot be read');
+  }
+}
+
 /** Baileys' `proto.WebMessageInfo.StubType.CIPHERTEXT`: a message that could not be decrypted yet. */
 const CIPHERTEXT_STUB = 2;
 
+/** One contact card a message carries: the name it shows and the phone numbers in its vCard. */
+export interface WaCard {
+  name: string;
+  numbers: string[];
+}
+
+/** The most contact cards and numbers per card that are read; a card can carry far more than a person needs. */
+const CARDS_MAX = 10;
+const CARD_NUMBERS_MAX = 5;
+
+/** One line of a vCard value: no control characters, no runs of spaces, and not long enough to be a payload. */
+function cardField(v: string): string {
+  return v
+    .replace(/\\([nN,;\\])/g, (_, c: string) => (c === 'n' || c === 'N' ? ' ' : c))
+    .replace(/\p{Cc}/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
+}
+
+/** The name and the phone numbers of a vCard; `shown` is the name WhatsApp shows when the card has none. */
+export function cardOf(vcard: unknown, shown: unknown): WaCard | null {
+  const raw = typeof vcard === 'string' ? vcard : '';
+  // A folded line continues on the next one, which starts with a space or a tab.
+  const lines = raw.replace(/\r?\n[ \t]/g, '').split(/\r?\n/);
+  let name = '';
+  const numbers: string[] = [];
+  for (const line of lines) {
+    const at = line.indexOf(':');
+    if (at < 0) continue;
+    // `item1.TEL;type=CELL` and `TEL;waid=...` are the same property; only the name part matters.
+    const prop = line.slice(0, at).split(';')[0]!.split('.').pop()!.toUpperCase();
+    const value = line.slice(at + 1);
+    if (prop === 'FN' && !name) name = cardField(value);
+    else if (prop === 'TEL') {
+      const n = cardField(value);
+      if (n && !numbers.includes(n) && numbers.length < CARD_NUMBERS_MAX) numbers.push(n);
+    }
+  }
+  name ||= cardField(typeof shown === 'string' ? shown : '');
+  return name || numbers.length ? { name, numbers } : null;
+}
+
 /**
  * The text and the kind of file a WhatsApp message carries, whether it was forwarded, and the
- * message it answers when the person replied to one.
+ * message it answers when the person replied to one. A contact card has no text: its names and
+ * numbers come back in `cards`, to be worded in the language of the server.
  */
 export function contentOf(m: WaMessage): {
   text: string;
   media: WaMedia | null;
   forwarded: boolean;
   quoted: WaQuoted | null;
+  cards: WaCard[];
 } {
   let msg = (m.message ?? {}) as Record<string, Record<string, unknown> | undefined>;
   // Disappearing and view-once messages wrap the real one.
@@ -464,9 +516,24 @@ export function contentOf(m: WaMessage): {
       },
       forwarded,
       quoted,
+      cards: [],
     };
   }
-  return { text, media: null, forwarded, quoted };
+  const cards: WaCard[] = [];
+  const single = msg.contactMessage;
+  const many = msg.contactsArrayMessage?.contacts;
+  for (const c of single ? [single] : Array.isArray(many) ? many.slice(0, CARDS_MAX) : []) {
+    const card = cardOf((c as Record<string, unknown>).vcard, (c as Record<string, unknown>).displayName);
+    if (card) cards.push(card);
+  }
+  return { text, media: null, forwarded, quoted, cards };
+}
+
+/** A contact card as the bot reads it: who it is and the numbers on it. */
+export function cardsText(cards: WaCard[], t: T): string {
+  if (!cards.length) return '';
+  const list = cards.map((c) => [c.name, ...c.numbers].filter(Boolean).join(', ')).join('; ');
+  return t('whatsapp.contactCard', { cards: list });
 }
 
 /**
@@ -517,6 +584,8 @@ export class WhatsAppChannel {
   private writes: Promise<unknown> = Promise.resolve();
   private credsChain: Promise<void> = Promise.resolve();
   private credsDirty = false;
+  /** Whether an unreadable signal key was already logged, so a whole store of them logs once. */
+  private unreadableLogged = false;
   private credsNow: (() => string) | null = null;
   /** What was sent lately, for WhatsApp's resend requests; kept in memory only. */
   private sentBodies = new Map<string, { message: Record<string, unknown>; at: number }>();
@@ -617,7 +686,13 @@ export class WhatsAppChannel {
     // A link that was never finished leaves its keys behind; the device in use is untouched.
     await this.dropNs();
     const row = await this.row();
-    const creds = await this.key('creds');
+    let creds: string | null = null;
+    try {
+      creds = await this.key('creds');
+    } catch (err) {
+      if (!(err instanceof UnreadableKey)) throw err;
+      if (row) await this.fail('keysUnreadable');
+    }
     if (row && creds && (JSON.parse(creds) as { registered?: boolean; me?: unknown }).me) {
       // A queued turn survives the restart and still runs, so its request stays; the others are
       // settled once the connection is open and the person can be written to.
@@ -769,7 +844,7 @@ export class WhatsAppChannel {
     this.ns = '';
     this.qr = null;
     this.qrShown = false;
-    const old = await this.key('creds');
+    const old = await this.key('creds').catch(() => null);
     if (reconnect && old && (JSON.parse(old) as { me?: unknown }).me && !this.stopped) {
       this.state = 'connecting';
       this.changed();
@@ -846,7 +921,15 @@ export class WhatsAppChannel {
     const lib = this.lib;
     // What the scan wrote must be on disk before it is read back for the restart that follows.
     await this.flushCreds();
-    const saved = await this.key('creds');
+    let saved: string | null;
+    try {
+      saved = await this.key('creds');
+    } catch (err) {
+      if (!(err instanceof UnreadableKey)) throw err;
+      // The link is left as it is: it opens again if the server's secret key is put back.
+      await this.fail('keysUnreadable');
+      return;
+    }
     const creds = saved ? (JSON.parse(saved, lib.reviver) as Record<string, unknown>) : lib.initAuthCreds();
     if (!saved) await this.setKeys({ creds: JSON.stringify(creds, lib.replacer) });
     const auth = {
@@ -855,7 +938,16 @@ export class WhatsAppChannel {
         get: async (type: string, ids: string[]) => {
           const out: Record<string, unknown> = {};
           for (const id of ids) {
-            const v = await this.key(`${type}:${id}`);
+            let v: string | null;
+            try {
+              v = await this.key(`${type}:${id}`);
+            } catch (err) {
+              if (!(err instanceof UnreadableKey)) throw err;
+              // Skipped like a missing key, which WhatsApp asks for again; said once, not per key.
+              if (!this.unreadableLogged) console.warn('whatsapp: a saved signal key cannot be read');
+              this.unreadableLogged = true;
+              continue;
+            }
             if (v === null) continue;
             const value = JSON.parse(v, lib.reviver) as unknown;
             out[id] = type === 'app-state-sync-key' ? lib.appStateKey(value) : value;
@@ -2094,8 +2186,10 @@ export class WhatsAppChannel {
     const stamp = stampOf(m) || Math.floor(Date.now() / 1000);
     // Only what is new, not history WhatsApp hands over long after.
     if (Date.now() / 1000 - stamp > HELD_MAX_S) return;
-    const { text: raw, media, forwarded, quoted } = contentOf(m);
-    const text = raw.trim();
+    const t = await this.services.settings.translator();
+    const content = contentOf(m);
+    const { media, forwarded, quoted } = content;
+    const text = (content.text || cardsText(content.cards, t)).trim();
     if (!text && !media) return;
     // A code, a password or a sign-in link: none of it is kept, not even the file; a line without
     // its content says one was left out, so a payment worded like a code does not vanish unseen.
@@ -2103,7 +2197,6 @@ export class WhatsAppChannel {
       privateText(text) || (!!quoted && privateText(quoted.text)) || privateText(media?.name ?? '');
     // A code from someone with no chat here (a bank, a sign-in) leaves no trace at all.
     if (hidden && !(await this.knownChat(chat))) return;
-    const t = await this.services.settings.translator();
     const writer = await this.writerOf(socket, m, chat, t);
     const name =
       kind === 'group' ? await this.groupName(socket, chat) : !m.key.fromMe ? oneLine(m.pushName ?? '') : '';
@@ -2706,8 +2799,9 @@ export class WhatsAppChannel {
 
   private async handle(socket: WaSocket, row: Row, jid: string, m: WaMessage, stamp: number) {
     const t = await this.services.settings.translator();
-    const { text: raw, media, forwarded, quoted } = contentOf(m);
-    const text = raw.trim();
+    const content = contentOf(m);
+    const { media, forwarded, quoted } = content;
+    const text = (content.text || cardsText(content.cards, t)).trim();
     // `/bot` names the bot the messages go to; a forwarded `/bot` is only text.
     const pick = forwarded ? null : /^\/bot(?:\s+(.+))?$/i.exec(text);
     if (pick) {
@@ -3227,7 +3321,9 @@ export class WhatsAppChannel {
     try {
       return this.vault.open(row.value);
     } catch {
-      return null;
+      // Not the same as no key: a saved key that cannot be opened must never be taken for a missing
+      // one, or fresh keys would be written over the link.
+      throw new UnreadableKey();
     }
   }
 

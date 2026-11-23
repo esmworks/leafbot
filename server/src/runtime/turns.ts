@@ -2266,6 +2266,7 @@ export class TurnManager {
             stepped = true;
           }
         },
+        onCompacting: (on) => watchdog.compacting(on),
         onText: (text) => {
           watchdog.activity();
           // The engines send the words of every step one after another, and a step often ends without
@@ -2327,6 +2328,20 @@ export class TurnManager {
             props: { kind: 'compacted' },
             turnId: turn.id,
           }),
+        awaitsAnswers: async () => {
+          const [open] = await this.ctx.db
+            .select({ id: schema.jobs.id })
+            .from(schema.jobs)
+            .where(
+              and(
+                eq(schema.jobs.fromTurnId, turn.id),
+                sql`${schema.jobs.kind} <> 'notify'`,
+                isNull(schema.jobs.deliveredAt),
+              ),
+            )
+            .limit(1);
+          return !!open;
+        },
         steering: () => {
           const entry = this.running.get(turn.id);
           if (!entry) return [];
@@ -2407,7 +2422,7 @@ export class TurnManager {
       const backup = settings.backupModel;
       // A turn that already changed something is never run again from the start: the backup would
       // repeat what was done (a sent mail, a written file). It ends with its error instead. A spent
-      // limit, a model that is down or gone and a sign-in that no longer works all leave the backup
+      // limit, a model that is down, gone or refusing and a sign-in that no longer works all leave the backup
       // to it.
       const blocked =
         !outcome.ok &&
@@ -2415,7 +2430,8 @@ export class TurnManager {
           outcome.kind === 'auth' ||
           outcome.transient === true ||
           outcome.billing === true ||
-          outcome.modelGone === true) &&
+          outcome.modelGone === true ||
+          outcome.refused === true) &&
         !acted;
       // The sign-in is expired whoever carries the turn next: the account status must say so.
       if (!outcome.ok && outcome.kind === 'auth') for (const hook of this.signedOutHooks) hook();
@@ -2435,7 +2451,9 @@ export class TurnManager {
                   ? 'turn.backupBilling'
                   : outcome.modelGone
                     ? 'turn.backupGone'
-                    : 'turn.backupBusy',
+                    : outcome.refused
+                      ? 'turn.backupRefused'
+                      : 'turn.backupBusy',
             { model: backup },
           ),
           props: { kind: 'backupModel' },

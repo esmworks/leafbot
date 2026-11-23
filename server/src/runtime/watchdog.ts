@@ -25,6 +25,7 @@ export class TurnWatchdog {
   private readonly tools = new Map<string, string>();
   private readonly timer: ReturnType<typeof setInterval>;
   private readonly tickMs: number;
+  private folding = false;
   stalled: Stall | null = null;
 
   constructor(
@@ -57,6 +58,15 @@ export class TurnWatchdog {
     else this.tools.delete(tool.id);
   }
 
+  /**
+   * The engine is folding the conversation into a summary: one model call over a long history that
+   * says nothing until it ends, so it gets the time a tool call does.
+   */
+  compacting(on: boolean) {
+    this.last = this.now();
+    this.folding = on;
+  }
+
   /** Looks once; the timer calls it, and tests may too. */
   check() {
     if (this.stalled) return;
@@ -71,7 +81,7 @@ export class TurnWatchdog {
     }
     const silent = now - this.last;
     const tool = [...this.tools.values()].at(-1);
-    const limit = tool ? this.o.limits.toolSilenceMs : this.o.limits.silenceMs;
+    const limit = tool || this.folding ? this.o.limits.toolSilenceMs : this.o.limits.silenceMs;
     if (silent < limit) return;
     this.stalled = tool ? { cause: 'tool', ms: silent, tool } : { cause: 'silent', ms: silent };
     this.stop();

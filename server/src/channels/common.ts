@@ -13,10 +13,25 @@ import { schema } from '../db';
 import type { T } from '../i18n';
 import type { Services } from '../services';
 import { redactSecrets } from '../services/secrets';
+import type { VaultService } from '../services/vault';
 import { truncate } from '../util';
 
 /** A chat app a message can come from; kept on the person's message as `via`. */
 export type Via = 'telegram' | 'whatsapp' | 'slack' | 'discord' | 'teams';
+
+/**
+ * Whether a saved secret can still be opened. It cannot when the server's secret key is not the one
+ * it was sealed with; reading it again then changes nothing, so a channel in that state is shown as
+ * not connected, with the reason, instead of failing in the background.
+ */
+export function canOpen(vault: Pick<VaultService, 'open'>, sealed: string): boolean {
+  try {
+    vault.open(sealed);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /** The most of a step's detail a chat app's card shows; the app shows the rest. */
 const DETAIL_MAX = 700;
@@ -81,6 +96,14 @@ export function cardView(
     if (items.length === 1 && q && !q.secret) {
       const head = title ? `**${title}**\n` : '';
       const context = q.context ? `\n${q.context}` : '';
+      if (q.multi) {
+        // Buttons answer at once, so a question that takes several picks is numbered and answered in words.
+        const list = q.options.map((o, i) => `${i + 1}. ${o}`).join('\n');
+        return {
+          text: `❓ ${head}${q.question}${context}\n\n${list}\n\n_${t('channel.pickSeveral')}_`,
+          buttons: [],
+        };
+      }
       const hint = `\n\n_${t(q.options.length ? 'channel.orType' : 'channel.typeAnswer')}_`;
       return {
         text: `❓ ${head}${q.question}${context}${hint}`,

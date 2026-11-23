@@ -56,6 +56,27 @@ export async function fitImage(image: ToolImage): Promise<ToolImage> {
   }
 }
 
+/**
+ * A screenshot of a desktop for the model as JPEG: it is a photo of a screen, and a PNG of one
+ * costs several times the bytes for no more that the model can read. The size is kept exactly,
+ * because the bot clicks by coordinates in this picture. Where the library cannot load, or
+ * cannot read it, it goes as the PNG it was.
+ */
+export async function screenshotImage(pngBase64: string): Promise<ToolImage> {
+  const png: ToolImage = { data: pngBase64, mimeType: 'image/png' };
+  const sharp = await library();
+  if (!sharp) return png;
+  try {
+    const jpeg = await sharp(Buffer.from(pngBase64, 'base64'))
+      .flatten({ background: '#ffffff' })
+      .jpeg({ quality: 80 })
+      .toBuffer();
+    return { data: jpeg.toString('base64'), mimeType: 'image/jpeg' };
+  } catch {
+    return png;
+  }
+}
+
 /** A tool's result with its pictures made to fit; text is left alone. */
 export async function fitResult(r: ToolResult): Promise<ToolResult> {
   if (typeof r === 'string' || !r.images.length) return r;

@@ -1,4 +1,5 @@
 import { CALL_BINDING, CALL_CAPTURE_SCRIPT, type CaptureState } from './call-capture';
+import { browserLocale } from './locale';
 import { watchPage, type PageLog } from './logs';
 import { addTyping, DESCRIBE, MAX_STEPS, type Target, type TeachStep } from './teach';
 import { spawn, type ChildProcess } from 'node:child_process';
@@ -316,6 +317,8 @@ export interface BrowserManagerOptions {
    */
   localHosts?: string[];
   headless?: boolean;
+  /** The interface language, which the browser also reports to sites as its own. */
+  language?: () => Promise<string>;
   /**
    * Use the Chromium on the bot's desktop instead of starting one here: its DevTools WebSocket
    * address and whether that browser leaves through the service's own SOCKS — that SOCKS refuses
@@ -1058,11 +1061,14 @@ export class BrowserManager {
     rmSync(join(dir, 'bot-downloads'), { recursive: true, force: true });
     const headless = this.opts.headless ?? true;
     const userAgent = headless ? await this.windowedUserAgent() : undefined;
+    const locale = browserLocale(await this.opts.language?.().catch(() => undefined));
     try {
       context = await chromium.launchPersistentContext(dir, {
         executablePath: this.opts.executable ?? undefined,
         headless,
         ...(userAgent ? { userAgent } : {}),
+        // Sets Accept-Language and navigator.language; without it they follow the server's own locale.
+        locale,
         chromiumSandbox: this.opts.sandbox,
         viewport: VIEWPORT,
         screen: { width: SCREEN.width, height: SCREEN.height },
@@ -1084,6 +1090,7 @@ export class BrowserManager {
           '--disable-blink-features=AutomationControlled',
           // A page the bot opens never plays sound on the computer the server runs on.
           '--mute-audio',
+          `--lang=${locale}`,
           // WebRTC would otherwise send UDP around the proxy and show sites the server's address.
           ...(this.opts.proxy ? ['--force-webrtc-ip-handling-policy=disable_non_proxied_udp'] : []),
         ],

@@ -987,6 +987,7 @@ export const en: Catalog<MessageKey> = {
   'chat.dropFiles': 'Drop files here',
   'chat.imageLink': 'Open the image in a new tab',
   'chat.fileTooLarge': '{name} is too large (at most {max} MB)',
+  'chat.fileEmpty': '{name} is empty, so it was not attached',
   'chat.tooManyFiles': 'A message can have at most {max} files',
   'chat.uploadFailed': 'Could not upload {name}: {error}',
   'chat.uploading': 'Uploading',
@@ -1052,6 +1053,9 @@ export const en: Catalog<MessageKey> = {
   'message.tableCopiedMd': 'Table copied as Markdown',
   'message.tableCopiedCsv': 'Table copied as CSV',
   'message.readAloud': 'Read aloud',
+  'speech.serverFailed': "Server speech failed ({message}); reading with this device's voice instead.",
+  'speech.playFailed': 'The reading could not be played.',
+  'speech.unsupported': 'This device has no voice to read aloud with.',
   'message.stopReading': 'Stop reading',
   'message.signIn': 'Sign in',
   'message.enterKey': 'Enter key',
@@ -2698,6 +2702,8 @@ export const en: Catalog<MessageKey> = {
     'This number was opened somewhere else, so the connection stopped. Link again to use it here.',
   'whatsapp.error.unreachable': 'WhatsApp could not be reached. Check the internet connection and try again.',
   'whatsapp.error.failing': 'Cannot connect to WhatsApp; still trying.',
+  'whatsapp.error.keysUnreadable':
+    'The saved WhatsApp keys cannot be read, most likely because the server’s secret key changed. Link again and scan the QR code.',
   'whatsapp.mode.separate': 'A separate bot number',
   'whatsapp.modeHint.separate':
     'Recommended. A second number that will be the bot (e.g. a company line) is linked; you write to it from another number.',
