@@ -1242,6 +1242,7 @@ describe('rutinler', () => {
     expect(text).toContain('"Rapor" rutini');
     expect(text).toContain('Talimat:\nRaporu yaz');
     expect(text).toContain('Son çalışma: henüz çalışmadı');
+    expect(text).toContain('Yalnız bakıp rapor eder: false');
 
     await t.send(thread.id, '[araç:routine_read {"routine":"Rapor","bot":"Veli"}]');
     await t.services.turns.idle();

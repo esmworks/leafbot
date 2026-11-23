@@ -888,6 +888,8 @@ export class ToolFactory {
             timezone: r.timezone,
             missed: r.missed,
             carry: String(r.carryReport),
+            // A bot changing such a routine's instruction must know its runs may only look and report.
+            reportOnly: String(r.reportOnly),
             last: last
               ? t('tool.routineReadLast', {
                   status: last.status,

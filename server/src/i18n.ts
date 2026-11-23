@@ -1123,7 +1123,7 @@ const tr = {
   'tool.routine_read':
     'Bir rutinin tamamını oku: adı, açık mı, zamanı, kaçırılırsa ne olacağı, prompt metni (talimatı), varsa adımları ve son çalışmasının durumu. routine rutinin adıdır; yönetici bot bot ile başka bir botun rutinini seçebilir. Yalnız okur, onay gerektirmez.',
   'tool.routineRead':
-    '"{name}" rutini: {state}. Zaman: {when} ({timezone}). Kaçırılırsa: {missed}. Önceki raporu taşır: {carry}.\nSon çalışma: {last}.\nTalimat:\n{prompt}{steps}',
+    '"{name}" rutini: {state}. Zaman: {when} ({timezone}). Kaçırılırsa: {missed}. Önceki raporu taşır: {carry}. Yalnız bakıp rapor eder: {reportOnly}.\nSon çalışma: {last}.\nTalimat:\n{prompt}{steps}',
   'tool.routineReadSteps': 'Adımlar:',
   'tool.routineReadStep': '{n}. {kind}: {text}',
   'tool.routineReadLast': '{status} ({at}), neden: {reason}',
@@ -3058,7 +3058,7 @@ const en: Catalog<ServerKey> = {
   'tool.routine_read':
     "Read a routine in full: its name, whether it is on, its time, what happens when a run is missed, its prompt (the instruction), its steps if it has any, and how its last run went. routine is the routine's name; a manager bot can pick another bot's routine with bot. It only reads and needs no approval.",
   'tool.routineRead':
-    'The routine "{name}": {state}. When: {when} ({timezone}). If missed: {missed}. Carries the previous report: {carry}.\nLast run: {last}.\nInstruction:\n{prompt}{steps}',
+    'The routine "{name}": {state}. When: {when} ({timezone}). If missed: {missed}. Carries the previous report: {carry}. Only looks and reports: {reportOnly}.\nLast run: {last}.\nInstruction:\n{prompt}{steps}',
   'tool.routineReadSteps': 'Steps:',
   'tool.routineReadStep': '{n}. {kind}: {text}',
   'tool.routineReadLast': '{status} ({at}), reason: {reason}',
