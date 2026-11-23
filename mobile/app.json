@@ -9,6 +9,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
+      "icon": "./assets/AppIcon.icon",
       "bundleIdentifier": "com.esmworks.leafbot",
       "supportsTablet": true,
       "infoPlist": {
