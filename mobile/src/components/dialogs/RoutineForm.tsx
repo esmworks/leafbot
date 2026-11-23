@@ -110,7 +110,7 @@ function fromRoutine(r?: Routine): Form {
     date: s?.type === 'once' ? s.date : tomorrow(),
     missed: r?.missed ?? 'run',
     carryReport: r?.carryReport ?? false,
-    inMain: r?.inMain ?? false,
+    inMain: r?.inMain ?? true,
     onStartup: r?.onStartup ?? false,
     watchUrl: r?.watchUrl ?? '',
     webhookFilter: r?.webhookFilter ?? '',

@@ -16,6 +16,8 @@ describe('a routine run that hands work to another bot', () => {
         name: 'Rapor',
         prompt,
         schedule: { type: 'interval', minutes: 30 },
+        // Its report reaches the main conversation from a conversation of its own.
+        inMain: false,
         ...extra,
       })
     ).body;

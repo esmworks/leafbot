@@ -728,7 +728,9 @@ function AssistantRow({
     );
   return (
     <View style={styles.assistantCol}>
-      {m.props.routineReport === true ? <RoutineReportLine m={m} botId={bot?.id} /> : null}
+      {m.props.routineReport === true || m.props.routineInMain === true ? (
+        <RoutineReportLine m={m} botId={bot?.id} />
+      ) : null}
       {!page && files.length ? (
         // Files the bot sent with send_file, with its note if it wrote one.
         <View style={styles.assistantFiles}>

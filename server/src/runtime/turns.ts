@@ -9,6 +9,7 @@ import {
   type Bot,
   type BotActionHow,
   type Effort,
+  type LiveText,
   outsideIn,
   type OutsideTrigger,
   PERSON_COMPUTER,
@@ -171,6 +172,8 @@ interface Running {
   after: (() => Promise<void>)[];
   /** Set once the held words are being written: later ones go in at once. */
   ended: boolean;
+  /** What the turn has shown of its reply so far, for a client that missed some of it. */
+  live?: () => string;
 }
 
 export type TurnFinishedHook = (turn: TurnRow, outcome: TurnOutcome) => Promise<void>;
@@ -413,6 +416,11 @@ export class TurnManager {
     userId?: string | null;
     /** Asked by someone with no account here; see the `guest` column. */
     guest?: boolean;
+    /**
+     * The person's message the turn answers. It is tied to the turn before the turn can start, so
+     * a turn that starts at once, or is joined to one already waiting (`gather`), takes it along.
+     */
+    messageId?: string;
   }): Promise<TurnRow> {
     const userId =
       t.userId !== undefined ? t.userId : await this.actingPerson(t.jobId ?? null, t.threadId, t.botId);
@@ -434,6 +442,7 @@ export class TurnManager {
         guest: t.guest ?? false,
       })
       .returning();
+    if (t.messageId) await this.services.threads.updateMessage(t.messageId, { turnId: row!.id });
     this.emitState(t.threadId, t.botId);
     this.schedule();
     return row!;
@@ -1070,15 +1079,28 @@ export class TurnManager {
    * Hands a message still waiting for its turn to the turn running in that conversation: the bot
    * reads it at its next step instead of after it finishes. False when nothing runs there.
    */
-  async steer(threadId: string, turnId: string, messageId: string): Promise<boolean> {
+  async steer(
+    threadId: string,
+    turnId: string,
+    messageId: string,
+    /**
+     * Handed over on its own as the person sends it: only to a turn the person's own message
+     * started. A routine's run or another bot's request is not theirs to change unasked.
+     */
+    auto = false,
+  ): Promise<boolean> {
     const entry = [...this.running.values()].find((r) => r.turn.threadId === threadId);
-    if (!entry) return false;
+    // A turn told to stop, or already saying its last, reads nothing more: the message gets its own.
+    if (!entry || entry.ended || entry.controller.signal.aborted) return false;
+    if (auto && !attended(entry.turn.source)) return false;
     const [queued] = await this.ctx.db
       .select()
       .from(schema.turns)
       .where(and(eq(schema.turns.id, turnId), eq(schema.turns.status, 'queued')))
       .limit(1);
     if (!queued || !this.running.has(entry.turn.id)) return false;
+    // In a room the turn running may be another member's.
+    if (queued.botId !== entry.turn.botId) return false;
     // Words of someone with no account here do not join a turn that may do more than theirs.
     if (queued.guest && !entry.turn.guest) return false;
     if (!entry.steers.some((s) => s.turnId === turnId)) {
@@ -1102,7 +1124,13 @@ export class TurnManager {
 
   /** A waiting message changed or taken back is no longer handed over. */
   private unsteer(turnId: string) {
-    for (const r of this.running.values()) r.steers = r.steers.filter((s) => s.turnId !== turnId);
+    for (const r of this.running.values()) {
+      const gone = r.steers.filter((s) => s.turnId === turnId);
+      if (!gone.length) continue;
+      r.steers = r.steers.filter((s) => s.turnId !== turnId);
+      // Otherwise it would show as being handed over for good.
+      for (const s of gone) void this.services.threads.markSteering(s.messageId, false);
+    }
   }
 
   /** The handed-over messages, taken once; each becomes part of the running turn. */
@@ -1536,6 +1564,9 @@ export class TurnManager {
 
     let streamed = '';
     let shown = 0;
+    // A client that missed pieces (a reconnect, a page opened mid-reply) reads the text shown so far.
+    const self = this.running.get(turn.id);
+    if (self) self.live = () => streamed.slice(0, shown);
     // A tool ran since the last words: what the bot writes next is its next step.
     let stepped = false;
     // The run started over: the next words shown replace the earlier attempt's on screen.
@@ -2207,6 +2238,7 @@ export class TurnManager {
             threadId: thread.id,
             turnId: turn.id,
             text: streamed.slice(shown, upto),
+            at: shown,
             ...(restart && { restart: true }),
           });
           restart = false;
@@ -2450,6 +2482,16 @@ export class TurnManager {
         .select({ outside: schema.turns.outside })
         .from(schema.turns)
         .where(eq(schema.turns.id, turn.id));
+      // A routine's run in the person's own conversation says whose it is: chat apps send it as a
+      // routine's report, headed with its name, and not at all when the person turned those off.
+      const [inMain] =
+        turn.routineRunId && kind === 'user'
+          ? await this.ctx.db
+              .select({ name: schema.routines.name })
+              .from(schema.routineRuns)
+              .innerJoin(schema.routines, eq(schema.routines.id, schema.routineRuns.routineId))
+              .where(eq(schema.routineRuns.id, turn.routineRunId))
+          : [];
       await threads.addMessage({
         threadId: turn.threadId,
         role: 'assistant',
@@ -2461,6 +2503,11 @@ export class TurnManager {
           ...(read?.outside ? { outside: read.outside } : {}),
           // Something the bot kept track of came up: it reaches the person in their chat apps too.
           ...(turn.source === 'followup' ? { followUp: true } : {}),
+          ...(inMain && {
+            routineInMain: true,
+            routineRunId: turn.routineRunId,
+            routineName: inMain.name,
+          }),
         },
       });
       if (heard && outcome.ok && kind !== 'routine') {
@@ -2609,19 +2656,39 @@ export class TurnManager {
     }
   }
 
+  /** The last state told of each conversation, still being worked out; see `emitState`. */
+  private stateChains = new Map<string, Promise<void>>();
+
+  /**
+   * Tells the clients what the conversation's bot is doing now, and which turn runs. One
+   * conversation's states are worked out one after another: each is read from the database, and a
+   * slow read finishing after a later one would otherwise leave a turn that ended shown as running.
+   */
   private emitState(threadId: string, botId: string) {
-    const p = this.services.threads
-      .state(threadId)
+    const before = this.stateChains.get(threadId) ?? Promise.resolve();
+    const p = before
+      .then(() => this.services.threads.state(threadId))
       .then((state) => {
+        const running = [...this.running.values()].find((r) => r.turn.threadId === threadId);
         // A running entry may not be persisted as visible state yet.
-        const live =
-          (this.isRunning(threadId) || this.folding.has(threadId)) && state === 'idle' ? 'running' : state;
-        this.ctx.bus.turn({ threadId, botId, state: live });
+        const live = (running || this.folding.has(threadId)) && state === 'idle' ? 'running' : state;
+        this.ctx.bus.turn({ threadId, botId, state: live, turnId: running?.turn.id ?? null });
       })
       .catch((err) => {
         if (!this.stopped) console.error('turn state', err);
       })
-      .finally(() => this.emits.delete(p));
+      .finally(() => {
+        this.emits.delete(p);
+        if (this.stateChains.get(threadId) === p) this.stateChains.delete(threadId);
+      });
+    this.stateChains.set(threadId, p);
     this.emits.add(p);
+  }
+
+  /** What the turn running in the conversation has shown of its reply; null when none runs. */
+  liveText(threadId: string): LiveText | null {
+    const running = [...this.running.values()].find((r) => r.turn.threadId === threadId);
+    if (!running) return null;
+    return { turnId: running.turn.id, text: running.live?.() ?? '' };
   }
 }

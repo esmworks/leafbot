@@ -187,7 +187,7 @@ export function MessageItem({
       return (
         // The actions sit right under the message; the row's own height takes most of the gap to the next one.
         <div className="group/message -mb-2 flex flex-col" data-message-id={m.id}>
-          {m.props.routineReport === true && <RoutineReportLine m={m} />}
+          {(m.props.routineReport === true || m.props.routineInMain === true) && <RoutineReportLine m={m} />}
           {page ? (
             <BotPage
               botId={botId ?? ''}

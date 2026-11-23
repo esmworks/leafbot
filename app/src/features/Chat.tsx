@@ -91,6 +91,7 @@ import {
 import { useLayout } from '@/lib/layout';
 import { usePaused, usePauseActions } from '@/lib/paused';
 import { PHONE } from '@/lib/media';
+import { useLiveCatchUp } from '@/lib/liveCatchUp';
 import { useUi } from '@/lib/store';
 import { replyElsewhere, useSeen, useThreadSeen } from '@/lib/unread';
 import { FileLinks } from '@/lib/fileLink';
@@ -744,6 +745,8 @@ function Conversation({
   const { data: bots = [] } = useBots();
   const botMap = useMemo(() => new Map(bots.map((b) => [b.id, b])), [bots]);
   const stream = useUi((s) => s.streams[threadId]);
+  // A reply under way when the page opened, or while the socket was down, shows from its start.
+  useLiveCatchUp(threadId);
   const liveState = useUi((s) => s.states[threadId]);
   const state = liveState ?? thread?.state ?? 'idle';
   const [pending, setPending] = useState<Message[]>([]);

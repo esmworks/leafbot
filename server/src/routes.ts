@@ -1224,6 +1224,13 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     await s.threads.row(id);
     return s.threads.messages(id, { before });
   });
+  // What the bot has written so far of the reply it is writing now, for a client that missed some
+  // of it (a reconnect, a page opened mid-reply); null when nothing runs there.
+  app.get('/api/threads/:id/live', async (req) => {
+    const id = IdParams.parse(req.params).id;
+    await s.threads.row(id);
+    return { live: s.turns.liveText(id) };
+  });
   app.post('/api/threads/:id/messages', async (req, reply) => {
     const id = IdParams.parse(req.params).id;
     const thread = await s.threads.row(id);

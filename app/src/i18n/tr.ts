@@ -1398,7 +1398,7 @@ export const tr = {
   'routine.cronInvalid': 'Beş alanlı bir cron ifadesi değil',
   'routine.inMain': 'Ana sohbette çalıştır',
   'routine.inMainHint':
-    'Bot ana sohbette, orada konuştuklarınızı bilerek çalışır; adımları da orada görünür. Kapalıyken rutin kendi sohbetinde çalışır, ana sohbete yalnız raporu düşer.',
+    'Bot ana sohbette, orada konuştuklarınızı bilerek çalışır; adımları da orada görünür. Kapalıyken rutin kendi sohbetinde çalışır, ana sohbete yalnız raporu düşer. WhatsApp okuyan ya da seni bekleyen bir adımı olan rutin ve dışarıdan gelen bir metinle (webhook, e-posta, değişen sayfa) başlayan çalışma yine kendi sohbetinde çalışır; raporu ana sohbete düşer.',
   'routine.onStartup': 'Sunucu açılınca da çalıştır',
   'routine.onStartupHint':
     'Sunucu her açıldığında bir kez çalışır; masaüstü uygulamasında bilgisayarı açıp Leaf Bot’u başlattığınızda.',

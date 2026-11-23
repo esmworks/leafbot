@@ -51,6 +51,7 @@ import { newClientId, useFormat } from '@/lib/format';
 import { useLiveCards } from '@/lib/liveCards';
 import { PHONE } from '@/lib/media';
 import { useBots, useMessages, useRooms } from '@/lib/queries';
+import { useLiveCatchUp } from '@/lib/liveCatchUp';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { useFitHeight } from '@/lib/fitHeight';
@@ -488,6 +489,7 @@ export function RoomView({ room }: { room: Room }) {
   const members = useMembers(room);
   const { data: messages = [], isLoading } = useMessages(room.id);
   const stream = useUi((s) => s.streams[room.id]);
+  useLiveCatchUp(room.id);
   const live = useUi((s) => s.states[room.id]);
   const state = live ?? room.state;
   const busy = state !== 'idle';

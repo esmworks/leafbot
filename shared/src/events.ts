@@ -40,6 +40,11 @@ export interface DeltaEvent {
   /** Appended text for the in-progress assistant message. */
   text: string;
   /**
+   * Where `text` starts in what the turn has shown so far, so a client that missed pieces (a
+   * reconnect, a page opened mid-reply) notices the gap and fetches the text before it.
+   */
+  at?: number;
+  /**
    * The turn's run started over (a retry after a cut or a crash, a fresh session, a backup model):
    * this text replaces what came before instead of being added to it.
    */
@@ -68,6 +73,18 @@ export interface TurnEvent {
   threadId: string;
   botId: string;
   state: TurnState;
+  /**
+   * The turn running in the conversation now, null when none runs. A streamed reply of any other
+   * turn has ended, even when the conversation never came to rest between the two (a message sent
+   * while the bot was busy, or right after a stop). Missing from older servers.
+   */
+  turnId?: string | null;
+}
+
+/** What a running turn has shown of its reply so far, for a client that missed some of it. */
+export interface LiveText {
+  turnId: string;
+  text: string;
 }
 
 /**

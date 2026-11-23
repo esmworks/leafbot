@@ -21,6 +21,8 @@ describe('rutin aksaklıkları', () => {
         name,
         prompt: `${name} işini yap`,
         schedule: { type: 'interval', minutes: 30 },
+        // These runs work in the routine's own conversation, as one that is not in the main one does.
+        inMain: false,
         ...extra,
       })
     ).body;

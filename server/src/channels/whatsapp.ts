@@ -2965,7 +2965,8 @@ export class WhatsAppChannel {
     // copy is the one sent, so it arrives once.
     // So is something the bot kept track of coming up: it is said once, wherever the person talks from.
     const followUp = m.props.followUp === true;
-    const report = m.props.routineReport === true || followUp;
+    // A routine that runs in the person's own conversation writes there what would be its report.
+    const report = m.props.routineReport === true || m.props.routineInMain === true || followUp;
     const headed = () =>
       followUp
         ? `🔔 ${m.text}`

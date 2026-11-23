@@ -1,4 +1,11 @@
-import type { TurnState } from '@leafbot/shared';
+import {
+  addPiece,
+  hasGap,
+  type LiveStream,
+  type LiveText,
+  seedStream,
+  type TurnState,
+} from '@leafbot/shared';
 import { create } from 'zustand';
 
 export type SettingsTab =
@@ -56,10 +63,7 @@ export function sidebarWidthFor(dragged: number): number {
   return Math.round(Math.min(SIDEBAR.max, Math.max(SIDEBAR.min, dragged)));
 }
 
-export interface Stream {
-  turnId: string;
-  text: string;
-}
+export type Stream = LiveStream;
 
 export interface UiState {
   authed: boolean | null;
@@ -165,8 +169,13 @@ export interface UiState {
   openBotPage(page: UiState['botPage']): void;
   openComputer(botId: string | null): void;
   floatComputer(float: boolean): void;
-  /** Adds a turn's next words; `restart` starts its text over, as the run did. */
-  appendStream(threadId: string, turnId: string, text: string, restart?: boolean): void;
+  /**
+   * Adds a turn's next words; `restart` starts its text over, as the run did. `at` is where they
+   * start in the turn's text. True when words before them are missing and must be fetched.
+   */
+  appendStream(threadId: string, turnId: string, text: string, restart?: boolean, at?: number): boolean;
+  /** Starts a conversation's stream from what the server has shown of the running turn. */
+  seedStream(threadId: string, live: LiveText): boolean;
   dropStream(threadId: string, turnId?: string): void;
   /** Notes where cards were asked in their turn's text; a card's first note stays. */
   markCards(cuts: Record<string, number>): void;
@@ -341,12 +350,17 @@ export const useUi = create<UiState>((set, get) => ({
   },
   openComputer: (computerBotId) => set({ computerBotId }),
   floatComputer: (computerFloat) => set({ computerFloat }),
-  appendStream: (threadId, turnId, text, restart) =>
-    set((s) => {
-      const cur = s.streams[threadId];
-      const next = cur && cur.turnId === turnId && !restart ? cur.text + text : text;
-      return { streams: { ...s.streams, [threadId]: { turnId, text: next } } };
-    }),
+  appendStream: (threadId, turnId, text, restart, at) => {
+    const next = addPiece(get().streams[threadId], turnId, { text, at, restart });
+    set((s) => ({ streams: { ...s.streams, [threadId]: next } }));
+    return hasGap(next);
+  },
+  seedStream: (threadId, live) => {
+    const cur = get().streams[threadId];
+    const next = seedStream(cur, live);
+    if (next !== cur) set((s) => ({ streams: { ...s.streams, [threadId]: next } }));
+    return hasGap(next);
+  },
   dropStream: (threadId, turnId) =>
     set((s) => {
       const cur = s.streams[threadId];

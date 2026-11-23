@@ -23,6 +23,7 @@ export * from './ai-endpoints';
 export * from './text-diff';
 export * from './app-mentions';
 export * from './tables';
+export * from './live-stream';
 export * from './stream-parts';
 export * from './email-preview';
 export * from './secret-shapes';

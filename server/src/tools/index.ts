@@ -760,7 +760,7 @@ export class ToolFactory {
           /** Give each run the previous run's report, for "what changed since last time" routines. */
           carry_report: z.boolean().default(false),
           /** Run in the main conversation with the person, with its context, not one of its own. */
-          in_main: z.boolean().default(false),
+          in_main: z.boolean().default(true),
           /** Also run once whenever the server starts (on a desktop: when the computer is turned on). */
           on_startup: z.boolean().default(false),
           /** An https page read before each run with no AI; the routine runs only when it changed. */

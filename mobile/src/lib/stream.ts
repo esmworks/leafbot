@@ -1,25 +1,24 @@
-import type { Message } from '@leafbot/shared';
+import { addPiece, type LiveStream, type Message } from '@leafbot/shared';
 
 /** The reply a bot is writing now, as it arrives over the socket, before it is saved. */
-export interface Stream {
-  turnId: string;
-  text: string;
-}
+export type Stream = LiveStream;
 
 export type Streams = Readonly<Record<string, Stream>>;
 
-/** Adds a piece of a reply; a piece of a new turn starts that conversation's text over. */
+/**
+ * Adds a piece of a reply; a piece of a new turn starts that conversation's text over, and so does
+ * a run that started over (a retry, a fresh session). `at` is where the piece starts in the turn's
+ * text: a piece after missing words waits for them (see `seedStream` in the shared package).
+ */
 export function appendStream(
   streams: Streams,
   threadId: string,
   turnId: string,
   text: string,
   restart = false,
+  at?: number,
 ): Streams {
-  const cur = streams[threadId];
-  // A run that started over (a retry, a fresh session) writes its text again from the start.
-  const next = cur && cur.turnId === turnId && !restart ? cur.text + text : text;
-  return { ...streams, [threadId]: { turnId, text: next } };
+  return { ...streams, [threadId]: addPiece(streams[threadId], turnId, { text, at, restart }) };
 }
 
 /** Drops a conversation's text, only when it is still that turn's if one is named. */

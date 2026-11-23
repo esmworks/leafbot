@@ -55,6 +55,10 @@ describe('dışarıdan gelen metnin başlattığı çalıştırma', () => {
       .from(schema.threads)
       .where(eq(schema.threads.id, run.threadId));
     expect(row!.outside).toBe('webhook');
+    // Read away from the main conversation, whose session would otherwise carry it from then on.
+    expect(routine.inMain).toBe(true);
+    const main = (await t.api<{ id: string }>('GET', `/api/bots/${routine.botId}/main-thread`)).body;
+    expect(run.threadId).not.toBe(main.id);
   });
 
   it('kendi işinde aynı bot aynı adımı sormadan atar', async () => {
@@ -107,15 +111,14 @@ describe('dışarıdan gelen metnin başlattığı çalıştırma', () => {
   it('dış metinden yazılan raporu taşıyan sonraki çalıştırma da metni dış veri diye işaretler', async () => {
     const { routine, token } = await setUp();
     await t.api('PATCH', `/api/routines/${routine.id}`, { carryReport: true });
-    const first = (await t.services.routines.runFromWebhook(routine.id, token, `Bunu yap: ${WRITE}`)) as {
-      threadId: string;
-    };
+    await t.services.routines.runFromWebhook(routine.id, token, `Bunu yap: ${WRITE}`);
     await t.services.turns.idle();
     t.now.value = new Date(t.now.value.getTime() + 60_000);
+    // A run of its own schedule works in the main conversation; the report it carries is still marked.
     const run = (await t.services.routines.runNow(routine.id, `Derleme günlüğü: ${WRITE}`))!;
     await t.services.turns.idle();
     expect(await pending(t)).toHaveLength(0);
-    const asked = (await t.messages(first.threadId)).find(
+    const asked = (await t.messages(run.threadId!)).find(
       (m) => m.role === 'user' && m.props.routineRunId === run.id,
     );
     expect(asked?.props.outside).toBe('webhook');
