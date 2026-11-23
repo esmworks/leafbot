@@ -4,6 +4,9 @@ import {
   type BotSummary,
   type Message,
   type Bot,
+  type DeltaEvent,
+  type LiveText,
+  type TurnEvent,
   type Thread,
 } from '@leafbot/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -529,6 +532,72 @@ describe('sohbet', () => {
     expect(t.engine.requests.map((r) => r.prompt)).toEqual(['[bekle:600]', 'sonra bak']);
     const msg = (await t.messages(thread.id)).find((m) => m.id === extra.id)!;
     expect(msg.props.steering).toBeUndefined();
+  });
+
+  it('bot meşgulken yazılan mesaj kendiliğinden çalışan işe iletilir', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    await t.send(thread.id, '[bekle:800] [araç:memory_search {"query":"x"}]');
+    await waitFor(async () => t.services.turns.isRunning(thread.id));
+    const extra = await t.send(thread.id, 'faturayı da ekle');
+    await t.services.turns.idle();
+    expect(t.engine.requests).toHaveLength(1);
+    const msgs = await t.messages(thread.id);
+    expect(msgs.at(-1)!.text).toContain('faturayı da ekle');
+    const handed = msgs.find((m) => m.id === extra.id)!;
+    expect(handed.turnId).toBe(msgs.at(-1)!.turnId);
+    expect(handed.props.steering).toBeUndefined();
+  });
+
+  it('durdurulan işe yeni mesaj iletilmez; kendi turunda çalışır ve olay yeni turu söyler', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    const events: TurnEvent[] = [];
+    const off = t.services.ctx.bus.on('turn', (e) => {
+      if (e.threadId === thread.id) events.push(e);
+    });
+    await t.send(thread.id, '[söz:Yarım] [bekle:3000] [araç:memory_search {"query":"x"}]');
+    await waitFor(async () => t.services.turns.isRunning(thread.id));
+    const first = t.services.turns.liveText(thread.id)!.turnId;
+    await t.api('POST', `/api/threads/${thread.id}/stop`);
+    const again = await t.send(thread.id, 'baştan söyle');
+    await t.services.turns.idle();
+    off();
+    expect(t.engine.requests.map((r) => r.prompt).at(-1)).toBe('baştan söyle');
+    expect((await t.messages(thread.id)).find((m) => m.id === again.id)!.props.steering).toBeUndefined();
+    // The next turn is named as it starts, so a client drops the stopped turn's text then.
+    expect(events.some((e) => e.state === 'running' && e.turnId === first)).toBe(true);
+    expect(events.some((e) => e.state === 'running' && e.turnId === again.turnId)).toBe(true);
+    expect(events.at(-1)).toMatchObject({ state: 'idle', turnId: null });
+  });
+
+  it('çalışan turun şimdiye dek yazdığı okunur; her parça nereden başladığını söyler', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    const deltas: DeltaEvent[] = [];
+    const off = t.services.ctx.bus.on('delta', (e) => {
+      if (e.threadId === thread.id) deltas.push(e);
+    });
+    expect(
+      (await t.api<{ live: LiveText | null }>('GET', `/api/threads/${thread.id}/live`)).body.live,
+    ).toBeNull();
+    await t.send(thread.id, '[söz:Merhaba] [bekle:600] [söz:dünya]');
+    const live = await waitFor(async () => {
+      const r = await t.api<{ live: LiveText | null }>('GET', `/api/threads/${thread.id}/live`);
+      return r.body.live?.text ? r.body.live : undefined;
+    });
+    expect(live.text).toBe('Merhaba');
+    await t.services.turns.idle();
+    off();
+    expect(deltas[0]).toMatchObject({ turnId: live.turnId, at: 0 });
+    let text = '';
+    for (const d of deltas) {
+      expect(d.at).toBe(text.length);
+      text += d.text;
+    }
+    expect(
+      (await t.api<{ live: LiveText | null }>('GET', `/api/threads/${thread.id}/live`)).body.live,
+    ).toBeNull();
   });
 
   it('karttaki onay beklenirken durdurulursa kart süresi dolar', async () => {

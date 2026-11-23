@@ -232,6 +232,7 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'PATCH /api/threads/:id': manage(),
   'DELETE /api/threads/:id': manage(),
   'GET /api/threads/:id/messages': read(),
+  'GET /api/threads/:id/live': read(),
   'PUT /api/threads/:id/activity': read(),
   'GET /api/threads/:id/turn-changes': read(),
   'POST /api/threads/:id/messages': write(),

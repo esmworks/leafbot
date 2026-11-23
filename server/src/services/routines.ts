@@ -1162,19 +1162,18 @@ export class RoutineService {
     let done = true;
     for (const r of await this.readersOf(chat.jid, chat.kind)) {
       const routine = toRoutine(r);
-      let threadId: string | undefined;
-      if (!routine.inMain) {
-        const person = await this.personOf(routine);
-        const title = `${routine.name} · ${chat.name}`.slice(0, 200);
-        const thread = await this.services.threads.routineThread(
-          routine.botId,
-          title,
-          chat.threads[routine.id] ?? null,
-          person,
-        );
-        threadId = thread.id;
-        if (chat.threads[routine.id] !== thread.id) threads[routine.id] = thread.id;
-      }
+      // Never the main conversation, even for a routine that runs there: one customer's chat would
+      // become the context of another's.
+      const person = await this.personOf(routine);
+      const title = `${routine.name} · ${chat.name}`.slice(0, 200);
+      const thread = await this.services.threads.routineThread(
+        routine.botId,
+        title,
+        chat.threads[routine.id] ?? null,
+        person,
+      );
+      const threadId = thread.id;
+      if (chat.threads[routine.id] !== thread.id) threads[routine.id] = thread.id;
       const payload = payloadFor(r.botId);
       const run = await this.fire(
         routine,
@@ -1218,7 +1217,13 @@ export class RoutineService {
     const text = payload.trim()
       ? cutAt(payload.trim(), POST_MAX)
       : t('routine.postEmpty', { name: routine.name });
-    const props = { routineRunId: run.id, routineName: routine.name, posted: true };
+    const props = {
+      routineRunId: run.id,
+      routineName: routine.name,
+      posted: true,
+      // Posted in the person's own conversation: chat apps send it as the routine's report.
+      ...(thread.kind === 'user' && { routineInMain: true }),
+    };
     await this.services.threads.addMessage({
       threadId: thread.id,
       role: 'assistant',
@@ -1245,7 +1250,17 @@ export class RoutineService {
    * Where a routine's runs work: the bot's main conversation, or the routine's own, reused. A run
    * made while the routine ran in the main conversation does not make that one its own.
    */
-  private async threadFor(routine: Routine, botId: string) {
+  private async threadFor(
+    routine: Routine,
+    botId: string,
+    /**
+     * Started by text from outside (a webhook's body, a mail, a changed page). It is read in the
+     * routine's own conversation even for one that runs in the main one: the main conversation's
+     * session would carry that text from then on, and the person's words there could answer the
+     * cards it raised. Its report reaches the main conversation as any report does.
+     */
+    outsideRun = false,
+  ) {
     // One reporting to a Slack channel runs as a team conversation, which uses only what the team
     // shares; a routine moved there starts a conversation of its own, not one that read its
     // person's own data.
@@ -1267,7 +1282,9 @@ export class RoutineService {
     }
     // Its runs bring in its person's profile, notes and apps: they happen where only they look.
     const person = await this.personOf(routine);
-    if (routine.inMain) {
+    // One that stops for the person stays out of it: a run held for days would keep the main
+    // conversation busy, and the person's words there would be read as answers to its cards.
+    if (routine.inMain && !holdsRuns(routine) && !outsideRun) {
       return this.services.threads.row((await this.services.threads.main(botId, person)).id);
     }
     // A routine that stops for the person keeps each run in a conversation of its own: a run held for
@@ -1401,7 +1418,7 @@ export class RoutineService {
       ? await this.services.threads.row(threadId)
       : own
         ? null
-        : await this.threadFor(routine, bot.id);
+        : await this.threadFor(routine, bot.id, !!(check?.trigger ?? outside));
     let run: typeof schema.routineRuns.$inferSelect;
     try {
       [run] = (await this.ctx.db

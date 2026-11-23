@@ -57,13 +57,9 @@ describe('kodlama ajanıyla çalışan botlar', () => {
     ).body;
     await t.api('POST', `/api/routines/${routine.id}/run`);
     await t.services.turns.idle();
-    // The routine's run never reached the agent.
+    // The routine's run never reached the agent; why is said where it runs, the main conversation.
     expect(t.engine.requests).toHaveLength(1);
-    const runs = (await t.api<Thread[]>('GET', `/api/bots/${bot.id}/threads`)).body.filter(
-      (x) => x.kind === 'routine',
-    );
-    expect(runs.length).toBeGreaterThan(0);
-    expect((await last(runs[0]!.id)).text).toContain('yalnızca sunucunun sahibinin kendi mesajlarını');
+    expect((await last(thread.id)).text).toContain('yalnızca sunucunun sahibinin kendi mesajlarını');
   });
 
   it('yöneticinin aracıyla bir bot ajana geçirilemez', async () => {
