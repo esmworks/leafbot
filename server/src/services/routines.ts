@@ -281,6 +281,8 @@ export class RoutineService {
         .values({
           id: newId(),
           ...input,
+          // A routine brought back from an older record has no such field.
+          reportOnly: input.reportOnly ?? false,
           createdByUserId: userId,
           nextRunAt: input.enabled ? nextRun(input.schedule, input.timezone, now) : null,
         })
@@ -1850,13 +1852,27 @@ export class RoutineService {
         payload,
         report,
         saveHint(snapshotSteps(run.stepsSnapshot) ?? [], 0, t),
+        !!routine.reportOnly,
       ),
       routineRunId: run.id,
       // Its runs work for whoever set it up; one from before people came in, for the bot's owner.
       ...(routine.createdByUserId && { userId: routine.createdByUserId }),
+      ...reportCap(routine.reportOnly),
     });
     // A run of a routine with steps keeps how each went, its own instruction first.
     if (run.stepsSnapshot) await this.stepStarted(run.id, 0, 'prompt', turn.id);
+  }
+
+  /**
+   * Whether the routine only looks and reports, read as each step starts so a run held for days
+   * keeps to what the routine says now; one that cannot be read is held back, not let go.
+   */
+  private async reportOnly(routineId: string): Promise<boolean> {
+    const [row] = await this.ctx.db
+      .select({ reportOnly: schema.routines.reportOnly })
+      .from(schema.routines)
+      .where(eq(schema.routines.id, routineId));
+    return row?.reportOnly ?? true;
   }
 
   /** Records that the run's step at `position` is under way, once more for one tried again. */
@@ -1900,6 +1916,7 @@ export class RoutineService {
       text: step.prompt,
       props: { routineRunId: run.id, routineName, routineStep: position },
     });
+    const reportOnly = await this.reportOnly(run.routineId);
     const parts = [
       ...(note ? [note] : []),
       t('routine.stepPrompt', {
@@ -1911,6 +1928,7 @@ export class RoutineService {
       }),
       ...(before?.trim() ? [t('routine.stepBefore', { text: fence(cutAt(before.trim(), REPORT_MAX)) })] : []),
       ...saveHint(steps, position, t),
+      ...(reportOnly ? [t('routine.reportOnly')] : []),
     ];
     const turn = await this.services.turns.enqueue({
       threadId: run.threadId,
@@ -1919,6 +1937,7 @@ export class RoutineService {
       prompt: parts.join('\n\n'),
       routineRunId: run.id,
       ...(run.userId && { userId: run.userId }),
+      ...reportCap(reportOnly),
     });
     await this.stepStarted(run.id, position, step.kind, turn.id);
   }
@@ -2581,9 +2600,11 @@ export class RoutineService {
       await this.startStep(run, routineName, steps, position, handedOn(steps, rows, position), t, note);
       return;
     }
+    const reportOnly = await this.reportOnly(run.routineId);
     const prompt = [
       t('routine.prompt', { name: routineName, prompt: promptSnapshot, silent: SILENT_REPLY }),
       ...saveHint(steps, 0, t),
+      ...(reportOnly ? [t('routine.reportOnly')] : []),
     ].join('\n\n');
     await this.ctx.db
       .update(schema.routineRuns)
@@ -2596,6 +2617,7 @@ export class RoutineService {
       prompt: `${note}\n\n${prompt}`,
       routineRunId: run.id,
       ...(run.userId && { userId: run.userId }),
+      ...reportCap(reportOnly),
     });
     await this.stepStarted(run.id, 0, 'prompt', turn.id);
   }
@@ -3222,13 +3244,27 @@ export function routinePrompt(
   report: { text: string; at: string } | null,
   /** What a routine with steps tells the bot about saving its step's result; none for a rehearsal. */
   hints: string[] = [],
+  /** The routine only looks and reports: the bot is told it may change nothing. */
+  reportOnly = false,
 ): string {
-  const base = [t('routine.prompt', { name, prompt, silent: SILENT_REPLY }), ...hints].join('\n\n');
+  const base = [
+    t('routine.prompt', { name, prompt, silent: SILENT_REPLY }),
+    ...hints,
+    ...(reportOnly ? [t('routine.reportOnly')] : []),
+  ].join('\n\n');
   const full = report
     ? `${base}\n\n${t('routine.lastReport', { at: report.at, report: fence(report.text) })}`
     : base;
   return payload ? `${full}\n\n${t('routine.payload', { payload })}` : full;
 }
+
+/**
+ * What a turn of a report-only routine is enqueued with: held to reading, so a step that would
+ * change something is refused whatever the bot's own level is. Every turn of the run carries it,
+ * the person's own turns in the same conversation do not (the cap belongs to the turn).
+ */
+export const reportCap = (reportOnly: boolean | undefined) =>
+  reportOnly ? { modeCap: 'readonly' as const } : {};
 
 /** Whether a run is the routine's own scheduled one, with no outside text that started it. */
 const ownSlot = (run: { scheduled: boolean; outside: string | null }) => run.scheduled && !run.outside;

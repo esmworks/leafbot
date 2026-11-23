@@ -1387,6 +1387,10 @@ export const tr = {
   'routine.webhookRenew': 'Yeni adres',
   'routine.webhookLocalOnly':
     'Bu adres yalnız bu bilgisayarda çalışır. Rutini internetteki bir servisten başlatmak için sunucuyu o servisin ulaşabileceği bir yerde çalıştırın ve LEAFBOT_PUBLIC_URL ayarlayın.',
+  'routine.reportOnly': 'Yalnız bana haber ver',
+  'routine.reportOnlyHint':
+    'Rutin, botun başka yerlerde ne yapabildiğine bakmadan yalnızca bakar ve rapor eder: bir şeyi değiştirecek adım (gönderme, tıklama, yazma, düzenleme, yazan bağlı bir uygulama) reddedilir ve bot bunun yerine bulduğunu sana anlatır.',
+  'routine.reportOnlyShort': 'yalnız haber verir',
   'routine.carryReport': 'Son raporun üzerine kur',
   'routine.carryReportHint':
     'Her çalıştırma botun geçen sefer yazdığını görür; baştan başlamak yerine neyin değiştiğini söyler.',

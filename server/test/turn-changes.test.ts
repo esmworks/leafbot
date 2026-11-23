@@ -159,6 +159,7 @@ describe('taking back what one turn changed', () => {
       enabled: true,
       missed: 'run',
       carryReport: false,
+      reportOnly: false,
       inMain: false,
       slackChannel: null,
       slackReaction: 'eyes',

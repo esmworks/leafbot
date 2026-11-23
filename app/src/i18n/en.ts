@@ -1421,6 +1421,10 @@ export const en: Catalog<MessageKey> = {
   'routine.webhookRenew': 'New address',
   'routine.webhookLocalOnly':
     'This address only works on this computer. To start the routine from a service on the internet, run the server where that service can reach it and set LEAFBOT_PUBLIC_URL.',
+  'routine.reportOnly': 'Only tell me',
+  'routine.reportOnlyHint':
+    'The routine only looks and reports, whatever the bot may do elsewhere: a step that would change something (sending, clicking, typing, editing, a connected app that writes) is refused, and the bot tells you what it found instead.',
+  'routine.reportOnlyShort': 'only tells me',
   'routine.carryReport': 'Build on the last report',
   'routine.carryReportHint':
     'Each run gets what the bot wrote last time, so it can say what changed instead of starting over.',

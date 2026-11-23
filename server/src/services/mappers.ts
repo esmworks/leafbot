@@ -166,6 +166,7 @@ export const toRoutine = (r: Row<typeof schema.routines>): Routine => ({
   webhookSecretSet: !!r.webhookSecret,
   missed: r.missed,
   carryReport: r.carryReport,
+  reportOnly: r.reportOnly,
   inMain: r.inMain,
   slackChannel: r.slackChannel,
   slackReaction: r.slackReaction,

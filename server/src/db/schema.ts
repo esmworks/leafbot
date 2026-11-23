@@ -573,6 +573,12 @@ export const routines = pgTable('routines', {
   /** Runs in the bot's main conversation, with its context, instead of a conversation of its own. */
   inMain: boolean('in_main').notNull().default(true),
   /**
+   * The routine only looks and reports: every turn of its runs is held to reading (`modeCap` of
+   * `readonly`), whatever the bot's own level is, so the person can let a bot watch something
+   * without worrying what it might do. A step that would change something is refused, not asked.
+   */
+  reportOnly: boolean('report_only').notNull().default(false),
+  /**
    * The Slack channel its reports go to; null for none. Such a routine runs in a team conversation:
    * what goes to a channel is written from what the team shares, never from one person's own data.
    */
