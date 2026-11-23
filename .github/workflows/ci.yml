@@ -22,8 +22,7 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # The browser tests now start Chrome on the runner and take longer than the old 20 minutes.
-    timeout-minutes: 45
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -39,6 +38,29 @@ jobs:
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: pnpm build
+
+  # The suite has about 2,200 tests; most server tests start a server and the browser tests start
+  # Chrome. On one runner the tests took over 18 minutes and the job hit its time limit, so the test
+  # files are split over three runners that run side by side.
+  test:
+    name: test (${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
       # Build before the tests: the desktop tests start the built server.
       - run: pnpm build
       # Ubuntu 24.04 lets AppArmor block unprivileged user namespaces, so Chrome's sandbox cannot
@@ -47,7 +69,7 @@ jobs:
       - name: Let Chrome start its sandbox
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       # The hanging-process reporter names whatever keeps a test worker from exiting, should one hang.
-      - run: pnpm test --reporter=default --reporter=hanging-process
+      - run: pnpm exec vitest run --shard=${{ matrix.shard }}/3 --reporter=default --reporter=hanging-process
         env:
           # Name the runner's Chrome, so a missing browser fails the browser tests instead of
           # skipping them without a word.
