@@ -1,5 +1,6 @@
 packages:
   - shared
+  - client
   - server
   - app
   - desktop

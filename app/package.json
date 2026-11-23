@@ -13,6 +13,7 @@
     "@hookform/resolvers": "7.0.6",
     "@novnc/novnc": "1.7.0",
     "@tanstack/react-query": "5.107.1",
+    "@leafbot/client": "workspace:*",
     "@leafbot/shared": "workspace:*",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

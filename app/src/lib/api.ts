@@ -1,218 +1,78 @@
-import type {
-  BotAction,
-  LinkPreview,
-  TailscaleState,
-  PersonComputerState,
-  AcpAgentState,
-  TurnChanges,
-  RoutineSuggestion,
-  RoutineSuggestionAccept,
-  SkillSuggestion,
-  SkillSuggestionAccept,
-  DoctorCheckId,
-  DoctorReport,
-  ReplayResult,
-  TaughtStep,
-  PermissionSuggestions,
-  BotTable,
-  RowValues,
-  TableRow,
-  TelegramStatus,
-  DiscordConnect,
-  DiscordStatus,
-  DiscordUpdate,
-  SlackConnect,
-  SlackLink,
-  TeamsConnect,
-  TeamsLink,
-  TeamsStatus,
-  SlackStatus,
-  WhatsAppSet,
-  WhatsAppGroup,
-  WhatsAppStatus,
-  ApnsSet,
-  RoutineGateMode,
-  ApnsStatus,
-  PushDeviceSet,
-  SkillWarning,
-  Room,
-  Meeting,
-  MeetingAnswer,
-  MeetingSave,
-  RoomCreate,
-  RoomUpdate,
-  BotImportPlan,
-  BotImportResult,
-  GrokTemplateCard,
-  Approval,
-  Bot,
-  BotSummary,
-  SessionInfo,
-  AccountSet,
-  TodayReport,
-  Group,
-  MailSender,
-  LiveText,
-  Memory,
-  MemoryChange,
-  MemoryFlag,
-  MemoryHistoryLine,
-  Message,
-  PermissionRule,
-  Approver,
-  SecondYes,
-  ProviderInfo,
-  ModelInfo,
-  CustomEndpointCreate,
-  CustomEndpointUpdate,
-  Routine,
-  Skill,
-  SkillChange,
-  SkillCreate,
-  SkillUpdate,
-  RoutineRevision,
-  Rehearsal,
-  RehearsalStart,
-  ReplayableRun,
-  RoutineRun,
-  SearchHit,
-  ServerInfo,
-  Thread,
-  Locale,
-  PasswordManager,
-  PasswordManagerCreate,
-  PasswordManagerUpdate,
-  PaymentCard,
-  PaymentCardCreate,
-  PaymentCardUpdate,
-  VaultImport,
-  VaultImportResult,
-  VaultLogin,
-  VaultLoginCreate,
-  VaultLoginUpdate,
-  BotMove,
-  GroupMove,
-  ProfileFocus,
-  ProfileHelp,
-  ClaudeAuthSet,
-  ClaudeAuthStatus,
-  ClaudeModel,
-  Effort,
-  Connection,
-  ConnectionAuthStart,
-  ConnectionBots,
-  ConnectionCreate,
-  ConnectionToolPatch,
-  ConnectionUpdate,
-  UsageRange,
-  UsageReport,
-  ProviderSignIn,
-  PageShare,
-  ApiCredential,
-  ApiCredentialCreate,
-  ApiCredentialUpdate,
-  ApiKeyImport,
-  TrapKeyCreate,
-  ApiKeyImportResult,
-  EmailSettings,
-  AiEndpoint,
-  AiEndpoints,
-  AiEndpointSet,
-  AiKind,
-  PluginInstall,
-  PluginInstallResult,
-  PluginPlan,
-  ApiSource,
-  ApiSourceCreate,
-  Ticket,
-  TicketCreate,
-  TicketUpdate,
-  SessionUser,
-  PersonInfo,
-  PersonCreate,
-  PersonUpdate,
-  BotAccess,
-  StorageReport,
-} from '@leafbot/shared';
+import {
+  ApiError,
+  NoAnswerError,
+  endpoints,
+  readAnswer,
+  type SendOptions,
+  type UploadOptions,
+} from '@leafbot/client';
 import { getT, useLocale } from '@/i18n';
 
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-    /** The answer came from this server with its reason; false for a proxy's error page. */
-    public fromServer = true,
-  ) {
-    super(message);
-  }
-}
+export { ApiError, NoAnswerError };
+export type { JobView, LibraryFile, Settings } from '@leafbot/client';
 
 let onUnauthorized: () => void = () => {};
 export function setUnauthorizedHandler(fn: () => void) {
   onUnauthorized = fn;
 }
 
-async function request<T>(
-  method: string,
-  path: string,
-  body?: unknown,
-  extra: Record<string, string> = {},
-): Promise<T> {
-  const hasBody = method !== 'GET' && method !== 'DELETE';
-  // The server writes its error messages in the language the page asks in.
-  const headers: Record<string, string> = { ...extra, 'accept-language': useLocale.getState().locale };
+/** Headers every request carries, with a body's type unless `extra` names another. */
+function headersFor(method: string, body: unknown, extra: Record<string, string> = {}) {
+  const headers: Record<string, string> = {};
   // A file goes as it is; everything else as JSON.
-  const raw = body instanceof Blob;
-  if (hasBody) headers['content-type'] = raw ? 'application/octet-stream' : 'application/json';
-  const payload = hasBody ? (raw ? body : JSON.stringify(body ?? {})) : undefined;
+  if (method !== 'GET' && method !== 'DELETE')
+    headers['content-type'] = body instanceof Blob ? 'application/octet-stream' : 'application/json';
+  // The server writes its error messages in the language the page asks in.
+  return { ...headers, ...extra, 'accept-language': useLocale.getState().locale };
+}
+
+async function request<T>(method: string, path: string, body?: unknown, opts: SendOptions = {}): Promise<T> {
+  if (opts.onProgress && body instanceof Blob) return sendFile<T>(method, path, body, opts);
+  const hasBody = method !== 'GET' && method !== 'DELETE';
+  const headers = headersFor(method, body, opts.headers);
+  const payload = hasBody ? (body instanceof Blob ? body : JSON.stringify(body ?? {})) : undefined;
   let res: Response;
   let text: string;
   // Only a request that got no answer (or lost it on the way) is told apart as such: a mistake
   // made here before sending is thrown as it is.
   try {
-    res = await fetch(path, { method, credentials: 'same-origin', headers, body: payload });
+    res = await fetch(path, {
+      method,
+      credentials: 'same-origin',
+      headers,
+      body: payload,
+      ...(opts.keepalive && { keepalive: true }),
+      ...(opts.signal && { signal: opts.signal }),
+    });
     text = await res.text();
   } catch (err) {
+    if (opts.signal?.aborted) throw err;
     throw new NoAnswerError(err instanceof Error ? err.message : String(err));
   }
-  let data: unknown = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    data = null;
-  }
+  const { data, reason } = readAnswer(text);
   if (!res.ok) {
     if (res.status === 401 && path !== '/api/access' && path !== '/api/login') onUnauthorized();
-    const reason = (data as { error?: unknown } | null)?.error;
-    const message =
-      typeof reason === 'string' ? reason : getT()('error.requestFailed', { status: res.status });
-    throw new ApiError(res.status, message, typeof reason === 'string');
+    throw new ApiError(
+      res.status,
+      reason ?? getT()('error.requestFailed', { status: res.status }),
+      reason !== null,
+    );
   }
   return data as T;
-}
-
-/** A request that got no answer at all: the connection dropped or the server was not there. */
-export class NoAnswerError extends Error {
-  /** Read by the shared upload retry, which sees this error as "no answer". */
-  readonly noAnswer = true;
 }
 
 /**
  * Sends a file the way {@link request} does, but reports how much of it has gone up (`part`, 0 to
  * 1) and can be called off with `signal`; fetch can do neither for an upload.
  */
-function sendFile<T>(
-  path: string,
-  file: Blob,
-  opts: { onProgress?: (part: number) => void; signal?: AbortSignal },
-): Promise<T> {
+function sendFile<T>(method: string, path: string, file: Blob, opts: SendOptions): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     if (opts.signal?.aborted) return reject(new DOMException('Aborted', 'AbortError'));
     const xhr = new XMLHttpRequest();
-    xhr.open('POST', path);
+    xhr.open(method, path);
     xhr.withCredentials = true;
-    xhr.setRequestHeader('content-type', 'application/octet-stream');
-    xhr.setRequestHeader('accept-language', useLocale.getState().locale);
+    for (const [name, value] of Object.entries(headersFor(method, file, opts.headers)))
+      xhr.setRequestHeader(name, value);
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && e.total > 0) opts.onProgress?.(e.loaded / e.total);
     };
@@ -229,550 +89,23 @@ function sendFile<T>(
     };
     xhr.onload = () => {
       done();
-      let data: unknown = null;
-      try {
-        data = xhr.responseText ? JSON.parse(xhr.responseText) : null;
-      } catch {
-        data = null;
-      }
+      const { data, reason } = readAnswer(xhr.responseText);
       if (xhr.status >= 200 && xhr.status < 300) return resolve(data as T);
       if (xhr.status === 401) onUnauthorized();
-      const message =
-        (data as { error?: string } | null)?.error ?? getT()('error.requestFailed', { status: xhr.status });
-      reject(new ApiError(xhr.status, message));
+      reject(new ApiError(xhr.status, reason ?? getT()('error.requestFailed', { status: xhr.status })));
     };
     xhr.send(file);
   });
 }
 
-export const http = {
-  get: <T>(p: string) => request<T>('GET', p),
-  post: <T>(p: string, b?: unknown) => request<T>('POST', p, b),
-  patch: <T>(p: string, b?: unknown) => request<T>('PATCH', p, b),
-  put: <T>(p: string, b?: unknown) => request<T>('PUT', p, b),
-  del: <T>(p: string) => request<T>('DELETE', p),
-};
+const shared = endpoints(request);
 
-export interface LibraryFile {
-  path: string;
-  name: string;
-  size: number;
-  modifiedAt: string;
-}
-export interface JobView {
-  job: {
-    id: string;
-    status: string;
-    fromBotId: string;
-    toBotId: string;
-    /** The other bot's conversation the exchange happens in. */
-    toThreadId: string;
-    request: string;
-    reply: string | null;
-  };
-  messages: Message[];
-}
-export interface Settings {
-  userName: string;
-  /** Profile fields and `onboarded` are missing on servers older than the first-run questions. */
-  addressAs?: string;
-  occupation?: string;
-  focus?: ProfileFocus;
-  helpWith?: ProfileHelp[];
-  aboutMe?: string;
-  onboarded?: boolean;
-  /** Claude defaults; missing on older servers. Empty leaves it to the server or the model. */
-  defaultModel?: string;
-  effort?: Effort | '';
-  defaultEngine?: 'claude' | 'pi';
-  /** `provider/model` new bots on another provider start with. */
-  piModel?: string;
-  /** `provider/model` that carries a turn once the usage limit is spent; empty waits instead. */
-  backupModel?: string;
-  /** Tokens at which a Claude bot folds the conversation into a summary; 0 leaves it to Claude. Missing on older servers. */
-  claudeCompactWindow?: number;
-  /** Long conversations are summarised while idle, before the size above is reached. Missing on older servers. */
-  idleCompact?: boolean;
-  /** The most the bots may spend in a day, in US dollars; 0 for none. Missing on older servers. */
-  dailyLimitUsd?: number;
-  timezone: string;
-  /** The most the bots may spend in a calendar month, in US dollars; 0 for none. Missing on older servers. */
-  monthlyLimitUsd?: number;
-  /** The routine pre-check; missing on older servers. */
-  routineGate?: RoutineGateMode;
-  maxTurns?: number;
-  /** Finished turns between two looks back at a conversation for lasting facts; 0 is off. Missing on older servers. */
-  memoryReviewEvery?: number;
-  /** Whether the person's own requests are looked at for something asked again and again; missing on older servers. */
-  routineSuggestions?: boolean;
-  /** The promise safety net after a bot's reply; missing on older servers. */
-  promiseKeeper?: boolean;
-  /** The time of day a reminder of the person's own promise arrives (HH:MM); missing on older servers. */
-  promiseRemindAt?: string;
-  /** The bots' browsers go out through the person's own computer; missing on older servers. */
-  browserViaComputer?: boolean;
-  modelTitles?: boolean;
-  workOffers?: boolean;
-  /** The domain bots receive mail at; empty when mail is off. Missing on older servers. */
-  emailDomain?: string;
-  /** Unset until a language is chosen; the app then stores the one it opened in. */
-  language?: Locale;
-}
-
-/** Typed endpoints. Paths mirror the server routes. */
+/** Typed endpoints of the server this page came from. */
 export const api = {
-  /** `account` is missing on servers older than username and password sign-in. */
-  session: () => http.get<{ authenticated: boolean; account?: boolean; user?: SessionUser }>('/api/session'),
-  /** Signs this browser in with a one-time pairing code from a signed-in device. */
-  pair: (code: string) => http.post<{ ok: true }>('/api/pair', { code }),
-  /** A one-time code that signs one more device in within five minutes. */
-  pairingCode: () => http.post<{ code: string; expiresAt: string; url: string | null }>('/api/pairing'),
-  access: (key: string) => http.post<{ ok: true }>('/api/access', { key }),
-  login: (username: string, password: string) =>
-    http.post<{ ok: true }>('/api/login', { username, password }),
-  account: () => http.get<{ username: string | null }>('/api/account'),
-  setAccount: (input: AccountSet) => http.put<{ username: string }>('/api/account', input),
-  logout: () => http.post<{ ok: true }>('/api/logout'),
-  sessions: () => http.get<SessionInfo[]>('/api/sessions'),
-  /** Signs out one device, or with `others` every device but this one. */
-  endSession: (id: string | 'others') =>
-    http.del<{ ended: number }>(`/api/sessions/${encodeURIComponent(id)}`),
-  info: () => http.get<ServerInfo>('/api/info'),
-  checkClaude: () => http.post<ServerInfo['claude']>('/api/info/claude-check'),
-  claudeAuth: () => http.get<ClaudeAuthStatus>('/api/claude/auth'),
-  /** Saves a token or key, then tries it with one real request. */
-  setClaudeAuth: (b: ClaudeAuthSet) => http.put<ServerInfo['claude']>('/api/claude/auth', b),
-  clearClaudeAuth: () => http.del<ServerInfo['claude']>('/api/claude/auth'),
-  claudeModels: () => http.get<ClaudeModel[]>('/api/claude/models'),
-  /** This phone's push token and choices; the server sends notices that pass them. */
-  pushDevice: (b: PushDeviceSet) => http.put<{ ok: true }>('/api/push/device', b),
-  pushTest: (token: string) => http.post<{ ok: true }>('/api/push/test', { token }),
-  /** The Apple key for iPhone notifications; write-only, reads say only which key it is. */
-  apns: () => http.get<ApnsStatus>('/api/push/apns'),
-  setApns: (b: ApnsSet) => http.put<ApnsStatus>('/api/push/apns', b),
-  clearApns: () => http.del<ApnsStatus>('/api/push/apns'),
-  /** A bot's own Telegram bot: never the token, which is write-only. */
-  telegram: (botId: string) => http.get<TelegramStatus>(`/api/bots/${botId}/telegram`),
-  connectTelegram: (botId: string, token: string) =>
-    http.put<TelegramStatus>(`/api/bots/${botId}/telegram`, { token }),
-  pairTelegram: (botId: string) => http.post<TelegramStatus>(`/api/bots/${botId}/telegram/pair`, {}),
-  updateTelegram: (botId: string, patch: { notices: boolean }) =>
-    http.patch<TelegramStatus>(`/api/bots/${botId}/telegram`, patch),
-  disconnectTelegram: (botId: string) => http.del<{ ok: true }>(`/api/bots/${botId}/telegram`),
-  whatsapp: () => http.get<WhatsAppStatus>('/api/whatsapp'),
-  setWhatsapp: (b: WhatsAppSet) => http.put<WhatsAppStatus>('/api/whatsapp', b),
-  linkWhatsapp: () => http.post<WhatsAppStatus>('/api/whatsapp/link', {}),
-  whatsappGroups: () => http.get<WhatsAppGroup[]>('/api/whatsapp/groups'),
-  disconnectWhatsapp: () => http.del<WhatsAppStatus>('/api/whatsapp'),
-  slack: () => http.get<SlackStatus>('/api/slack'),
-  connectSlack: (b: SlackConnect) => http.put<SlackStatus>('/api/slack', b),
-  updateSlack: (b: { botId: string | null }) => http.patch<SlackStatus>('/api/slack', b),
-  disconnectSlack: () => http.del<{ ok: true }>('/api/slack'),
-  slackLink: () => http.get<SlackLink>('/api/slack/me'),
-  slackCode: () => http.post<SlackLink>('/api/slack/me/code', {}),
-  slackUnlink: () => http.del<SlackLink>('/api/slack/me'),
-  teams: () => http.get<TeamsStatus>('/api/teams'),
-  connectTeams: (b: TeamsConnect) => http.put<TeamsStatus>('/api/teams', b),
-  updateTeams: (b: { botId: string | null }) => http.patch<TeamsStatus>('/api/teams', b),
-  disconnectTeams: () => http.del<{ ok: true }>('/api/teams'),
-  teamsLink: () => http.get<TeamsLink>('/api/teams/me'),
-  teamsCode: () => http.post<TeamsLink>('/api/teams/me/code', {}),
-  teamsUnlink: () => http.del<TeamsLink>('/api/teams/me'),
-  discord: () => http.get<DiscordStatus>('/api/discord'),
-  connectDiscord: (b: DiscordConnect) => http.put<DiscordStatus>('/api/discord', b),
-  updateDiscord: (b: DiscordUpdate) => http.patch<DiscordStatus>('/api/discord', b),
-  disconnectDiscord: () => http.del<{ ok: true }>('/api/discord'),
-  settings: () => http.get<Settings>('/api/settings'),
-  updateSettings: (p: Partial<Settings>) => http.patch<Settings>('/api/settings', p),
-  people: () => http.get<PersonInfo[]>('/api/people'),
-  addPerson: (p: PersonCreate) => http.post<PersonInfo>('/api/people', p),
-  updatePerson: (id: string, p: PersonUpdate) => http.patch<PersonInfo>(`/api/people/${id}`, p),
-  removePerson: (id: string) => http.del<{ ok: true }>(`/api/people/${id}`),
-  setBotAccess: (id: string, access: BotAccess) => http.put<Bot>(`/api/bots/${id}/access`, access),
-  providers: () => http.get<ProviderInfo[]>('/api/providers'),
-  providerModels: (id: string) => http.get<string[]>(`/api/providers/${encodeURIComponent(id)}/models`),
-  providerModelInfo: (id: string) =>
-    http.get<ModelInfo[]>(`/api/providers/${encodeURIComponent(id)}/model-info`),
-  setProviderKey: (id: string, key: string) =>
-    http.put<{ ok: true }>(`/api/providers/${encodeURIComponent(id)}/key`, { key }),
-  testProviderModel: (id: string, model: string) =>
-    http.post<{ ok: true } | { ok: false; detail: string }>(`/api/providers/${encodeURIComponent(id)}/test`, {
-      model,
-    }),
-  removeProviderKey: (id: string) => http.del<{ ok: true }>(`/api/providers/${encodeURIComponent(id)}/key`),
-  /** Starts signing in to a provider with the person's plan; follow it with `signIn`. */
-  startSignIn: (provider: string, enterprise?: string) =>
-    http.post<ProviderSignIn>(`/api/providers/${encodeURIComponent(provider)}/sign-in`, { enterprise }),
-  signIn: (id: string) => http.get<ProviderSignIn>(`/api/sign-ins/${id}`),
-  pasteSignIn: (id: string, input: string) =>
-    http.post<ProviderSignIn>(`/api/sign-ins/${id}/paste`, { input }),
-  cancelSignIn: (id: string) => http.del<{ ok: true }>(`/api/sign-ins/${id}`),
-  signOut: (provider: string) =>
-    http.del<{ ok: true }>(`/api/providers/${encodeURIComponent(provider)}/sign-in`),
-  addEndpoint: (input: CustomEndpointCreate) => http.post<ProviderInfo>('/api/providers/custom', input),
-  discoverEndpoints: () =>
-    http.get<{ name: string; baseUrl: string; models: string[] }[]>('/api/providers/discover'),
-  updateEndpoint: (id: string, patch: CustomEndpointUpdate) =>
-    http.patch<ProviderInfo>(`/api/providers/${encodeURIComponent(id)}`, patch),
-  refreshEndpoint: (id: string) =>
-    http.post<string[]>(`/api/providers/${encodeURIComponent(id)}/refresh`, {}),
-  removeEndpoint: (id: string) => http.del<{ ok: true }>(`/api/providers/${encodeURIComponent(id)}`),
-
-  bots: () => http.get<Bot[]>('/api/bots'),
-  bot: (id: string) => http.get<Bot>(`/api/bots/${id}`),
-  createBot: (b: unknown) => http.post<Bot>('/api/bots', b),
-  updateBot: (id: string, b: unknown) => http.patch<Bot>(`/api/bots/${id}`, b),
-  checkInstructionsDoc: (id: string) => http.post<Bot>(`/api/bots/${id}/instructions/check`, {}),
-  acceptInstructionsDoc: (id: string, expected: string) =>
-    http.post<Bot>(`/api/bots/${id}/instructions/accept`, { expected }),
-  declineInstructionsDoc: (id: string) => http.post<Bot>(`/api/bots/${id}/instructions/decline`, {}),
-  /** Moves every active bot to what new bots start with; says how many changed. */
-  moveBotsToNewEngine: () => http.post<{ changed: number }>('/api/bots/engine'),
-  archiveBot: (id: string) => http.post<Bot>(`/api/bots/${id}/archive`),
-  botSpend: (id: string) => http.get<{ dayUsd: number; monthUsd: number }>(`/api/bots/${id}/spend`),
-  pauseBot: (id: string, paused: boolean) => http.post<Bot>(`/api/bots/${id}/pause`, { paused }),
-  pauseAllBots: (paused: boolean) => http.post<{ count: number }>('/api/bots/pause-all', { paused }),
-  today: () => http.get<TodayReport>('/api/today'),
-  /** Pins a message above its conversation; null takes the pin away. */
-  pinMessage: (threadId: string, messageId: string | null) =>
-    http.put<Thread>(`/api/threads/${threadId}/pin`, { messageId }),
-  /** A new conversation copied from this message's up to it. */
-  forkFrom: (messageId: string) => http.post<Thread>(`/api/messages/${messageId}/fork`),
-  updateThread: (
-    id: string,
-    patch: {
-      title?: string;
-      archived?: boolean;
-      snoozedUntil?: string | null;
-      pinned?: boolean;
-      icon?: string;
-    },
-  ) => http.patch<Thread>(`/api/threads/${id}`, patch),
-  /** Sets what a conversation is for; empty clears it. */
-  setGoal: (threadId: string, goal: string) => http.patch<Thread>(`/api/threads/${threadId}`, { goal }),
-  /** Deletes every conversation of the bot but its main one. */
-  clearThreads: (botId: string) => http.del<{ deleted: number }>(`/api/bots/${botId}/threads`),
-  fetchSkill: (url: string) => http.post<{ text: string; name: string }>('/api/skills/fetch', { url }),
-  setupProjects: () =>
-    http.get<{
-      available: boolean;
-      projects: { path: string; name: string; sources: string[]; lastUsed: string | null }[];
-    }>('/api/setup-import/projects'),
-  setupImport: () =>
-    http.get<{
-      available: boolean;
-      skills: { name: string; description: string; source: string; warnings: SkillWarning[] }[];
-      servers: { name: string; url: string; source: string }[];
-    }>('/api/setup-import'),
-  runSetupImport: (body: { skills: string[]; servers: string[] }) =>
-    http.post<{ skills: number; servers: number }>('/api/setup-import', body),
-  restoreBot: (id: string) => http.post<Bot>(`/api/bots/${id}/restore`),
-  archivedBots: () =>
-    http.get<Bot[]>('/api/bots?archived=1').then((list) => list.filter((b) => b.archivedAt)),
-  /** Deletes an archived bot for good, with its conversations and files. */
-  deleteBot: (id: string) => http.del<{ ok: true }>(`/api/bots/${id}`),
-  moveBot: (id: string, to: BotMove) => http.post<Bot>(`/api/bots/${id}/move`, to),
-  summaries: () => http.get<BotSummary[]>('/api/summaries'),
-  skills: () => http.get<Skill[]>('/api/skills'),
-  createSkill: (input: SkillCreate) => http.post<Skill>('/api/skills', input),
-  updateSkill: (id: string, patch: SkillUpdate) => http.patch<Skill>(`/api/skills/${id}`, patch),
-  removeSkill: (id: string) => http.del<{ ok: true }>(`/api/skills/${id}`),
-  /** Does a taught skill again in the bot's browser without the model. */
-  replaySkill: (botId: string, skillId: string) =>
-    http.post<ReplayResult>(`/api/bots/${botId}/skills/${skillId}/replay`),
-  setSkillBot: (id: string, botId: string, on: boolean) =>
-    http.put<Skill>(`/api/skills/${id}/bots/${botId}`, { on }),
-  skillChanges: () => http.get<SkillChange[]>('/api/skill-changes'),
-  acceptSkillChange: (id: string) => http.post<Skill>(`/api/skill-changes/${id}/accept`),
-  rejectSkillChange: (id: string) => http.post<{ ok: true }>(`/api/skill-changes/${id}/reject`),
-  enableWebhook: (id: string) => http.post<Routine>(`/api/routines/${id}/webhook`, {}),
-  disableWebhook: (id: string) => http.del<Routine>(`/api/routines/${id}/webhook`),
-  setWebhookSecret: (id: string, secret: string | null) =>
-    http.put<Routine>(`/api/routines/${id}/webhook-secret`, { secret }),
-  usage: (days: UsageRange, botId?: string) =>
-    http.get<UsageReport>(`/api/usage?days=${days}${botId ? `&bot=${encodeURIComponent(botId)}` : ''}`),
-  planUsage: () => http.get<{ plan: UsageReport['plan'] | null }>('/api/usage/plan'),
-  storage: () => http.get<StorageReport>('/api/storage'),
-  openBrowserWindow: (botId: string, url?: string) =>
-    http.post<{ ok: true }>(`/api/bots/${botId}/browser/window`, { url }),
-  closeBrowserWindow: (botId: string) => http.del<{ ok: true }>(`/api/bots/${botId}/browser/window`),
-
-  groups: () => http.get<Group[]>('/api/groups'),
-  createGroup: (name: string) => http.post<Group>('/api/groups', { name }),
-  renameGroup: (id: string, name: string) => http.patch<Group>(`/api/groups/${id}`, { name }),
-  moveGroup: (id: string, to: GroupMove) => http.post<Group>(`/api/groups/${id}/move`, to),
-  deleteGroup: (id: string) => http.del<{ ok: true }>(`/api/groups/${id}`),
-  pauseGroup: (id: string, paused: boolean) => http.post<Group>(`/api/groups/${id}/pause`, { paused }),
-
-  threads: (botId: string) => http.get<Thread[]>(`/api/bots/${botId}/threads`),
-  mainThread: (botId: string) => http.get<Thread>(`/api/bots/${botId}/main-thread`),
-  newThread: (botId: string) => http.post<Thread>(`/api/bots/${botId}/threads`, {}),
-  rooms: () => http.get<Room[]>('/api/rooms'),
-  createRoom: (input: RoomCreate) => http.post<Room>('/api/rooms', input),
-  updateRoom: (id: string, patch: RoomUpdate) => http.patch<Room>(`/api/rooms/${id}`, patch),
-  deleteRoom: (id: string) => http.del<{ ok: true }>(`/api/rooms/${id}`),
-  sendToRoom: (id: string, clientId: string, text: string, replyTo?: string) =>
-    http.post<Message>(`/api/rooms/${id}/messages`, { clientId, text, replyTo }),
-  stopRoom: (id: string) => http.post<{ stopped: boolean }>(`/api/rooms/${id}/stop`),
-  meetings: (roomId: string) => http.get<Meeting[]>(`/api/rooms/${roomId}/meetings`),
-  startMeeting: (roomId: string) => http.post<Meeting>(`/api/rooms/${roomId}/meetings`),
-  answerMeeting: (roomId: string, id: string, answer: MeetingAnswer['answer']) =>
-    http.post<Meeting>(`/api/rooms/${roomId}/meetings/${id}/answer`, { answer }),
-  endMeeting: (roomId: string, id: string) => http.post<Meeting>(`/api/rooms/${roomId}/meetings/${id}/end`),
-  resumeMeeting: (roomId: string, id: string) =>
-    http.post<Meeting>(`/api/rooms/${roomId}/meetings/${id}/resume`),
-  retryMeeting: (roomId: string, id: string) =>
-    http.post<Meeting>(`/api/rooms/${roomId}/meetings/${id}/retry`),
-  saveMeeting: (roomId: string, id: string, body: MeetingSave) =>
-    http.post<Meeting>(`/api/rooms/${roomId}/meetings/${id}/save`, body),
-  deleteMeeting: (roomId: string, id: string) =>
-    http.del<{ ok: true }>(`/api/rooms/${roomId}/meetings/${id}`),
-  thread: (id: string) => http.get<Thread>(`/api/threads/${id}`),
-  deleteThread: (id: string) => http.del<{ ok: true }>(`/api/threads/${id}`),
-  resetThread: (id: string) => http.post<{ ok: true }>(`/api/threads/${id}/reset`),
-  /** What the bot has written so far of the reply it is writing; null when nothing runs. */
-  live: (threadId: string) => http.get<{ live: LiveText | null }>(`/api/threads/${threadId}/live`),
-  messages: (threadId: string, before?: string) =>
-    http.get<Message[]>(
-      `/api/threads/${threadId}/messages${before ? `?before=${encodeURIComponent(before)}` : ''}`,
-    ),
-  send: (
-    threadId: string,
-    clientId: string,
-    text: string,
-    files: string[] = [],
-    replyTo?: string,
-    offline?: boolean,
-    spoken?: boolean,
-  ) =>
-    http.post<Message>(`/api/threads/${threadId}/messages`, {
-      clientId,
-      text,
-      files,
-      replyTo,
-      ...(offline && { offline: true }),
-      ...(spoken && { spoken: true }),
-    }),
-  search: (q: string, opts: { threadId?: string; limit?: number } = {}) =>
-    http.get<SearchHit[]>(
-      `/api/search?q=${encodeURIComponent(q)}` +
-        (opts.threadId ? `&threadId=${encodeURIComponent(opts.threadId)}` : '') +
-        (opts.limit ? `&limit=${opts.limit}` : ''),
-    ),
-  editMessage: (id: string, text: string) => http.patch<Message>(`/api/messages/${id}`, { text }),
-  removeMessage: (id: string) => http.del<{ ok: true }>(`/api/messages/${id}`),
-  retryMessage: (id: string) => http.post<{ ok: true; turnId: string }>(`/api/messages/${id}/retry`),
-  acpAgents: () => http.get<AcpAgentState[]>('/api/acp-agents'),
-  personComputer: () => http.get<PersonComputerState>('/api/person-computer'),
-  requestPersonComputer: () => http.post<PersonComputerState>('/api/person-computer/request', {}),
-  tailscale: () => http.get<TailscaleState>('/api/tailscale'),
-  setTailscale: (on: boolean) => http.post<TailscaleState>('/api/tailscale', { on }),
-  linkPreview: (url: string) =>
-    http.get<{ preview: LinkPreview | null }>(`/api/link-preview?url=${encodeURIComponent(url)}`),
-  answerOffer: (id: string, take: boolean) => http.post<Message>(`/api/messages/${id}/offer`, { take }),
-  /** A tool call an MCP app's view makes, through the server to its own connection. */
-  appCall: (messageId: string, name: string, args: Record<string, unknown>) =>
-    http.post<unknown>(`/api/apps/${messageId}/call`, { name, arguments: args }),
-  react: (messageId: string, emoji: string | null) =>
-    http.put<Message>(`/api/messages/${messageId}/reaction`, { emoji }),
+  ...shared,
   /** Puts a file in the conversation's folder; the server may pick another name if it is taken. */
-  uploadFile: (
-    threadId: string,
-    file: File,
-    opts: { uploadId?: string; onProgress?: (part: number) => void; signal?: AbortSignal } = {},
-  ) =>
-    sendFile<{ name: string; size: number }>(
-      `/api/threads/${threadId}/files?name=${encodeURIComponent(file.name)}${
-        opts.uploadId ? `&uploadId=${encodeURIComponent(opts.uploadId)}` : ''
-      }`,
-      file,
-      opts,
-    ),
-  /** Calls off a file still going up; `keepalive` as for {@link api.removeFile}. */
-  cancelUpload: (threadId: string, uploadId: string, opts: { keepalive?: boolean } = {}) => {
-    const path = `/api/threads/${threadId}/uploads/${encodeURIComponent(uploadId)}`;
-    if (!opts.keepalive) return http.del<{ ok: true }>(path);
-    return fetch(path, { method: 'DELETE', credentials: 'same-origin', keepalive: true }).then(() => ({
-      ok: true as const,
-    }));
-  },
-  /** `keepalive`: sent while the page closes, so the request outlives it. */
-  removeFile: (threadId: string, name: string, opts: { keepalive?: boolean } = {}) => {
-    const path = `/api/threads/${threadId}/files/${encodeURIComponent(name)}`;
-    if (!opts.keepalive) return http.del<{ ok: true }>(path);
-    return fetch(path, { method: 'DELETE', credentials: 'same-origin', keepalive: true }).then(() => ({
-      ok: true as const,
-    }));
-  },
-  stop: (threadId: string) => http.post<{ stopped: boolean }>(`/api/threads/${threadId}/stop`),
-  job: (id: string) => http.get<JobView>(`/api/jobs/${id}`),
-
-  approvals: () => http.get<Approval[]>('/api/approvals'),
-  /** Steps waiting for this person's second yes, without the conversations they come from. */
-  secondYes: () => http.get<SecondYes[]>('/api/approvals-second'),
-  answerSecond: (id: string, decision: 'allow' | 'deny') =>
-    http.post<Approval>(`/api/approvals-second/${id}`, { decision }),
-  /** Who could give a second yes on a bot's steps; on every bot's without a bot. */
-  approvers: (botId?: string | null) =>
-    http.get<Approver[]>(`/api/approvers${botId ? `?botId=${encodeURIComponent(botId)}` : ''}`),
-  answer: (
-    id: string,
-    d: {
-      decision: 'allow' | 'deny';
-      answer?: string;
-      answers?: string[];
-      remember?: boolean;
-      login?: { username: string; password: string; save: boolean; exact?: boolean };
-    },
-  ) => http.post<Approval>(`/api/approvals/${id}`, d),
-  connections: () => http.get<Connection[]>('/api/connections'),
-  connectionRedirectUrl: () => http.get<{ url: string }>('/api/connections/redirect-url'),
-  addConnection: (c: ConnectionCreate) => http.post<Connection>('/api/connections', c),
-  updateConnection: (id: string, c: ConnectionUpdate) => http.patch<Connection>(`/api/connections/${id}`, c),
-  removeConnection: (id: string) => http.del<{ ok: true }>(`/api/connections/${id}`),
-  connectionSender: (id: string) => http.get<MailSender>(`/api/connections/${id}/sender`),
-  refreshConnection: (id: string) => http.post<Connection>(`/api/connections/${id}/refresh`, {}),
-  signInConnection: (id: string) => http.post<ConnectionAuthStart>(`/api/connections/${id}/signin`, {}),
-  signOutConnection: (id: string) => http.post<Connection>(`/api/connections/${id}/signout`, {}),
-  setConnectionTool: (id: string, name: string, patch: ConnectionToolPatch) =>
-    http.patch<Connection>(`/api/connections/${id}/tools/${encodeURIComponent(name)}`, patch),
-  setConnectionBots: (id: string, access: ConnectionBots) =>
-    http.put<Connection>(`/api/connections/${id}/bots`, access),
-  vault: () => http.get<VaultLogin[]>('/api/vault'),
-  addVaultLogin: (v: VaultLoginCreate) => http.post<VaultLogin>('/api/vault', v),
-  updateVaultLogin: (id: string, v: VaultLoginUpdate) => http.patch<VaultLogin>(`/api/vault/${id}`, v),
-  removeVaultLogin: (id: string) => http.del<{ ok: true }>(`/api/vault/${id}`),
-  importVault: (v: VaultImport) => http.post<VaultImportResult>('/api/vault/import', v),
-  passwordManagers: () => http.get<PasswordManager[]>('/api/password-managers'),
-  addPasswordManager: (v: PasswordManagerCreate) => http.post<PasswordManager>('/api/password-managers', v),
-  updatePasswordManager: (id: string, v: PasswordManagerUpdate) =>
-    http.patch<PasswordManager>(`/api/password-managers/${id}`, v),
-  refreshPasswordManager: (id: string) =>
-    http.post<PasswordManager>(`/api/password-managers/${id}/refresh`, {}),
-  removePasswordManager: (id: string) => http.del<{ ok: true }>(`/api/password-managers/${id}`),
-  cards: () => http.get<PaymentCard[]>('/api/cards'),
-  addCard: (v: PaymentCardCreate) => http.post<PaymentCard>('/api/cards', v),
-  updateCard: (id: string, v: PaymentCardUpdate) => http.patch<PaymentCard>(`/api/cards/${id}`, v),
-  removeCard: (id: string) => http.del<{ ok: true }>(`/api/cards/${id}`),
-  rules: () => http.get<PermissionRule[]>('/api/rules'),
-  botActions: (botId: string, limit = 100) =>
-    http.get<BotAction[]>(`/api/bots/${botId}/actions?limit=${limit}`),
-  suggestions: (botId: string) => http.get<PermissionSuggestions>(`/api/bots/${botId}/suggestions`),
-  dismissSuggestion: (botId: string, key: string) =>
-    http.post<{ ok: true }>(`/api/bots/${botId}/suggestions/dismiss`, { key }),
-  addRule: (r: {
-    list: 'ask' | 'allow' | 'block';
-    pattern: string;
-    botId?: string | null;
-    field?: string;
-    limit?: number;
-    secondPerson?: boolean;
-    secondUserId?: string | null;
-  }) => http.post<PermissionRule>('/api/rules', r),
-  removeRule: (id: string) => http.del<{ ok: true }>(`/api/rules/${id}`),
-
-  memory: () => http.get<Memory[]>('/api/memory'),
-  addMemory: (m: {
-    scope: 'bot' | 'user';
-    botId?: string | null;
-    content: string;
-    site?: string | null;
-    validUntil?: string | null;
-  }) => http.post<Memory>('/api/memory', m),
-  updateMemory: (
-    id: string,
-    p: { content?: string; pinned?: boolean; validUntil?: string | null; updatedAt?: string },
-  ) => http.patch<Memory>(`/api/memory/${id}`, p),
-  memoryHistory: () => http.get<MemoryHistoryLine[]>('/api/memory-history'),
-  removeMemory: (id: string) => http.del<{ ok: true }>(`/api/memory/${id}`),
-  /** Deletes every note the bot keeps for itself. */
-  removeBotMemory: (botId: string) => http.del<{ count: number }>(`/api/bots/${botId}/memory`),
-  staleMemory: () => http.get<Memory[]>('/api/memory-stale'),
-  removeStaleMemory: (ids: string[]) => http.post<{ count: number }>('/api/memory-stale/delete', { ids }),
-  /** Memory changes bots asked for while nobody watched; they wait for the person. */
-  memoryChanges: () => http.get<MemoryChange[]>('/api/memory-changes'),
-  acceptMemoryChange: (id: string) => http.post<{ ok: true }>(`/api/memory-changes/${id}/accept`, {}),
-  rejectMemoryChange: (id: string) => http.del<{ ok: true }>(`/api/memory-changes/${id}`),
-  /** Gaps bots found in what they know and could not fill themselves. */
-  memoryFlags: () => http.get<MemoryFlag[]>('/api/memory/flags'),
-  answerMemoryFlag: (id: string, text: string) =>
-    http.post<{ ok: true }>(`/api/memory/flags/${id}/answer`, { text }),
-  dismissMemoryFlag: (id: string) => http.post<{ ok: true }>(`/api/memory/flags/${id}/dismiss`, {}),
-
-  routines: () => http.get<Routine[]>('/api/routines'),
-  createRoutine: (r: unknown) => http.post<Routine>('/api/routines', r),
-  updateRoutine: (id: string, p: unknown) => http.patch<Routine>(`/api/routines/${id}`, p),
-  removeRoutine: (id: string) => http.del<{ ok: true }>(`/api/routines/${id}`),
-  runRoutine: (id: string) => http.post<RoutineRun | null>(`/api/routines/${id}/run`),
-  routineFailureSeen: (id: string) => http.post<{ ok: true }>(`/api/routines/${id}/failure-seen`),
-  routineRuns: (id: string) => http.get<RoutineRun[]>(`/api/routines/${id}/runs`),
-  retryRoutineRun: (id: string, runId: string) =>
-    http.post<RoutineRun>(`/api/routines/${id}/runs/${runId}/retry`),
-  endRoutineWait: (id: string, runId: string) =>
-    http.post<RoutineRun>(`/api/routines/${id}/runs/${runId}/end-wait`),
-  routineRevisions: (id: string) => http.get<RoutineRevision[]>(`/api/routines/${id}/revisions`),
-  rehearseRoutine: (id: string, body: RehearsalStart) =>
-    http.post<Rehearsal>(`/api/routines/${id}/rehearse`, body),
-  routineRehearsals: (id: string) => http.get<Rehearsal[]>(`/api/routines/${id}/rehearsals`),
-  routineReplayable: (id: string) => http.get<ReplayableRun[]>(`/api/routines/${id}/replayable`),
-
-  library: (botId: string) => http.get<LibraryFile[]>(`/api/bots/${botId}/library`),
-  /** `inline`: an image to show on the page rather than a download. */
-  fileUrl: (botId: string, path: string, opts: { inline?: boolean } = {}) =>
-    `/api/bots/${botId}/library/file?path=${encodeURIComponent(path)}${opts.inline ? '&inline=1' : ''}`,
-  /** A page the bot made, served to run in the app's sandboxed frame. */
-  pageUrl: (botId: string, path: string, height?: number) =>
-    `/api/bots/${botId}/library/page?path=${encodeURIComponent(path)}${height ? `&h=${height}` : ''}`,
-  teachStatus: (botId: string) => http.get<{ steps: number | null }>(`/api/bots/${botId}/teach`),
-  startTeaching: (botId: string) => http.post<{ steps: number }>(`/api/bots/${botId}/teach`),
-  stopTeaching: (botId: string, goal: string) =>
-    http.post<{ name: string; description: string; body: string; steps: number; taught: TaughtStep[] }>(
-      `/api/bots/${botId}/teach/stop`,
-      {
-        goal,
-      },
-    ),
-  contentEncryption: () =>
-    http.get<{ on: boolean; pending: number; unreadable: number; converting: boolean }>(
-      '/api/content-encryption',
-    ),
-  setContentEncryption: (on: boolean) =>
-    http.put<{ on: boolean; pending: number; unreadable: number; converting: boolean }>(
-      '/api/content-encryption',
-      {
-        on,
-      },
-    ),
-  botTables: (botId: string) => http.get<BotTable[]>(`/api/bots/${botId}/tables`),
-  tableRows: (id: string) => http.get<TableRow[]>(`/api/tables/${id}/rows`),
-  addTableRow: (id: string, values: RowValues = {}) => http.post<TableRow>(`/api/tables/${id}/rows`, values),
-  updateTableRow: (id: string, rowId: string, values: RowValues) =>
-    http.patch<TableRow>(`/api/tables/${id}/rows/${rowId}`, values),
-  deleteTableRow: (id: string, rowId: string) =>
-    http.del<{ deleted: number }>(`/api/tables/${id}/rows/${rowId}`),
-  removeTable: (id: string) => http.del<{ ok: true }>(`/api/tables/${id}`),
-  /** Where the table downloads as a CSV file. */
-  tableCsvUrl: (id: string) => `/api/tables/${id}/rows.csv`,
-  tickets: () => http.get<Ticket[]>('/api/tickets'),
-  createTicket: (input: TicketCreate) => http.post<Ticket>('/api/tickets', input),
-  updateTicket: (id: string, patch: TicketUpdate) => http.patch<Ticket>(`/api/tickets/${id}`, patch),
-  removeTicket: (id: string) => http.del<{ ok: true }>(`/api/tickets/${id}`),
-  commentTicket: (id: string, text: string) => http.post<Ticket>(`/api/tickets/${id}/comments`, { text }),
-  apiSources: () => http.get<ApiSource[]>('/api/api-sources'),
-  addApiSource: (input: ApiSourceCreate) => http.post<ApiSource>('/api/api-sources', input),
-  refreshApiSource: (id: string) => http.post<ApiSource>(`/api/api-sources/${id}/refresh`),
-  removeApiSource: (id: string) => http.del<{ ok: true }>(`/api/api-sources/${id}`),
-  previewPlugin: (url: string) => http.post<PluginPlan>('/api/plugins/preview', { url }),
-  installPlugin: (input: PluginInstall) => http.post<PluginInstallResult>('/api/plugins/install', input),
-  aiEndpoints: () =>
-    http.get<AiEndpoints & { memoryIndex: { indexed: number; total: number } }>('/api/ai-endpoints'),
-  setAiEndpoint: (kind: AiKind, input: AiEndpointSet) =>
-    http.put<AiEndpoint>(`/api/ai-endpoints/${kind}`, input),
-  clearAiEndpoint: (kind: AiKind) => http.del<AiEndpoint>(`/api/ai-endpoints/${kind}`),
-  testAiEndpoint: (kind: AiKind) =>
-    http.post<{ ok: boolean; detail: string }>(`/api/ai-endpoints/${kind}/test`),
-  /** Whether replies can be read aloud by the server's speech service. */
-  speechStatus: () => http.get<{ available: boolean }>('/api/speech'),
+  uploadFile: (threadId: string, file: File, opts: UploadOptions = {}) =>
+    shared.uploadFile(threadId, file.name, file, { ...opts, onProgress: opts.onProgress ?? (() => {}) }),
   /** A reply read aloud, as audio; null when the server could not. */
   speech: async (text: string): Promise<Blob> => {
     const res = await fetch('/api/speech', {
@@ -787,76 +120,4 @@ export const api = {
     }
     return res.blob();
   },
-  emailSettings: () => http.get<EmailSettings>('/api/email'),
-  renewEmailSecret: () => http.post<EmailSettings>('/api/email/secret'),
-  claimEmail: (botId: string, name: string) => http.post<EmailSettings>(`/api/bots/${botId}/email`, { name }),
-  releaseEmail: (botId: string) => http.del<EmailSettings>(`/api/bots/${botId}/email`),
-  doctor: () => http.get<DoctorReport>('/api/doctor'),
-  repairDoctor: (checks: DoctorCheckId[]) => http.post<DoctorReport>('/api/doctor/repair', { checks }),
-  setEmailCodes: (botId: string, on: boolean) =>
-    http.put<EmailSettings>(`/api/bots/${botId}/email/codes`, { on }),
-  apiKeys: () => http.get<ApiCredential[]>('/api/api-keys'),
-  addApiKey: (input: ApiCredentialCreate) => http.post<ApiCredential>('/api/api-keys', input),
-  updateApiKey: (id: string, input: ApiCredentialUpdate) =>
-    http.patch<ApiCredential>(`/api/api-keys/${id}`, input),
-  removeApiKey: (id: string) => http.del<{ ok: true }>(`/api/api-keys/${id}`),
-  addTrapKey: (input: TrapKeyCreate) => http.post<ApiCredential>('/api/api-keys/trap', input),
-  routineSuggestions: () => http.get<RoutineSuggestion[]>('/api/routine-suggestions'),
-  acceptRoutineSuggestion: (id: string, input: RoutineSuggestionAccept) =>
-    http.post<Routine>(`/api/routine-suggestions/${id}/accept`, input),
-  dismissRoutineSuggestion: (id: string) =>
-    http.post<{ ok: true }>(`/api/routine-suggestions/${id}/dismiss`, {}),
-  skillSuggestions: () => http.get<SkillSuggestion[]>('/api/skill-suggestions'),
-  acceptSkillSuggestion: (id: string, input: SkillSuggestionAccept) =>
-    http.post<Skill>(`/api/skill-suggestions/${id}/accept`, input),
-  dismissSkillSuggestion: (id: string) => http.post<{ ok: true }>(`/api/skill-suggestions/${id}/dismiss`, {}),
-  /** The turns of a conversation with something to put back, with how many changes each made. */
-  turnChangesPending: (threadId: string) =>
-    http.get<Record<string, number>>(`/api/threads/${threadId}/turn-changes`),
-  turnChanges: (turnId: string) => http.get<TurnChanges>(`/api/turns/${turnId}/changes`),
-  undoTurn: (turnId: string) => http.post<TurnChanges>(`/api/turns/${turnId}/undo`, {}),
-  canaryAlarmSeen: (id: string) => http.post<{ ok: true }>(`/api/canary-alarms/${id}/seen`, {}),
-  importApiKeys: (input: ApiKeyImport) => http.post<ApiKeyImportResult>('/api/api-keys/import', input),
-  /** The page opened on its own, with the print dialog, to save it as a PDF. */
-  pagePrintUrl: (botId: string, path: string) =>
-    `/api/bots/${botId}/library/page?path=${encodeURIComponent(path)}&print=1`,
-  pageShare: (botId: string, path: string) =>
-    http.get<{ share: PageShare | null }>(
-      `/api/bots/${botId}/library/share?path=${encodeURIComponent(path)}`,
-    ),
-  sharePage: (botId: string, path: string, name: string) =>
-    http.post<PageShare>(`/api/bots/${botId}/library/share`, { path, name }),
-  pageShares: () => http.get<PageShare[]>('/api/page-shares'),
-  unsharePage: (token: string) => http.del<{ ok: true }>(`/api/page-shares/${encodeURIComponent(token)}`),
-  /** Several files of a bot's folders as one ZIP download. */
-  zipUrl: (botId: string, paths: string[], name?: string) =>
-    `/api/bots/${botId}/library/zip?${paths.map((p) => `path=${encodeURIComponent(p)}`).join('&')}${name ? `&name=${encodeURIComponent(name)}` : ''}`,
-  /** What a bot import file would make; saves nothing. */
-  previewBotImport: (file: File) => http.post<BotImportPlan>('/api/import/bots?preview=1', file),
-  steerMessage: (id: string) => http.post<Message>(`/api/messages/${id}/steer`),
-  importBots: (file: File) => http.post<BotImportResult>('/api/import/bots', file),
-  /** What a Grok Bot share link's page shows about the bot. */
-  readGrokLink: (url: string) => http.post<GrokTemplateCard>('/api/import/grok-link', { url }),
-  /** Whether the server can turn speech into text (an OpenAI or Groq key is saved). */
-  transcribeStatus: () => http.get<{ available: boolean }>('/api/transcribe'),
-  /** A recording from the message box, written out by the provider whose key the server has. */
-  transcribe: async (audio: Blob, lang: string) => {
-    const res = await fetch(`/api/transcribe?lang=${encodeURIComponent(lang)}`, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'content-type': audio.type || 'audio/webm', 'accept-language': useLocale.getState().locale },
-      body: audio,
-    });
-    const data = (await res.json().catch(() => null)) as { text?: string; error?: string } | null;
-    if (!res.ok)
-      throw new ApiError(res.status, data?.error ?? getT()('error.requestFailed', { status: res.status }));
-    return { text: data?.text ?? '' };
-  },
-  /** Writes a sealed backup of everything on the server, ready for one download at `/api/backup/<id>`. */
-  createBackup: (password: string) => http.post<{ id: string; size: number }>('/api/backup', { password }),
-  /** Replaces everything with a backup; the server starts again after. The body is the file itself. */
-  restoreBackup: (file: File, password: string) =>
-    request<{ tables: number; files: number }>('POST', '/api/backup/restore', file, {
-      'x-backup-password': encodeURIComponent(password),
-    }),
 };
