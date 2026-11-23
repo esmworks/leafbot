@@ -24,6 +24,7 @@ import {
   ChevronRight,
   Clock,
   ExternalLink,
+  ImageIcon,
   FileInput,
   Folder,
   FolderOpen,
@@ -101,6 +102,7 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { useSendKey, type SendKey } from '@/lib/sendKey';
 import { TONES, useTheme, type ThemeChoice, type ToneChoice } from '@/lib/theme';
+import { DIM_MAX, DIM_MIN, useWallpaper, WallpaperError } from '@/lib/wallpaper';
 import {
   useChatWidth,
   useDensity,
@@ -539,6 +541,88 @@ function OpenAtLogin() {
   );
 }
 
+/** A picture of the person's own behind the sidebar and the chat, and how much it is dimmed. */
+function WallpaperRows() {
+  const t = useT();
+  const url = useWallpaper((s) => s.url);
+  const dim = useWallpaper((s) => s.dim);
+  const { choose, remove, setDim } = useWallpaper.getState();
+  const file = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const pick = async (picked: File) => {
+    setBusy(true);
+    try {
+      await choose(picked);
+    } catch (e) {
+      toast.error(
+        e instanceof WallpaperError && e.reason === 'tooLarge'
+          ? t('general.wallpaper.tooLarge')
+          : t('general.wallpaper.unreadable'),
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <Row label={t('general.wallpaper')} hint={t('general.wallpaperHint')}>
+        <input
+          ref={file}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => {
+            const picked = e.target.files?.[0];
+            e.target.value = '';
+            if (picked) void pick(picked);
+          }}
+        />
+        <div className="flex items-center gap-2">
+          {url && <img src={url} alt="" className="h-9 w-14 rounded-md border object-cover" />}
+          <Button
+            type="button"
+            variant="secondary"
+            className="rounded-full"
+            disabled={busy}
+            onClick={() => file.current?.click()}
+          >
+            {busy ? <Loader2 className="animate-spin" /> : <ImageIcon />}
+            {url ? t('general.wallpaper.change') : t('general.wallpaper.choose')}
+          </Button>
+          {url && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="rounded-full"
+              aria-label={t('general.wallpaper.remove')}
+              title={t('general.wallpaper.remove')}
+              onClick={() => void remove()}
+            >
+              <Trash2 />
+            </Button>
+          )}
+        </div>
+      </Row>
+      {url && (
+        <Row label={t('general.wallpaperDim')} hint={t('general.wallpaperDimHint')}>
+          <div className="flex w-56 items-center gap-3">
+            <Slider
+              min={DIM_MIN}
+              max={DIM_MAX}
+              step={5}
+              value={[dim]}
+              onValueChange={([v]) => setDim(v ?? dim)}
+              aria-label={t('general.wallpaperDim')}
+            />
+            <span className="w-12 shrink-0 text-end text-sm tabular-nums text-muted-foreground">{`${dim}%`}</span>
+          </div>
+        </Row>
+      )}
+    </>
+  );
+}
+
 function General() {
   const t = useT();
   const manages = useManagesServer();
@@ -595,6 +679,7 @@ function General() {
             </SelectContent>
           </Select>
         </Row>
+        <WallpaperRows />
         <Row label={t('general.font')}>
           <Select value={font} onValueChange={(v) => setFont(v as FontChoice)}>
             <SelectTrigger className="w-44 rounded-full">
