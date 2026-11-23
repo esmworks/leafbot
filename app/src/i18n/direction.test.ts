@@ -13,7 +13,15 @@ const PHYSICAL = [
   /\bborder-[lr](?=-|")/,
   /\brounded-[lr](?=-|")/,
   /\brounded-(?:tl|tr|bl|br)(?=-|")/,
+  // The other half of CENTERED below: a logical inset with a physical shift is off centre in Arabic.
+  /\bstart-(?:1\/2|\[50%\])(?=.*(?:-translate-x-1\/2|translate-x-\[-50%\]))/,
 ];
+
+/**
+ * Centering by half the parent's width less half the element's looks the same in both directions,
+ * but only with the physical left: start-1/2 is right:50% in Arabic while the shift still pulls left.
+ */
+const CENTERED = /\bleft-(?:1\/2|\[50%\])(?=.*(?:-translate-x-1\/2|translate-x-\[-50%\]))/g;
 
 describe('direction', () => {
   it('uses logical direction utilities so a right-to-left language mirrors the layout', () => {
@@ -23,7 +31,8 @@ describe('direction', () => {
       const path = join(file.parentPath, file.name);
       const lines = readFileSync(path, 'utf8').split('\n');
       lines.forEach((line, index) => {
-        if (PHYSICAL.some((pattern) => pattern.test(line))) {
+        const rest = line.replace(CENTERED, '');
+        if (PHYSICAL.some((pattern) => pattern.test(rest))) {
           offenders.push(`${relative(src, path)}:${index + 1} ${line.trim().slice(0, 90)}`);
         }
       });
