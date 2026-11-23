@@ -23,7 +23,7 @@ import { ApiError } from '@/lib/api';
 import { ordered } from '@/lib/bots';
 import { nav } from '@/lib/nav';
 import { useBots, useGroups, useRooms, useSummaries } from '@/lib/queries';
-import { syncSeen, useSeen } from '@/lib/seen';
+import { setUnread, syncSeen, unreadBots, useSeen } from '@/lib/seen';
 import { useOpenTappedNotice } from '@/lib/push';
 import { useApi, useServer } from '@/lib/server';
 import { useColors } from '@/lib/theme';
@@ -53,6 +53,10 @@ export default function Bots() {
 
   useEffect(() => {
     if (summaries.data && seen !== undefined) syncSeen(origin!, summaries.data);
+  }, [summaries.data, seen, origin]);
+
+  useEffect(() => {
+    if (summaries.data && seen !== undefined) setUnread(origin!, unreadBots(summaries.data, seen));
   }, [summaries.data, seen, origin]);
 
   const logout = async () => {
