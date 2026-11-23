@@ -43,9 +43,10 @@ const message = (props: Record<string, unknown> = {}): Message => {
     author: 'bot:b1',
     text: '',
     props: { card: r.card, cardRev: 2, ...props },
+    clientId: null,
     turnId: null,
     createdAt: new Date().toISOString(),
-  } as Message;
+  };
 };
 
 const draw = (m: Message) =>
