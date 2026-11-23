@@ -831,8 +831,12 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     });
     return reply.code(result.status === 'running' ? 202 : 200).send(result);
   });
-  // How many turns run now, so the desktop app can ask before quitting stops them.
-  app.get('/api/turns/running', async () => ({ count: s.turns.runningCount() }));
+  // How many turns run now, so the desktop app can ask before quitting stops them. It also says how
+  // long ago a bot last used the person's Mac, so the desktop app keeps the screen on meanwhile.
+  app.get('/api/turns/running', async () => ({
+    count: s.turns.runningCount(),
+    personComputerIdleMs: s.ctx.personComputer?.idleMs() ?? null,
+  }));
   // What a turn changed in its bot's own world, and putting it back: only the person whose turn it
   // was, admins included; the handler keeps each person to their own.
   app.get('/api/threads/:id/turn-changes', async (req) =>

@@ -29,6 +29,7 @@ import { endWorkSeen, showWork, useLiveActivityChoice } from '@/lib/liveActivity
 import { useLiveCards } from '@/lib/liveCards';
 import { useApprovals, useMessages } from '@/lib/queries';
 import { useLiveCatchUp, useLiveState, useStream } from '@/lib/realtime';
+import { sendWithRetry } from '@/lib/sendRetry';
 import { useApi, useServer } from '@/lib/server';
 import { newClientId, streamSaved, withPending } from '@/lib/stream';
 import { useColors } from '@/lib/theme';
@@ -285,12 +286,17 @@ export function Conversation({
       setPending((p) => [...p, local]);
       listRef.current?.scrollToOffset({ offset: 0, animated: true });
       try {
-        await api.send(
-          threadId,
-          clientId,
-          text,
-          files.map((f) => f.name),
-          extra?.replyTo?.id,
+        // A send that finds no connection (the app coming back from the background) is tried again
+        // by itself; the message stays shown as sending meanwhile, and only a last failure puts the
+        // text back in the box. The client id lets the server count a repeat once.
+        await sendWithRetry(() =>
+          api.send(
+            threadId,
+            clientId,
+            text,
+            files.map((f) => f.name),
+            extra?.replyTo?.id,
+          ),
         );
         // The bot's work on the lock screen, for when the phone is put away before it ends.
         if (liveWork) void showWork(api.watchActivity, threadId, bot.name);
