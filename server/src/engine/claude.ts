@@ -19,6 +19,9 @@ import { fitResult } from './fit-image';
 import { gatePrompt, parseGate } from './gate';
 import { startSandboxProxy } from './sandbox-proxy';
 import {
+  announcesAction,
+  GO_ON,
+  MAX_NUDGES,
   APP_SERVER,
   planItems,
   replyOf,
@@ -621,6 +624,11 @@ export class ClaudeEngine implements Engine {
     let contextTokens: number | null = null;
     // The CLI named a billing failure itself, whatever words its text used.
     let billingFailed = false;
+    // The provider refused on content or safety grounds, with what it said about it.
+    let refused: string | null = null;
+    // How many times the turn told the model to do what it announced.
+    let nudges = 0;
+    const hasTools = req.tools.length > 0 || !req.pickTool || CLAUDE_BUILTIN_TOOLS.some(req.pickTool);
     // Subagents the bot started this run, by the id of the call that started each.
     const subagents = new Map<string, SubagentState>();
     try {
@@ -639,7 +647,13 @@ export class ClaudeEngine implements Engine {
           else if (info.status === 'allowed_warning') {
             req.onLimitNear?.({ used: info.utilization ?? null, resetsAt: resetTime(info.resetsAt) });
           }
+        } else if (m.type === 'system' && m.subtype === 'model_refusal_no_fallback') {
+          refused = m.api_refusal_explanation || m.content || 'refusal';
+        } else if (m.type === 'system' && m.subtype === 'status') {
+          // The CLI folds a long session in silence until the boundary arrives; it gets the time a tool does.
+          req.onCompacting?.(m.status === 'compacting');
         } else if (m.type === 'system' && m.subtype === 'compact_boundary') {
+          req.onCompacting?.(false);
           req.onCompacted?.();
         } else if (m.type === 'system' && m.subtype === 'init') {
           sessionId = m.session_id;
@@ -731,7 +745,11 @@ export class ClaudeEngine implements Engine {
           finished = true;
           total = m.total_cost_usd ?? null;
           if (m.subtype === 'error_max_turns') outOfSteps = true;
-          if (m.subtype === 'success' && !m.is_error) {
+          if (m.stop_reason === 'refusal') refused ??= 'refusal';
+          if (refused && m.subtype === 'success' && !m.is_error) {
+            // The turn ended on the refusal: what it wrote before is not an answer.
+            errorMessage = m.result || apiError || refused;
+          } else if (m.subtype === 'success' && !m.is_error) {
             if (m.result) text = m.result;
           } else {
             errorMessage =
@@ -743,6 +761,27 @@ export class ClaudeEngine implements Engine {
                     ? t('engine.stepLimit', { max: MAX_TURNS })
                     : apiError || t('engine.unfinished');
           }
+          // A model that says what it is about to do ("Let me check the file:") and stops there, with
+          // no call, is told to go on in the same session; a few times at most. Not while work it
+          // handed to other bots is out: stopping there is waiting for their answers.
+          const last = steps.at(-1);
+          if (
+            nudges < MAX_NUDGES &&
+            hasTools &&
+            !errorMessage &&
+            !refused &&
+            !req.signal.aborted &&
+            m.subtype === 'success' &&
+            last &&
+            !last.tools.length &&
+            announcesAction(last.text) &&
+            !(await req.awaitsAnswers?.())
+          ) {
+            nudges++;
+            finished = false;
+            input.push(GO_ON);
+            continue;
+          }
           input.close();
         }
       }
@@ -750,6 +789,7 @@ export class ClaudeEngine implements Engine {
       errorMessage = errorMessage ?? apiError ?? (err as Error).message;
       if (/not logged in|\/login/i.test(errorMessage)) authFailed = true;
     } finally {
+      req.onCompacting?.(false);
       // A subagent the run left behind did not finish.
       for (const sub of subagents.values()) {
         if (sub.state !== 'running') continue;
@@ -804,6 +844,18 @@ export class ClaudeEngine implements Engine {
       // The CLI words a model it cannot use on its own, with no API error before it.
       const said = cause && (apiError || MODEL_GONE.test(cause)) ? providerTrouble(cause, 'Claude', t) : null;
       const billing = billingFailed || said?.billing === true;
+      if (refused) {
+        return {
+          ok: false,
+          kind: 'engine',
+          message: `${t('engine.providerRefused', { provider: 'Claude' })} (${readableError(refused.trim(), 300)})`,
+          text,
+          sessionId,
+          refused: true,
+          costUsd,
+          sessionCostUsd,
+        };
+      }
       // The CLI's own words for a crash: its process exited or was killed, with nothing from the API.
       const crashed = !apiError && !!cause && CLI_CRASH.test(cause);
       return {
