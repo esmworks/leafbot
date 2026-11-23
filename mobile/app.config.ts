@@ -4,7 +4,8 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 // The Expo account and project the app is released from belong to whoever releases it, not to the source code, so
 // they live in app.local.json, which git ignores. That file is not uploaded to the EAS build server; the server names
-// the project in EAS_BUILD_PROJECT_ID instead.
+// the project in EAS_BUILD_PROJECT_ID instead. The same file holds the App Store Connect app's id (ascAppId), which only
+// scripts/submit-ios.mjs reads.
 interface LocalConfig {
   owner?: string;
   projectId?: string;

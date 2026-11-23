@@ -269,6 +269,10 @@ into it; Settings → About shows which one is running. An update reaches only b
 `mobile/app.json`); a change that needs new native code, such as a new Expo module, needs a new version and a store
 build. A build without a project takes no updates.
 
+A store build goes to App Store Connect with `pnpm --filter @leafbot/mobile submit:ios -- --id <build id>` (or
+`--latest`). It sends it to the app whose id is `ascAppId` in `mobile/app.local.json` (the digits shown as "Apple ID"
+under App Information), so it asks nothing and also runs with `--non-interactive`.
+
 A server on the internet is reached over HTTPS: an address typed without `http://` or `https://` falls back to plain
 http only for this device, the local network (private addresses, `.local`, single-word names) and a Tailscale tailnet,
 and an `http://` address on the internet is used only after a warning. iOS allows plain http only on the local network.
