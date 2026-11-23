@@ -169,6 +169,21 @@ export class FakeEngine implements Engine {
       req.onSubagent?.({ ...sub, steps: 2, tool: 'WebSearch' });
       req.onSubagent?.({ ...sub, steps: 2, tool: 'WebSearch', state: 'done', result: 'Üç kaynak bulundu.' });
     }
+    // Three helpers started together, two places to run in: the third waits, then all finish.
+    if (req.prompt.includes('[alt-ajanlar]')) {
+      const subs = ['Birinci daireyi incele', 'İkinci daireyi incele', 'Üçüncü daireyi incele'].map(
+        (description, i) => ({ id: `fake-sub-${i + 1}`, description, state: 'waiting' as const, steps: 0 }),
+      );
+      for (const sub of subs) req.onSubagent?.(sub);
+      const [a, b, c] = subs as [(typeof subs)[number], (typeof subs)[number], (typeof subs)[number]];
+      req.onSubagent?.({ ...a, state: 'running' });
+      req.onSubagent?.({ ...b, state: 'running' });
+      req.onSubagent?.({ ...a, state: 'running', steps: 1, tool: 'WebFetch' });
+      req.onSubagent?.({ ...a, state: 'done', steps: 1, tool: 'WebFetch', result: 'Kira uygun.' });
+      req.onSubagent?.({ ...c, state: 'running' });
+      req.onSubagent?.({ ...b, state: 'done', steps: 0, result: 'Evcil hayvan yasak.' });
+      req.onSubagent?.({ ...c, state: 'failed', steps: 0, result: 'Sayfa açılmadı.' });
+    }
     // A call that keeps failing the same way, past the warning: the turn is stopped.
     if (req.prompt.includes('[döngü]')) {
       req.onRepeatedFailure?.('mcp__notion__search', 5);

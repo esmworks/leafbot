@@ -654,8 +654,15 @@ export class ClaudeEngine implements Engine {
           }
         } else if (m.type === 'stream_event') {
           // A subagent's words are its own work, not the reply: they stay out of the chat as the
-          // finished text does.
-          if (m.parent_tool_use_id) continue;
+          // finished text does. The first of them says it has started.
+          if (m.parent_tool_use_id) {
+            const sub = subagents.get(m.parent_tool_use_id);
+            if (sub?.state === 'waiting') {
+              sub.state = 'running';
+              req.onSubagent?.({ ...sub });
+            }
+            continue;
+          }
           const ev = m.event as { type: string; delta?: { type: string; text?: string } };
           if (ev.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && ev.delta.text) {
             req.onText(ev.delta.text);
@@ -666,7 +673,7 @@ export class ClaudeEngine implements Engine {
             if (c.type !== 'tool_result') continue;
             req.onActivity?.({ id: c.tool_use_id, name: '', running: false });
             const sub = subagents.get(c.tool_use_id);
-            if (sub && sub.state === 'running') {
+            if (sub && (sub.state === 'running' || sub.state === 'waiting')) {
               sub.state = c.is_error ? 'failed' : 'done';
               const result = subagentAnswer(c.content);
               if (result) sub.result = result;
@@ -691,6 +698,7 @@ export class ClaudeEngine implements Engine {
           for (const c of m.message.content) {
             if (c.type !== 'tool_use') continue;
             if (parent) {
+              if (parent.state === 'waiting') parent.state = 'running';
               parent.steps += 1;
               parent.tool = c.name;
               req.onSubagent?.({ ...parent });
@@ -702,10 +710,11 @@ export class ClaudeEngine implements Engine {
                   : typeof input.subagent_type === 'string'
                     ? input.subagent_type
                     : '';
+              // Waiting until its own first word: the CLI may hold some back while others run.
               const sub: SubagentState = {
                 id: c.id,
                 description: description.slice(0, 200),
-                state: 'running',
+                state: 'waiting',
                 steps: 0,
               };
               subagents.set(c.id, sub);
@@ -752,7 +761,7 @@ export class ClaudeEngine implements Engine {
     } finally {
       // A subagent the run left behind did not finish.
       for (const sub of subagents.values()) {
-        if (sub.state !== 'running') continue;
+        if (sub.state !== 'running' && sub.state !== 'waiting') continue;
         sub.state = 'stopped';
         req.onSubagent?.({ ...sub });
       }

@@ -16,7 +16,9 @@ import {
   type OutsideTrigger,
   type ReplyQuote,
   quoteExcerpt,
+  subagentCounts,
   subagentOf,
+  subagentsOf,
   subagentTime,
   type SubagentCard as Subagent,
 } from '@leafbot/shared';
@@ -254,6 +256,11 @@ export function MessageItem({
       );
     default:
       if (Array.isArray(m.props.plan)) return <PlanCard items={m.props.plan as PlanItem[]} />;
+      if (m.props.subagents) {
+        const group = subagentsOf(m.props);
+        if (group)
+          return group.length > 1 ? <SubagentGroupCard list={group} /> : <SubagentCard sub={group[0]!} />;
+      }
       if (m.props.subagent) {
         const sub = subagentOf(m.props);
         if (sub) return <SubagentCard sub={sub} />;
@@ -513,6 +520,25 @@ function useNow(live: boolean): number {
   return now;
 }
 
+/** How a subagent stands, as an icon. */
+function SubagentIcon({ state }: { state: Subagent['state'] }) {
+  if (state === 'running') return <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden />;
+  if (state === 'waiting') return <Clock className="size-4 text-muted-foreground" aria-hidden />;
+  if (state === 'done') {
+    return <CircleCheck className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />;
+  }
+  return <AlertCircle className="size-4 text-muted-foreground" aria-hidden />;
+}
+
+/** What a working subagent is doing now, in the words tool cards use; null once it has ended. */
+function useSubagentDoing(sub: Subagent): string | null {
+  const t = useT();
+  const { data: connections = [] } = useConnections();
+  return sub.state === 'running' && sub.tool
+    ? toolLabel(sub.tool, t, new Map(connections.map((c) => [c.slug, c.name])))
+    : null;
+}
+
 /**
  * A helper the bot started for part of the work: what it was asked, how it stands, what it is
  * doing now, how long it took and what it handed back.
@@ -522,10 +548,9 @@ function SubagentCard({ sub }: { sub: Subagent }) {
   const running = sub.state === 'running';
   const now = useNow(running);
   const [open, setOpen] = useState(false);
-  const { data: connections = [] } = useConnections();
-  const doing =
-    running && sub.tool ? toolLabel(sub.tool, t, new Map(connections.map((c) => [c.slug, c.name]))) : null;
+  const doing = useSubagentDoing(sub);
   const time = subagentTime(sub, t, now);
+  const ended = sub.state !== 'running' && sub.state !== 'waiting';
   return (
     <section
       aria-label={t('message.subagent')}
@@ -533,13 +558,7 @@ function SubagentCard({ sub }: { sub: Subagent }) {
     >
       <div className="flex items-start gap-2">
         <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
-          {running ? (
-            <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden />
-          ) : sub.state === 'done' ? (
-            <CircleCheck className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
-          ) : (
-            <AlertCircle className="size-4 text-muted-foreground" aria-hidden />
-          )}
+          <SubagentIcon state={sub.state} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
@@ -556,7 +575,7 @@ function SubagentCard({ sub }: { sub: Subagent }) {
           </div>
           {sub.description && <div className="mt-1 break-words">{sub.description}</div>}
           {doing && <div className="mt-1 text-xs text-muted-foreground">{doing}</div>}
-          {sub.result && !running && (
+          {sub.result && ended && (
             <div className="mt-2">
               <button
                 type="button"
@@ -570,16 +589,111 @@ function SubagentCard({ sub }: { sub: Subagent }) {
                 />
                 {t('message.subagentResult')}
               </button>
-              {open && (
-                <div className="mt-1 max-h-64 overflow-y-auto rounded-lg border bg-background/60 px-3 py-2 text-xs whitespace-pre-wrap break-words">
-                  {sub.result}
-                </div>
-              )}
+              {open && <SubagentResult text={sub.result} />}
             </div>
           )}
         </div>
       </div>
     </section>
+  );
+}
+
+function SubagentResult({ text }: { text: string }) {
+  return (
+    <div className="mt-1 max-h-64 overflow-y-auto rounded-lg border bg-background/60 px-3 py-2 text-xs whitespace-pre-wrap break-words">
+      {text}
+    </div>
+  );
+}
+
+const SUBAGENT_COUNT_ORDER = ['running', 'waiting', 'done', 'failed', 'stopped'] as const;
+
+/**
+ * Subagents the bot started together, on one card: how many are working, waiting and done, and a
+ * line for each that opens to what it is doing or what it handed back.
+ */
+function SubagentGroupCard({ list }: { list: Subagent[] }) {
+  const t = useT();
+  const [open, setOpen] = useState(true);
+  const counts = subagentCounts(list);
+  const working = counts.running + counts.waiting > 0;
+  const summary = SUBAGENT_COUNT_ORDER.filter((s) => counts[s] > 0)
+    .map((s) => t(`message.subagentCount.${s}`, { count: counts[s] }))
+    .join(' · ');
+  return (
+    <section
+      aria-label={t('message.subagentGroup')}
+      className="w-full max-w-[80%] min-w-64 self-start rounded-2xl border bg-card/60 px-4 py-3 text-sm"
+    >
+      <button
+        type="button"
+        className="flex w-full items-start gap-2 text-start"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
+          <SubagentIcon state={working ? 'running' : counts.failed || counts.stopped ? 'failed' : 'done'} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium">
+            {t(working ? 'message.subagentGroupWorking' : 'message.subagentGroupWorked', {
+              count: list.length,
+            })}
+          </span>
+          <span className="block text-xs text-muted-foreground tabular-nums">{summary}</span>
+        </span>
+        <ChevronDown
+          className={cn(
+            'mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform',
+            open && 'rotate-180',
+          )}
+          aria-hidden
+        />
+      </button>
+      {open && (
+        <ul className="mt-2 flex flex-col border-t">
+          {list.map((sub, i) => (
+            <SubagentLine key={i} sub={sub} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function SubagentLine({ sub }: { sub: Subagent }) {
+  const t = useT();
+  const running = sub.state === 'running';
+  const now = useNow(running);
+  const [open, setOpen] = useState(false);
+  const doing = useSubagentDoing(sub);
+  const time = subagentTime(sub, t, now);
+  const ended = sub.state !== 'running' && sub.state !== 'waiting';
+  return (
+    <li className="border-b last:border-b-0">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 py-2 text-start"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="flex size-4 shrink-0 items-center justify-center">
+          <SubagentIcon state={sub.state} />
+        </span>
+        <span className="min-w-0 flex-1 truncate">{sub.description || t('message.subagent')}</span>
+        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+          {[t(`message.subagentState.${sub.state}`), time].filter(Boolean).join(' · ')}
+        </span>
+      </button>
+      {open && (
+        <div className="pb-2 ps-6 text-xs text-muted-foreground">
+          {sub.description && <div className="break-words text-foreground">{sub.description}</div>}
+          <div className="mt-1 tabular-nums">{t('message.subagentSteps', { count: sub.steps })}</div>
+          {doing && <div className="mt-1">{doing}</div>}
+          {sub.result && ended && <SubagentResult text={sub.result} />}
+        </div>
+      )}
+    </li>
   );
 }
 

@@ -2,6 +2,7 @@ import {
   outsideTrigger,
   quoteExcerpt,
   subagentOf,
+  subagentsOf,
   type Bot,
   type Message,
   type ReplyQuote,
@@ -32,6 +33,7 @@ import {
   OpenedThread,
   PlanCard,
   SubagentCard,
+  SubagentGroupCard,
   SignInCard,
   type PlanItem,
 } from './Cards';
@@ -155,6 +157,11 @@ function MessageBody({
 function NoteRow({ m, botId, retry, room }: { m: Message; botId?: string; retry: boolean; room?: boolean }) {
   const c = useColors();
   if (Array.isArray(m.props.plan)) return <PlanCard items={m.props.plan as PlanItem[]} />;
+  if (m.props.subagents) {
+    const group = subagentsOf(m.props);
+    if (group)
+      return group.length > 1 ? <SubagentGroupCard list={group} /> : <SubagentCard sub={group[0]!} />;
+  }
   if (m.props.subagent) {
     const sub = subagentOf(m.props);
     if (sub) return <SubagentCard sub={sub} />;

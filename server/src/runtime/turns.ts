@@ -45,7 +45,7 @@ import {
 } from '../services/approvals';
 import { carriesToken, scrubCanary, type CanaryHit } from '../services/canary';
 import { publicHost } from '../services/skill-link';
-import type { PlanItem, SubagentState } from '../engine/types';
+import type { PlanItem } from '../engine/types';
 import { isUniqueViolation, newId, readableError, truncate } from '../util';
 import { submitsOnMac } from '../computer/person';
 import { refusingEngine } from '../engine/acp';
@@ -59,6 +59,7 @@ import { placeOf } from '../services/memory';
 import { buildSystemPrompt, HANDOFF_MESSAGES, handoffPrompt, nowLine, postedText } from './prompt';
 import { catastrophic, readsOnlyLine } from './safety';
 import { confinedWrite, ownBoxStep } from './own-box';
+import { SubagentCards } from './subagent-cards';
 import { isRehearsalRead } from './rehearsal';
 import { TurnWatchdog, type Stall } from './watchdog';
 import type { Services } from '../services';
@@ -1994,44 +1995,22 @@ export class TurnManager {
     };
     // The bot's plan is one message per turn, rewritten as the plan changes.
     let planMessage: Promise<string> | null = null;
-    // A card in the chat for each subagent the bot starts, kept up to date as it works.
-    const subagentCards = new Map<string, { message: Promise<string>; startedAt: string }>();
-    const showSubagent = async (sub: SubagentState) => {
-      const card = subagentCards.get(sub.id);
-      // When it started, so its card can say how long it has been at it.
-      const startedAt = card?.startedAt ?? new Date().toISOString();
-      const props = {
-        subagent: {
-          description: sub.description,
-          state: sub.state,
-          steps: sub.steps,
-          ...(sub.tool && { tool: sub.tool }),
-          ...(sub.result && { result: sub.result }),
-          startedAt,
-          ...(sub.state !== 'running' && { endedAt: new Date().toISOString() }),
-        },
-      };
-      try {
-        if (!card) {
-          const created = threads
-            .addMessage({
-              threadId: thread.id,
-              role: 'system',
-              author: `bot:${bot.id}`,
-              text: '',
-              props,
-              turnId: turn.id,
-            })
-            .then((r) => r.message.id);
-          subagentCards.set(sub.id, { message: created, startedAt });
-          await created;
-        } else {
-          await threads.updateMessage(await card.message, { props });
-        }
-      } catch (err) {
-        console.warn('subagent', err);
+    // A card in the chat for the subagents the bot starts together, kept up to date as they work.
+    const subagentCards = new SubagentCards(t, async (props, id) => {
+      if (id) {
+        await threads.updateMessage(id, { props });
+        return id;
       }
-    };
+      const r = await threads.addMessage({
+        threadId: thread.id,
+        role: 'system',
+        author: `bot:${bot.id}`,
+        text: '',
+        props,
+        turnId: turn.id,
+      });
+      return r.message.id;
+    });
     const showPlan = async (items: PlanItem[]) => {
       try {
         if (!planMessage) {
@@ -2250,7 +2229,7 @@ export class TurnManager {
           session = sessionId;
         },
         onPlan: (items) => void showPlan(items),
-        onSubagent: (sub) => void showSubagent(sub),
+        onSubagent: (sub) => void subagentCards.show(sub),
         onLimitNear: (info) => void this.warnLimit(turn, info),
         onPlanUsage: (windows) =>
           void this.services.usage
