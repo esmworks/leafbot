@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
+import { parseExpiry } from '@/lib/cardExpiry';
 import { useFormat } from '@/lib/format';
 import { useManagesServer } from '@/lib/queries';
 import { BotAccess, TeamChoice } from './VaultTab';
@@ -141,15 +142,14 @@ function CardForm({ onDone }: { onDone(): void }) {
   const [team, setTeam] = useState(false);
   const digits = number.replace(/[\s-]/g, '');
   const valid = /^\d{12,19}$/.test(digits) && luhn(digits);
-  const exp = /^\s*(\d{1,2})\s*\/\s*(\d{2}|\d{4})\s*$/.exec(expiry);
-  const month = exp ? Number(exp[1]) : 0;
+  const exp = parseExpiry(expiry);
   const save = useMutation({
     mutationFn: () =>
       api.addCard({
         label: label.trim(),
         number: digits,
-        expMonth: month,
-        expYear: Number(exp![2]),
+        expMonth: exp!.month,
+        expYear: exp!.year,
         ...(cvc.trim() && { cvc: cvc.trim() }),
         ...(holder.trim() && { holder: holder.trim() }),
         botIds,
@@ -228,11 +228,7 @@ function CardForm({ onDone }: { onDone(): void }) {
         <Button type="button" variant="ghost" className="rounded-full" onClick={onDone}>
           {t('common.cancel')}
         </Button>
-        <Button
-          type="submit"
-          className="rounded-full"
-          disabled={!valid || !exp || month < 1 || month > 12 || save.isPending}
-        >
+        <Button type="submit" className="rounded-full" disabled={!valid || !exp || save.isPending}>
           {t('common.save')}
         </Button>
       </div>

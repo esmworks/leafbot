@@ -821,7 +821,7 @@ function BotRow({ bot, summary }: { bot: Bot; summary?: BotSummary }) {
                     unread && 'font-medium text-foreground',
                   )}
                 >
-                  {summary?.preview ?? (bot.description || t('sidebar.noMessages'))}
+                  {summary?.preview || bot.description || t('sidebar.noMessages')}
                 </div>
                 <UnreadDot summary={summary} />
               </div>

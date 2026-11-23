@@ -3,6 +3,53 @@
 All notable changes to Leaf Bot (called Yumak Bot before 0.7.0) are listed here. Versions follow [Semantic Versioning](https://semver.org/). While the
 version is 0.x, a minor release may change the data format or the API; the server migrates its database on start.
 
+## Unreleased
+
+### Added
+
+- Bots can ask a question where you tick several options and confirm, in the app and on the phone; in chat apps you
+  reply with the option numbers, such as 1, 3.
+- Bots can read a routine in full before they change it, offer to update a routine when you correct a fact it relies
+  on, and report the state of their work in plain words, without internal ids or tool names.
+- When the provider refuses a request on content grounds and a backup model is set, the backup model takes over (if
+  nothing had been changed yet) instead of the turn ending with an error.
+- Contact cards sent over WhatsApp are read by the bot with their names and phone numbers.
+- A voice call reads out replies the bot starts on its own, such as a routine's result, while you are listening.
+- The desktop app on a Mac offers once to move itself to the Applications folder when it runs from a disk image or a
+  download that macOS keeps apart, so updates can install. "Check for Updates…" in its menu says when a check fails,
+  and why.
+- Bots running commands on your Mac can ask for access to Calendar, Reminders and Contacts.
+- `tel:` and `sms:` links in a reply open the dialer or Messages on the phone.
+
+### Changed
+
+- The bot's browser tells sites the interface language, instead of an empty or invalid one on servers whose locale is
+  C or POSIX.
+- Screenshots of a bot's computer go to the model as JPEG of the same size, which costs fewer tokens.
+- Card expiry dates can be typed in any usual form (1227, 12-27, 12 2027, 2027-12).
+- A long reply no longer scrolls its beginning out of view while it is written; the view stays at its start.
+
+### Fixed
+
+- WhatsApp no longer wipes its link when the server's secret key changes; it says the saved keys cannot be read and
+  asks you to link again. Telegram, Slack, Discord and Teams show as not connected, with a reason, when their saved
+  tokens can no longer be read, instead of showing as connected while doing nothing.
+- A Discord reply with text and one file arrives as one message.
+- A coding agent that never answers on start no longer holds the bot's queue: Stop works at once, and a start that
+  takes over 90 seconds ends with a message.
+- A long conversation summary no longer gets the turn stopped as stalled.
+- An OpenAI conversation whose saved reasoning the provider can no longer verify goes on in a new session instead of
+  failing every turn.
+- A Claude bot that says what it will do next and then stops is told to go on, up to twice, as API-key bots already
+  were; not while it waits for another bot's answer.
+- When reading a message aloud fails, you see why instead of silence.
+- Empty (0-byte) files are refused with a clear message.
+- A reply that is only a picture shows the picture's name in the sidebar instead of a blank line.
+- The screen stays on while a bot is using your Mac, so its screenshots are no longer black.
+- A message sent from the phone as the app comes back from the background is sent again by itself once the
+  connection is back. Large uploads from the phone are no longer cut off after ten minutes while they still move; only
+  an upload that stalls for a minute is.
+
 ## 0.9.1 — 2026-11-23
 
 ### Added
