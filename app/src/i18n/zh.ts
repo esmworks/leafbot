@@ -1,9 +1,8 @@
 import type { Catalog } from '@leafbot/shared';
 import type { MessageKey } from './tr';
 
-/** Chinese (Simplified). Keys it does not hold show in English until they are translated. */
+/** Chinese (Simplified). */
 export const zh: Partial<Catalog<MessageKey>> = {
-  'slash.goal': '设置此会话的目标',
   'common.bot': '机器人',
   'common.someone': '某人',
   'common.loading': '正在加载…',
@@ -417,9 +416,8 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'today.expiredMemory': { other: '{count} 条记忆已过期' },
   'sidebarMenu.clearThreads': '删除其他会话…',
   'sidebarMenu.clearThreadsConfirm': '删除 {name} 除主会话以外的所有会话及其文件？此操作无法撤销。',
-  'sidebarMenu.threadsCleared': {
-    other: '已删除 {count} 个会话',
-  },
+  'sidebarMenu.threadsCleared': { other: '已删除 {count} 个会话' },
+  'slash.goal': '设置此会话的目标',
   'goal.label': '目标：',
   'goal.set': '目标已设定；机器人将在本次会话中朝着它努力',
   'goal.cleared': '目标已清除',
@@ -835,20 +833,14 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'chat.closePanel': '关闭面板',
   'chat.withBot': '与 {bot}',
   'chat.waitingIn': { other: '「{place}」中有 {count} 张卡片等待你回答' },
-  'chat.waitingElsewhere': {
-    other: '其他会话中有 {count} 张卡片等待你回答',
-  },
-  'chat.waitingCards': {
-    other: '{count} 张卡片等待处理',
-  },
+  'chat.waitingElsewhere': { other: '其他会话中有 {count} 张卡片等待你回答' },
+  'chat.waitingCards': { other: '{count} 张卡片等待处理' },
   'chat.replyElsewhere': '{bot} 在「{place}」中发言',
   'chat.showReply': '打开',
   'chat.showWaiting': '显示',
   'chat.emptyHint': '写一条消息开始。',
   'chat.toBottom': '跳到最新消息',
-  'chat.newMessages': {
-    other: '{count} 条新消息',
-  },
+  'chat.newMessages': { other: '{count} 条新消息' },
   'chat.quote': '引用',
   'offer.take': '执行',
   'offer.decline': '暂时不要',
@@ -1275,9 +1267,7 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'computer.desktop.wakeFailed': '无法唤醒电脑',
   'computer.desktop.controlFailed': '无法取得控制',
   'suggest.title': '减少询问',
-  'suggest.rule': {
-    other: '你最近允许了 {count} 次，且从未拒绝。',
-  },
+  'suggest.rule': { other: '你最近允许了 {count} 次，且从未拒绝。' },
   'suggest.allow': '始终允许',
   'suggest.full': '你允许了最近 {total} 张卡片中的 {allowed} 张。从此让此机器人无需询问即可工作？',
   'suggest.fullOn': '切换到完全访问',
@@ -1310,6 +1300,7 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'panel.nextRun': '下次 {when}',
   'panel.lastRunFailed': '上次运行失败',
   'panel.signInWait': '等待登录',
+  'panel.switchedOffFailures': '多次失败后已关闭',
   'panel.runNow': '立即运行',
   'panel.toggle': '开/关',
   'panel.bot': '机器人',
@@ -1328,6 +1319,10 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'routine.webhookRenew': '新地址',
   'routine.webhookLocalOnly':
     '此地址仅在这台电脑上有效。若要由互联网上的服务启动例程，请让服务器在该服务可以访问的位置运行，并设置 LEAFBOT_PUBLIC_URL。',
+  'routine.reportOnly': '只告诉我',
+  'routine.reportOnlyHint':
+    '该例程只查看并汇报，无论机器人在别处能做什么：任何会改变状态的一步（发送、点击、输入、编辑、会写入的已连接应用）都会被拒绝，机器人改为告诉你它发现了什么。',
+  'routine.reportOnlyShort': '只汇报',
   'routine.carryReport': '基于上次报告撰写',
   'routine.carryReportHint': '每次运行都会拿到机器人上次写的内容，因此可以说清变化，而不必从头开始。',
   'routine.limited': '仅在部分日期和时间段',
@@ -1504,6 +1499,7 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'flow.nextRun': '下次运行 {when}',
   'flow.noNextRun': '未设置再次运行',
   'flow.paused': '已暂停；不会按计划运行。',
+  'flow.switchedOffFailures': '连续多次运行失败后已关闭。修好后请重新开启；计数将重新开始。',
   'flow.saveFirst': '请先保存更改再运行。',
   'flow.started': '例程已启动。',
   'flow.result': '结果',
@@ -2027,9 +2023,7 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'usage.empty': '此期间没有机器人工作。',
   'usage.failed': '无法读取用量。',
   'usage.estimate': '金额是引擎报告的费用。使用 Claude 订阅时，这是按 API 价格估算的，不是账单。',
-  'usage.unpriced': {
-    other: '{count} 轮的费用未知：停止或失败的轮次不报告费用。',
-  },
+  'usage.unpriced': { other: '{count} 轮的费用未知：停止或失败的轮次不报告费用。' },
   'settings.tab.about': '关于',
   'about.version': '版本 {version}',
   'about.open': '打开',
@@ -2694,9 +2688,7 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'rehearsal.earlier': '更早的演练',
   'rehearsal.kept': '演练会保留 7 天，且不影响此例程之后的运行。',
   'usage.rehearsalOf': '演练：{name}',
-  'apps.missing': {
-    other: '此指令提到了 {apps}，但机器人尚无法使用它。',
-  },
+  'apps.missing': { other: '此指令提到了 {apps}，但机器人尚无法使用它。' },
   'apps.missingConnect': '连接 {app}',
   'memory.openSource': '打开写下该笔记的会话',
   'memory.edit': '编辑笔记',

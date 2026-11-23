@@ -936,19 +936,13 @@ export const es: Partial<Catalog<MessageKey>> = {
     many: '{count} avisos en otras conversaciones esperan tu respuesta',
     other: '{count} avisos en otras conversaciones esperan tu respuesta',
   },
-  'chat.waitingCards': {
-    one: '{count} tarjeta esperando',
-    other: '{count} tarjetas esperando',
-  },
+  'chat.waitingCards': { one: '{count} tarjeta esperando', other: '{count} tarjetas esperando' },
   'chat.replyElsewhere': '{bot} escribió en «{place}»',
   'chat.showReply': 'Abrir',
   'chat.showWaiting': 'Mostrar',
   'chat.emptyHint': 'Escribe un mensaje para empezar.',
   'chat.toBottom': 'Ir al último mensaje',
-  'chat.newMessages': {
-    one: '1 mensaje nuevo',
-    other: '{count} mensajes nuevos',
-  },
+  'chat.newMessages': { one: '1 mensaje nuevo', other: '{count} mensajes nuevos' },
   'chat.quote': 'Citar',
   'offer.take': 'Hazlo',
   'offer.decline': 'Ahora no',
@@ -1439,6 +1433,7 @@ export const es: Partial<Catalog<MessageKey>> = {
   'panel.nextRun': 'próxima {when}',
   'panel.lastRunFailed': 'la última ejecución falló',
   'panel.signInWait': 'esperando un inicio de sesión',
+  'panel.switchedOffFailures': 'desactivado tras fallos repetidos',
   'panel.runNow': 'Ejecutar ahora',
   'panel.toggle': 'Activar o desactivar',
   'panel.bot': 'Bot',
@@ -1459,6 +1454,10 @@ export const es: Partial<Catalog<MessageKey>> = {
   'routine.webhookRenew': 'Nueva dirección',
   'routine.webhookLocalOnly':
     'Esta dirección solo funciona en este equipo. Para iniciar la rutina desde un servicio de internet, ejecuta el servidor donde ese servicio pueda alcanzarlo y define LEAFBOT_PUBLIC_URL.',
+  'routine.reportOnly': 'Solo avísame',
+  'routine.reportOnlyHint':
+    'La rutina solo mira e informa, haga lo que haga el bot en otros sitios: un paso que cambiaría algo (enviar, hacer clic, escribir, editar, una aplicación conectada que escriba) se rechaza, y el bot te cuenta lo que ha encontrado en su lugar.',
+  'routine.reportOnlyShort': 'solo avisa',
   'routine.carryReport': 'Partir del último informe',
   'routine.carryReportHint':
     'Cada ejecución recibe lo que el bot escribió la última vez, así puede contar qué cambió en vez de empezar de cero.',
@@ -1646,6 +1645,8 @@ export const es: Partial<Catalog<MessageKey>> = {
   'flow.nextRun': 'Próxima ejecución {when}',
   'flow.noNextRun': 'Sin otra ejecución programada',
   'flow.paused': 'En pausa; no se ejecuta según su programación.',
+  'flow.switchedOffFailures':
+    'Se desactivó porque sus ejecuciones fallaron varias veces seguidas. Vuelve a activarlo cuando esté arreglado; la cuenta empieza de nuevo.',
   'flow.saveFirst': 'Guarda los cambios antes de ejecutarla.',
   'flow.started': 'La rutina se ha iniciado.',
   'flow.result': 'Resultado',
