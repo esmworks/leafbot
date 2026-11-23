@@ -257,9 +257,10 @@ export const RoutineCreate = z.object({
   carryReport: z.boolean().default(false),
   /**
    * Runs in the bot's main conversation, where the person talks to it and with what was said there,
-   * instead of a conversation of its own.
+   * instead of a conversation of its own. On unless asked otherwise: a routine is the bot's own work,
+   * which the person follows and talks about where they talk to it.
    */
-  inMain: z.boolean().default(false),
+  inMain: z.boolean().default(true),
   /**
    * The Slack channel's id (`C…`, `G…`) its reports are posted to; null for none. The routine then
    * runs as a team conversation, with no one's own notes, apps or sign-ins.

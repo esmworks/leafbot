@@ -1,9 +1,13 @@
-import type {
-  ClientToServerEvents,
-  NoticeEvent,
-  RefreshScope,
-  ServerToClientEvents,
-  TurnState,
+import {
+  type ClientToServerEvents,
+  hasGap,
+  type LiveText,
+  type NoticeEvent,
+  type RefreshScope,
+  type ServerToClientEvents,
+  seedStream,
+  streamEnded,
+  type TurnState,
 } from '@leafbot/shared';
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
@@ -25,7 +29,12 @@ class LiveStore {
   /** How much of its turn's streaming text had arrived when each card (by message id) did. */
   cardCuts: Readonly<Record<string, number>> = {};
   connected = false;
+  /** Fetches what a running turn has shown of its reply so far; set while a socket is open. */
+  fetchLive: ((threadId: string) => Promise<LiveText | null>) | null = null;
   private listeners = new Set<() => void>();
+  /** The conversations on screen, counted by how many views show each. */
+  private watched = new Map<string, number>();
+  private fetching = new Set<string>();
 
   subscribe = (fn: () => void) => {
     this.listeners.add(fn);
@@ -36,9 +45,53 @@ class LiveStore {
     for (const fn of this.listeners) fn();
   }
 
-  append(threadId: string, turnId: string, text: string, restart?: boolean) {
-    this.streams = appendStream(this.streams, threadId, turnId, text, restart);
+  append(threadId: string, turnId: string, text: string, restart?: boolean, at?: number) {
+    this.streams = appendStream(this.streams, threadId, turnId, text, restart, at);
     this.emit();
+    // Words before these went missing: what the bot has written so far is fetched.
+    if (hasGap(this.streams[threadId])) this.catchUp(threadId);
+  }
+
+  /**
+   * Brings in what the bot has written so far of the reply it is writing, when the phone missed
+   * some of it (the socket was down, the screen opened mid-reply). Pieces that came meanwhile
+   * follow it. A few fetches in a row at most; the next missing piece tries again.
+   */
+  catchUp(threadId: string, round = 1) {
+    const fetchLive = this.fetchLive;
+    if (!fetchLive || this.fetching.has(threadId)) return;
+    this.fetching.add(threadId);
+    let again = false;
+    void fetchLive(threadId)
+      .then((live) => {
+        if (!live) return;
+        const next = seedStream(this.streams[threadId], live);
+        again = hasGap(next);
+        if (next === this.streams[threadId]) return;
+        this.streams = { ...this.streams, [threadId]: next };
+        this.emit();
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        this.fetching.delete(threadId);
+        if (again && round < CATCH_UP_ROUNDS) this.catchUp(threadId, round + 1);
+      });
+  }
+
+  /** Catches up every conversation on screen; after a reconnect nothing live is trusted. */
+  catchUpWatched() {
+    for (const id of this.watched.keys()) this.catchUp(id);
+  }
+
+  /** Keeps a conversation's live reply whole while it is on screen; returns the release. */
+  watch(threadId: string): () => void {
+    this.watched.set(threadId, (this.watched.get(threadId) ?? 0) + 1);
+    this.catchUp(threadId);
+    return () => {
+      const n = (this.watched.get(threadId) ?? 1) - 1;
+      if (n > 0) this.watched.set(threadId, n);
+      else this.watched.delete(threadId);
+    };
   }
 
   drop(threadId: string, turnId?: string) {
@@ -79,6 +132,9 @@ class LiveStore {
   }
 }
 
+/** Fetches in a row for one conversation while words keep going missing. */
+const CATCH_UP_ROUNDS = 5;
+
 const LiveContext = createContext<LiveStore | null>(null);
 
 function useLive(): LiveStore {
@@ -110,6 +166,12 @@ export function useCardCuts(): [Readonly<Record<string, number>>, (cuts: Record<
   const store = useLive();
   const cuts = useSyncExternalStore(store.subscribe, () => store.cardCuts);
   return [cuts, store.markCards];
+}
+
+/** Keeps a conversation's live reply whole while it is on screen (see `LiveStore.catchUp`). */
+export function useLiveCatchUp(threadId: string | undefined): void {
+  const store = useLive();
+  useEffect(() => (threadId ? store.watch(threadId) : undefined), [store, threadId]);
 }
 
 /** Whether the socket to the server is up, for the connection dot. */
@@ -160,6 +222,10 @@ function connect(origin: string, qc: QueryClient, store: LiveStore): () => void 
   });
   let bootId: string | null = null;
   const inv = (...queryKey: unknown[]) => void qc.invalidateQueries({ queryKey });
+  store.fetchLive = (threadId) =>
+    apiFor(origin)
+      .live(threadId)
+      .then((r) => r.live);
 
   // What the person lets bots read from this phone, said again whenever it may have changed: on
   // every connect, when a switch changes, and when the app comes back (a permission may be gone).
@@ -193,9 +259,11 @@ function connect(origin: string, qc: QueryClient, store: LiveStore): () => void 
     if (bootId !== null) store.reset();
     bootId = e.bootId;
     void qc.invalidateQueries();
+    // A reply being written while the socket was down is brought in from where it is now.
+    store.catchUpWatched();
   });
   s.on('refresh', (e) => refresh(origin, e, inv));
-  s.on('delta', (e) => store.append(e.threadId, e.turnId, e.text, e.restart));
+  s.on('delta', (e) => store.append(e.threadId, e.turnId, e.text, e.restart, e.at));
   s.on('tool', (e) => store.setTool(e.threadId, e.tool));
   s.on('notice', (e) => notices.forEach((fn) => fn(e)));
   s.on('turn', (e) => {
@@ -210,11 +278,17 @@ function connect(origin: string, qc: QueryClient, store: LiveStore): () => void 
       inv('library', origin, e.botId);
       inv('file-text', origin, e.botId);
       inv('today', origin);
-      // The stream goes once the saved reply is in the cache, so the text never blinks out.
-      const stream = store.streams[e.threadId];
+    }
+    // The streamed turn ended, though the next may already run: its text goes once the saved
+    // reply is in the cache, so it never blinks out. Left in place, it would stand for the next
+    // turn's reply and hide that the bot is at work.
+    const stream = store.streams[e.threadId];
+    if (stream && streamEnded(stream.turnId, e)) {
       void qc.refetchQueries({ queryKey: ['messages', origin, e.threadId] }).then(() => {
-        if (stream) store.drop(e.threadId, stream.turnId);
+        store.drop(e.threadId, stream.turnId);
       });
+    } else if (e.state === 'idle') {
+      void qc.refetchQueries({ queryKey: ['messages', origin, e.threadId] });
     }
   });
   s.on('connect_error', (err) => {
@@ -227,6 +301,7 @@ function connect(origin: string, qc: QueryClient, store: LiveStore): () => void 
     offActive.remove();
     s.removeAllListeners();
     s.close();
+    store.fetchLive = null;
     store.setConnected(false);
     store.reset();
   };

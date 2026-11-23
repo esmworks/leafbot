@@ -1,8 +1,14 @@
-import type { ClientToServerEvents, RefreshScope, ServerToClientEvents } from '@leafbot/shared';
+import {
+  type ClientToServerEvents,
+  type RefreshScope,
+  type ServerToClientEvents,
+  streamEnded,
+} from '@leafbot/shared';
 import type { QueryClient } from '@tanstack/react-query';
 import { io, type Socket } from 'socket.io-client';
 import { browserSocketClosed, onBrowserReconnect, useBrowsers } from './browser';
 import { computerSocketClosed, onComputerReconnect, useComputers } from './computer';
+import { catchUp, catchUpWatched } from './liveCatchUp';
 import { notice, watchAnswered } from './notify';
 import { watchOutbox } from './outbox';
 import { useUi } from './store';
@@ -42,12 +48,15 @@ export function connectRealtime(qc: QueryClient, opts: { notices?: boolean } = {
     bootId = e.bootId;
     serverBuild(e.buildId);
     void qc.invalidateQueries();
+    // A reply being written while the socket was down is brought in from where it is now.
+    catchUpWatched();
   });
   s.on('refresh', (e) => refresh(qc, e));
   s.on('delta', (e) => {
     // The earlier attempt's words go: the new ones are typed from their own start.
     if (e.restart) restartTyping(e.turnId);
-    ui().appendStream(e.threadId, e.turnId, e.text, e.restart);
+    // Words before these went missing: what the bot has written so far is fetched.
+    if (ui().appendStream(e.threadId, e.turnId, e.text, e.restart, e.at)) catchUp(e.threadId);
     ui().markWriting(e.threadId);
   });
   s.on('tool', (e) => ui().setTool(e.threadId, e.tool));
@@ -62,11 +71,17 @@ export function connectRealtime(qc: QueryClient, opts: { notices?: boolean } = {
       void qc.invalidateQueries({ queryKey: ['library', e.botId] });
       // A file open in the preview may have been rewritten by the turn that just ended.
       void qc.invalidateQueries({ queryKey: ['file-text', e.botId] });
-      // Clear the stream once the saved message is in the cache.
-      const stream = ui().streams[e.threadId];
+    }
+    // The streamed turn ended, though the next may already run: its text goes once the saved
+    // message is in the cache. Left in place, it would stand for the next turn's reply and hide
+    // that the bot is at work.
+    const stream = ui().streams[e.threadId];
+    if (stream && streamEnded(stream.turnId, e)) {
       void qc.refetchQueries({ queryKey: ['messages', e.threadId] }).then(() => {
-        if (stream) ui().dropStream(e.threadId, stream.turnId);
+        ui().dropStream(e.threadId, stream.turnId);
       });
+    } else if (e.state === 'idle') {
+      void qc.refetchQueries({ queryKey: ['messages', e.threadId] });
     }
   });
   // A page inside the phone app leaves sounds and notifications to the phone.

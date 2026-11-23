@@ -440,6 +440,7 @@ describe('rutinler', () => {
         prompt: 'Günün özetini yaz',
         schedule: { type: 'daily', time: '09:00' },
         timezone: 'Europe/Istanbul',
+        inMain: false,
       })
     ).body;
     expect(r.nextRunAt).toBe('2026-11-16T06:00:00.000Z');
@@ -566,6 +567,8 @@ describe('rutinler', () => {
         name: 'Rapor',
         prompt: 'Raporu yaz',
         schedule: { type: 'interval', minutes: 5 },
+        // Its runs work in a conversation of its own; the report is copied to the main one.
+        inMain: false,
       })
     ).body;
   const runs = async (id: string) => (await t.api<RoutineRun[]>('GET', `/api/routines/${id}/runs`)).body;
@@ -606,6 +609,7 @@ describe('rutinler', () => {
         name: 'Gece raporu',
         prompt: '[hata]',
         schedule: { type: 'interval', minutes: 5 },
+        inMain: false,
       })
     ).body;
     const failed = async () =>
@@ -658,6 +662,30 @@ describe('rutinler', () => {
     await runAgain(r.id);
     await t.services.turns.idle();
     expect(await failed()).toBe('Telegram grubu');
+  });
+
+  it('yeni rutin ana sohbette çalışır; seni bekleyen adımı olan kendi sohbetinde kalır', async () => {
+    const a = await t.bot({ name: 'Ali' });
+    const main = (await t.api<Thread>('GET', `/api/bots/${a.id}/main-thread`)).body;
+    const made = async (extra: Record<string, unknown>) =>
+      (
+        await t.api<Routine>('POST', '/api/routines', {
+          botId: a.id,
+          name: 'Özet',
+          prompt: 'Özeti yaz',
+          schedule: { type: 'interval', minutes: 5 },
+          ...extra,
+        })
+      ).body;
+    const plain = await made({});
+    expect(plain.inMain).toBe(true);
+    const run = (await t.api<RoutineRun>('POST', `/api/routines/${plain.id}/run`, {})).body;
+    await t.services.turns.idle();
+    expect(run.threadId).toBe(main.id);
+    // A run held for the person would keep the main conversation busy for days.
+    const held = await made({ steps: [{ id: 'onay', kind: 'approval', question: 'Gönderilsin mi?' }] });
+    const heldRun = (await t.api<RoutineRun>('POST', `/api/routines/${held.id}/run`, {})).body;
+    expect(heldRun.threadId).not.toBe(main.id);
   });
 
   it('rutinin raporu ana sohbete düşer, bot orada sonraki mesajda onu bilir; sessiz çalışma bir şey yazmaz', async () => {

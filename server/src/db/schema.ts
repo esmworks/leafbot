@@ -571,7 +571,7 @@ export const routines = pgTable('routines', {
   /** Each run gets the previous run's report, so recurring work builds on what came before. */
   carryReport: boolean('carry_report').notNull().default(false),
   /** Runs in the bot's main conversation, with its context, instead of a conversation of its own. */
-  inMain: boolean('in_main').notNull().default(false),
+  inMain: boolean('in_main').notNull().default(true),
   /**
    * The Slack channel its reports go to; null for none. Such a routine runs in a team conversation:
    * what goes to a channel is written from what the team shares, never from one person's own data.

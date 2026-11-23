@@ -1,5 +1,5 @@
 {
-  "id": "2c26d0be-9997-46ed-ad7a-ad653f378b6d",
+  "id": "478f62ec-330c-45cc-9c9e-4caf428c2b90",
   "prevId": "c84fa2e9-94ef-4d7a-9392-9001e91184d3",
   "version": "7",
   "dialect": "postgresql",
@@ -4592,12 +4592,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "unread": {
-          "name": "unread",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -5787,7 +5781,7 @@
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
-          "default": false
+          "default": true
         },
         "slack_channel": {
           "name": "slack_channel",

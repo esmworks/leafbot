@@ -246,12 +246,13 @@ describe('her kişinin kendisine ait olanlar', () => {
       .from(schema.turns)
       .where(eq(schema.turns.routineRunId, run.id));
     expect(turn!.userId).toBe('ayse');
-    // Its report reaches Ayşe's main conversation, not the bot owner's.
+    // It runs in Ayşe's main conversation, not the bot owner's.
     const hers = (await ayse.api<Thread>('GET', `/api/bots/${bot.id}/main-thread`)).body;
     const owners = (await t.api<Thread>('GET', `/api/bots/${bot.id}/main-thread`)).body;
+    expect(run.threadId).toBe(hers.id);
     const inHers = (await ayse.api<Message[]>('GET', `/api/threads/${hers.id}/messages`)).body;
-    expect(inHers.some((m) => m.props.routineReport)).toBe(true);
-    expect((await t.messages(owners.id)).some((m) => m.props.routineReport)).toBe(false);
+    expect(inHers.some((m) => m.props.routineInMain)).toBe(true);
+    expect((await t.messages(owners.id)).some((m) => m.props.routineRunId)).toBe(false);
   });
 
   it('not geçmişi en yeni satırları verir', async () => {

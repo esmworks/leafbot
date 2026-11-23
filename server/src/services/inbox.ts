@@ -233,8 +233,14 @@ export class Inbox {
       outside: forwarded || history ? 'forward' : chatAnswer ? 'whatsapp' : null,
       userId: input.userId ?? null,
       ...(input.guest && { guest: true, modeCap: 'ask' as const }),
+      messageId: message.id,
     });
-    await s.threads.updateMessage(message.id, { turnId: turn.id });
+    // Written while the bot answers the person: it reads the new words at its next step instead of
+    // after the answer, as the person would when talking. When the turn takes no more steps, or is
+    // not the person's own, the message keeps its own turn after it.
+    if (queued && !forwarded && !chatAnswer && !input.guest && input.answers !== false) {
+      await s.turns.steer(threadId, turn.id, message.id, true);
+    }
     return { message: { ...message, turnId: turn.id }, created };
   }
 }

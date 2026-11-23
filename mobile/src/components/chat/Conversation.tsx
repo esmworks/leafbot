@@ -28,7 +28,7 @@ import { nav } from '@/lib/nav';
 import { endWorkSeen, showWork, useLiveActivityChoice } from '@/lib/liveActivity';
 import { useLiveCards } from '@/lib/liveCards';
 import { useApprovals, useMessages } from '@/lib/queries';
-import { useLiveState, useStream } from '@/lib/realtime';
+import { useLiveCatchUp, useLiveState, useStream } from '@/lib/realtime';
 import { useApi, useServer } from '@/lib/server';
 import { newClientId, streamSaved, withPending } from '@/lib/stream';
 import { useColors } from '@/lib/theme';
@@ -92,6 +92,8 @@ export function Conversation({
   const hasOlder = !olderDone && (older.length > 0 || recent.length >= MESSAGE_PAGE);
 
   const stream = useStream(threadId);
+  // A reply under way when the screen opened, or while the socket was down, shows from its start.
+  useLiveCatchUp(threadId);
   const liveState = useLiveState(threadId);
   // Seen to the end here, the bot's work need not stay on the lock screen.
   useEffect(() => {

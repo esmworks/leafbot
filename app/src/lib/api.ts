@@ -52,6 +52,7 @@ import type {
   TodayReport,
   Group,
   MailSender,
+  LiveText,
   Memory,
   MemoryChange,
   MemoryFlag,
@@ -529,6 +530,8 @@ export const api = {
   thread: (id: string) => http.get<Thread>(`/api/threads/${id}`),
   deleteThread: (id: string) => http.del<{ ok: true }>(`/api/threads/${id}`),
   resetThread: (id: string) => http.post<{ ok: true }>(`/api/threads/${id}/reset`),
+  /** What the bot has written so far of the reply it is writing; null when nothing runs. */
+  live: (threadId: string) => http.get<{ live: LiveText | null }>(`/api/threads/${threadId}/live`),
   messages: (threadId: string, before?: string) =>
     http.get<Message[]>(
       `/api/threads/${threadId}/messages${before ? `?before=${encodeURIComponent(before)}` : ''}`,

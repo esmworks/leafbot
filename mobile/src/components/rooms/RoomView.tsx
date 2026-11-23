@@ -34,7 +34,7 @@ import { formatters, needsDivider } from '@/lib/format';
 import { nav } from '@/lib/nav';
 import { useLiveCards } from '@/lib/liveCards';
 import { useBots, useMessages } from '@/lib/queries';
-import { useLiveState, useStream } from '@/lib/realtime';
+import { useLiveCatchUp, useLiveState, useStream } from '@/lib/realtime';
 import { useApi, useServer } from '@/lib/server';
 import { newClientId, streamSaved, withPending } from '@/lib/stream';
 import { useColors } from '@/lib/theme';
@@ -103,6 +103,7 @@ export function RoomView({ room }: { room: Room }) {
   }, [api, room.id]);
 
   const stream = useStream(room.id);
+  useLiveCatchUp(room.id);
   const live = useLiveState(room.id);
   const state = live ?? room.state;
   const busy = state !== 'idle';

@@ -1433,7 +1433,7 @@ export const en: Catalog<MessageKey> = {
   'routine.cronInvalid': 'Not a five-field cron expression',
   'routine.inMain': 'Run in the main conversation',
   'routine.inMainHint':
-    'The bot works in the main conversation, with what you talked about there, and its steps show there too. When off, the routine works in a conversation of its own and only its report lands in the main one.',
+    'The bot works in the main conversation, with what you talked about there, and its steps show there too. When off, the routine works in a conversation of its own and only its report lands in the main one. A routine that reads WhatsApp or has a step that waits for you, and a run started by text from outside (a webhook, a mail, a changed page), work in a conversation of their own either way; the report still lands in the main one.',
   'routine.onStartup': 'Also run when the server starts',
   'routine.onStartupHint':
     'Runs once each time the server starts; in the desktop app, when you turn on the computer and open Leaf Bot.',
