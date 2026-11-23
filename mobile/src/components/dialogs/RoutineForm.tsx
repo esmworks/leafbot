@@ -45,6 +45,7 @@ interface Form {
   date: string;
   missed: 'run' | 'skip';
   carryReport: boolean;
+  reportOnly: boolean;
   inMain: boolean;
   onStartup: boolean;
   webhookFilter: string;
@@ -110,6 +111,7 @@ function fromRoutine(r?: Routine): Form {
     date: s?.type === 'once' ? s.date : tomorrow(),
     missed: r?.missed ?? 'run',
     carryReport: r?.carryReport ?? false,
+    reportOnly: r?.reportOnly ?? false,
     inMain: r?.inMain ?? true,
     onStartup: r?.onStartup ?? false,
     watchUrl: r?.watchUrl ?? '',
@@ -200,6 +202,7 @@ function RoutinePage({ routine, initialBotId }: { routine?: Routine; initialBotI
         enabled,
         missed: v.missed,
         carryReport: v.carryReport,
+        reportOnly: v.reportOnly,
         inMain: v.inMain,
         onStartup: v.onStartup,
         watchUrl: v.watchUrl.trim() || null,
@@ -460,6 +463,12 @@ function RoutinePage({ routine, initialBotId }: { routine?: Routine; initialBotI
               onChange={setEnabled}
             />
           ) : null}
+          <SwitchRow
+            label={t('routine.reportOnly')}
+            detail={t('routine.reportOnlyHint')}
+            value={v.reportOnly}
+            onChange={(on) => set('reportOnly', on)}
+          />
           <SwitchRow
             label={t('routine.carryReport')}
             detail={t('routine.carryReportHint')}

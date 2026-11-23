@@ -36,7 +36,7 @@ import { schema } from '../db';
 import { planItems, type AppTool, type PlanItem, type ToolResult } from '../engine/types';
 import { attended, type TurnRow } from '../runtime/turns';
 import { requestedBy } from '../runtime/owner-words';
-import { STRICTNESS } from '../services/approvals';
+import { reportOnlyTurn, STRICTNESS } from '../services/approvals';
 import type { Services } from '../services';
 import { isServerKey, type T } from '../i18n';
 import { errorText, HttpError, newId, notFound, truncate } from '../util';
@@ -761,6 +761,8 @@ export class ToolFactory {
           carry_report: z.boolean().default(false),
           /** Run in the main conversation with the person, with its context, not one of its own. */
           in_main: z.boolean().default(true),
+          /** Only look and report: every run is held to reading, so it can change nothing. */
+          report_only: z.boolean().default(false),
           /** Also run once whenever the server starts (on a desktop: when the computer is turned on). */
           on_startup: z.boolean().default(false),
           /** An https page read before each run with no AI; the routine runs only when it changed. */
@@ -808,6 +810,7 @@ export class ToolFactory {
               missed: a.missed,
               carryReport: a.carry_report,
               inMain: a.in_main,
+              reportOnly: a.report_only,
               slackChannel: null,
               onStartup: a.on_startup,
               watchUrl: a.watch_url ?? null,
@@ -859,6 +862,7 @@ export class ToolFactory {
           missed: z.enum(['run', 'skip']).optional(),
           carry_report: z.boolean().optional(),
           in_main: z.boolean().optional(),
+          report_only: z.boolean().optional(),
           on_startup: z.boolean().optional(),
           /** An empty string stops watching the page. */
           watch_url: z
@@ -909,6 +913,7 @@ export class ToolFactory {
             ...(a.missed !== undefined && { missed: a.missed }),
             ...(a.carry_report !== undefined && { carryReport: a.carry_report }),
             ...(a.in_main !== undefined && { inMain: a.in_main }),
+            ...(a.report_only !== undefined && { reportOnly: a.report_only }),
             ...(a.on_startup !== undefined && { onStartup: a.on_startup }),
             ...(a.watch_url !== undefined && { watchUrl: a.watch_url || null }),
             ...(check !== undefined && { check }),
@@ -1620,6 +1625,9 @@ export class ToolFactory {
         'read',
         // Asking a bot with looser permissions to act would bypass this bot's own limits.
         async ({ bot: ref }) => {
+          // A run that only looks and reports hands nothing on: the answer would come back as a
+          // turn of the same run, which is not held to reading.
+          if (reportOnlyTurn(turn)) return true;
           const to = await reachBot(ref, 'chat').catch(() => null);
           return !!to && STRICTNESS[to.permissionMode] > STRICTNESS[bot.permissionMode];
         },

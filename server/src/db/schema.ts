@@ -573,6 +573,12 @@ export const routines = pgTable('routines', {
   /** Runs in the bot's main conversation, with its context, instead of a conversation of its own. */
   inMain: boolean('in_main').notNull().default(true),
   /**
+   * The routine only looks and reports: every turn of its runs is held to reading (`modeCap` of
+   * `readonly`), whatever the bot's own level is, so the person can let a bot watch something
+   * without worrying what it might do. A step that would change something is refused, not asked.
+   */
+  reportOnly: boolean('report_only').notNull().default(false),
+  /**
    * The Slack channel its reports go to; null for none. Such a routine runs in a team conversation:
    * what goes to a channel is written from what the team shares, never from one person's own data.
    */
@@ -615,6 +621,20 @@ export const routines = pgTable('routines', {
    * in again clears it. Null when nothing waits.
    */
   signInWait: text('sign_in_wait').references(() => connections.id, { onDelete: 'set null' }),
+  /**
+   * How many runs in a row have really failed (the run itself ended in error, or the bot said it
+   * could not do its task). A run that did its work resets it; waits, skips, the person's stop, a
+   * usage limit, a sign-in problem and a server restart leave it as it was. A counter beats
+   * counting the last runs: those endings are told apart where they happen, not from the
+   * run's stored reason text, which is in the person's language.
+   */
+  failureStreak: integer('failure_streak').notNull().default(0),
+  /**
+   * Why the routine was switched off by itself (`failures`: too many failed runs in a row); null
+   * when the person paused it, or when it is on. A routine comes in paused from an import as well,
+   * and `enabled` alone cannot say which. Cleared when the routine is turned on or off by hand.
+   */
+  pausedReason: text('paused_reason', { enum: ['failures'] }),
 });
 
 export const routineRuns = pgTable(

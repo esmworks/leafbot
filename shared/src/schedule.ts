@@ -181,6 +181,8 @@ export const Routine = z.object({
   carryReport: z.boolean(),
   /** Runs in the bot's main conversation instead of one of its own. */
   inMain: z.boolean(),
+  /** Only looks and reports: a step that would change something is refused. Missing on older servers. */
+  reportOnly: z.boolean().optional(),
   /** The Slack channel its reports go to; it then works only with what the team shares. */
   slackChannel: z.string().nullable().optional(),
   /**
@@ -220,6 +222,11 @@ export const Routine = z.object({
    * person signs in to it again. Null when nothing waits; missing on older servers.
    */
   signInWait: z.string().nullable().optional(),
+  /**
+   * Why it was switched off by itself (`failures`: too many failed runs in a row); null when it
+   * is on or the person paused it. Missing on older servers.
+   */
+  pausedReason: z.enum(['failures']).nullable().optional(),
   /**
    * The secret part of the address that starts the routine from another service (a webhook);
    * null when it has none.
@@ -261,6 +268,11 @@ export const RoutineCreate = z.object({
    * which the person follows and talks about where they talk to it.
    */
   inMain: z.boolean().default(true),
+  /**
+   * Only looks and reports, whatever the bot's permission level is: a step that would change
+   * something is refused (not asked), and the bot is told to report what it found instead.
+   */
+  reportOnly: z.boolean().default(false),
   /**
    * The Slack channel's id (`C…`, `G…`) its reports are posted to; null for none. The routine then
    * runs as a team conversation, with no one's own notes, apps or sign-ins.

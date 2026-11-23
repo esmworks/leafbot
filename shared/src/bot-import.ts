@@ -46,6 +46,8 @@ export const BotImportRoutine = z.object({
   schedule: Schedule,
   timezone: z.string().refine(isValidTimeZone, 'validation.timezone'),
   enabled: z.boolean().default(false),
+  /** Only looks and reports; a file from before it existed has routines that act, as they did. */
+  reportOnly: z.boolean().default(false),
 });
 export type BotImportRoutine = z.infer<typeof BotImportRoutine>;
 
@@ -147,6 +149,7 @@ export interface BotImportPlan {
       schedule: Schedule;
       timezone: string;
       enabledInSource: boolean;
+      reportOnly: boolean;
     }[];
     memories: string[];
     /**

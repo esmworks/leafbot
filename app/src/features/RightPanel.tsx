@@ -202,7 +202,9 @@ function Upcoming({ bot }: { bot: Bot }) {
             >
               <div className="truncate text-sm font-medium">{r.name}</div>
               <div className="truncate text-[13px] text-muted-foreground">
-                {r.signInWait ? (
+                {r.pausedReason === 'failures' && !r.enabled ? (
+                  <span className="text-destructive">{t('panel.switchedOffFailures')} · </span>
+                ) : r.signInWait ? (
                   <span className="text-destructive">{t('panel.signInWait')} · </span>
                 ) : (
                   failed.has(r.id) && <span className="text-destructive">{t('panel.lastRunFailed')} · </span>

@@ -164,6 +164,7 @@ export class BotImportService {
                 schedule: r.schedule,
                 timezone: r.timezone,
                 enabled: r.enabled,
+                reportOnly: r.reportOnly,
               };
             }),
           memories: memories
@@ -262,6 +263,7 @@ export class BotImportService {
             steps: r.steps,
             schedule: r.schedule,
             timezone: r.timezone,
+            reportOnly: r.reportOnly,
             enabled: false,
             nextRunAt: null,
           });
@@ -354,6 +356,7 @@ export class BotImportService {
           schedule: r.data.schedule,
           timezone: r.data.timezone,
           enabledInSource: r.data.enabled,
+          reportOnly: r.data.reportOnly,
         });
       }
       const memories: string[] = [];

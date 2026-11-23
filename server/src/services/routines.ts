@@ -281,6 +281,8 @@ export class RoutineService {
         .values({
           id: newId(),
           ...input,
+          // A routine brought back from an older record has no such field.
+          reportOnly: input.reportOnly ?? false,
           createdByUserId: userId,
           nextRunAt: input.enabled ? nextRun(input.schedule, input.timezone, now) : null,
         })
@@ -346,6 +348,10 @@ export class RoutineService {
           nextRunAt: enabled ? nextRun(schedule, timezone, this.clock(), last) : null,
           // A retry waiting is dropped with the slot it stood in front of.
           resumeAt: null,
+          // Turning it on or off by hand ends the self-switch-off, and a routine turned on starts
+          // counting failures from none: it would otherwise be switched off again by its next one.
+          ...(patch.enabled !== undefined && { pausedReason: null }),
+          ...(enabled && !current.enabled && { failureStreak: 0 }),
         })
         .where(eq(schema.routines.id, id))
         .returning();
@@ -1514,8 +1520,10 @@ export class RoutineService {
 
   /** Ends a run that could not start as failed, and starts one that waited for it. */
   private async startFailed(routineId: string, runId: string, err: unknown, t: T) {
-    if (await this.failRun(runId, t('routine.startFailed', { message: errorText(err, t) })))
+    if (await this.failRun(runId, t('routine.startFailed', { message: errorText(err, t) }))) {
+      await this.countRun(routineId, 'failed', runId);
       await this.startQueued(routineId);
+    }
   }
 
   /**
@@ -1554,7 +1562,9 @@ export class RoutineService {
    */
   private async recordFailure(routine: Routine, occurrence: string, err: unknown, t: T) {
     const reason = t('routine.startFailed', { message: errorText(err, t) });
-    if (await this.record(routine, occurrence, 'error', reason)) {
+    const recorded = await this.record(routine, occurrence, 'error', reason);
+    if (recorded) {
+      await this.countRun(routine.id, 'failed', recorded.id);
       this.ctx.bus.refresh({ scope: 'routines' });
       return;
     }
@@ -1563,7 +1573,71 @@ export class RoutineService {
       .from(schema.routineRuns)
       .where(and(eq(schema.routineRuns.routineId, routine.id), eq(schema.routineRuns.occurrence, occurrence)))
       .limit(1);
-    if (run && (await this.failRun(run.id, reason))) await this.startQueued(routine.id);
+    if (run && (await this.failRun(run.id, reason))) {
+      await this.countRun(routine.id, 'failed', run.id);
+      await this.startQueued(routine.id);
+    }
+  }
+
+  /**
+   * Keeps count of runs that really failed, and switches the routine off when too many came in a
+   * row, so a broken instruction, a removed tool or a changed page does not go on spending money
+   * on every slot. `ok` is a run that did its work and resets the count; anything that is not a
+   * run's own failure (a wait, a skip, the person's stop, a usage limit, a sign-in problem, a
+   * restart) is never passed here, so a crash loop or an expired token cannot switch off every
+   * routine.
+   */
+  private async countRun(routineId: string, ended: 'ok' | 'failed', runId?: string) {
+    if (ended === 'ok') {
+      await this.ctx.db
+        .update(schema.routines)
+        .set({ failureStreak: 0 })
+        .where(and(eq(schema.routines.id, routineId), gt(schema.routines.failureStreak, 0)));
+      return;
+    }
+    const [row] = await this.ctx.db
+      .update(schema.routines)
+      .set({ failureStreak: sql`${schema.routines.failureStreak} + 1` })
+      .where(eq(schema.routines.id, routineId))
+      .returning();
+    if (!row?.enabled || row.failureStreak < FAILURE_LIMIT) return;
+    // Only the write that finds it still on says so: two runs ending together tell the person once.
+    const [off] = await this.ctx.db
+      .update(schema.routines)
+      .set({ enabled: false, nextRunAt: null, resumeAt: null, pausedReason: 'failures' })
+      .where(and(eq(schema.routines.id, routineId), eq(schema.routines.enabled, true)))
+      .returning();
+    if (!off) return;
+    try {
+      const t = await this.services.settings.translator();
+      const text = t('routine.switchedOff', { name: off.name, count: String(FAILURE_LIMIT) });
+      const person = await this.personOf(off);
+      const main = await this.services.threads.main(off.botId, person);
+      const [run] = runId
+        ? await this.ctx.db
+            .select({ threadId: schema.routineRuns.threadId })
+            .from(schema.routineRuns)
+            .where(eq(schema.routineRuns.id, runId))
+        : [];
+      await this.services.threads.addMessage({
+        threadId: main.id,
+        role: 'assistant',
+        author: `bot:${off.botId}`,
+        text,
+        props: {
+          routineName: off.name,
+          routineReport: true,
+          posted: true,
+          ...(run?.threadId ? { routineThreadId: run.threadId } : {}),
+        },
+      });
+      this.ctx.bus.notice({ kind: 'reply', botId: off.botId, threadId: main.id, text: truncate(text, 200) });
+      // What waited for a run of it is not run either.
+      await this.startQueued(routineId);
+    } catch (err) {
+      console.warn(`Routine ${routineId} was switched off, but telling the person failed`, err);
+    }
+    this.ctx.bus.refresh({ scope: 'routines' });
   }
 
   /**
@@ -1778,13 +1852,27 @@ export class RoutineService {
         payload,
         report,
         saveHint(snapshotSteps(run.stepsSnapshot) ?? [], 0, t),
+        !!routine.reportOnly,
       ),
       routineRunId: run.id,
       // Its runs work for whoever set it up; one from before people came in, for the bot's owner.
       ...(routine.createdByUserId && { userId: routine.createdByUserId }),
+      ...reportCap(routine.reportOnly),
     });
     // A run of a routine with steps keeps how each went, its own instruction first.
     if (run.stepsSnapshot) await this.stepStarted(run.id, 0, 'prompt', turn.id);
+  }
+
+  /**
+   * Whether the routine only looks and reports, read as each step starts so a run held for days
+   * keeps to what the routine says now; one that cannot be read is held back, not let go.
+   */
+  private async reportOnly(routineId: string): Promise<boolean> {
+    const [row] = await this.ctx.db
+      .select({ reportOnly: schema.routines.reportOnly })
+      .from(schema.routines)
+      .where(eq(schema.routines.id, routineId));
+    return row?.reportOnly ?? true;
   }
 
   /** Records that the run's step at `position` is under way, once more for one tried again. */
@@ -1828,6 +1916,7 @@ export class RoutineService {
       text: step.prompt,
       props: { routineRunId: run.id, routineName, routineStep: position },
     });
+    const reportOnly = await this.reportOnly(run.routineId);
     const parts = [
       ...(note ? [note] : []),
       t('routine.stepPrompt', {
@@ -1839,6 +1928,7 @@ export class RoutineService {
       }),
       ...(before?.trim() ? [t('routine.stepBefore', { text: fence(cutAt(before.trim(), REPORT_MAX)) })] : []),
       ...saveHint(steps, position, t),
+      ...(reportOnly ? [t('routine.reportOnly')] : []),
     ];
     const turn = await this.services.turns.enqueue({
       threadId: run.threadId,
@@ -1847,6 +1937,7 @@ export class RoutineService {
       prompt: parts.join('\n\n'),
       routineRunId: run.id,
       ...(run.userId && { userId: run.userId }),
+      ...reportCap(reportOnly),
     });
     await this.stepStarted(run.id, position, step.kind, turn.id);
   }
@@ -2509,9 +2600,11 @@ export class RoutineService {
       await this.startStep(run, routineName, steps, position, handedOn(steps, rows, position), t, note);
       return;
     }
+    const reportOnly = await this.reportOnly(run.routineId);
     const prompt = [
       t('routine.prompt', { name: routineName, prompt: promptSnapshot, silent: SILENT_REPLY }),
       ...saveHint(steps, 0, t),
+      ...(reportOnly ? [t('routine.reportOnly')] : []),
     ].join('\n\n');
     await this.ctx.db
       .update(schema.routineRuns)
@@ -2524,6 +2617,7 @@ export class RoutineService {
       prompt: `${note}\n\n${prompt}`,
       routineRunId: run.id,
       ...(run.userId && { userId: run.userId }),
+      ...reportCap(reportOnly),
     });
     await this.stepStarted(run.id, 0, 'prompt', turn.id);
   }
@@ -2634,12 +2728,14 @@ export class RoutineService {
       const stopped = !outcome.ok && outcome.kind === 'interrupted' && outcome.byPerson === true;
       const status = run.failedByBot ? 'error' : stopped ? 'stopped' : 'error';
       const reason = run.failedByBot ? run.reason : outcome.ok ? null : outcome.message;
+      if (run.failedByBot || realFailure(outcome)) await this.countRun(run.routineId, 'failed', runId);
       await endStep({ status, reason, output: outcome.text.trim() || null });
       // A run the bot marked as failed keeps the bot's reason.
       await endRun(run.failedByBot ? {} : { status, reason });
       return true;
     }
     await endStep({ status: 'done', output: outcome.text.trim() || null });
+    await this.countRun(run.routineId, 'ok');
     if (isSilentReply(outcome.text) || (outcome.ok && outcome.quiet)) {
       await this.clearQuietRun(runId, run.routineId, turn.threadId);
       const t = await this.services.settings.translator();
@@ -2988,6 +3084,11 @@ export class RoutineService {
             },
       )
       .where(eq(schema.routineRuns.id, turn.routineRunId));
+    if (run) {
+      if (run.failedByBot || realFailure(outcome))
+        await this.countRun(run.routineId, 'failed', turn.routineRunId);
+      else if (outcome.ok) await this.countRun(run.routineId, 'ok');
+    }
     // The account was out of usage: the routine tries again once it resets, unless it is due sooner.
     if (run && !outcome.ok && outcome.kind === 'limit' && outcome.resetsAt) {
       await this.retryLater(run, new Date(outcome.resetsAt.getTime() + LIMIT_RETRY_DELAY_MS));
@@ -3106,6 +3207,23 @@ export class RoutineService {
   }
 }
 
+/**
+ * How many runs in a row may really fail before the routine switches itself off. Enough that a
+ * bad day (a site down for hours, a provider outage that outlasts the retry) does not stop it, few
+ * enough that a routine that can never work stops after a day or so of an hourly schedule.
+ */
+export const FAILURE_LIMIT = 10;
+
+/**
+ * Whether a turn's ending is the routine's own failure. A usage limit, a sign-in that expired, a
+ * provider that is busy for now, a restart and the person's stop say nothing about the routine, and
+ * the first two would end every routine at once.
+ */
+function realFailure(outcome: TurnOutcome): boolean {
+  if (outcome.ok) return false;
+  return (outcome.kind === 'engine' && outcome.transient !== true) || outcome.kind === 'stalled';
+}
+
 /** The most of what started a run that is kept beside it, so a rehearsal can replay it. */
 export const INPUT_MAX = 20_000;
 
@@ -3126,13 +3244,27 @@ export function routinePrompt(
   report: { text: string; at: string } | null,
   /** What a routine with steps tells the bot about saving its step's result; none for a rehearsal. */
   hints: string[] = [],
+  /** The routine only looks and reports: the bot is told it may change nothing. */
+  reportOnly = false,
 ): string {
-  const base = [t('routine.prompt', { name, prompt, silent: SILENT_REPLY }), ...hints].join('\n\n');
+  const base = [
+    t('routine.prompt', { name, prompt, silent: SILENT_REPLY }),
+    ...hints,
+    ...(reportOnly ? [t('routine.reportOnly')] : []),
+  ].join('\n\n');
   const full = report
     ? `${base}\n\n${t('routine.lastReport', { at: report.at, report: fence(report.text) })}`
     : base;
   return payload ? `${full}\n\n${t('routine.payload', { payload })}` : full;
 }
+
+/**
+ * What a turn of a report-only routine is enqueued with: held to reading, so a step that would
+ * change something is refused whatever the bot's own level is. Every turn of the run carries it,
+ * the person's own turns in the same conversation do not (the cap belongs to the turn).
+ */
+export const reportCap = (reportOnly: boolean | undefined) =>
+  reportOnly ? { modeCap: 'readonly' as const } : {};
 
 /** Whether a run is the routine's own scheduled one, with no outside text that started it. */
 const ownSlot = (run: { scheduled: boolean; outside: string | null }) => run.scheduled && !run.outside;

@@ -7,7 +7,7 @@ import { schema } from '../db';
 import { isSilentReply, type TurnOutcome } from '../engine/types';
 import type { TurnRow } from '../runtime/turns';
 import { errorText, HttpError, newId, notFound, truncate } from '../util';
-import { routinePrompt } from './routines';
+import { reportCap, routinePrompt } from './routines';
 import type { Services } from '.';
 
 /** A rehearsal and its conversation are kept this long. */
@@ -159,9 +159,10 @@ export class RehearsalService {
         threadId: thread.id,
         botId: bot.id,
         source: 'routine',
-        prompt: routinePrompt(t, routine.name, prompt, replay?.input, report),
+        prompt: routinePrompt(t, routine.name, prompt, replay?.input, report, [], !!routine.reportOnly),
         rehearsalId: row!.id,
         userId: person,
+        ...reportCap(routine.reportOnly),
         // What the run was started by is read as outside text again, as it was then.
         outside: replay?.trigger ? (replay.trigger as NonNullable<TurnRow['outside']>) : null,
       });

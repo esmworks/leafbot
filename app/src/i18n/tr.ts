@@ -1373,6 +1373,7 @@ export const tr = {
   'panel.nextRun': 'sıradaki {when}',
   'panel.lastRunFailed': 'son çalışma başarısız',
   'panel.signInWait': 'oturum açılmasını bekliyor',
+  'panel.switchedOffFailures': 'art arda hatalar yüzünden kapatıldı',
   'panel.runNow': 'Şimdi çalıştır',
   'panel.toggle': 'Aç/kapat',
   'panel.bot': 'Bot',
@@ -1395,6 +1396,10 @@ export const tr = {
   'routine.webhookRenew': 'Yeni adres',
   'routine.webhookLocalOnly':
     'Bu adres yalnız bu bilgisayarda çalışır. Rutini internetteki bir servisten başlatmak için sunucuyu o servisin ulaşabileceği bir yerde çalıştırın ve LEAFBOT_PUBLIC_URL ayarlayın.',
+  'routine.reportOnly': 'Yalnız bana haber ver',
+  'routine.reportOnlyHint':
+    'Rutin, botun başka yerlerde ne yapabildiğine bakmadan yalnızca bakar ve rapor eder: bir şeyi değiştirecek adım (gönderme, tıklama, yazma, düzenleme, yazan bağlı bir uygulama) reddedilir ve bot bunun yerine bulduğunu sana anlatır.',
+  'routine.reportOnlyShort': 'yalnız haber verir',
   'routine.carryReport': 'Son raporun üzerine kur',
   'routine.carryReportHint':
     'Her çalıştırma botun geçen sefer yazdığını görür; baştan başlamak yerine neyin değiştiğini söyler.',
@@ -1579,6 +1584,8 @@ export const tr = {
   'flow.nextRun': 'Sıradaki çalışma {when}',
   'flow.noNextRun': 'Yeniden çalışması ayarlı değil',
   'flow.paused': 'Duraklatıldı; zamanında çalışmaz.',
+  'flow.switchedOffFailures':
+    'Çalışmaları art arda birkaç kez başarısız olduğu için kapatıldı. Düzelttikten sonra yeniden aç; sayım baştan başlar.',
   'flow.saveFirst': 'Çalıştırmadan önce değişiklikleri kaydet.',
   'flow.started': 'Rutin başladı.',
   'flow.result': 'Sonuç',

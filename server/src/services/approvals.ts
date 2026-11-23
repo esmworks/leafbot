@@ -366,6 +366,14 @@ function sameShape(value: unknown): string {
   );
 }
 
+/**
+ * A turn of a run that only looks and reports (a report-only routine's, or its rehearsal's). Other
+ * turns held to reading, a read-only bot's room round for one, are held by the cap alone; this one
+ * is also built as for a bot that may only read, and kept apart from the person's own words.
+ */
+export const reportOnlyTurn = (turn: { source: string; modeCap?: PermissionMode | null }) =>
+  turn.source === 'routine' && turn.modeCap === 'readonly';
+
 export function cappedMode(mode: PermissionMode, cap: PermissionMode | null | undefined): PermissionMode {
   return cap && STRICTNESS[cap] < STRICTNESS[mode] ? cap : mode;
 }
