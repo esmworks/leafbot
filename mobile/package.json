@@ -2,7 +2,7 @@
   "name": "@leafbot/mobile",
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Leaf Bot's native app for iOS and Android",
   "main": "expo-router/entry",
   "scripts": {

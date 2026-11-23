@@ -245,7 +245,7 @@ export function engineEnv(extra: Record<string, string | undefined> = {}): Recor
     const v = process.env[k];
     if (v) env[k] = v;
   }
-  env.CLAUDE_AGENT_SDK_CLIENT_APP = 'leafbot/0.8.0';
+  env.CLAUDE_AGENT_SDK_CLIENT_APP = 'leafbot/0.9.0';
   for (const [k, v] of Object.entries(extra)) if (v) env[k] = v;
   return env;
 }
@@ -337,7 +337,7 @@ const toContent = (r: Awaited<ReturnType<AppTool['handler']>>) => [
  * describing each input in Zod.
  */
 function connectionServer(name: string, tools: AppTool[]): McpSdkServerConfigWithInstance {
-  const server = new McpServer({ name, version: '0.8.0' }, { capabilities: { tools: {} } });
+  const server = new McpServer({ name, version: '0.9.0' }, { capabilities: { tools: {} } });
   const byName = new Map(tools.map((t) => [t.name, t]));
   server.server.setRequestHandler(ListToolsRequestSchema, async () => ({
     tools: tools.map((t) => ({
@@ -377,7 +377,7 @@ export function mcpServers(tools: AppTool[]): Record<string, McpSdkServerConfigW
 function mcpServer(tools: AppTool[]) {
   return createSdkMcpServer({
     name: APP_SERVER,
-    version: '0.8.0',
+    version: '0.9.0',
     tools: tools.map((t) =>
       tool(
         t.name,

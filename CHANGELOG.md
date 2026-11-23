@@ -3,7 +3,7 @@
 All notable changes to Leaf Bot (called Yumak Bot before 0.7.0) are listed here. Versions follow [Semantic Versioning](https://semver.org/). While the
 version is 0.x, a minor release may change the data format or the API; the server migrates its database on start.
 
-## Unreleased
+## 0.9.0 — 2026-11-23
 
 ### Added
 
@@ -50,6 +50,14 @@ version is 0.x, a minor release may change the data format or the API; the serve
   The web app downloads the German text only when it is picked. Bots are told to answer in German; what the server
   itself writes (approval sentences, error messages, system lines in chats) stays in English. A text added after the
   translation shows in English until it is translated.
+- Twelve more languages: Arabic, Spanish, French, Hindi, Indonesian, Italian, Polish, Portuguese (Brazil), Russian,
+  Ukrainian, Vietnamese and Simplified Chinese, picked the same way as German. Each one translates what a person meets
+  first, the sign-in, the navigation, the main settings and the whole chat screen, and shows English for the rest;
+  Settings › General says so under the language picker, and `pnpm i18n:coverage` lists what is left per language.
+  Plurals follow each language's own forms, and Chinese, Arabic and Hindi text gets a font that holds its script.
+  Arabic turns the web and desktop app right to left, mirroring the layout and the arrows; the phone app shows English
+  for Arabic until it can mirror too. Bots are told to answer in the picked language, and a message that only says stop
+  in any of them stops the bot's work as the Stop button does.
 - A bot can use your own Mac: look at the screen, click, type and press shortcuts, for work in apps that only run
   there. Turn on "Can use my Mac" in the bot's settings; only the server's owner sees it, and only in the desktop app
   on macOS, where the server runs on that Mac. The first look or touch in each piece of work asks on a card, whatever
@@ -88,6 +96,15 @@ version is 0.x, a minor release may change the data format or the API; the serve
   outside text. Nothing on the phone is changed. A new build of the phone app is needed for it.
 - ⌘K (Ctrl+K) also does things: type what you want and pick it, such as a new bot, Today, the board, connecting
   apps, the keyboard shortcuts, the light, dark or system theme, or any settings section by its name or its words.
+
+### Fixed
+
+- The phone app's message box no longer resets the iPhone keyboard on every letter, which kept predictive text,
+  autocorrection and swipe typing from working.
+- Part of a message can be copied on the phone: "Select text" in a message's menu shows it where any part can be
+  picked and copied, instead of only the whole message.
+- The phone shows a bot's computer screen live, with waking the computer and taking control, as the desktop app does.
+  It uses the server's own screen page, so a server older than this one keeps the note that points to the desktop app.
 
 ## 0.8.0 — 2026-11-22
 
