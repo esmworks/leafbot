@@ -104,6 +104,7 @@ server/     Fastify API, Socket.IO events, bot runtime, Drizzle ORM (PostgreSQL 
 desktop/    Electron shell: starts a local server or connects to a remote one
 computer/   Optional service that gives each bot its own sandboxed Linux desktop
 shared/     Schemas, events and translations used by every package
+client/     The server's endpoints for the web and phone apps; each app brings its own way of sending a request
 docker/     Compose setup, seccomp and AppArmor profiles, firewall script
 ```
 

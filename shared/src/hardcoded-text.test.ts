@@ -11,7 +11,15 @@ import { LOCALES } from './i18n';
  * JSX (between tags or in attributes people see). Tests and the catalogs themselves are skipped.
  */
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const PACKAGES = ['app/src', 'server/src', 'shared/src', 'desktop/src', 'computer/src', 'mobile/src'];
+const PACKAGES = [
+  'app/src',
+  'server/src',
+  'shared/src',
+  'client/src',
+  'desktop/src',
+  'computer/src',
+  'mobile/src',
+];
 
 /** Files that hold the catalogs, or text no person reads. Each needs its reason. */
 const ALLOWED = new Map<string, string>([
