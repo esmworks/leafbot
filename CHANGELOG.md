@@ -20,6 +20,14 @@ version is 0.x, a minor release may change the data format or the API; the serve
   restart, a run you stopped and a provider that is busy for now do not count, and a run that works resets the count.
   The server migrates its database on start.
 
+### Changed
+
+- All fifteen languages cover the whole interface. The ten that were translated for the first screens
+  only — Arabic, French, Hindi, Indonesian, Italian, Polish, Portuguese (Brazil), Russian, Ukrainian and
+  Vietnamese — now carry every text, and German, Spanish and Chinese the keys the routine changes added,
+  so nothing falls back to English in a language someone picked. The new texts were drafted from the
+  English catalog and want a native read before a language leaves beta.
+
 ## 0.9.1 — 2026-11-23
 
 ### Added
