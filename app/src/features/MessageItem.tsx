@@ -205,8 +205,10 @@ export function MessageItem({
           data-message-id={m.id}
           data-reply-start={m.turnId ?? m.id}
         >
-          {/* A run in this conversation has its line right above its report, which names the routine. */}
-          {m.props.routineReport === true && <RoutineReportLine m={m} />}
+          {/* A report right under its run's line, which names the routine, goes without saying it again. */}
+          {(m.props.routineReport === true || (m.props.routineInMain === true && !m.props.underRunLine)) && (
+            <RoutineReportLine m={m} />
+          )}
           {m.props.card ? (
             <ChatCard m={m} />
           ) : page ? (

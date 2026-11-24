@@ -9,7 +9,22 @@ import {
   type TurnState,
   quoteExcerpt,
 } from '@leafbot/shared';
-import { and, asc, desc, eq, gt, inArray, isNull, lt, lte, ne, or, sql, type SQL } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  ne,
+  notLike,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import { matchInServer } from '../db/sealed';
@@ -150,6 +165,9 @@ export class ThreadService {
         and(
           inArray(schema.messages.threadId, threadIds),
           inArray(schema.messages.role, ['user', 'assistant']),
+          // A routine's instruction is its run's line, not something said: the list shows what
+          // was said last, or the run's report, not the instruction.
+          notLike(schema.messages.author, 'routine:%'),
         ),
       )
       .orderBy(schema.messages.threadId, desc(schema.messages.createdAt));

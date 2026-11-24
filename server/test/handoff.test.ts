@@ -33,6 +33,29 @@ describe('geçmişi yeni oturuma devretme', () => {
     expect(out).toContain('message_read');
   });
 
+  it('bildirecek bir şey bulmayan rutin çalışmasının talimatını devretmez', () => {
+    const out = handoffPrompt({
+      messages: [
+        msg('user', 'soru'),
+        msg('assistant', 'cevap'),
+        {
+          role: 'user',
+          author: 'routine:r1',
+          text: 'Mailleri kontrol et',
+          props: { routineName: 'Mail kontrolü', routineQuiet: true },
+        },
+        msg('user', 'ikinci soru'),
+        msg('assistant', 'ikinci cevap'),
+        msg('user', 'yeni'),
+      ],
+      prompt: 'yeni',
+      names,
+      locale: 'tr',
+    });
+    expect(out).toContain('ikinci cevap');
+    expect(out).not.toContain('Mailleri kontrol et');
+  });
+
   it('her satıra mesajın kimliğini koyar; kısaltılan mesajın tamamının nasıl okunacağını söyler', () => {
     const out = handoffPrompt({
       messages: [
