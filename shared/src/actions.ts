@@ -37,7 +37,8 @@ function stepsText(raw: unknown, locale: Locale): string | null {
     const model = str(x.model) ? ` [${str(x.model)}]` : '';
     switch (x.kind) {
       case 'agent':
-        return `${n} bot${model}: ${cut(str(x.prompt) ?? '')}`;
+        // Another bot that does the step goes by the name the card was asked with.
+        return `${n} ${str(x.by_bot) ? cut(str(x.by_bot)!) : 'bot'}${model}: ${cut(str(x.prompt) ?? '')}`;
       case 'approval':
         return `${n} ${tr ? 'sana sorar' : 'asks you'}: ${cut(str(x.question) ?? '')}`;
       case 'notify':

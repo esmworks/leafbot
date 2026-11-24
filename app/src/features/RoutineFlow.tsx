@@ -51,6 +51,7 @@ import {
   type RunPart,
   type Spot,
 } from '@/lib/routineFlow';
+import { useBots } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import {
   ApprovalAnswer,
@@ -94,6 +95,7 @@ export function RoutineFlow({
   errors,
   modelListId,
   modelPlaceholder,
+  botId,
   layout,
   onLayout,
   fullScreenBar,
@@ -122,6 +124,8 @@ export function RoutineFlow({
   errors?: (string | undefined)[];
   modelListId: string;
   modelPlaceholder: string;
+  /** The routine's own bot; a step another bot does is named after that bot. */
+  botId?: string;
   layout: FlowLayout | null;
   onLayout(next: FlowLayout): void;
   /** What the bar over a canvas covering the window shows besides its own button (title, save). */
@@ -137,6 +141,7 @@ export function RoutineFlow({
   settingsAtStart?: boolean;
 }) {
   const t = useT();
+  const bots = useBots();
   const locale = useLocale((s) => s.locale);
   const full = steps.length >= ROUTINE_STEP_MAX;
   const ids = ['start', 'prompt', ...steps.map((s) => s.id)];
@@ -680,7 +685,12 @@ export function RoutineFlow({
                   id: s.id,
                   index: i,
                   icon: <StepIcon kind={s.kind} />,
-                  title: t(`routine.step.${s.kind}`),
+                  title:
+                    s.kind === 'agent' && s.bot
+                      ? t('routine.stepByBot', {
+                          bot: bots.data?.find((b) => b.id === s.bot)?.name ?? t('routine.stepBotLost'),
+                        })
+                      : t(`routine.step.${s.kind}`),
                   status: st?.status,
                   error: !!errors?.[i],
                   menu: stepMenu(i),
@@ -694,6 +704,7 @@ export function RoutineFlow({
                         error={errors?.[i]}
                         modelListId={modelListId}
                         modelPlaceholder={modelPlaceholder}
+                        botId={botId}
                         inFlow
                       />
                       {statusBody(st)}

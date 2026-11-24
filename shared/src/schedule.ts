@@ -198,7 +198,9 @@ export function fillFilter(filter: string, vars: Readonly<Record<string, string>
 /**
  * A step of a routine after its own instruction, done once the step before it ended well.
  * `agent`: the bot works on another instruction, with the step before it as what it builds on, on a
- * model of its own when one is named (empty for the routine's). `approval`: the run waits for the
+ * model of its own when one is named (empty for the routine's). With `bot`, another bot does that
+ * step, with its own settings, apps and account, for the routine's person; its answer goes on to
+ * the steps after it, which are the routine's own bot's again. `approval`: the run waits for the
  * person to answer `question` about what the step before it ended with; they let it go on, turn it
  * down (the run stops, or goes on at `onReject`), or write what to change (the step before it is
  * done again with that). Left
@@ -299,6 +301,8 @@ export const RoutineStep = z.discriminatedUnion('kind', [
     onError: stepTarget,
     prompt: z.string().trim().min(1, 'validation.stepPrompt').max(20_000),
     model: z.string().trim().max(200).default(''),
+    /** The id of another bot that does this step; none or empty for the routine's own bot. */
+    bot: z.string().trim().max(64).optional(),
   }),
   z.object({
     id: stepId,

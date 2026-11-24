@@ -307,6 +307,11 @@ export class RoutineService {
     if (made >= MAX_ROUTINES_PER_BOT)
       throw new HttpError(400, 'error.routineLimit', { max: MAX_ROUTINES_PER_BOT });
     checkRoutes(input.steps);
+    await this.checkStepBots(
+      input.botId,
+      input.steps,
+      userId ?? (await this.services.access.botOwner(input.botId)),
+    );
     if (input.check) await this.checkCheck(input.botId, input.check, userId, !!input.slackChannel);
     if (input.condition)
       await this.checkCondition(
@@ -344,6 +349,28 @@ export class RoutineService {
     return toRoutine(row!);
   }
 
+  /**
+   * Refuses a step another bot does when that bot is gone or archived, or the routine's person may
+   * not talk with it: the bot works for them, and reaches no further than they do.
+   */
+  private async checkStepBots(botId: string, steps: readonly RoutineStep[] | undefined, person: string) {
+    for (const [i, step] of (steps ?? []).entries()) {
+      if (step.kind !== 'agent' || !step.bot || step.bot === botId) continue;
+      if (!(await this.stepBot(botId, step.bot, person)))
+        throw new HttpError(400, 'error.stepBot', { n: String(i + 1) });
+    }
+  }
+
+  /** The bot a step names, when the routine's person may still have it do the step; else null. */
+  private async stepBot(botId: string, targetId: string, person: string): Promise<Bot | null> {
+    const [from, target] = await Promise.all([
+      this.services.bots.get(botId).catch(() => null),
+      this.services.bots.get(targetId).catch(() => null),
+    ]);
+    if (!from || !target || !this.services.bots.canMessage(from, target)) return null;
+    return this.services.access.reach(person, from, target, 'chat').catch(() => null);
+  }
+
   /** Whom a routine's runs work for: whoever set it up, or the bot's owner for one from before people. */
   async personOf(routine: Pick<Routine, 'botId' | 'createdByUserId'>): Promise<string> {
     return routine.createdByUserId ?? (await this.services.access.botOwner(routine.botId));
@@ -368,6 +395,9 @@ export class RoutineService {
     const was = await this.personOf(current);
     const shapes = Object.keys(patch).some((k) => k !== 'enabled');
     const person = by && shapes ? by : was;
+    // Another bot does a step for the routine's person: a new one, or the old ones for its new person.
+    if (patch.steps || person !== was)
+      await this.checkStepBots(current.botId, patch.steps ?? current.steps ?? [], person);
     // The check runs for the routine's person: a new one, or the old one for its new person.
     const check = patch.check !== undefined ? patch.check : person !== was ? current.check : null;
     const slackChannel = patch.slackChannel !== undefined ? patch.slackChannel : current.slackChannel;
@@ -2203,18 +2233,41 @@ export class RoutineService {
     if (step.kind === 'notify') return this.notify(run, routineName, steps, step, position, before, t);
     if (step.kind === 'fetch' || step.kind === 'extract')
       return this.startData(run, routineName, steps, step, position, before, t);
+    // Another bot does the step for the routine's person, in its conversation with the routine's
+    // bot, with its own settings, apps and account. It is looked at again here: the bot may have
+    // been archived, or the person lost it, since the routine was saved.
+    const by = step.bot && step.bot !== run.botId ? step.bot : null;
+    const person = by ? (run.userId ?? (await this.services.access.botOwner(run.botId))) : null;
+    const target = by && person ? await this.stepBot(run.botId, by, person) : null;
+    if (person && !target) {
+      await this.stepStarted(run.id, position, step.kind, null);
+      const reason = t('routine.stepBotGone', { step: String(position + 1) });
+      return this.dataFailed(run, routineName, steps, step, position, reason, t);
+    }
+    const where = target ? await this.services.threads.peerThread(target.id, run.botId, person!) : null;
     await this.ctx.db
       .update(schema.routineRuns)
       .set({ stepModel: step.model || null })
       .where(eq(schema.routineRuns.id, run.id));
+    const asked = { routineRunId: run.id, routineName, routineStep: position };
     await this.services.threads.addMessage({
       threadId: run.threadId,
       role: 'user',
       author: `routine:${run.routineId}`,
       text: step.prompt,
-      props: { routineRunId: run.id, routineName, routineStep: position },
+      props: { ...asked, ...(target && { stepBotId: target.id }) },
     });
+    if (where) {
+      await this.services.threads.addMessage({
+        threadId: where.id,
+        role: 'user',
+        author: `routine:${run.routineId}`,
+        text: step.prompt,
+        props: asked,
+      });
+    }
     const reportOnly = await this.reportOnly(run.routineId);
+    const owner = target ? await this.services.bots.get(run.botId).catch(() => null) : null;
     const parts = [
       ...(note ? [note] : []),
       t('routine.stepPrompt', {
@@ -2224,17 +2277,18 @@ export class RoutineService {
         prompt: step.prompt,
         silent: SILENT_REPLY,
       }),
+      ...(owner ? [t('routine.stepFor', { bot: owner.name })] : []),
       ...(before?.trim() ? [t('routine.stepBefore', { text: fence(cutAt(before.trim(), REPORT_MAX)) })] : []),
       ...saveHint(steps, position, t),
       ...(reportOnly ? [t('routine.reportOnly')] : []),
     ];
     const turn = await this.services.turns.enqueue({
-      threadId: run.threadId,
-      botId: run.botId,
+      threadId: where?.id ?? run.threadId,
+      botId: target?.id ?? run.botId,
       source: 'routine',
       prompt: parts.join('\n\n'),
       routineRunId: run.id,
-      ...(run.userId && { userId: run.userId }),
+      ...(person ? { userId: person } : run.userId && { userId: run.userId }),
       ...reportCap(reportOnly),
     });
     await this.stepStarted(run.id, position, step.kind, turn.id);
@@ -2626,14 +2680,15 @@ export class RoutineService {
   }
 
   /**
-   * A fetch or extract step that failed: it goes on along its failure's way with why, as a bot
-   * step does, or the run ends there as failed, to be tried again from this step.
+   * A fetch or extract step that failed, or a step whose bot can no longer do it: it goes on along
+   * its failure's way with why, as a bot step does, or the run ends there as failed, to be tried
+   * again from this step.
    */
   private async dataFailed(
     run: StepRun,
     routineName: string,
     steps: readonly RoutineStep[],
-    step: DataStep,
+    step: { onError?: string },
     position: number,
     reason: string,
     t: T,
@@ -3390,6 +3445,9 @@ export class RoutineService {
       failedByBot: boolean;
       reason: string | null;
       userId: string | null;
+      threadId: string | null;
+      botId: string;
+      outside: OutsideTrigger | null;
     },
   ): Promise<boolean> {
     const runId = turn.routineRunId!;
@@ -3417,13 +3475,30 @@ export class RoutineService {
       this.ctx.bus.refresh({ scope: 'routines' });
       await this.startQueued(run.routineId);
     };
+    // The steps after one another bot did are the routine's own bot's again, in the run's own
+    // conversation, where that bot's answer is kept with the rest of the run.
+    const handed = turn.botId !== run.botId;
     const at: StepRun = {
       id: runId,
       routineId: run.routineId,
-      threadId: turn.threadId,
-      botId: turn.botId,
+      threadId: handed ? (run.threadId ?? turn.threadId) : turn.threadId,
+      botId: run.botId,
       userId: run.userId,
     };
+    if (handed && at.threadId !== turn.threadId && outcome.text.trim() && !isSilentReply(outcome.text)) {
+      await this.services.threads.addMessage({
+        threadId: at.threadId,
+        role: 'user',
+        author: `bot:${turn.botId}`,
+        text: outcome.text.trim(),
+        props: {
+          routineRunId: runId,
+          routineName: run.routineName,
+          routineStep: position,
+          ...(run.outside && { outside: run.outside }),
+        },
+      });
+    }
     if (run.failedByBot || !outcome.ok) {
       const stopped = !outcome.ok && outcome.kind === 'interrupted' && outcome.byPerson === true;
       const status = run.failedByBot ? 'error' : stopped ? 'stopped' : 'error';
@@ -3468,7 +3543,7 @@ export class RoutineService {
       await this.settleQuietRun(
         runId,
         run.routineId,
-        turn.threadId,
+        at.threadId,
         outcome.ok ? outcome.quietNote : undefined,
       );
       const t = await this.services.settings.translator();
@@ -3785,10 +3860,18 @@ export class RoutineService {
         occurrence: schema.routineRuns.occurrence,
         schedule: schema.routines.schedule,
         timezone: schema.routines.timezone,
+        threadId: schema.routineRuns.threadId,
+        botId: schema.routines.botId,
       })
       .from(schema.routineRuns)
       .innerJoin(schema.routines, eq(schema.routines.id, schema.routineRuns.routineId))
       .where(eq(schema.routineRuns.id, turn.routineRunId));
+    // A step another bot did ends in that bot's conversation; the run reports from its own, as the
+    // routine's bot, as it would after a step of its own.
+    const home =
+      run && run.botId !== turn.botId
+        ? { botId: run.botId, threadId: run.threadId ?? turn.threadId }
+        : { botId: turn.botId, threadId: turn.threadId };
     // A run that handed work to other bots goes on in the turn that reads their answers: this turn
     // only said it asked, which is not the run's report.
     if (run && !run.failedByBot && outcome.ok && (await this.awaitsAnswers(turn))) return;
@@ -3798,7 +3881,7 @@ export class RoutineService {
     // A run that ended with the silent reply under what it wrote keeps that in its own
     // conversation, and reports nothing.
     if (run && outcome.ok && !outcome.quiet) {
-      await this.deliver(turn.botId, turn.threadId, outcome.text, {
+      await this.deliver(home.botId, home.threadId, outcome.text, {
         id: turn.routineRunId,
         routineName: run.routineName,
         outside: run.outside,
@@ -3806,7 +3889,7 @@ export class RoutineService {
       });
     }
     if (run && outcome.ok && !run.failedByBot && (!outcome.text.trim() || isSilentReply(outcome.text))) {
-      await this.settleQuietRun(turn.routineRunId, run.routineId, turn.threadId, outcome.quietNote);
+      await this.settleQuietRun(turn.routineRunId, run.routineId, home.threadId, outcome.quietNote);
     }
     // The person's stop is an ending they chose, not a failure, and is not tried again.
     const stopped = !outcome.ok && outcome.kind === 'interrupted' && outcome.byPerson === true;

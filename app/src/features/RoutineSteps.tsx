@@ -35,7 +35,7 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useLocale, useT, type MessageKey } from '@/i18n';
 import { api } from '@/lib/api';
-import { useApprovals } from '@/lib/queries';
+import { useApprovals, useBots } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { LongText } from './LongText';
 
@@ -47,7 +47,7 @@ import { LongText } from './LongText';
  * step's `onReject` where it goes when the person turns it down (empty, the run stops).
  */
 export type StepForm = (
-  | { id: string; kind: 'agent'; prompt: string; model: string; onError?: string }
+  | { id: string; kind: 'agent'; prompt: string; model: string; bot?: string; onError?: string }
   | { id: string; kind: 'approval'; question: string; timeoutDays: number; onReject?: string }
   | { id: string; kind: 'notify'; text: string; withBefore: boolean }
   | {
@@ -135,9 +135,12 @@ export function StepsEditor({
   errors,
   modelListId,
   modelPlaceholder,
+  botId,
 }: {
   steps: StepForm[];
   onChange(next: StepForm[]): void;
+  /** The routine's own bot, which the steps' bot pickers leave out. */
+  botId?: string;
   /** Message keys of the steps' prompts that did not pass, by position. */
   errors?: (string | undefined)[];
   /** The datalist of models the model fields offer. */
@@ -204,6 +207,7 @@ export function StepsEditor({
             error={errors?.[i]}
             modelListId={modelListId}
             modelPlaceholder={modelPlaceholder}
+            botId={botId}
           />
         </div>
       ))}
@@ -277,8 +281,11 @@ export function StepFields({
   modelListId,
   modelPlaceholder,
   inFlow,
+  botId,
 }: {
   step: StepForm;
+  /** The routine's own bot, which the bot picker leaves out. */
+  botId?: string;
   /** The steps after it, which its ways may go on at. */
   later: readonly StepForm[];
   /** The steps before it, which its ways may go back to. */
@@ -309,14 +316,22 @@ export function StepFields({
             inFlow={inFlow}
           />
           {textError && <p className="text-sm text-destructive">{t(textError as MessageKey)}</p>}
-          <Input
-            value={s.model}
-            onChange={(e) => onChange({ ...s, model: e.target.value })}
-            list={modelListId}
-            placeholder={modelPlaceholder}
-            className="h-8 rounded-xl text-sm"
-            aria-label={t('routine.stepModel')}
+          <StepBotSelect
+            botId={botId}
+            value={s.bot ?? ''}
+            // The models offered are the routine's bot's; another bot's step runs on its own.
+            onChange={(bot) => onChange({ ...s, bot, model: '' })}
           />
+          {(!s.bot || s.model) && (
+            <Input
+              value={s.model}
+              onChange={(e) => onChange({ ...s, model: e.target.value })}
+              list={modelListId}
+              placeholder={modelPlaceholder}
+              className="h-8 rounded-xl text-sm"
+              aria-label={t('routine.stepModel')}
+            />
+          )}
         </>
       ) : s.kind === 'wait' ? (
         <WaitFields step={s} onChange={onChange} />
@@ -437,6 +452,50 @@ function wayLabel(s: StepForm, t: ReturnType<typeof useT>): string {
  * steps after this one, then the steps before it, which go back. A step it names that is not among
  * them (taken out) stays shown, so the person sees what the save turns away.
  */
+const OWN_BOT = 'own';
+
+/**
+ * Which bot does a bot step: the routine's own, or another the person may talk with, which works
+ * with its own settings and apps and hands its answer to the steps after it.
+ */
+function StepBotSelect({
+  botId,
+  value,
+  onChange,
+}: {
+  botId?: string;
+  value: string;
+  onChange(next: string): void;
+}) {
+  const t = useT();
+  const bots = useBots().data ?? [];
+  const others = bots.filter((b) => b.id !== botId && !b.archivedAt);
+  const lost = !!value && !others.some((b) => b.id === value);
+  if (!others.length && !value) return null;
+  return (
+    <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+      <span className="shrink-0">{t('routine.stepBot')}</span>
+      <Select value={value || OWN_BOT} onValueChange={(v) => onChange(v === OWN_BOT ? '' : v)}>
+        <SelectTrigger
+          className="h-8 min-w-0 max-w-64 flex-1 rounded-xl text-xs"
+          aria-label={t('routine.stepBot')}
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={OWN_BOT}>{t('routine.stepBotOwn')}</SelectItem>
+          {others.map((b) => (
+            <SelectItem key={b.id} value={b.id}>
+              {b.name}
+            </SelectItem>
+          ))}
+          {lost && <SelectItem value={value}>{t('routine.stepBotLost')}</SelectItem>}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+}
+
 function WaySelect({
   label,
   value,

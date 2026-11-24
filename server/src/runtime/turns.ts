@@ -1300,13 +1300,14 @@ export class TurnManager {
     // The turn's routine run: what outside text started it, and the model the routine names.
     // A rehearsal runs only the routine's own instruction, so it has no step model.
     const [routineRun] = rehearsing
-      ? [{ trigger: null, model: rehearsing.model, stepModel: null }]
+      ? [{ trigger: null, model: rehearsing.model, stepModel: null, botId: turn.botId }]
       : turn.routineRunId
         ? await this.ctx.db
             .select({
               trigger: schema.routineRuns.trigger,
               model: schema.routines.model,
               stepModel: schema.routineRuns.stepModel,
+              botId: schema.routines.botId,
             })
             .from(schema.routineRuns)
             .innerJoin(schema.routines, eq(schema.routines.id, schema.routineRuns.routineId))
@@ -2148,10 +2149,11 @@ export class TurnManager {
         ? this.services.rooms.setSessionCost(thread.id, bot.id, costUsd)
         : threads.setSessionCost(thread.id, costUsd);
     // A routine may name a cheaper or stronger model for its runs, and a step of it one for itself,
-    // on the bot's own engine.
+    // on the bot's own engine. A step another bot does names one of that bot's, or none: the
+    // routine's model is for its own bot's engine.
     const model =
       routineRun?.stepModel ||
-      routineRun?.model ||
+      (routineRun?.botId === turn.botId ? routineRun.model : '') ||
       bot.model ||
       (bot.engine === 'claude' ? settings.defaultModel : '') ||
       this.ctx.config.claudeModel;
