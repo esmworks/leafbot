@@ -93,6 +93,9 @@ import type {
   PaymentCard,
   PaymentCardCreate,
   PaymentCardUpdate,
+  ContactDetails,
+  ContactDetailsCreate,
+  ContactDetailsUpdate,
   VaultImport,
   VaultImportResult,
   VaultLogin,
@@ -575,6 +578,11 @@ export function endpoints(send: Transport, base = '') {
     addCard: (v: PaymentCardCreate) => http.post<PaymentCard>('/api/cards', v),
     updateCard: (id: string, v: PaymentCardUpdate) => http.patch<PaymentCard>(`/api/cards/${id}`, v),
     removeCard: (id: string) => http.del<{ ok: true }>(`/api/cards/${id}`),
+    contacts: () => http.get<ContactDetails[]>('/api/contacts'),
+    addContact: (v: ContactDetailsCreate) => http.post<ContactDetails>('/api/contacts', v),
+    updateContact: (id: string, v: ContactDetailsUpdate) =>
+      http.patch<ContactDetails>(`/api/contacts/${id}`, v),
+    removeContact: (id: string) => http.del<{ ok: true }>(`/api/contacts/${id}`),
     rules: () => http.get<PermissionRule[]>('/api/rules'),
     botActions: (botId: string, limit = 100) =>
       http.get<BotAction[]>(`/api/bots/${botId}/actions?limit=${limit}`),

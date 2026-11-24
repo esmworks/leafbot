@@ -956,6 +956,113 @@ export const PaymentCardUpdate = z.object({
 });
 export type PaymentCardUpdate = z.input<typeof PaymentCardUpdate>;
 
+/**
+ * The parts of a person's contact details, named after the browser's own autofill names. `region`
+ * is a province or state (il), `city` the town or district within it (ilçe).
+ */
+export const CONTACT_PARTS = [
+  'givenName',
+  'familyName',
+  'email',
+  'phone',
+  'organization',
+  'address1',
+  'address2',
+  'city',
+  'region',
+  'postalCode',
+  'country',
+] as const;
+export type ContactPart = (typeof CONTACT_PARTS)[number];
+
+const contactValue = (max: number) => z.string().trim().max(max);
+const contactValues = {
+  givenName: contactValue(200),
+  familyName: contactValue(200),
+  email: z
+    .string()
+    .trim()
+    .max(320)
+    .refine((x) => x === '' || z.email().safeParse(x).success, 'error.contactEmail'),
+  phone: contactValue(50),
+  organization: contactValue(200),
+  address1: contactValue(300),
+  address2: contactValue(300),
+  city: contactValue(100),
+  region: contactValue(100),
+  postalCode: contactValue(20),
+  country: contactValue(100),
+};
+
+/**
+ * A name, an email, a phone and an address a bot may fill into a form (a shipping address, a
+ * sign-up), sealed on the server like the vault's passwords. Its owner sees it whole; a bot fills
+ * it on a site the person agreed to, and reads it back from the page as it reads any other field.
+ */
+export const ContactDetails = z.object({
+  id: Id,
+  label: z.string(),
+  givenName: z.string(),
+  familyName: z.string(),
+  email: z.string(),
+  phone: z.string(),
+  organization: z.string(),
+  address1: z.string(),
+  address2: z.string(),
+  city: z.string(),
+  region: z.string(),
+  postalCode: z.string(),
+  country: z.string(),
+  /** The sites the person agreed it may be filled on without being asked again. */
+  sites: z.array(z.string()),
+  botIds: z.array(Id).nullable(),
+  userId: z.string().nullable(),
+  lastUsedAt: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type ContactDetails = z.infer<typeof ContactDetails>;
+
+const v = contactValues;
+export const ContactDetailsCreate = z
+  .object({
+    label: z.string().trim().max(100).default(''),
+    givenName: v.givenName.default(''),
+    familyName: v.familyName.default(''),
+    email: v.email.default(''),
+    phone: v.phone.default(''),
+    organization: v.organization.default(''),
+    address1: v.address1.default(''),
+    address2: v.address2.default(''),
+    city: v.city.default(''),
+    region: v.region.default(''),
+    postalCode: v.postalCode.default(''),
+    country: v.country.default(''),
+    botIds: z.array(Id).max(500).nullable().optional(),
+    team: z.boolean().optional(),
+  })
+  .refine((c) => CONTACT_PARTS.some((p) => c[p]), 'error.contactEmpty');
+export type ContactDetailsCreate = z.input<typeof ContactDetailsCreate>;
+
+export const ContactDetailsUpdate = z.object({
+  label: z.string().trim().max(100).optional(),
+  givenName: v.givenName.optional(),
+  familyName: v.familyName.optional(),
+  email: v.email.optional(),
+  phone: v.phone.optional(),
+  organization: v.organization.optional(),
+  address1: v.address1.optional(),
+  address2: v.address2.optional(),
+  city: v.city.optional(),
+  region: v.region.optional(),
+  postalCode: v.postalCode.optional(),
+  country: v.country.optional(),
+  botIds: z.array(Id).max(500).nullable().optional(),
+  /** Sites to take back from those it may be filled on without asking; none can be added here. */
+  forgetSites: z.array(z.string().max(300)).max(500).optional(),
+  team: z.boolean().optional(),
+});
+export type ContactDetailsUpdate = z.input<typeof ContactDetailsUpdate>;
+
 /** Why a line of an imported passwords file was not taken. */
 export const VaultImportReason = z.enum([
   // A card, a note or another kind of item in a password manager's export.

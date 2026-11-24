@@ -14,6 +14,7 @@ import { ApiKeys } from './ApiKeys';
 import { ApiSources } from './ApiSources';
 import { ContentSeal } from './ContentSeal';
 import { PasswordManagers } from './PasswordManagers';
+import { ContactDetails } from './ContactDetails';
 import { PaymentCards } from './PaymentCards';
 import { SharedPages } from './SharedPages';
 import { VaultCsvImport } from './VaultImport';
@@ -79,6 +80,7 @@ export function VaultTab() {
       <p className="px-1 text-xs text-muted-foreground">{t('vault.note')}</p>
       <PasswordManagers />
       <PaymentCards />
+      <ContactDetails />
       <ApiKeys />
       {manages && <ApiSources />}
       <SharedPages />

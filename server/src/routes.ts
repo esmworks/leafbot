@@ -85,6 +85,8 @@ import {
   PasswordManagerCreate,
   PaymentCardCreate,
   PaymentCardUpdate,
+  ContactDetailsCreate,
+  ContactDetailsUpdate,
   type PersonComputerState,
   ACP_AGENTS,
   type AcpAgentState,
@@ -2076,6 +2078,36 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const { id } = IdParams.parse(req.params);
     await cardFor(req, id);
     await s.cards.remove(id);
+    return { ok: true };
+  });
+
+  /** Contact details a person may change: their own, or the team's when they look after the server. */
+  const contactFor = async (req: FastifyRequest, id: string) => {
+    const c = await s.contacts.get(id);
+    const who = me(req);
+    if (c.userId && c.userId !== who.userId) throw notFound('vault');
+    if (!c.userId && !managesServer(who.role)) throw new HttpError(403, 'error.adminOnly');
+    return c;
+  };
+  app.get('/api/contacts', async (req) => s.contacts.list(me(req).userId));
+  app.post('/api/contacts', async (req) => {
+    const { team, ...body } = ContactDetailsCreate.parse(req.body);
+    const owner = ownerOrSelf(req, team);
+    if (owner) await checkOwnBots(req, body.botIds);
+    return s.contacts.create(body, owner);
+  });
+  app.patch('/api/contacts/:id', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    const c = await contactFor(req, id);
+    const { team, ...body } = ContactDetailsUpdate.parse(req.body);
+    const owner = ownerFor(req, team);
+    if ((owner === undefined ? c.userId : owner) && body.botIds) await checkOwnBots(req, body.botIds);
+    return s.contacts.update(id, body, owner);
+  });
+  app.delete('/api/contacts/:id', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    await contactFor(req, id);
+    await s.contacts.remove(id);
     return { ok: true };
   });
 

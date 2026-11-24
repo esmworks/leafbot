@@ -256,6 +256,7 @@ export class BotService {
       schema.apiSources,
       schema.passwordManagers,
       schema.paymentCards,
+      schema.contactDetails,
     ]) {
       await this.ctx.db
         .update(table)

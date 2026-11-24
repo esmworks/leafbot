@@ -56,7 +56,7 @@ import type { Services } from '../services';
 import { isServerKey, type T } from '../i18n';
 import { errorText, HttpError, newId, notFound, truncate } from '../util';
 import { replayHandOver, replaySteps } from '../browser/replay';
-import { browserTools, type AskCard, type AskLogin } from './browser';
+import { browserTools, type AskCard, type AskContact, type AskLogin } from './browser';
 import { computerTools } from './computer';
 import { personComputerTools } from './person-computer';
 import { callTools } from './calls';
@@ -402,8 +402,9 @@ const MANAGER_MEMORY_TOOLS = new Set<string>(['memory_search', 'memory_update', 
  */
 const TEAM_OFF = new Set<string>([
   'app_add',
-  // A card is a person's own, filled only for them.
+  // A card is a person's own, filled only for them; so are their contact details.
   'browser_card',
+  'browser_contact',
   'credential_request',
   'routine_create',
   'routine_read',
@@ -438,6 +439,7 @@ const GUEST_OFF = new Set<string>([
   'ticket_delete',
   'skill_save',
   'browser_card',
+  'browser_contact',
   'promise_track',
   'followup_add',
   'followup_list',
@@ -541,6 +543,7 @@ export type ToolName =
   | 'browser_fill'
   | 'browser_code'
   | 'browser_card'
+  | 'browser_contact'
   | 'browser_login'
   | 'browser_upload'
   | 'browser_select'
@@ -2723,6 +2726,38 @@ export class ToolFactory {
         if (pick === always && mayKeep) return 'always';
         return { message: t('browser.cardRefused', { site }) };
       };
+      const askContact: AskContact = async ({ contact, site, frames, parts, team: teamContact }) => {
+        const once = t('browser.cardOnce');
+        const always = t('browser.cardAlways', { site });
+        // The team's details are allowed on a site for good only by someone who looks after the server.
+        const mayKeep = !teamContact || managesServer((await s.access.viewerOf(person)).role);
+        const r = await askPerson(s, {
+          bot,
+          thread,
+          turn,
+          signal,
+          timeoutMs: unattended,
+          title: t('browser.contactTitle', { bot: bot.name }),
+          items: [
+            {
+              question: t(frames.length ? 'browser.contactQuestionFrames' : 'browser.contactQuestion', {
+                bot: bot.name,
+                contact,
+                site,
+                parts: parts.join(', '),
+                frames: frames.join(', '),
+              }),
+              options: mayKeep ? [once, always, t('browser.cardRefuse')] : [once, t('browser.cardRefuse')],
+            },
+          ],
+        });
+        if (r.timedOut) return { message: t('tool.questionTimedOut') };
+        if (r.status === 'expired') return { message: t('tool.questionExpired') };
+        const pick = r.status === 'allowed' ? r.answers[0] : undefined;
+        if (pick === once) return 'once';
+        if (pick === always && mayKeep) return 'always';
+        return { message: t('browser.contactRefused', { site }) };
+      };
       const planted = new Set<string>();
       tools.push(
         ...browserTools({
@@ -2737,6 +2772,8 @@ export class ToolFactory {
           askLogin,
           cards: s.cards,
           askCard,
+          contacts: s.contacts,
+          askContact,
           // A card is filled only for the person who wrote this turn themselves, here and now: not
           // for a chat app's unknown sender, a guest, a routine or another bot.
           attended: attended(turn.source) && !!turn.userId && turn.userId === own && !turn.guest,

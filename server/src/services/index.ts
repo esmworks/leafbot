@@ -69,6 +69,7 @@ import { BotApi } from './bot-api';
 import { VaultService } from './vault';
 import { PasswordManagerService } from './password-managers';
 import { PaymentCardService } from './payment-cards';
+import { ContactDetailsService } from './contact-details';
 
 export class Services {
   readonly access: AccessService;
@@ -82,6 +83,7 @@ export class Services {
   readonly vault: VaultService;
   readonly passwordManagers: PasswordManagerService;
   readonly cards: PaymentCardService;
+  readonly contacts: ContactDetailsService;
   readonly claudeAuth: ClaudeAuthService;
   readonly connections: ConnectionService;
   readonly memory: MemoryService;
@@ -155,6 +157,7 @@ export class Services {
     this.passwordManagers = new PasswordManagerService(ctx, this.vault);
     this.vault.useOthers(this.passwordManagers);
     this.cards = new PaymentCardService(ctx, this.vault);
+    this.contacts = new ContactDetailsService(ctx, this.vault);
     this.claudeAuth = new ClaudeAuthService(ctx, this.vault);
     this.connections = new ConnectionService(ctx, this.vault);
     this.approvals = new ApprovalService(ctx, this.vault, this.threads);

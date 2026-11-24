@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer as httpServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import type { Approval, PaymentCard, Routine, Thread } from '@leafbot/shared';
+import type { Approval, ContactDetails, PaymentCard, Routine, Thread } from '@leafbot/shared';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { OWNER_ID } from '../src/users';
 import { findBrowser } from '../src/browser/find';
@@ -456,6 +456,19 @@ describe.skipIf(!BROWSER)('botun tarayıcısı', () => {
           <label>Ay <select name="m" id="m" autocomplete="cc-exp-month"><option value="">-</option>${months}</select></label>
           <label>YIL <select name="y" id="y"><option>2030</option><option>2034</option></select></label>
           <label>Sipariş notu <input name="note" id="note"></label><button>Öde</button></form>`);
+      }
+      if (req.url === '/adres') {
+        // A delivery form: autofill names on some fields, none on others, a list of provinces and
+        // a note field the page keeps for something else.
+        return res.end(`<title>Teslimat</title><h1>Teslimat adresi</h1><form action="/kaydedildi" method="post">
+          <label>Ad soyad <input name="adsoyad" id="ad"></label>
+          <label>E-posta <input type="email" name="eposta" id="ep" autocomplete="email"></label>
+          <label>Telefon <input type="tel" name="tel" id="tel"></label>
+          <label>Açık adres <textarea name="adres" id="adr" autocomplete="shipping street-address"></textarea></label>
+          <label>İl <select name="il" id="il" autocomplete="address-level1"><option value="">Seçin</option>
+            <option value="6">Ankara</option><option value="34">İSTANBUL</option></select></label>
+          <label>Posta kodu <input name="pk" id="pk" autocomplete="postal-code"></label>
+          <label>Sipariş notu <input name="note" id="note"></label><button>Kaydet</button></form>`);
       }
       if (req.url === '/odeme-numara') {
         return res.end(
@@ -1269,6 +1282,105 @@ describe.skipIf(!BROWSER)('botun tarayıcısı', () => {
     });
     await t.services.turns.idle();
     expect((await t.messages(thread.id)).at(-1)!.text).toContain('yalnızca kullanıcının başlattığı');
+  });
+
+  it('iletişim bilgilerini sitede ilk kez sorarak doldurur; kayıtlı olmayanları bırakır', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    await t.send(thread.id, `[araç:browser_open {"url":"${base}/adres"}]`);
+    await t.services.turns.idle();
+    const page = await text('browser_snapshot', {});
+    const fields = [
+      { ref: refOf(page, 'textbox "Ad soyad"'), part: 'name' },
+      { ref: refOf(page, 'textbox "E-posta"'), part: 'email' },
+      { ref: refOf(page, 'textbox "Telefon"'), part: 'phone' },
+      { ref: refOf(page, 'textbox "Açık adres"'), part: 'address' },
+      { ref: refOf(page, 'combobox "İl"'), part: 'region' },
+      { ref: refOf(page, 'textbox "Posta kodu"'), part: 'postal_code' },
+    ];
+    expect(fields.every((f) => f.ref)).toBe(true);
+    expect(await text('browser_contact', { fields })).toContain('kayıtlı iletişim bilgisi yok');
+
+    // Made-up details; no postal code saved.
+    await t.api('POST', '/api/contacts', {
+      label: 'Ev',
+      givenName: 'Ayşe',
+      familyName: 'Yılmaz',
+      email: 'ayse@ornek.test',
+      phone: '+90 555 000 00 00',
+      address1: 'Deneme Sokak No 1',
+      address2: 'Daire 3',
+      region: 'İstanbul',
+    });
+
+    // A field the page names as another part is refused before the person is asked.
+    expect(
+      await text('browser_contact', { fields: [{ ref: refOf(page, 'textbox "E-posta"'), part: 'phone' }] }),
+    ).toContain('telefon alanı değil');
+    expect((await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body).toHaveLength(0);
+
+    // First use on this site: the person is asked what is filled where, and allows it for good.
+    const pending = text('browser_contact', { fields });
+    const card = await waitFor(
+      async () => (await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body[0],
+    );
+    const q = (card.input.questions as { question: string; options: string[] }[])[0]!;
+    expect(q.question).toContain('"Ev"');
+    expect(q.question).toContain('127.0.0.1');
+    expect(q.question).toContain('e-posta');
+    await t.api('POST', `/api/approvals/${card.id}`, { decision: 'allow', answer: q.options[1] });
+    const filled = await pending;
+    expect(filled).toContain('dolduruldu');
+    expect(filled).toContain('posta kodu');
+    const values = await t.services.ctx.browser.use(bot.id, async (p) => ({
+      name: await p.inputValue('#ad'),
+      email: await p.inputValue('#ep'),
+      phone: await p.inputValue('#tel'),
+      address: await p.inputValue('#adr'),
+      region: await p.inputValue('#il'),
+      postal: await p.inputValue('#pk'),
+      note: await p.inputValue('#note'),
+    }));
+    expect(values).toEqual({
+      name: 'Ayşe Yılmaz',
+      email: 'ayse@ornek.test',
+      phone: '+90 555 000 00 00',
+      address: 'Deneme Sokak No 1, Daire 3',
+      region: '34',
+      postal: '',
+      note: '',
+    });
+
+    // Allowed for this site, a routine fills it again without anyone to ask.
+    const routine = (
+      await t.api<Routine>('POST', '/api/routines', {
+        botId: bot.id,
+        name: 'Adres',
+        prompt: `[araç:browser_contact ${JSON.stringify({ fields: [fields[1]] })}]`,
+        schedule: { type: 'daily', time: '08:00' },
+      })
+    ).body;
+    const run = (await t.services.routines.runNow(routine.id)) as { threadId: string };
+    await t.services.turns.idle();
+    expect((await t.messages(run.threadId)).map((m) => m.text).join('\n')).toContain('dolduruldu');
+
+    // Taken back, a routine's turn may not ask for it: nothing is filled.
+    const [saved] = (await t.api<ContactDetails[]>('GET', '/api/contacts')).body;
+    await t.api('PATCH', `/api/contacts/${saved!.id}`, { forgetSites: saved!.sites });
+    const second = (
+      await t.api<Routine>('POST', '/api/routines', {
+        botId: bot.id,
+        name: 'Adres yeniden',
+        prompt: `[araç:browser_contact ${JSON.stringify({ fields: [fields[1]] })}]`,
+        schedule: { type: 'daily', time: '08:00' },
+      })
+    ).body;
+    const again = (await t.services.routines.runNow(second.id)) as { threadId: string };
+    await t.services.turns.idle();
+    expect((await t.messages(again.threadId)).map((m) => m.text).join('\n')).toContain(
+      'daha önce onaylanmadı',
+    );
+    expect((await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body).toHaveLength(0);
   });
 
   it('girişte şifreyi kasadan ya da karttan yazar; bot şifreyi hiç görmez', async () => {

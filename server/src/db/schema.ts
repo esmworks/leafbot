@@ -1014,6 +1014,24 @@ export const paymentCards = pgTable('payment_cards', {
   updatedAt: ts('updated_at').notNull().defaultNow(),
 });
 
+/**
+ * Contact details (a name, an email, a phone, an address) a bot may fill into a form. Everything
+ * but the label is sealed, bound to the row.
+ */
+export const contactDetails = pgTable('contact_details', {
+  id: text('id').primaryKey(),
+  /** Whose they are; null for the team's, which only those who look after the server add. */
+  userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+  label: text('label').notNull().default(''),
+  secret: text('secret').notNull(),
+  /** The approved sites, sealed bound to the row; null before any. */
+  sites: text('sites'),
+  botIds: jsonb('bot_ids').$type<string[]>(),
+  lastUsedAt: ts('last_used_at'),
+  createdAt: created(),
+  updatedAt: ts('updated_at').notNull().defaultNow(),
+});
+
 export const kv = pgTable('kv', {
   key: text('key').primaryKey(),
   value: jsonb('value').notNull(),

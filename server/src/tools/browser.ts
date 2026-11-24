@@ -29,6 +29,7 @@ import type { AppTool, ToolResult } from '../engine/types';
 import type { T } from '../i18n';
 import type { LoginAnswer } from '../services/approvals';
 import type { OpenCard, PaymentCardService } from '../services/payment-cards';
+import type { ContactDetailsService, OpenContact } from '../services/contact-details';
 import { registrableSite, siteMatches, siteOf, type VaultService } from '../services/vault';
 import { maskCardNumbers } from '@leafbot/shared';
 import { totp } from '../totp';
@@ -448,6 +449,57 @@ export const cardApproval = (site: string, frames: readonly string[]) =>
 type CardPart = 'number' | 'expiry' | 'month' | 'year' | 'cvc' | 'name';
 
 /**
+ * Asks the person whether their contact details may be filled on a site they were not filled on
+ * before, saying which of them: `once`, or `always` for that site from now on.
+ */
+export type AskContact = (o: {
+  contact: string;
+  site: string;
+  frames: string[];
+  /** What would be filled, as the person reads it (name, email, address). */
+  parts: string[];
+  /** The team's details: only those who look after the server may allow them for good. */
+  team: boolean;
+}) => Promise<'once' | 'always' | { message: string }>;
+
+/** A field a bot may put contact details in; `name` and `address` are the parts joined. */
+export const CONTACT_FIELDS = [
+  'name',
+  'given_name',
+  'family_name',
+  'email',
+  'phone',
+  'organization',
+  'address',
+  'address1',
+  'address2',
+  'city',
+  'region',
+  'postal_code',
+  'country',
+] as const;
+type ContactField = (typeof CONTACT_FIELDS)[number];
+
+/** The browser's own autofill names for each field; a field named for another part is refused. */
+const CONTACT_AUTOCOMPLETE: Record<ContactField, string[]> = {
+  name: ['name'],
+  given_name: ['given-name'],
+  family_name: ['family-name'],
+  email: ['email'],
+  phone: ['tel', 'tel-national'],
+  organization: ['organization'],
+  address: ['street-address', 'address-line1'],
+  address1: ['address-line1', 'street-address'],
+  address2: ['address-line2'],
+  city: ['address-level2'],
+  region: ['address-level1'],
+  postal_code: ['postal-code'],
+  country: ['country', 'country-name'],
+};
+/** Fields a list may stand for: the person's choice among cities, provinces or countries. */
+const CONTACT_SELECT = new Set<ContactField>(['city', 'region', 'country']);
+
+/**
  * What each part of a card form is called: its `autocomplete` value, or words in its name, id,
  * placeholder or label. A card value goes only into a field that says it is that part, never into a
  * comment box or a search field the bot names by mistake.
@@ -603,6 +655,9 @@ export function browserTools(opts: {
   /** The person's payment cards; without them the bot has no card step. */
   cards?: PaymentCardService;
   askCard?: AskCard;
+  /** The person's contact details; without them the bot has no contact step. */
+  contacts?: ContactDetailsService;
+  askContact?: AskContact;
   /** Whether the person is in the conversation, having started this turn: a card is filled only then. */
   attended?: boolean;
   /** What the bot noted earlier about how a site works. */
@@ -1255,6 +1310,189 @@ export function browserTools(opts: {
       return `${t('browser.cardFilled', { card: cardName(c), site })}\n\n${out}`;
     });
   };
+  /** Contact details as the bot and the person see them: their name, or the person's name. */
+  const contactName = (c: OpenContact) =>
+    c.label || [c.givenName, c.familyName].filter(Boolean).join(' ') || t('browser.contactUnnamed');
+  const contactValue = (c: OpenContact, f: ContactField): string => {
+    switch (f) {
+      case 'name':
+        return [c.givenName, c.familyName].filter(Boolean).join(' ');
+      case 'given_name':
+        return c.givenName;
+      case 'family_name':
+        return c.familyName;
+      case 'address':
+        return [c.address1, c.address2].filter(Boolean).join(', ');
+      case 'postal_code':
+        return c.postalCode;
+      default:
+        return c[f];
+    }
+  };
+  /**
+   * The field a part of the details goes into: a text field (a list for a city, province or
+   * country; a text box for the street) in an https frame of the page, not a password, a card's or
+   * a code's, and not one the page names as another part.
+   */
+  const contactField = async (
+    page: Page,
+    r: string,
+    part: ContactField,
+  ): Promise<
+    { field: ElementHandle; info: ReturnType<typeof cardFieldInfo>; frameSite: string } | { refused: string }
+  > => {
+    const field = await (await fresh(page, r)).elementHandle({ timeout: 5_000 });
+    const refuse = async (refused: string) => {
+      await field.dispose().catch(() => {});
+      return { refused };
+    };
+    const info = await field.evaluate(cardFieldInfo);
+    const what = t(`browser.contactPart.${part}`);
+    const tagOk =
+      (info.tag === 'input' && ['text', 'email', 'tel', 'number', ''].includes(info.type)) ||
+      (info.tag === 'textarea' && (part === 'address' || part === 'address1')) ||
+      (info.tag === 'select' && CONTACT_SELECT.has(part));
+    // An autofill name the page gave the field that is not this part's: a card's, a password's,
+    // a code's or another part of the address. A field with none or with "on" is the bot's call.
+    const named = info.autocomplete
+      .split(/\s+/)
+      .filter((w) => w && !/^(section-|shipping|billing|home|work|mobile|on|off)/.test(w));
+    const other = named.length > 0 && !named.some((w) => CONTACT_AUTOCOMPLETE[part].includes(w));
+    if (!tagOk || info.search || other) return refuse(t('browser.contactNotField', { part: what }));
+    const frame: Frame | null = await field.ownerFrame();
+    const where = parsed(frame?.url() ?? '');
+    if (!where || !secure(where)) return refuse(t('browser.cardFrame', { origin: where?.origin ?? '-' }));
+    const to = info.action ? parsed(info.action) : null;
+    if (info.action && to?.protocol !== 'javascript:' && (!to || !secure(to))) {
+      return refuse(t('browser.cardFrame', { origin: to?.origin ?? info.action.slice(0, 100) }));
+    }
+    return { field, info, frameSite: registrableSite(where.hostname) };
+  };
+  const fillContact = async (
+    a: { fields: { ref: string; part: ContactField }[]; contact?: string },
+    contacts: ContactDetailsService,
+    askContact: AskContact,
+  ): Promise<ToolResult> => {
+    // A person's own details, or the team's while working for someone in it; never for a team
+    // conversation or someone with no account here.
+    if (!person) return t('browser.contactTeam');
+    let host: string;
+    try {
+      const url = await use(async (page) => new URL(page.url()));
+      if (!secure(url)) return t('browser.contactInsecure');
+      host = url.hostname;
+    } catch (err) {
+      return browserErrorText(err, t);
+    }
+    const site = registrableSite(host);
+    const all = await contacts.forBot(bot.id, person);
+    if (!all.length) return t('browser.contactNone');
+    const wanted = a.contact?.trim().toLocaleLowerCase();
+    const matching = wanted ? all.filter((c) => contactName(c).toLocaleLowerCase() === wanted) : all;
+    if (matching.length !== 1) {
+      return t('browser.contactChoose', { contacts: all.map(contactName).join(', ') });
+    }
+    const c = matching[0]!;
+    // Parts with nothing saved are left for the person rather than failing the rest.
+    const given = a.fields.filter((f) => contactValue(c, f.part));
+    const missing = [...new Set(a.fields.filter((f) => !contactValue(c, f.part)).map((f) => f.part))];
+    const missingNote = missing.length
+      ? `\n${t('browser.contactMissing', { parts: missing.map((p) => t(`browser.contactPart.${p}`)).join(', ') })}`
+      : '';
+    if (!given.length)
+      return t('browser.contactMissing', {
+        parts: missing.map((p) => t(`browser.contactPart.${p}`)).join(', '),
+      });
+    type Found = {
+      part: ContactField;
+      field: ElementHandle;
+      info: ReturnType<typeof cardFieldInfo>;
+      frameSite: string;
+    };
+    const keyOf = (fields: Found[]) =>
+      cardApproval(site, [...new Set(fields.map((f) => f.frameSite).filter((x) => x !== site))]);
+    const find = async (page: Page, fields: Found[]): Promise<string | null> => {
+      // The page may have moved while the person answered: only fill on the site they agreed to.
+      const here = new URL(page.url());
+      if (!secure(here) || !siteMatches(here.hostname, site)) {
+        return t('browser.loginMoved', { host: here.hostname, site });
+      }
+      for (const { ref: r, part } of given) {
+        const f = await contactField(page, r, part);
+        if ('refused' in f) return f.refused;
+        fields.push({ part, field: f.field, info: f.info, frameSite: f.frameSite });
+      }
+      return null;
+    };
+    // The fields are checked before the person is asked, so a wrong one costs them no question.
+    let checked: { wrong: string } | { key: string; frames: string[] };
+    try {
+      checked = await use(async (page) => {
+        const fields: Found[] = [];
+        try {
+          const wrong = await find(page, fields);
+          if (wrong) return { wrong };
+          const frames = [...new Set(fields.map((f) => f.frameSite).filter((x) => x !== site))];
+          return { key: keyOf(fields), frames };
+        } finally {
+          for (const f of fields) await f.field.dispose().catch(() => {});
+        }
+      });
+    } catch (err) {
+      return browserErrorText(err, t);
+    }
+    if ('wrong' in checked) return checked.wrong;
+    const { key } = checked;
+    if (!c.sites.includes(key)) {
+      // A site not agreed to before needs the person there to agree: not a routine's turn.
+      if (!opts.attended) return t('browser.contactUnattended', { site });
+      const parts = [...new Set(given.map((f) => t(`browser.contactPart.${f.part}`)))];
+      const answer = await askContact({
+        contact: contactName(c),
+        site,
+        frames: checked.frames,
+        parts,
+        team: c.team,
+      });
+      if (typeof answer !== 'string') return answer.message;
+      if (answer === 'always') await contacts.allowSite(c.id, key);
+    }
+    return step(async (page) => {
+      const fields: Found[] = [];
+      try {
+        const refused = await find(page, fields);
+        if (refused) return refused;
+        if (keyOf(fields) !== key) return t('browser.cardFramesChanged', { site });
+        for (const f of fields) {
+          const value = contactValue(c, f.part);
+          if (f.info.tag === 'select') {
+            // The option whose value or text is the saved one, ignoring case and Turkish dots.
+            const fold = (v: string) =>
+              v.toLocaleLowerCase('tr').normalize('NFKD').replace(/\p{M}/gu, '').trim();
+            const options = await f.field.evaluate((el) =>
+              Array.from(
+                (el as unknown as { options: ArrayLike<{ value: string; text: string }> }).options,
+                (o) => ({ value: o.value, text: o.text }),
+              ),
+            );
+            const want = fold(value);
+            const hit =
+              options.find((o) => fold(o.text) === want || fold(o.value) === want) ??
+              options.find((o) => o.value && fold(o.text).startsWith(want));
+            if (!hit)
+              return t('browser.contactNoOption', { part: t(`browser.contactPart.${f.part}`), value });
+            await f.field.selectOption({ value: hit.value });
+          } else await f.field.fill(value);
+        }
+      } finally {
+        for (const f of fields) await f.field.dispose().catch(() => {});
+      }
+      void contacts.used(c.id).catch(() => {});
+      await settle(page);
+      const out = await outline(browser.pages(bot.id)?.active ?? page);
+      return `${t('browser.contactFilled', { contact: contactName(c), site })}${missingNote}\n\n${out}`;
+    });
+  };
   /** What the bot is told when the page is still a bot check or a refusal after the wait. */
   const wallNote = (out: ToolResult, wall: WallState): ToolResult => {
     if (wall === 'clear') return out;
@@ -1773,6 +2011,31 @@ export function browserTools(opts: {
                 .describe('which saved card, by its name or last four digits, when there are several'),
             },
             async (a) => fillCard(a, opts.cards!, opts.askCard!),
+            'internal',
+          ),
+        ]
+      : []),
+    ...(opts.contacts && opts.askContact
+      ? [
+          def(
+            'browser_contact',
+            {
+              fields: z
+                .array(
+                  z.object({
+                    ref: ref.describe('ref of the field'),
+                    part: z.enum(CONTACT_FIELDS).describe('which part of the saved details goes in it'),
+                  }),
+                )
+                .min(1)
+                .max(16),
+              contact: z
+                .string()
+                .max(200)
+                .optional()
+                .describe('which saved details, by their name, when there are several'),
+            },
+            async (a) => fillContact(a, opts.contacts!, opts.askContact!),
             'internal',
           ),
         ]
