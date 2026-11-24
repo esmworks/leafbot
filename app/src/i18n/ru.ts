@@ -1881,7 +1881,7 @@ export const ru: Partial<Catalog<MessageKey>> = {
   'bot.claudeLoggedOut': 'В Claude не выполнен вход; подключите его в разделе Настройки → Подключение.',
   'bot.imageType': 'Выберите изображение PNG, JPEG или WebP',
   'bot.imageUnreadable': 'Не удалось прочитать изображение',
-  'bot.object': 'Объект',
+  'bot.object': 'Аватар',
   'bot.object.circle': 'Круг',
   'bot.object.square': 'Квадрат',
   'bot.object.triangle': 'Треугольник',

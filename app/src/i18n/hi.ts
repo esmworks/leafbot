@@ -1756,7 +1756,7 @@ export const hi: Partial<Catalog<MessageKey>> = {
   'bot.claudeLoggedOut': 'Claude में साइन इन नहीं है; इसे सेटिंग्स → कनेक्शन में जोड़ें।',
   'bot.imageType': 'PNG, JPEG या WebP छवि चुनें',
   'bot.imageUnreadable': 'छवि पढ़ी नहीं जा सकी',
-  'bot.object': 'ऑब्जेक्ट',
+  'bot.object': 'अवतार',
   'bot.object.circle': 'वृत्त',
   'bot.object.square': 'वर्ग',
   'bot.object.triangle': 'त्रिभुज',

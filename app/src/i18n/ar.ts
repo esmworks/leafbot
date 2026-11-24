@@ -1911,7 +1911,7 @@ export const ar: Partial<Catalog<MessageKey>> = {
   'bot.claudeLoggedOut': 'Claude غير مسجّل الدخول؛ اربطه في الإعدادات ← الاتصال.',
   'bot.imageType': 'اختر صورة PNG أو JPEG أو WebP',
   'bot.imageUnreadable': 'تعذّرت قراءة الصورة',
-  'bot.object': 'الشكل',
+  'bot.object': 'الصورة الرمزية',
   'bot.object.circle': 'دائرة',
   'bot.object.square': 'مربع',
   'bot.object.triangle': 'مثلث',

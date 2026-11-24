@@ -1759,7 +1759,7 @@ export const vi: Partial<Catalog<MessageKey>> = {
   'bot.claudeLoggedOut': 'Claude chưa đăng nhập; kết nối trong Cài đặt → Kết nối.',
   'bot.imageType': 'Chọn ảnh PNG, JPEG hoặc WebP',
   'bot.imageUnreadable': 'Không đọc được ảnh',
-  'bot.object': 'Đối tượng',
+  'bot.object': 'Ảnh đại diện',
   'bot.object.circle': 'Hình tròn',
   'bot.object.square': 'Hình vuông',
   'bot.object.triangle': 'Hình tam giác',
