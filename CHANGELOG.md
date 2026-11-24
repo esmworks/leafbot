@@ -7,12 +7,13 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
-- Bots can set up everything a routine's window does when you ask them in the chat: steps after the instruction, each
-  agent step on a model of its own (a cheap check first, the real work on a stronger model), approval steps that ask
-  you, notices with no AI, steps that wait for a time, a webhook or a mail, and a webhook's filter. The approval card
-  lists every step. A bot reads a routine in full before it changes it, with each step's id and model and how the
-  steps of the latest runs went, and keeps the steps it leaves as they were. Taking an approval step out of a
-  routine, or putting a step before it, is always asked about on a card, whatever the bot may do by itself.
+- Bots can set up a routine's steps when you ask them in the chat: steps after the instruction, each agent step on a
+  model of its own (a cheap check first, the real work on a stronger model), approval steps that ask you, notices with
+  no AI, and steps that wait for a time, a webhook or a mail; also a webhook's filter and a Slack channel and reaction.
+  The approval card lists every step. A bot reads a routine in full before it changes it, with each step's id and
+  model and how the steps of the latest runs went, and keeps the steps it leaves as they were. Taking an approval step
+  out of a routine, or moving a step that came after it ahead of it, is always asked about on a card, whatever the bot
+  may do by itself. A webhook's signing secret stays yours to enter in the routine's window.
 - A manager bot can also set a bot's effort, turn its memory on or off, and pick its object avatar and surface, when
   it creates the bot or later. Spending limits, your Mac, the tool selection and a coding agent stay yours to set in
   the app.

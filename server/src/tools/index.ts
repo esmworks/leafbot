@@ -19,6 +19,7 @@ import {
   RoutineStep as StepSchema,
   type RoutineStep,
   type RoutineCheck,
+  RoutineCreate,
   type RoutineUpdate,
   searchCatalog,
   skillSlug,
@@ -153,6 +154,12 @@ export function stepsFrom(input: z.infer<typeof StepsInput>, t: T): RoutineStep[
   }
   return out;
 }
+
+/** A Slack reaction as the routine keeps it (`:eyes:` becomes `eyes`); null when it is no emoji's name. */
+const slackReaction = (raw: string): string | null => {
+  const parsed = RoutineCreate.shape.slackReaction.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+};
 
 /** Whether a step of the routine waits for its webhook to be called. */
 const waitsOnHook = (steps: readonly RoutineStep[]) =>
@@ -928,6 +935,10 @@ export class ToolFactory {
           webhook_post: z.boolean().optional(),
           /** What it does after its instruction, in order, each once the one before it ended well. */
           steps: StepsInput.optional(),
+          /** The Slack channel (`C…`) its reports go to; it then runs as that team's conversation. */
+          slack_channel: RoutineCreate.shape.slackChannel.unwrap().unwrap().optional(),
+          /** An emoji's name: the person's reaction with it in Slack runs it on that message. */
+          slack_reaction: z.string().max(82).optional(),
           /** Also run when mail arrives at the bot's address, when the mail meets `email_filter`. */
           on_email: z.boolean().default(false),
           email_filter: z.string().max(2000).optional(),
@@ -949,6 +960,8 @@ export class ToolFactory {
           if (typeof watched === 'string') return watched;
           const steps = stepsFrom(a.steps ?? [], t);
           if (typeof steps === 'string') return steps;
+          const reaction = slackReaction(a.slack_reaction ?? '');
+          if (reaction === null) return t('tool.routineBadReaction', { reaction: a.slack_reaction ?? '' });
           const settings = await s.settings.all();
           const r = await s.routines.create(
             {
@@ -957,7 +970,7 @@ export class ToolFactory {
               prompt: a.prompt.trim(),
               // The person sees each step on the card before the routine is made.
               steps,
-              slackReaction: '',
+              slackReaction: reaction,
               schedule: a.schedule,
               timezone: settings.timezone,
               enabled: true,
@@ -965,7 +978,7 @@ export class ToolFactory {
               carryReport: a.carry_report,
               inMain: a.in_main,
               reportOnly: a.report_only,
-              slackChannel: null,
+              slackChannel: a.slack_channel ?? null,
               onStartup: a.on_startup,
               watchUrl: a.watch_url ?? null,
               check: check && { ...check, args: a.check_args ?? {} },
@@ -1125,6 +1138,12 @@ export class ToolFactory {
           webhook_post: z.boolean().optional(),
           /** Every step after the instruction, in order: the list replaces the routine's steps. */
           steps: StepsInput.optional(),
+          /** An empty string stops posting to Slack. */
+          slack_channel: z
+            .union([RoutineCreate.shape.slackChannel.unwrap().unwrap(), z.literal('')])
+            .optional(),
+          /** An empty string stops starting on a reaction. */
+          slack_reaction: z.string().max(82).optional(),
         },
         async (a) => {
           // The bot changes itself only for someone who may change it.
@@ -1148,7 +1167,9 @@ export class ToolFactory {
           if (typeof watched === 'string') return watched;
           const steps = a.steps ? stepsFrom(a.steps, t) : undefined;
           if (typeof steps === 'string') return steps;
-          if (steps && a.webhook === false && waitsOnHook(steps)) return t('tool.routineHookNeeded');
+          const reaction = a.slack_reaction === undefined ? undefined : slackReaction(a.slack_reaction);
+          if (reaction === null) return t('tool.routineBadReaction', { reaction: a.slack_reaction ?? '' });
+          if (a.webhook === false && waitsOnHook(steps ?? r.steps ?? [])) return t('tool.routineHookNeeded');
           // A step that asks the person is their hold on what the routine does: one taken away or
           // put elsewhere is asked about on a card, whatever the bot may do by itself.
           const held = (r.steps ?? []).filter((x) => x.kind === 'approval');
@@ -1193,6 +1214,8 @@ export class ToolFactory {
             ...(a.webhook_filter !== undefined && { webhookFilter: a.webhook_filter }),
             ...(a.webhook_post !== undefined && { webhookPost: a.webhook_post }),
             ...(steps !== undefined && { steps }),
+            ...(a.slack_channel !== undefined && { slackChannel: a.slack_channel || null }),
+            ...(reaction !== undefined && { slackReaction: reaction }),
           };
           // The address is kept apart from the routine's fields: a routine that has one keeps it.
           const hookOn = (a.webhook === true || (steps && waitsOnHook(steps))) && !r.webhookToken;

@@ -147,11 +147,25 @@ describe('routine tools with steps', () => {
     expect(r.webhookToken).toBeTruthy();
     expect(r.webhookFilter).toBe('action=closed');
     // The address cannot go while a step waits for it; once kept, an update leaves it as it was.
-    expect(
-      await ask(thread.id, 'routine_update', { routine: 'PR', webhook: false, steps: r.steps }),
-    ).toContain('webhook');
+    expect(await ask(thread.id, 'routine_update', { routine: 'PR', webhook: false })).toContain(
+      "webhook'unu bekliyor",
+    );
+    expect((await mine(bot.id)).webhookToken).toBe(r.webhookToken);
     await ask(thread.id, 'routine_update', { routine: 'PR', webhook: true });
     expect((await mine(bot.id)).webhookToken).toBe(r.webhookToken);
+  });
+
+  it('takes a Slack reaction by its emoji name and refuses one that is none', async () => {
+    const bot = await t.bot({ permissionMode: 'auto' });
+    const thread = await main(bot.id);
+    const base = { name: 'Tepki', prompt: 'Mesajı özetle.', schedule: { type: 'daily', time: '09:00' } };
+    expect(await ask(thread.id, 'routine_create', { ...base, slack_reaction: 'göz!' })).toContain(
+      'bir emoji adı değil',
+    );
+    await ask(thread.id, 'routine_create', { ...base, slack_reaction: ':eyes:' });
+    expect((await mine(bot.id)).slackReaction).toBe('eyes');
+    await ask(thread.id, 'routine_update', { routine: 'Tepki', slack_reaction: '' });
+    expect((await mine(bot.id)).slackReaction).toBe('');
   });
 
   it('shows every step on the card the person approves', () => {
