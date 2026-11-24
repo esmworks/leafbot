@@ -843,7 +843,8 @@ function MessageActions({ m, onReply }: { m: Message; onReply?(m: Message): void
       )}
       <div
         className={cn(
-          'flex items-center gap-0.5 transition-opacity',
+          // A backing of its own: the grey icons sit straight on the chat, where a picture swallows them.
+          'wallpaper-chip flex items-center gap-0.5 rounded-lg transition-opacity',
           'opacity-0 group-focus-within/message:opacity-100 group-hover/message:opacity-100 [@media(hover:none)]:opacity-100',
           (picking || copied) && 'opacity-100',
         )}
@@ -998,7 +999,8 @@ function OwnMessageActions({ m }: { m: Message }) {
   const remove = useDeleteMessage(m);
   const [copied, setCopied] = useState(false);
   return (
-    <div className="flex h-7 items-center gap-0.5 opacity-0 transition-opacity group-focus-within/own:opacity-100 group-hover/own:opacity-100 [@media(hover:none)]:opacity-100">
+    // A backing of its own, as under the bot's messages: grey icons on a picture are lost.
+    <div className="wallpaper-chip flex h-7 items-center gap-0.5 rounded-lg opacity-0 transition-opacity group-focus-within/own:opacity-100 group-hover/own:opacity-100 [@media(hover:none)]:opacity-100">
       {m.text && (
         <ActionButton
           label={copied ? t('message.copied') : t('message.copy')}
