@@ -1950,6 +1950,14 @@ export const en: Catalog<MessageKey> = {
   'general.wallpaper.unreadable': 'This file could not be opened as a picture.',
   'general.wallpaperDim': 'Background dimming',
   'general.wallpaperDimHint': 'More dimming keeps the text easier to read.',
+  'general.wallpaperBlur': 'Background blur',
+  'general.wallpaperBlurHint':
+    'Off shows the picture sharp behind the panels and messages; raise the dimming if text gets hard to read.',
+  'general.wallpaperOwnBubble': 'Your messages',
+  'general.wallpaperOwnBubbleHint':
+    'Solid keeps your messages in their full colour, readable over any picture.',
+  'general.wallpaperOwnBubble.glass': 'Glass',
+  'general.wallpaperOwnBubble.solid': 'Solid',
   'general.languageHint':
     "The interface, the bots' prompt and the system messages in conversations use this language.",
   'general.bots': 'Bots',

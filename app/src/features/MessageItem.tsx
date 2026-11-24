@@ -162,7 +162,9 @@ export function MessageItem({
               <div
                 className={cn(
                   'relative max-w-[80%] rounded-3xl px-4 py-2.5 text-[15px] [overflow-wrap:anywhere]',
-                  tint ? 'wallpaper-tint bg-(--tint-fill) text-white' : 'wallpaper-bubble bg-secondary',
+                  tint
+                    ? 'wallpaper-mine wallpaper-tint bg-(--tint-fill) text-white'
+                    : 'wallpaper-mine wallpaper-bubble bg-secondary',
                   typeof m.props.reaction === 'string' && 'mb-4',
                 )}
                 style={tint ? tintFill(tint) : undefined}
@@ -1103,7 +1105,9 @@ function QueuedMessage({ m, tint, hasFiles }: { m: Message; tint?: string; hasFi
         <div
           className={cn(
             'relative max-w-[80%] rounded-3xl px-4 py-2.5 text-[15px] whitespace-pre-wrap opacity-75 [overflow-wrap:anywhere]',
-            tint ? 'wallpaper-tint bg-(--tint-fill) text-white' : 'wallpaper-bubble bg-secondary',
+            tint
+              ? 'wallpaper-mine wallpaper-tint bg-(--tint-fill) text-white'
+              : 'wallpaper-mine wallpaper-bubble bg-secondary',
           )}
           style={tint ? tintFill(tint) : undefined}
         >
