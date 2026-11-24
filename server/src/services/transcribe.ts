@@ -1,6 +1,6 @@
 import type { Locale } from '@leafbot/shared';
 import { HttpError } from '../util';
-import { authHeaders, type AiEndpointService } from './ai-endpoints';
+import { askService, authHeaders, type AiEndpointService } from './ai-endpoints';
 import type { ProviderKeyService } from './keys';
 
 /**
@@ -84,12 +84,13 @@ export class TranscribeService {
     form.append('file', new Blob([new Uint8Array(audio)], { type }), fileName(type));
     form.append('model', s.model);
     if (locale) form.append('language', locale);
-    const res = await this.fetcher(s.url, {
-      method: 'POST',
-      headers: s.headers,
-      body: form,
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-    });
+    const res = await askService(
+      this.fetcher,
+      s.url,
+      { method: 'POST', headers: s.headers, body: form },
+      { unreachable: 'error.transcribeUnreachable', timeout: 'error.transcribeTimeout' },
+      TIMEOUT_MS,
+    );
     const body = (await res.json().catch(() => null)) as {
       text?: unknown;
       error?: { message?: string } | string;
