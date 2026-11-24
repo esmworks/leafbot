@@ -1,4 +1,4 @@
-import type { BotSummary, Thread, Ticket } from '@leafbot/shared';
+import type { Approval, BotSummary, Thread, Ticket } from '@leafbot/shared';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -135,6 +135,23 @@ describe('görev panosu', () => {
     expect(['queued', 'running']).toContain((await ticket(slow.id)).turnState);
     await t.services.turns.idle();
     expect((await ticket(slow.id)).turnState).toBe('idle');
+  });
+
+  it('varsayılan izinli bot biten görevi kişinin kartla onayıyla siler', async () => {
+    const bot = await t.bot({ name: 'Ali' });
+    const thread = (await t.api<Thread>('GET', `/api/bots/${bot.id}/main-thread`)).body;
+    const done = (await t.api<Ticket>('POST', '/api/tickets', { title: 'Bülten gitti' })).body;
+    await t.api('PATCH', `/api/tickets/${done.id}`, { status: 'done' });
+
+    await t.send(thread.id, `[araç:ticket_delete {"tickets":[${done.number}]}]`);
+    const card = await waitFor(
+      async () => (await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body[0],
+    );
+    expect(card.summary).toContain(`#${done.number}`);
+    expect((await t.api<Ticket[]>('GET', '/api/tickets')).body).toHaveLength(1);
+    await t.api('POST', `/api/approvals/${card.id}`, { decision: 'allow' });
+    await t.services.turns.idle();
+    expect((await t.api<Ticket[]>('GET', '/api/tickets')).body).toHaveLength(0);
   });
 
   it('istem panoyu ve botun açık görevlerini anlatır; pano araçları araç aramasının ardında kalmaz', async () => {

@@ -349,6 +349,21 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
         tr: ['hafızadaki bir notu', 'hafızadaki bu notu', CHANGE],
         en: ['change a note in memory', 'change this note in memory', 'change notes in memory'],
       };
+    case 'ticket_delete': {
+      const list = Array.isArray(input.tickets)
+        ? input.tickets.map((x) => `#${String(x).replace(/^#/, '')}`).join(', ')
+        : '';
+      return {
+        tr: [
+          list ? `panodaki ${list} görevini` : 'panodaki biten görevleri',
+          list ? `panodaki ${list} görevini` : 'bu görevleri',
+          DELETE,
+        ],
+        en: list
+          ? [`delete ${list} from the board`, `delete ${list} from the board`, 'delete finished tickets']
+          : ['delete finished tickets', 'delete these tickets', 'delete finished tickets'],
+      };
+    }
     case 'memory_forget':
       return {
         tr: ['hafızadaki bir notu', 'hafızadaki bu notu', DELETE],

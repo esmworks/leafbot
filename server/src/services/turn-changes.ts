@@ -32,6 +32,7 @@ const NOT_OUTSIDE = new Set([
   'routine_create',
   'routine_update',
   'routine_delete',
+  'ticket_delete',
   'skill_save',
   'WebFetch',
   'WebSearch',
