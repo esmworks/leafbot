@@ -26,6 +26,7 @@ import {
   type RoutineCheck,
   type RoutineCondition,
   type RoutineCreate,
+  type RoutineFix,
   type RoutineRevision,
   type RoutineVersion,
   type RoutineVersionReport,
@@ -66,6 +67,8 @@ import { checkSignature, signatureAllows } from './webhook-signatures';
 import { toRoutine, toRun } from './mappers';
 import { botStepAt, handedOn, jsonIn, routeFrom, snapshotSteps, stepList, varsWanted } from './routine-steps';
 import { fetchPublic, fetchPublicText } from './skill-link';
+import { FIX_RUNS, fixPrompt, parseFix, type FixRun } from './routine-fix';
+import { redactSecrets } from './secrets';
 import { mailText } from './email';
 import { describeWhen, RoutineConditions, stepWhenHolds, type ConditionResult } from './routine-conditions';
 import type { Services } from '.';
@@ -507,6 +510,89 @@ export class RoutineService {
   }
 
   /** The versions the routine has had, newest first; the first is the one it has now. */
+  /**
+   * A change to the routine's instruction and bot steps, proposed by one call to its bot's model,
+   * on the bot's own account, from how its last runs went. It is only proposed: the person reads it
+   * and applies it, as the runs it was made from may carry outside text (a mail, a page) that must
+   * not change the routine by itself.
+   */
+  async proposeFix(id: string): Promise<RoutineFix> {
+    const routine = await this.get(id);
+    const bot = await this.services.bots.get(routine.botId);
+    const rows = await this.ctx.db
+      .select()
+      .from(schema.routineRuns)
+      .where(
+        and(
+          eq(schema.routineRuns.routineId, id),
+          inArray(schema.routineRuns.status, ['done', 'error', 'stopped']),
+        ),
+      )
+      .orderBy(desc(schema.routineRuns.startedAt))
+      .limit(FIX_RUNS);
+    if (!rows.length) throw new HttpError(409, 'error.routineFixNoRuns');
+    const engine = this.engineFor(bot);
+    if (!engine.complete) throw new HttpError(409, 'error.routineFixUnavailable');
+    // A spent limit stops the bot's background calls too: they are spent from its account.
+    if (await this.services.usage.reached(bot)) throw new HttpError(429, 'error.routineFixLimit');
+    const ids = rows.map((r) => r.id);
+    const parts = await this.ctx.db
+      .select()
+      .from(schema.routineStepRuns)
+      .where(inArray(schema.routineStepRuns.runId, ids))
+      .orderBy(asc(schema.routineStepRuns.position));
+    // A run with no steps keeps what it ended with as its turn's answer.
+    const answers = await this.ctx.db
+      .select({ runId: schema.turns.routineRunId, text: schema.messages.text })
+      .from(schema.messages)
+      .innerJoin(schema.turns, eq(schema.turns.id, schema.messages.turnId))
+      .where(and(inArray(schema.turns.routineRunId, ids), eq(schema.messages.role, 'assistant')))
+      .orderBy(asc(schema.messages.createdAt));
+    const t = await this.services.settings.translator();
+    // What looks like a secret never leaves in what the runs wrote. The instruction goes as it is:
+    // the bot reads it on every run, and a fix written from a cut one would lose what was cut.
+    const clean = (x: string | null) => (x ? redactSecrets(x, t('memory.redacted')).text : null);
+    const runs: FixRun[] = rows.reverse().map((r) => {
+      const own = parts.filter((p) => p.runId === r.id);
+      const answer = answers.filter((a) => a.runId === r.id).at(-1)?.text ?? null;
+      return {
+        at: r.startedAt,
+        status: r.status,
+        outcome: r.outcome,
+        reason: r.reason,
+        parts: own.length
+          ? own.map((p) => ({
+              position: p.position,
+              kind: p.kind,
+              status: p.status,
+              reason: p.reason,
+              output: clean(p.output),
+            }))
+          : [{ position: 0, kind: 'prompt', status: r.status, reason: null, output: clean(answer) }],
+      };
+    });
+    const steps = routine.steps ?? [];
+    const { system, user } = fixPrompt({
+      prompt: routine.prompt,
+      steps,
+      runs,
+      language: await this.services.settings.locale(),
+    });
+    const settings = await this.services.settings.all();
+    const { text, costUsd } = await engine.complete({
+      model:
+        bot.model || (bot.engine === 'claude' ? settings.defaultModel : '') || this.ctx.config.claudeModel,
+      system,
+      user,
+      signal: AbortSignal.timeout(120_000),
+      locale: await this.services.settings.locale(),
+    });
+    await this.services.usage.background(bot.id, 'routineFix', costUsd);
+    const fix = parseFix(text, routine.prompt, steps);
+    if (!fix) throw new HttpError(502, 'error.routineFixUnreadable');
+    return { ...fix, runs: rows.length };
+  }
+
   async revisions(routineId: string, limit = 50): Promise<RoutineRevision[]> {
     const routine = await this.get(routineId);
     const rows = await this.ctx.db

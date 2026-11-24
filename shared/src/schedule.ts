@@ -719,6 +719,20 @@ export const RoutineRevision = z.object({
 });
 export type RoutineRevision = z.infer<typeof RoutineRevision>;
 
+/**
+ * A change to a routine's instruction and bot steps proposed from how its last runs went, with why.
+ * Nothing changes until the person applies it. `prompt` null keeps the instruction; `steps` lists
+ * only the bot steps whose instruction would change. Both empty: the runs show nothing to change.
+ */
+export const RoutineFix = z.object({
+  why: z.string(),
+  prompt: z.string().nullable(),
+  steps: z.array(z.object({ id: z.string(), prompt: z.string() })),
+  /** How many of the routine's runs it was made from. */
+  runs: z.number().int(),
+});
+export type RoutineFix = z.infer<typeof RoutineFix>;
+
 /** One step of a rehearsal, in order: `ran` only read and was done, `would` is what the bot would have done. */
 export const RehearsalStep = z.object({
   kind: z.enum(['ran', 'would']),

@@ -337,6 +337,7 @@ export const en: Catalog<MessageKey> = {
   'usage.background.minutes': 'Meeting minutes',
   'usage.background.followUps': 'Keeping track of what is coming up',
   'usage.background.review': 'Reviewer looking at cards',
+  'usage.background.routineFix': 'Fixes proposed for routines',
   'usage.background.line': {
     one: '1 call; it cost {cost}',
     other: '{count} calls; they cost {cost}',
@@ -2273,6 +2274,20 @@ export const en: Catalog<MessageKey> = {
   'health.applied': 'The routine was changed.',
   'health.undo': 'Undo',
   'health.undone': 'The change was undone.',
+  'health.fix': 'Suggest a fix',
+  'health.fixHint':
+    'Looks at its last runs and proposes a change to its instruction; nothing changes until you apply it.',
+  'health.fixing': 'Looking at the last runs…',
+  'health.fixFrom': {
+    one: 'From its last run',
+    other: 'From its last {count} runs',
+  },
+  'health.fixPrompt': 'Instruction',
+  'health.fixStep': 'Step {step}',
+  'health.fixNow': 'As it is now',
+  'health.fixNothing': 'No change is proposed.',
+  'health.fixClose': 'Close',
+  'health.fixStale': 'The routine changed after this proposal; ask for a new one.',
   'health.saveFirst': 'Save the changes on this page first.',
   'health.ask.failing':
     'My routine “{name}” keeps failing in its recent runs. Read the routine and its recent runs, tell me why it fails and suggest a fix. Ask me before you change the routine.',

@@ -306,6 +306,10 @@ const tr = {
     'Rutinin denetimi, bu bota açık bir uygulamanın açık ve yalnız okuyan bir aracı olmalı',
   'error.routineLimit': 'Bir botun en çok {max} rutini olabilir',
   'error.stepBot': '{n}. adımı yapacak bot bulunamadı ya da onunla konuşamıyorsun',
+  'error.routineFixNoRuns': 'Rutin henüz hiç çalışmadı; önerinin bakacağı bir çalışma yok',
+  'error.routineFixUnavailable': 'Bu botun motoru öneri yazamıyor',
+  'error.routineFixLimit': 'Botun kullanım sınırı doldu; öneri yazılmadı',
+  'error.routineFixUnreadable': 'Model okunabilir bir öneri yazmadı; yeniden dene',
   'error.routineNoWebhook':
     'Önce rutinin webhook adresini oluşturun; anahtar o adrese gelen çağrılar içindir',
   'error.rehearsalNotYours':
@@ -2447,6 +2451,10 @@ const en: Catalog<ServerKey> = {
     "A routine's check must be a tool that only reads, switched on, of an app open to this bot",
   'error.routineLimit': 'A bot can have at most {max} routines',
   'error.stepBot': 'The bot for step {n} was not found, or you may not talk with it',
+  'error.routineFixNoRuns': 'The routine has not run yet; there is no run to propose a fix from',
+  'error.routineFixUnavailable': "This bot's engine cannot write a proposal",
+  'error.routineFixLimit': "The bot's usage limit is spent; no proposal was written",
+  'error.routineFixUnreadable': 'The model did not write a proposal that could be read; try again',
   'error.routineNoWebhook':
     "Make the routine's webhook address first; the secret is for calls to that address",
   'error.rehearsalNotYours':

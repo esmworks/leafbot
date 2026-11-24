@@ -73,6 +73,7 @@ import type {
   SkillChange,
   SkillCreate,
   SkillUpdate,
+  RoutineFix,
   RoutineRevision,
   RoutineVersionReport,
   UnusedReport,
@@ -626,6 +627,8 @@ export function endpoints(send: Transport, base = '') {
     endRoutineWait: (id: string, runId: string) =>
       http.post<RoutineRun>(`/api/routines/${id}/runs/${runId}/end-wait`),
     routineRevisions: (id: string) => http.get<RoutineRevision[]>(`/api/routines/${id}/revisions`),
+    /** A change to the routine proposed from its last runs; nothing changes until it is applied. */
+    proposeRoutineFix: (id: string) => http.post<RoutineFix>(`/api/routines/${id}/fix`),
     routineVersions: (id: string) => http.get<RoutineVersionReport>(`/api/routines/${id}/versions`),
     unused: () => http.get<UnusedReport>('/api/unused'),
     routineHealth: () => http.get<RoutineHealth[]>('/api/routines/health'),
