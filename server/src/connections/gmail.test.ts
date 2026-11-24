@@ -4,7 +4,7 @@ import type { StoredConnectionTool } from '../db/schema';
 const fetchSignedIn = vi.fn();
 vi.mock('./client', () => ({ fetchSignedIn: (...a: unknown[]) => fetchSignedIn(...a) }));
 
-const { GmailSendInput, gmailSender, runGmailTool, withGmailTools } = await import('./gmail');
+const { GmailSendInput, gmailSender, runGmailTool, toolKind, withGmailTools } = await import('./gmail');
 
 const GMAIL = 'https://gmailmcp.googleapis.com/mcp/v1';
 const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -16,6 +16,19 @@ const ADDED = [
   'delete_draft',
   'update_label',
   'delete_label',
+  'get_message',
+  'get_draft',
+  'download_attachment',
+  'trash_message',
+  'untrash_message',
+  'trash_thread',
+  'untrash_thread',
+  'mark_message_spam',
+  'unmark_message_spam',
+  'mark_thread_spam',
+  'unmark_thread_spam',
+  'update_message_labels',
+  'update_thread_labels',
 ];
 
 const tool = (name: string, extra: Partial<StoredConnectionTool> = {}): StoredConnectionTool => ({
@@ -84,6 +97,17 @@ describe('withGmailTools', () => {
     const before = [tool('send_message', { local: 'gmailSend', enabled: false })];
     const tools = withGmailTools(GMAIL, [], before);
     expect(tools.find((t) => t.name === 'send_message')).toMatchObject({ local: 'gmail', enabled: false });
+  });
+
+  it('lets an added tool that only reads count as a read, and one that changes mail never as one', () => {
+    const tools = withGmailTools(GMAIL, [], []);
+    const of = (name: string) => tools.find((t) => t.name === name)!;
+    expect(toolKind(of('download_attachment'))).toBe('read');
+    expect(toolKind(of('get_message'))).toBe('read');
+    expect(toolKind(of('trash_message'))).toBe('write');
+    expect(toolKind({ ...of('send_message'), kind: 'read' })).toBe('write');
+    expect(toolKind({ ...of('get_message'), kind: 'write' })).toBe('write');
+    expect(toolKind(tool('search_threads'))).toBe('read');
   });
 });
 
@@ -379,6 +403,172 @@ describe('drafts and labels', () => {
     expect(JSON.parse(textOf(await run('delete_label', { labelId: 'Label_5' })))).toMatchObject({
       deleted: true,
     });
+  });
+});
+
+const PDF_MAIL = {
+  id: 'm1',
+  threadId: 't1',
+  labelIds: ['INBOX', 'UNREAD'],
+  payload: {
+    mimeType: 'multipart/mixed',
+    headers: headers({ From: 'Gamze <gamze@example.com>', To: 'ben@example.com', Subject: 'Sevk\r\nX: y' }),
+    parts: [
+      {
+        mimeType: 'multipart/alternative',
+        parts: [{ mimeType: 'text/html', body: { data: b64('<p>Ekte <b>irsaliye</b></p>') } }],
+      },
+      { mimeType: 'application/pdf', filename: 'irsaliye.pdf', body: { attachmentId: 'A1', size: 3 } },
+      {
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        filename: '../../liste.xlsx',
+        body: { attachmentId: 'A2', size: 4 },
+      },
+      {
+        mimeType: 'image/png',
+        headers: headers({ 'Content-ID': '<logo>' }),
+        body: { attachmentId: 'A3', size: 2 },
+      },
+    ],
+  },
+};
+
+describe('get_message and get_draft', () => {
+  it("gives a mail's headers, its text and its files by their place", async () => {
+    gmail({ 'GET /messages/m1?format=full': PDF_MAIL });
+    const out = JSON.parse(textOf(await run('get_message', { messageId: 'm1' })));
+    expect(out).toMatchObject({
+      id: 'm1',
+      threadId: 't1',
+      labelIds: ['INBOX', 'UNREAD'],
+      from: 'Gamze <gamze@example.com>',
+      subject: 'Sevk X: y',
+    });
+    expect(out.body).toContain('irsaliye');
+    expect(out.body).not.toContain('<b>');
+    expect(out.attachments).toEqual([
+      {
+        attachmentIndex: 0,
+        filename: 'irsaliye.pdf',
+        mimeType: 'application/pdf',
+        size: 3,
+        attachmentId: 'A1',
+      },
+      expect.objectContaining({ attachmentIndex: 1, filename: '../../liste.xlsx' }),
+      expect.objectContaining({ attachmentIndex: 2, filename: null, inline: true }),
+    ]);
+  });
+
+  it('reads a draft with its id', async () => {
+    gmail({ 'GET /drafts/r1?format=full': { id: 'r1', message: PDF_MAIL } });
+    expect(JSON.parse(textOf(await run('get_draft', { draftId: 'r1' })))).toMatchObject({
+      draftId: 'r1',
+      id: 'm1',
+    });
+  });
+
+  it('says what Google refused without saying nothing changed, for a read', async () => {
+    gmail({ 'GET /messages/m1?format=full': new Response('not found', { status: 404 }) });
+    const r = await run('get_message', { messageId: 'm1' });
+    expect(r.isError).toBe(true);
+    expect(textOf(r)).toContain('HTTP 404');
+    expect(textOf(r)).not.toContain('nothing was sent');
+  });
+});
+
+describe('download_attachment', () => {
+  const routes = {
+    'GET /messages/m1?format=full': PDF_MAIL,
+    'GET /messages/m1/attachments/A1': { data: b64('pdf') },
+    'GET /messages/m1/attachments/A2': { data: b64('xlsx') },
+    'GET /messages/m1/attachments/A3': { data: b64('pn') },
+  };
+  const saving = () => {
+    const kept: { name: string; data: string }[] = [];
+    const saveFile = (name: string, data: Buffer) => {
+      kept.push({ name, data: data.toString() });
+      return Promise.resolve(`/thread/${name}`);
+    };
+    return { kept, saveFile };
+  };
+  const download = (args: Record<string, unknown>, saveFile?: (n: string, d: Buffer) => Promise<string>) =>
+    runGmailTool(target, 'download_attachment', args, undefined, saveFile ? { saveFile } : {});
+
+  it('keeps every named file of the mail when none is picked, leaving the logo out', async () => {
+    gmail(routes);
+    const { kept, saveFile } = saving();
+    const out = JSON.parse(textOf(await download({ messageId: 'm1' }, saveFile)));
+    expect(kept).toEqual([
+      { name: 'irsaliye.pdf', data: 'pdf' },
+      { name: '../../liste.xlsx', data: 'xlsx' },
+    ]);
+    expect(out.saved.map((f: { path: string }) => f.path)).toEqual([
+      '/thread/irsaliye.pdf',
+      '/thread/../../liste.xlsx',
+    ]);
+  });
+
+  it('picks one file by its place, its name, or its id', async () => {
+    gmail(routes);
+    let s = saving();
+    await download({ messageId: 'm1', attachmentIndex: 2 }, s.saveFile);
+    expect(s.kept).toEqual([{ name: 'attachment-2.png', data: 'pn' }]);
+    s = saving();
+    await download({ messageId: 'm1', filename: 'irsaliye.pdf' }, s.saveFile);
+    expect(s.kept.map((k) => k.name)).toEqual(['irsaliye.pdf']);
+    s = saving();
+    // An id from an earlier read that Gmail no longer gives: the name still finds the file.
+    await download({ messageId: 'm1', attachmentId: 'OLD', filename: '../../liste.xlsx' }, s.saveFile);
+    expect(s.kept.map((k) => k.name)).toEqual(['../../liste.xlsx']);
+  });
+
+  it("lists the mail's files when none matches, and needs a folder to keep them in", async () => {
+    gmail(routes);
+    const s = saving();
+    const r = await download({ messageId: 'm1', filename: 'yok.pdf' }, s.saveFile);
+    expect(r.isError).toBe(true);
+    expect(textOf(r)).toContain('"attachmentIndex":1');
+    expect(s.kept).toEqual([]);
+    expect((await download({ messageId: 'm1' })).isError).toBe(true);
+  });
+});
+
+describe('trash, spam and labels', () => {
+  it('moves a mail or a conversation to the trash and back', async () => {
+    const calls = gmail({
+      'POST /messages/m1/trash': { id: 'm1', labelIds: ['TRASH'] },
+      'POST /threads/t1/untrash': { id: 't1' },
+    });
+    expect(JSON.parse(textOf(await run('trash_message', { messageId: 'm1' })))).toMatchObject({
+      done: true,
+      messageId: 'm1',
+      labelIds: ['TRASH'],
+    });
+    expect(JSON.parse(textOf(await run('untrash_thread', { threadId: 't1' })))).toMatchObject({ done: true });
+    expect(calls.map((c) => `${c.method} ${c.url.replace(API, '')}`)).toEqual([
+      'POST /messages/m1/trash',
+      'POST /threads/t1/untrash',
+    ]);
+  });
+
+  it('marks spam by moving it out of the inbox, and back', async () => {
+    const calls = gmail({
+      'POST /messages/m1/modify': { id: 'm1' },
+      'POST /threads/t1/modify': { id: 't1' },
+    });
+    await run('mark_message_spam', { messageId: 'm1' });
+    await run('unmark_thread_spam', { threadId: 't1' });
+    expect(JSON.parse(calls[0]!.body)).toEqual({ addLabelIds: ['SPAM'], removeLabelIds: ['INBOX'] });
+    expect(JSON.parse(calls[1]!.body)).toEqual({ addLabelIds: ['INBOX'], removeLabelIds: ['SPAM'] });
+  });
+
+  it('adds and removes labels in one call, and refuses a call that changes none', async () => {
+    const calls = gmail({ 'POST /messages/m1/modify': { id: 'm1', labelIds: ['INBOX'] } });
+    const r = await run('update_message_labels', { messageId: 'm1', removeLabelIds: ['UNREAD'] });
+    expect(JSON.parse(textOf(r))).toMatchObject({ labelIds: ['INBOX'] });
+    expect(JSON.parse(calls[0]!.body)).toEqual({ addLabelIds: [], removeLabelIds: ['UNREAD'] });
+    expect((await run('update_thread_labels', { threadId: 't1' })).isError).toBe(true);
+    expect((await run('trash_message', { messageId: 'a/b' })).isError).toBe(true);
   });
 });
 
