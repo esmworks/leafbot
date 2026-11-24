@@ -1958,6 +1958,10 @@ export class WhatsAppChannel {
         status: schema.approvals.status,
         answer: schema.approvals.answer,
         input: schema.approvals.input,
+        options: schema.approvals.options,
+        threadId: schema.approvals.threadId,
+        botId: schema.approvals.botId,
+        by: schema.approvals.decidedByUserId,
       })
       .from(schema.approvals)
       .where(
@@ -1990,6 +1994,23 @@ export class WhatsAppChannel {
     });
     this.loadRoutes(((await this.row())?.settings ?? {}) as Settings);
     this.changed();
+    // Words written on the card in place of a button are meant for the front door: it reads them
+    // and goes on (another bot, a question), as with any card answered in words.
+    const t = await this.services.settings.translator();
+    for (const a of fresh) {
+      const words =
+        a.status === 'allowed' && a.answer?.trim() && !a.options.includes(a.answer) ? a.answer.trim() : '';
+      if (!words || !a.threadId || !a.botId) continue;
+      await this.services.turns
+        .enqueue({
+          threadId: a.threadId,
+          botId: a.botId,
+          source: 'user',
+          prompt: t('whatsapp.routeAnsweredPrompt', { answer: words }),
+          ...(a.by && { userId: a.by }),
+        })
+        .catch((err: unknown) => console.warn('whatsapp route answer', errorText(err)));
+    }
   }
 
   // Chats routines read: people who write to the account, and followed groups
@@ -2605,19 +2626,28 @@ export class WhatsAppChannel {
         draft: schema.whatsappDrafts,
         status: schema.approvals.status,
         answer: schema.approvals.answer,
+        options: schema.approvals.options,
+        by: schema.approvals.decidedByUserId,
       })
       .from(schema.whatsappDrafts)
       .innerJoin(schema.approvals, eq(schema.approvals.id, schema.whatsappDrafts.approvalId))
       .where(and(eq(schema.whatsappDrafts.status, 'pending'), ne(schema.approvals.status, 'pending')));
-    for (const { draft, status, answer } of rows) {
+    for (const { draft, status, answer, options, by } of rows) {
       const send = status === 'allowed' && answer === draft.approve;
       if (!send) {
+        // Words the person wrote on the card in place of a button are meant for the bot: it reads
+        // them and goes on, as it would a message in the chat. Dropped as a plain "no", they read
+        // to the person as if the bot ignored them.
+        const words =
+          status === 'allowed' && answer?.trim() && !options.includes(answer) ? answer.trim() : '';
         const [dropped] = await this.ctx.db
           .update(schema.whatsappDrafts)
           .set({ status: 'dropped' })
           .where(and(eq(schema.whatsappDrafts.id, draft.id), eq(schema.whatsappDrafts.status, 'pending')))
           .returning();
-        if (dropped) await this.answerNote(draft, 'dropped');
+        if (!dropped) continue;
+        await this.answerNote(draft, words ? 'answered' : 'dropped');
+        if (words) await this.answerTurn(draft, words, by);
         continue;
       }
       // Sent only while connected; otherwise it waits for the next connect.
@@ -2656,11 +2686,46 @@ export class WhatsAppChannel {
    */
   private async answerNote(
     draft: typeof schema.whatsappDrafts.$inferSelect,
-    outcome: 'sent' | 'dropped' | 'failed',
+    outcome: 'sent' | 'dropped' | 'answered' | 'failed',
     error = '',
   ) {
     const write = () => this.draftNote(draft, outcome, error);
     if (!this.services.turns.afterTurn(draft.threadId, write)) await write();
+  }
+
+  /** Starts the bot that made a draft on the words the person wrote on its card instead. */
+  private async answerTurn(
+    draft: typeof schema.whatsappDrafts.$inferSelect,
+    words: string,
+    by: string | null,
+  ) {
+    const t = await this.services.settings.translator();
+    await this.services.turns
+      .enqueue({
+        threadId: draft.threadId,
+        botId: draft.botId,
+        source: 'user',
+        prompt: t('whatsapp.draftAnsweredPrompt', {
+          to: draft.kind === 'status' ? t('whatsapp.statusName') : await this.draftTo(draft),
+          answer: words,
+          text: this.draftSaid(draft),
+        }),
+        ...(by && { userId: by }),
+      })
+      .catch((err: unknown) => console.warn('whatsapp draft answer', errorText(err)));
+  }
+
+  /** Whom a draft is for, by name and number as the person knows the chat. */
+  private async draftTo(draft: typeof schema.whatsappDrafts.$inferSelect): Promise<string> {
+    const chat = draft.chat ?? '';
+    const known = chat ? await this.knownChat(chat) : null;
+    const number = chat.replace(/@.*$/, '');
+    return known?.name ? `${known.name} (${number})` : `+${number}`;
+  }
+
+  /** What a draft says: its text, or the name of the file it sends. */
+  private draftSaid(draft: typeof schema.whatsappDrafts.$inferSelect): string {
+    return draft.text || (draft.file ? (draft.file.split('/').pop() ?? '') : '');
   }
 
   /**
@@ -2670,7 +2735,7 @@ export class WhatsAppChannel {
    */
   async draftNote(
     draft: typeof schema.whatsappDrafts.$inferSelect,
-    outcome: 'sent' | 'dropped' | 'failed',
+    outcome: 'sent' | 'dropped' | 'answered' | 'failed',
     error = '',
   ) {
     const t = await this.services.settings.translator();
@@ -2681,19 +2746,20 @@ export class WhatsAppChannel {
           ? t('whatsapp.statusPosted')
           : outcome === 'dropped'
             ? t('whatsapp.statusDropped')
-            : t('whatsapp.draftFailed', { message: error });
+            : outcome === 'answered'
+              ? t('whatsapp.statusAnswered')
+              : t('whatsapp.draftFailed', { message: error });
     } else {
-      const chat = draft.chat ?? '';
-      const known = chat ? await this.knownChat(chat) : null;
-      const number = chat.replace(/@.*$/, '');
-      const to = known?.name ? `${known.name} (${number})` : `+${number}`;
-      const said = draft.text || (draft.file ? (draft.file.split('/').pop() ?? '') : '');
+      const to = await this.draftTo(draft);
+      const said = this.draftSaid(draft);
       text =
         outcome === 'sent'
           ? t('whatsapp.draftSent', { to, text: said })
           : outcome === 'dropped'
             ? t('whatsapp.draftDropped', { to, text: said })
-            : t('whatsapp.draftFailedTo', { to, text: said, message: error });
+            : outcome === 'answered'
+              ? t('whatsapp.draftAnswered', { to, text: said })
+              : t('whatsapp.draftFailedTo', { to, text: said, message: error });
     }
     await this.services.threads.addMessage({
       threadId: draft.threadId,

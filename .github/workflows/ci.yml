@@ -71,9 +71,10 @@ jobs:
       # The Claude CLI refuses to run a sandboxed command without bubblewrap and socat
       # ("Sandbox required but unavailable"), so the test that drives the real CLI failed. The shell
       # the Pi engine runs commands in uses the same sandbox, which also wants ripgrep ("Sandbox
-      # dependencies not available: ripgrep (rg) not found").
-      - name: Install the command sandbox tools
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends bubblewrap socat ripgrep
+      # dependencies not available: ripgrep (rg) not found"). poppler-utils: the PDF reading test runs
+      # the real pdfinfo, pdftotext and pdftoppm.
+      - name: Install the command sandbox tools and the PDF tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends bubblewrap socat ripgrep poppler-utils
       # With the sysctl above the sandbox's seccomp helper, which opens a user namespace inside
       # bubblewrap's, still failed every command with "nested userns is capability-restricted".
       # Ubuntu's AppArmor can give /usr/bin/bwrap a profile of its own that strips capabilities from

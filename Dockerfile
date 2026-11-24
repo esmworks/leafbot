@@ -16,8 +16,10 @@ FROM node:22-bookworm-slim
 # bubblewrap and socat: the Claude sandbox for Bash on Linux. tini: reaps orphaned processes.
 # chromium and fonts: the bots' own browsers (Turkish letters, emoji and Chinese, Japanese and Korean
 # pages must render; without a CJK font those pages show empty boxes).
+# poppler-utils: Claude's Read tool turns chosen PDF pages into pictures with pdftoppm. A PDF of more
+# than ten pages can only be read that way, so without it a long scanned PDF cannot be read at all.
 RUN apt-get update \
- && apt-get install -y --no-install-recommends bubblewrap socat tini ca-certificates git ripgrep \
+ && apt-get install -y --no-install-recommends bubblewrap socat tini ca-certificates git ripgrep poppler-utils \
     chromium fonts-dejavu-core fonts-liberation fonts-noto-color-emoji fonts-noto-cjk \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --create-home --uid 10001 --shell /usr/sbin/nologin leafbot \

@@ -1036,7 +1036,7 @@ const TOOLS: LocalTool[] = [
     name: 'download_attachment',
     title: 'Download attachment',
     description:
-      "Saves the files of an email (PDF, Excel, Word, pictures and the like) into this conversation's folder so they can be opened and read with the file tools. Give the mail's `messageId`, and to pick one file its `attachmentIndex` (from get_message), or its `filename` or `attachmentId` as get_message or get_thread listed it. Left out, every named file of the mail is saved. Returns each saved file's path, name, type and size. If no file matches, the reply lists the mail's files with their attachmentIndex.",
+      "Saves the files of an email (PDF, Excel, Word, pictures and the like) into this conversation's folder so they can be opened and read with the file tools. Give the mail's `messageId`, and to pick one file its `attachmentIndex` (from get_message), or its `filename` or `attachmentId` as get_message or get_thread listed it. Left out, every named file of the mail is saved. Returns each saved file's path, name, type and size. If no file matches, the reply lists the mail's files with their attachmentIndex. Open a saved PDF with the file-reading tool, which shows its pages as pictures, so a scanned one can be read too; a command that pulls out its text finds nothing on a scanned page.",
     inputSchema: object(
       {
         messageId: { type: 'string', description: 'The mail the file belongs to.' },

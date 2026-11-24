@@ -438,6 +438,20 @@ describe('yönetici bot', () => {
     await t.api('POST', `/api/approvals/${card.id}`, { decision: 'allow', answer: 'Reddet' });
     await t.services.turns.idle();
     expect((await t.messages(tm.id)).at(-1)!.text).toContain('onaylamadı');
+    expect((await t.messages(tm.id)).at(-1)!.text).not.toContain('kendi sözleriyle');
+    // Words written on the card in place of a button reach the manager with the refusal.
+    await t.send(tm.id, '[araç:bot_update {"bot":"Yazar","instructions":"Uzun yaz."}]');
+    const again = await waitFor(
+      async () => (await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body[0],
+    );
+    await t.api('POST', `/api/approvals/${again.id}`, {
+      decision: 'allow',
+      answer: 'Uzun değil, orta olsun',
+    });
+    await t.services.turns.idle();
+    const told = (await t.messages(tm.id)).at(-1)!.text;
+    expect(told).toContain('onaylamadı');
+    expect(told).toContain('Uzun değil, orta olsun');
     expect((await t.api<Bot>('GET', `/api/bots/${yazar.id}`)).body).toMatchObject({
       instructions: 'Kısa yaz.',
       groupId: null,
@@ -718,5 +732,16 @@ describe('var olan botları yeni botların yapay zekâsına geçirme', () => {
     const r = await move();
     expect(r.status).toBe(400);
     expect(await get(bot.id)).toMatchObject({ engine: 'claude', model: '' });
+  });
+
+  it('gövde yüzeyi düz başlar, tüylü seçilince kalır ve onu anmayan bir düzenleme onu düze döndürmez', async () => {
+    const bot = await t.bot();
+    expect(bot.material).toBe('flat');
+    const fluffy = await t.api<Bot>('PATCH', `/api/bots/${bot.id}`, { material: 'fluffy' });
+    expect(fluffy.body.material).toBe('fluffy');
+    // An older phone app sends no finish: the one chosen stays.
+    await t.api('PATCH', `/api/bots/${bot.id}`, { color: '#16a34a' });
+    expect((await t.api<Bot>('GET', `/api/bots/${bot.id}`)).body.material).toBe('fluffy');
+    expect((await t.api('PATCH', `/api/bots/${bot.id}`, { material: 'velvet' })).status).toBe(400);
   });
 });

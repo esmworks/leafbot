@@ -46,7 +46,9 @@ export function TodayDialog() {
   };
   const avatar = (botId: string) => {
     const b = byId.get(botId);
-    return b ? <BotAvatar avatar={b.avatar} color={b.color} seed={b.id} size={28} /> : null;
+    return b ? (
+      <BotAvatar avatar={b.avatar} material={b.material} color={b.color} seed={b.id} size={28} />
+    ) : null;
   };
   return (
     <Dialog open={open} onOpenChange={setOpen}>

@@ -119,6 +119,7 @@ export function TicketCard({
           <>
             <BotAvatar
               avatar={bot.avatar}
+              material={bot.material}
               color={bot.color}
               seed={bot.id}
               size={20}

@@ -428,7 +428,13 @@ function Report({
                   onClick={() => onPickBot(b.botId)}
                 >
                   {bot ? (
-                    <BotAvatar avatar={bot.avatar} color={bot.color} seed={bot.id} size={28} />
+                    <BotAvatar
+                      avatar={bot.avatar}
+                      material={bot.material}
+                      color={bot.color}
+                      seed={bot.id}
+                      size={28}
+                    />
                   ) : (
                     <span className="size-7 shrink-0 rounded-full bg-secondary" />
                   )}
@@ -726,7 +732,7 @@ function StorageBotRow({
     <div className="px-4 py-3">
       <div className="flex items-center gap-3">
         {bot ? (
-          <BotAvatar avatar={bot.avatar} color={bot.color} seed={bot.id} size={28} />
+          <BotAvatar avatar={bot.avatar} material={bot.material} color={bot.color} seed={bot.id} size={28} />
         ) : (
           <span className="size-7 shrink-0 rounded-full bg-secondary" />
         )}

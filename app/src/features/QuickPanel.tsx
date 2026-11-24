@@ -223,7 +223,9 @@ function Card({
       )}
     >
       <div className="flex items-center gap-2">
-        {bot && <BotAvatar avatar={bot.avatar} color={bot.color} seed={bot.id} size={22} />}
+        {bot && (
+          <BotAvatar avatar={bot.avatar} material={bot.material} color={bot.color} seed={bot.id} size={22} />
+        )}
         <span className="min-w-0 flex-1 truncate font-medium">{botName}</span>
         <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
           {f.shortTime(a.createdAt)}

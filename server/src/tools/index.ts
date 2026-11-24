@@ -620,6 +620,7 @@ export class ToolFactory {
           const r = await askPerson(s, { bot, thread, turn, signal, timeoutMs: unattended, title, items });
           if (r.timedOut) return t('tool.questionTimedOut');
           if (r.status === 'expired') return t('tool.questionExpired');
+          if (r.typed) return t('tool.questionTyped');
           if (r.status === 'denied') return t('tool.questionSkipped');
           const answers = r.answers;
           const lines = items.map((q, i) => {
@@ -2123,9 +2124,16 @@ export class ToolFactory {
         t,
         computer: this.ctx.computer,
         cwd,
-        // A person's own GitHub only for work their own message started in their own conversation:
-        // a routine, a mail, a follow-up or work another bot handed on uses the team's.
-        own: !guest && turn.source === 'user' && turn.userId === own ? own : null,
+        // A person's own GitHub only for work their own message started in their own conversation,
+        // or that another bot handed on from such a message with no outside text read on the way
+        // (asked at each command, so a page read before it counts): a routine, a mail, a
+        // follow-up or any other handed-on work uses the team's.
+        own: async () => {
+          if (guest || !own || turn.userId !== own) return null;
+          if (turn.source === 'user') return own;
+          if (turn.source !== 'bot' || !turn.jobId || turn.outside || reads()) return null;
+          return (await s.jobs.startedByPerson(turn.jobId, own)) ? own : null;
+        },
       });
       // A bot with its own project folder runs commands in this server's sandbox, where that
       // folder is; the desktop does not see it.
@@ -2269,8 +2277,14 @@ export class ToolFactory {
           });
         },
       });
-      return r.status === 'allowed' && (!r.answer || r.answer === approve);
+      if (r.status === 'allowed' && (!r.answer || r.answer === approve)) return true;
+      // Words written on the card in place of a button reach the manager with the refusal.
+      const words = r.status === 'allowed' && r.answer !== t('tool.reject') ? (r.answer?.trim() ?? '') : '';
+      return { words };
     };
+    /** What the manager is told when the person did not approve, with their words if they wrote any. */
+    const refused = (message: string, r: { words: string }) =>
+      r.words ? `${message}\n\n${t('tool.changeAnswered', { answer: r.words })}` : message;
     const groupId = async (name: string | undefined) => {
       if (!name) return undefined;
       const groups = await s.bots.listGroups();
@@ -2333,6 +2347,7 @@ export class ToolFactory {
               groupId: a.group !== undefined ? ((await groupId(a.group)) ?? null) : manager.groupId,
               color: a.color ?? BRAND_COLOR,
               avatar: DEFAULT_AVATAR,
+              material: 'flat',
               // The level a bot the person creates starts at, as one made in the app.
               permissionMode: 'auto',
               internet: false,
@@ -2428,7 +2443,7 @@ export class ToolFactory {
               { bot: target.name, permission_mode: a.permission_mode, internet: a.internet },
               'bot_update',
             );
-            if (!ok) return t('tool.loosenDenied');
+            if (ok !== true) return refused(t('tool.loosenDenied'), ok);
           } else if (changes.length) {
             if (loosens) changes.push(t('tool.changePermissions'));
             const said = t('tool.changeSummary', {
@@ -2449,7 +2464,7 @@ export class ToolFactory {
               },
               'bot_update',
             );
-            if (!ok) return t('tool.changeDenied');
+            if (ok !== true) return refused(t('tool.changeDenied'), ok);
           }
           const patch = {
             ...(a.name !== undefined && { name: a.name }),
@@ -2527,7 +2542,7 @@ export class ToolFactory {
               skill: skill.name,
             });
             const ok = await confirm(said, { bot: target.name, skill: skill.name, on: a.on }, 'bot_skill');
-            if (!ok) return t('tool.changeDenied');
+            if (ok !== true) return refused(t('tool.changeDenied'), ok);
           }
           const was = skill.botIds.includes(target.id);
           await s.skills.setBot(skill.id, target.id, a.on);
