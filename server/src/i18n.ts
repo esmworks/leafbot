@@ -224,6 +224,7 @@ const tr = {
   'error.fileEmpty': 'Dosya boş (0 bayt)',
   'error.uploadType': 'Dosya application/octet-stream olarak gönderilmeli',
   'error.importFormat': 'Bu dosya bir Leaf Bot içe aktarma dosyası değil',
+  'error.botPlanChanged': 'Kart beklerken bu adlardan biri alındı; plan yeniden kurulmalı',
   'error.grokLinkInvalid': 'Bu bir Grok Bot paylaşım bağlantısı değil (x.ai/bot/… biçiminde olmalı)',
   'error.importInvalid': 'İçe aktarma dosyası geçersiz: {path} alanı hatalı',
   'error.memoryNeedsBot': 'Bot hafızası için bot gerekli',
@@ -760,7 +761,7 @@ const tr = {
   // System prompt
   'prompt.intro': 'Sen "{name}" adlı bir leafbot botusun.',
   'prompt.manager':
-    'Yöneticisin: diğer botların yazışmalarını okuyabilir, bot oluşturup düzenleyebilir ve iş dağıtabilirsin. Bir botun izinlerini gevşetmek kullanıcı onayı ister.',
+    'Yöneticisin: diğer botların yazışmalarını okuyabilir, bot oluşturup düzenleyebilir ve iş dağıtabilirsin. Bir botun izinlerini gevşetmek kullanıcı onayı ister. Bir iş için bir bot ekibi kuracaksan bot_factory ile planla: kullanıcı her şeyi tek bir kartta onaylar.',
   'prompt.instructions': '## Talimatlar',
   'prompt.time': '## Zaman',
   'prompt.now': 'Şu an {now} ({timezone}).',
@@ -1412,6 +1413,25 @@ const tr = {
     'Kendi diğer sohbetlerinde son günlerde neler konuşulduğunu oku ("bugün ne yaptık?" gibi sorular için). days kaç gün geriye bakılacağını, query bir sözcükle süzmeyi verir.',
   'tool.bot_create':
     'Yeni bot oluştur (yönetici). Yönetici bot oluşturamazsın. engine (claude ya da pi) ve model verilmezse kullanıcının yeni botlar için seçtiği kullanılır; kullanılabilir modelleri models_list ile gör. Yeni bot internete kapalı başlar; açmak için bot_update kullan. effort (low, medium, high, xhigh, max; boş: tüm botların ayarı), avatar (object:circle, object:mug, object:lightbulb gibi bir nesne) ve material (flat ya da tüylü görünüm için fluffy) verilebilir.',
+  'tool.bot_factory':
+    'Birkaç botu becerileri, rutinleri ve notlarıyla birlikte tek seferde kur (yönetici). Kullanıcı bir iş için bir ekip ya da birkaç bot istediğinde kullan. Önce işi anla, eksik olanı sor: her botun tek ve açık bir işi olsun (ör. biri toplar, biri yazar, biri denetler) ve talimatı bu sohbeti görmeden izlenebilecek biçimde yazılsın: hangi kaynak, hangi adımlar, neyi kime bildireceği. Her bot için name, description ve instructions ver. Tekrarlanan bir iş yöntemi varsa skills ile yaz: name küçük harf ve tire (teklif-yazimi), description ne zaman kullanılacağı, body adım adım yöntem; var olan bir beceri adı verilirse o bağlanır. Zamanlı işler için routines: name, prompt, schedule (routine_create ile aynı biçimde) ve yalnız bakıp rapor edecekse report_only:true. Botun baştan bilmesi gereken kalıcı bilgiler notes olur. purpose ekibin ne için kurulduğudur, kartın başlığı olur. Kullanıcıya tek bir kart gösterilir ve kurulacak her şey orada listelenir: onaylarsa hepsi birden kurulur, reddederse hiçbiri. Kart her izin seviyesinde sorulur. En çok 5 bot, bot başına 5 beceri, 5 rutin ve 10 not. Var olan bir botun adı reddedilir. Botlar otomatik izin seviyesinde, internete kapalı ve senin bölümünde başlar; rutinler kapalı kurulur, kullanıcı Rutinler bölümünden açar. Adım, koşul, webhook ya da WhatsApp gibi ayrıca onay isteyen şeyleri plana koyma; kurulduktan sonra routine_update ile ekle. Kurduktan sonra rutinleri açmadan önce prova etmeyi öner.',
+  'tool.factoryAsk': '{purpose}: bunları kurayım mı?',
+  'tool.factoryInstructions': 'Talimat: {text}',
+  'tool.factorySkill': 'Yeni beceri {name}: {description}',
+  'tool.factorySkillLinked': 'Var olan beceri {name} bağlanır',
+  'tool.factorySkillHeld':
+    'Yeni beceri {name}: {description} (metninde dikkat isteyen bir şey var; sen okuyana kadar kapalı kalır)',
+  'tool.factoryRoutine': 'Rutin {name}: {when}',
+  'tool.factoryRoutineReport': 'Rutin {name}: {when}, yalnız bakıp rapor eder',
+  'tool.factoryNotes': '{count} not',
+  'tool.factoryStarts': 'Botlar otomatik izin seviyesinde ve internete kapalı başlar.',
+  'tool.factoryRoutinesOff': 'Rutinler kapalı kurulur; denedikten sonra Rutinler bölümünden açarsın.',
+  'tool.factoryNo': 'Kullanıcı planı onaylamadı; hiçbir şey kurulmadı.',
+  'tool.factoryNameTaken':
+    '"{name}" adında bir bot zaten var ya da planda iki kez geçiyor; başka bir ad seç.',
+  'tool.factoryInvalid': 'Plan kurulamaz: {issues}',
+  'tool.factoryFailed': 'Plan kurulamadı ve hiçbir şey kaydedilmedi: {reason}',
+  'tool.factoryDone': 'Kuruldu: {bots}. {routines} rutin kapalı bekliyor.',
   'tool.bot_profile':
     'Bir botun profilini oku: açıklama, motor ve model, izin kipi, internet erişimi, grup, beceriler, rutinler, uygulamalar ve talimat (yönetici).',
   'tool.bot_skill': 'Kitaplıktaki bir beceriyi bir bota aç ya da kapat (yönetici).',
@@ -2397,6 +2417,7 @@ const en: Catalog<ServerKey> = {
   'error.fileEmpty': 'The file is empty (0 bytes)',
   'error.uploadType': 'Send the file as application/octet-stream',
   'error.importFormat': 'This is not a Leaf Bot import file',
+  'error.botPlanChanged': 'One of these names was taken while the card waited; the plan has to be made again',
   'error.grokLinkInvalid': 'That is not a Grok Bot share link (it looks like x.ai/bot/…)',
   'error.importInvalid': 'The import file is invalid: the field {path} is wrong',
   'error.memoryNeedsBot': 'Bot memory needs a bot',
@@ -2936,7 +2957,7 @@ const en: Catalog<ServerKey> = {
 
   'prompt.intro': 'You are an assistant bot named "{name}".',
   'prompt.manager':
-    "You are a manager: you can read other bots' conversations, create and edit bots, and hand out work. Loosening a bot's permissions needs the user's approval.",
+    "You are a manager: you can read other bots' conversations, create and edit bots, and hand out work. Loosening a bot's permissions needs the user's approval. To set up a team of bots for a job, plan it with bot_factory: the user approves everything on one card.",
   'prompt.instructions': '## Instructions',
   'prompt.time': '## Time',
   'prompt.now': 'It is now {now} ({timezone}).',
@@ -3594,6 +3615,26 @@ const en: Catalog<ServerKey> = {
     'Read what was said in your own other conversations in the last days (for questions such as "what did we do today?"). days says how far back to look; query filters by a word.',
   'tool.bot_create':
     'Create a new bot (manager). You cannot create manager bots. Without engine (claude or pi) and model it starts as the user set new bots to start; see the available models with models_list. A new bot starts with the internet off; turn it on with bot_update. effort (low, medium, high, xhigh, max; empty for the setting all bots share), avatar (an object such as object:circle, object:mug, object:lightbulb) and material (flat, or fluffy for a coat of fur) can be given.',
+  'tool.bot_factory':
+    "Set up several bots at once, with their skills, routines and notes (manager). Use it when the user wants a team or a few bots for a job. First understand the job and ask what is missing: give each bot one clear job (one gathers, one writes, one checks, say), and write its instructions so they can be followed without this chat: which source, which steps, what to report to whom. Give each bot name, description and instructions. A way of working it repeats goes in skills: name in lowercase words with hyphens (quote-writing), description of when to use it, body with the method step by step; the name of a skill that exists links that one. Timed work goes in routines: name, prompt, schedule (as for routine_create) and report_only:true when it only looks and reports. Lasting facts the bot needs from the start go in notes. purpose is what the team is for, and the card's title. The user sees one card listing everything that will be set up: a yes sets it all up at once, a no sets up nothing. The card is asked at every permission level. 5 bots at most, and 5 skills, 5 routines and 10 notes per bot. The name of a bot that exists is refused. The bots start at the auto level, off the internet, in your section; routines are set up switched off, and the user turns them on in Routines. Leave out what needs a yes of its own, such as steps, a condition, a webhook or WhatsApp; add it with routine_update once they are set up. Once they are set up, suggest rehearsing the routines before they are turned on.",
+  'tool.factoryAsk': '{purpose}: shall I set these up?',
+  'tool.factoryInstructions': 'Instructions: {text}',
+  'tool.factorySkill': 'New skill {name}: {description}',
+  'tool.factorySkillLinked': 'Existing skill {name} is linked',
+  'tool.factorySkillHeld':
+    'New skill {name}: {description} (its text has something to look at; it stays off until you read it)',
+  'tool.factoryRoutine': 'Routine {name}: {when}',
+  'tool.factoryRoutineReport': 'Routine {name}: {when}, only looks and reports',
+  'tool.factoryNotes': '{count} notes',
+  'tool.factoryStarts': 'The bots start at the auto level and off the internet.',
+  'tool.factoryRoutinesOff':
+    'Routines are set up switched off; turn them on in Routines once you have tried them.',
+  'tool.factoryNo': 'The user did not approve the plan; nothing was set up.',
+  'tool.factoryNameTaken':
+    'A bot named "{name}" exists already or the plan names it twice; pick another name.',
+  'tool.factoryInvalid': 'The plan cannot be set up: {issues}',
+  'tool.factoryFailed': 'The plan could not be set up and nothing was saved: {reason}',
+  'tool.factoryDone': 'Set up: {bots}. {routines} routines wait switched off.',
   'tool.bot_profile':
     "Read a bot's profile: description, engine and model, permission mode, internet access, group, skills, routines, apps and instructions (manager).",
   'tool.bot_skill': 'Turn a skill from the library on or off for a bot (manager).',

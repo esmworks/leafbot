@@ -434,6 +434,13 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
         tr: ['hafızadaki bir notu', 'hafızadaki bu notu', DELETE],
         en: ['delete a note from memory', 'delete this note from memory', 'delete notes from memory'],
       };
+    case 'bot_factory': {
+      const n = Array.isArray(input.bots) ? input.bots.length : 0;
+      return {
+        tr: [`${n} botluk bir ekip`, 'bu bot ekibini', SET_UP],
+        en: [`set up a team of ${n} bots`, 'set up this team of bots', 'set up teams of bots'],
+      };
+    }
     case 'bot_create':
       return {
         tr: [
@@ -627,6 +634,10 @@ function detailFor(name: string, input: Record<string, unknown>, locale: Locale)
     }
     case 'bot_create':
       return str(input.description);
+    case 'bot_factory': {
+      const bots = Array.isArray(input.bots) ? (input.bots as Record<string, unknown>[]) : [];
+      return bots.map((b) => str(b?.name) ?? '?').join(', ') || null;
+    }
     case 'bot_send':
       return str(input.text) ?? str(input.message);
     case 'app_add':

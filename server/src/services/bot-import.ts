@@ -196,9 +196,19 @@ export class BotImportService {
     return (await this.prepare(raw)).plan;
   }
 
-  /** Saves everything the file holds at once; nothing is kept when any part fails. */
-  async commit(raw: unknown): Promise<BotImportResult> {
+  /**
+   * Saves everything the file holds at once; nothing is kept when any part fails. A manager bot's
+   * plan sets whose the bots and routines are, starts them off the internet as a bot it creates
+   * does, puts them in its section, and names the bots its card showed: one taken meanwhile would
+   * be renamed, so nothing is saved instead.
+   */
+  async commit(
+    raw: unknown,
+    o: { owner?: string; internet?: boolean; groupId?: string | null; names?: string[] } = {},
+  ): Promise<BotImportResult> {
     const { plan, avatars, newSkills } = await this.prepare(raw);
+    if (o.names && plan.bots.map((b) => b.name).join('\n') !== o.names.join('\n'))
+      throw new HttpError(409, 'error.botPlanChanged');
     const settings = await this.settings.all();
     const engine = newBotEngine(settings);
     const botIds = await this.ctx.db.transaction(async (tx) => {
@@ -233,7 +243,8 @@ export class BotImportService {
           instructions: bot.instructions,
           ...engine,
           avatar: avatars[i] ?? DEFAULT_AVATAR,
-          groupId: bot.group ? groupIds.get(bot.group)! : null,
+          groupId: bot.group ? groupIds.get(bot.group)! : (o.groupId ?? null),
+          ...(o.owner ? { ownerUserId: o.owner } : {}),
           position: position++,
           // Set here, never read from the file.
           isManager: false,
@@ -241,7 +252,7 @@ export class BotImportService {
           // The level a bot the person creates starts at, whatever the file says.
           permissionMode: 'auto',
           // What every new bot starts with; the file cannot turn it off or on.
-          internet: true,
+          internet: o.internet ?? true,
           projectDir: null,
           memory: true,
           effort: '',
@@ -266,6 +277,7 @@ export class BotImportService {
             reportOnly: r.reportOnly,
             enabled: false,
             nextRunAt: null,
+            ...(o.owner ? { createdByUserId: o.owner } : {}),
           });
         }
         for (const content of bot.memories) {

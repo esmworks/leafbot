@@ -7,6 +7,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A manager bot can set up a team of bots in one go with `bot_factory`: up to five bots with their instructions,
+  skills, routines and notes, listed on one card. A yes sets all of it up at once and a no sets up nothing; the card
+  is asked at every permission level. The bots start as one the manager creates does (auto level, off the internet,
+  in its section, the person's own), and the routines start switched off. A bot name that is taken is refused, and
+  one taken while the card waited saves nothing.
 - A routine's rehearsal can compare two models: the same input, or each of the last inputs, is rehearsed on each
   model one after the other and shown side by side with each one's status, report, steps it would take, real cost
   and time, and each model's totals. It shows what happened rather than a score, and like any rehearsal it records
