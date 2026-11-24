@@ -45,7 +45,8 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 - Words you write on a WhatsApp draft's card instead of picking Send or Don't send now reach the bot: the message is
   still not sent, and the bot reads what you wrote and answers it or redoes the draft. Before, such an answer counted
-  as a plain "no" and the bot never saw it.
+  as a plain "no" and the bot never saw it. The same goes for the front door's card suggesting a bot for a chat: words
+  written there leave the chat with no bot, and the front door reads them (to suggest another bot, or answer you).
 - WhatsApp no longer wipes its link when the server's secret key changes; it says the saved keys cannot be read and
   asks you to link again. Telegram, Slack, Discord and Teams show as not connected, with a reason, when their saved
   tokens can no longer be read, instead of showing as connected while doing nothing.

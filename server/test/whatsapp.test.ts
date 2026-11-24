@@ -1711,6 +1711,43 @@ describe('WhatsApp: rutinlerin okuduğu sohbetler', () => {
     expect((await t.api<WhatsAppStatus>('GET', '/api/whatsapp')).body.routes).toHaveLength(1);
   });
 
+  it('öneri kartına kendi sözleriyle verilen cevap sohbeti bir bota vermez; karşılama botu onu okur, cevabı kişiye gitmez', async () => {
+    const { wa, asistan } = await setUp('separate');
+    const kapi = await t.bot({ name: 'Kapı' });
+    await t.bot({ name: 'Satış' });
+    const STRANGER = `${CUSTOMER}@s.whatsapp.net`;
+    await answerers(asistan.id, { door: { botId: kapi.id, mode: 'auto' } });
+    wa.chat(
+      STRANGER,
+      {
+        conversation: `Teklif istiyorum [araç:whatsapp_suggest_route {"bot":"Satış","reason":"Teklif istiyor"}]`,
+      },
+      {},
+      'Ahmet',
+    );
+    const door = await contactThread(STRANGER, `door:${kapi.id}`);
+    const [suggestion] = await waitFor(async () => {
+      const found = await cards('whatsapp_route');
+      return found.length ? found : undefined;
+    });
+    await t.services.turns.idle();
+    expect(wa.sent.filter((x) => x.jid === STRANGER)).toHaveLength(1);
+
+    await t.api('POST', `/api/approvals/${suggestion!.id}`, {
+      decision: 'allow',
+      answer: 'Satış değil, Muhasebe’ye ver',
+    });
+    await waitFor(async () => requestsIn(door).length === 2);
+    await t.services.turns.idle();
+    const [, asked] = requestsIn(door);
+    expect(asked!.prompt).toContain('Satış değil, Muhasebe’ye ver');
+    // Still the front door: its one tool, and its reply stays with the owner.
+    expect(asked!.tools.map((x) => x.name)).toEqual(['whatsapp_suggest_route']);
+    expect((await t.api<WhatsAppStatus>('GET', '/api/whatsapp')).body.routes).toHaveLength(0);
+    expect(wa.sent.filter((x) => x.jid === STRANGER)).toHaveLength(1);
+    expect(await cards()).toHaveLength(0);
+  });
+
   it('bota verilen sohbet: Otomatik hemen gönderir; sessiz ya da yarım kalan cevap ve elle yazılmış sohbet gönderilmez; kişinin aracı yoktur', async () => {
     const { wa, asistan } = await setUp();
     const satis = await t.bot({ name: 'Satış', permissionMode: 'ask' });
