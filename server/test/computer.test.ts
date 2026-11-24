@@ -472,6 +472,17 @@ describe('botun bilgisayarı', () => {
     expect(after).toContain('1280x800');
     expect(computer.state(bot.id).waiting).toBe(false);
 
+    // A click chosen on the screen before the person had it is not made; the bot sees the screen.
+    computer.setControl(bot.id, 'kişi', true);
+    const click = text('computer_click', { x: 10, y: 20, button: 'left', count: 1 });
+    await waitFor(async () => computer.state(bot.id).waiting === true);
+    const actions = fake.calls.filter((c) => c.op === 'action').length;
+    computer.forget('kişi');
+    const clicked = await click;
+    expect(clicked).toContain('Bu adım yapılmadı');
+    expect(clicked).toContain('1280x800');
+    expect(fake.calls.filter((c) => c.op === 'action')).toHaveLength(actions);
+
     // Kept past the wait, or the turn stopped meanwhile: refused as before.
     computer.setControl(bot.id, 'kişi', true);
     await expect(computer.awaitControl(bot.id, undefined, 20)).rejects.toMatchObject({ code: 'userControl' });

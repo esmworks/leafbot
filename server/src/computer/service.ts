@@ -200,10 +200,15 @@ export class ComputerService {
 
   /**
    * Runs a bot action on its desktop, starting it if needed. While a person has control it waits
-   * for them to hand it back; a desktop that stopped on its own is started once more.
+   * for them to hand it back, and tells `fn` it waited: the screen it chose its action on may be
+   * gone. A desktop that stopped on its own is started once more.
    */
-  async use<T>(botId: string, fn: (client: ComputerClient) => Promise<T>, signal?: AbortSignal): Promise<T> {
-    await this.awaitControl(botId, signal);
+  async use<T>(
+    botId: string,
+    fn: (client: ComputerClient, waited: boolean) => Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    const waited = await this.awaitControl(botId, signal);
     if (this.userHasControl(botId)) throw new ComputerError('userControl');
     await this.ensure(botId);
     const d = this.desk(botId);
@@ -212,13 +217,13 @@ export class ComputerService {
     try {
       try {
         await this.syncGit(botId, d);
-        return await fn(this.client);
+        return await fn(this.client, waited);
       } catch (err) {
         if (!(err instanceof ComputerError) || err.code !== 'notRunning') throw err;
         d.status = 'off';
         await this.ensure(botId);
         await this.syncGit(botId, d);
-        return await fn(this.client);
+        return await fn(this.client, waited);
       }
     } finally {
       d.busy--;

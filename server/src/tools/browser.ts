@@ -629,7 +629,7 @@ export function browserTools(opts: {
 }): AppTool[] {
   const { def, bot, dataDir, threadId, t, browser, vault, person, askLogin, signal } = opts;
   /** Runs on the bot's page; waits while a person has the browser, until the turn stops. */
-  const use = <R>(fn: (page: Page) => Promise<R>) => browser.use(bot.id, fn, signal);
+  const use = <R>(fn: (page: Page, waited: boolean) => Promise<R>) => browser.use(bot.id, fn, signal);
   /**
    * The page's outline for the bot. It is always read whole, so the refs of every part stay valid
    * (the page keeps only the refs of its last read); `view` picks what of it the bot gets: one part
@@ -817,7 +817,7 @@ export function browserTools(opts: {
   };
 
   /** Runs one step in the bot's browser; browser problems come back as text the bot can act on. */
-  const step = async (fn: (page: Page) => Promise<ToolResult>): Promise<ToolResult> => {
+  const step = async (fn: (page: Page, waited: boolean) => Promise<ToolResult>): Promise<ToolResult> => {
     let r: ToolResult;
     const mark = browser.downloadMark(bot.id);
     try {
@@ -836,7 +836,10 @@ export function browserTools(opts: {
    * reads the page when it needs to. A step that moved to another address or tab reads it at once.
    */
   const act = (fn: (page: Page) => Promise<void>, brief = false, hold = false) =>
-    step(async (page) => {
+    step(async (page, waited) => {
+      // The person had the browser meanwhile: what the step was to click or type into was chosen
+      // on the page before, so it is not done, and the bot gets the page as it is now.
+      if (waited) return `${t('browser.stepNotDone')}\n\n${await outline(page)}`;
       const before = { url: page.url(), title: await page.title().catch(() => '') };
       const held = await holding(page, hold, async () => {
         await fn(page);

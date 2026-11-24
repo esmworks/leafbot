@@ -433,16 +433,29 @@ export class BrowserManager {
   /**
    * Runs a bot action on its active page, starting the browser if needed. While a person has the
    * browser (control of it, its window on their computer, or the bot's desktop) it waits for them
-   * to hand it back; `signal` is the turn's, which ends the wait when stopped.
+   * to hand it back, and tells `fn` it waited: the page it chose its action on may have changed.
+   * `signal` is the turn's, which ends the wait when stopped.
    */
-  async use<T>(botId: string, fn: (page: Page) => Promise<T>, signal?: AbortSignal): Promise<T> {
-    const deadline = Date.now() + CONTROL_WAIT_MS;
+  use<T>(botId: string, fn: (page: Page, waited: boolean) => Promise<T>, signal?: AbortSignal): Promise<T> {
+    return this.useBy(botId, fn, Date.now() + CONTROL_WAIT_MS, false, signal);
+  }
+
+  private async useBy<T>(
+    botId: string,
+    fn: (page: Page, waited: boolean) => Promise<T>,
+    deadline: number,
+    before: boolean,
+    signal?: AbortSignal,
+  ): Promise<T> {
     // Before the browser is fetched: an open window would turn its start away.
-    await this.awaitTurn(botId, deadline, signal);
+    let waited = (await this.awaitTurn(botId, deadline, signal)) || before;
     const live = await this.get(botId);
-    const run = async () => {
+    const run = async (): Promise<{ value: T } | null> => {
       // Again in the queue, before the step's own time starts: a long wait is not a hung browser.
-      await this.awaitTurn(botId, deadline, signal);
+      if (await this.awaitTurn(botId, deadline, signal)) waited = true;
+      // The person may have closed the browser while the step waited, or it was put to sleep:
+      // the step starts it again rather than run on a page that is gone.
+      if (this.live.get(botId) !== live) return null;
       if (live.userControl || this.windows.has(botId) || this.opts.blocked?.(botId)) {
         throw new BrowserError('userControl');
       }
@@ -450,7 +463,7 @@ export class BrowserManager {
       this.emitState(live);
       const release = this.opts.hold?.(botId);
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const step = fn(live.page);
+      const step = fn(live.page, waited).then((value) => ({ value }));
       try {
         return await Promise.race([
           step,
@@ -473,7 +486,8 @@ export class BrowserManager {
     };
     const result = live.queue.then(run, run);
     live.queue = result.catch(() => {});
-    return result;
+    const done = await result;
+    return done ? done.value : this.useBy(botId, fn, deadline, waited, signal);
   }
 
   /** Whether a person has the bot's browser now: control of it, its window, or the bot's desktop. */
@@ -483,9 +497,10 @@ export class BrowserManager {
 
   /**
    * Waits until no person has the bot's browser, until `deadline` at most; then, or when the turn
-   * stops, the step is refused as before. A step that waited leaves a note for the bot.
+   * stops, the step is refused as before. Says whether it waited; a step that did leaves a note
+   * for the bot.
    */
-  private async awaitTurn(botId: string, deadline: number, signal?: AbortSignal) {
+  private async awaitTurn(botId: string, deadline: number, signal?: AbortSignal): Promise<boolean> {
     let waited = false;
     while (this.personHas(botId)) {
       const left = deadline - Date.now();
@@ -500,6 +515,7 @@ export class BrowserManager {
       } else await sleep(Math.min(500, left));
     }
     if (waited) this.handedBack.add(botId);
+    return waited;
   }
 
   /** Whether a step waited for a person to hand the browser back since the bot last heard; once. */

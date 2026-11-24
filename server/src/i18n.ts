@@ -1363,6 +1363,8 @@ const tr = {
     'Kullanıcı tarayıcını uzun süredir kullanıyor ve kontrolü geri vermedi. Tarayıcıya dokunma; kullanıcıya ne yapmak istediğini yaz, kontrolü geri verince devam edebilirsin.',
   'browser.handedBack':
     'Sen beklerken kullanıcı tarayıcıyı bir süre kendisi kullandı ve kontrolü geri verdi. Sayfa değişmiş olabilir: kaldığın yerden sürdürmeden önce ne gördüğüne bak.',
+  'browser.stepNotDone':
+    'Bu adım yapılmadı: sayfa, adımın seçildiği halinden farklı olabilir. Sayfanın şimdiki hali aşağıda; adım hâlâ gerekiyorsa yeniden yap.',
   'browser.filePicker':
     'Bir adım sayfanın dosya seçicisini açtırdı; seçici kapatıldı, dosya seçilmedi. Dosya yüklemek için browser_upload kullan, ona dosya alanının ya da yükleme düğmesinin ref değerini ver.',
   'browser.full': 'Şu anda açık tarayıcı sayısı sınırda; biraz sonra yeniden dene.',
@@ -1476,6 +1478,8 @@ const tr = {
   'computer.screen': 'Ekran görüntüsü ({width}x{height}).',
   'computer.userControl':
     'Kullanıcı bilgisayarının denetimini uzun süredir elinde tutuyor ve geri vermedi. Kullanıcıya ne yapmak istediğini yaz; denetimi geri verince devam edebilirsin.',
+  'computer.stepNotDone':
+    'Bu adım yapılmadı: yeri önceki ekrana göre seçilmişti. Ekranın şimdiki hali aşağıda; adım hâlâ gerekiyorsa yeniden yap.',
   'computer.handedBack':
     'Sen beklerken kullanıcı bilgisayarı bir süre kendisi kullandı ve denetimi geri verdi. Ekranda bir şeyleri kapatmış ya da değiştirmiş olabilir: kaldığın yerden sürdürmeden önce ekrana bak.',
   'computer.full': 'Şu an açık bilgisayar sayısı sınırda; biraz sonra yeniden dene.',
@@ -3392,6 +3396,8 @@ const en: Catalog<ServerKey> = {
     'The user has been using your browser for a long time and has not handed control back. Do not touch it; tell the user what you want to do, and you can continue once they give it back.',
   'browser.handedBack':
     'While you waited, the user used the browser themselves for a while and handed control back. The page may have changed: look at what is there before you go on from where you were.',
+  'browser.stepNotDone':
+    'This step was not carried out: the page may no longer be the one it was chosen on. The page as it is now is below; if the step is still needed, do it again.',
   'browser.filePicker':
     'A step made the page open its file picker; the picker was closed with no file chosen. To upload files, use browser_upload and give it the ref of the file field or of the upload button.',
   'browser.full': 'Too many browsers are open right now; try again a bit later.',
@@ -3508,6 +3514,8 @@ const en: Catalog<ServerKey> = {
   'computer.screen': 'Screenshot ({width}x{height}).',
   'computer.userControl':
     'The user has kept control of your computer for a long time and has not given it back. Tell the user what you want to do; you can continue once they give it back.',
+  'computer.stepNotDone':
+    'This step was not carried out: its place was chosen on the screen before. The screen as it is now is below; if the step is still needed, do it again.',
   'computer.handedBack':
     'While you waited, the user used the computer themselves for a while and gave control back. They may have closed or changed things on the screen: look at it before you go on from where you were.',
   'computer.full': 'The limit of computers open at once is reached; try again a little later.',

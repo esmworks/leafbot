@@ -1107,6 +1107,15 @@ describe.skipIf(!BROWSER)('botun tarayıcısı', () => {
     expect(read).toContain('Merhaba Ali');
     expect(read).toContain('kontrolü geri verdi');
     expect(await text('browser_snapshot', {})).not.toContain('kontrolü geri verdi');
+
+    // A click chosen on the page before the person had it is not made; the bot reads the page.
+    await browser.setControl(bot.id, true);
+    const click = text('browser_click', { ref: 'e1', element: 'Bağlantı' });
+    await new Promise((r) => setTimeout(r, 100));
+    await browser.setControl(bot.id, false);
+    const clicked = await click;
+    expect(clicked).toContain('Bu adım yapılmadı');
+    expect(clicked).toContain('Merhaba Ali');
   });
 
   it('ödeme kartını yalnız kart alanlarına, sitenin ilk kullanımında sorarak doldurur; bot numarayı görmez', async () => {
