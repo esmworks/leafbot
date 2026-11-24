@@ -293,7 +293,11 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
   const ctx: Ctx = {
     card,
     values,
-    set: (name, v) => setValues((s) => ({ ...s, [name]: v })),
+    // A change may fix what the last press found missing, so its message goes; the next press checks again.
+    set: (name, v) => {
+      setProblem(null);
+      setValues((s) => ({ ...s, [name]: v }));
+    },
     press,
     locked,
     pressed: answer?.node,
@@ -306,7 +310,7 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
   return (
     <div
       className={cn(
-        'flex w-full flex-col gap-3 self-start rounded-2xl border bg-card/60 p-4 text-[15px]',
+        'wallpaper-frost flex w-full flex-col gap-3 self-start rounded-2xl border bg-card/60 p-4 text-[15px]',
         CARD_WIDTH[str(root.size)] ?? 'max-w-(--bubble-width)',
       )}
       data-card-rev={rev}

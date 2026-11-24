@@ -391,6 +391,13 @@ describe('saveUpload', () => {
     expect(readdirSync(dir)).toEqual([]);
   });
 
+  it('başkasının mailinden gelen klasörlü adı klasörün içinde tutar, var olanın üstüne yazmaz', async () => {
+    const first = await saveUpload(dir, '../../liste.xlsx', Readable.from([Buffer.from('a')]));
+    const second = await saveUpload(dir, '../../liste.xlsx', Readable.from([Buffer.from('b')]));
+    expect([first.name, second.name]).toEqual(['liste.xlsx', 'liste (2).xlsx']);
+    expect(readdirSync(dir).sort()).toEqual(['liste (2).xlsx', 'liste.xlsx']);
+  });
+
   it('dosya adını temizler', () => {
     expect(safeFileName('C:\\Users\\x\\belge.pdf')).toBe('belge.pdf');
     expect(safeFileName('.gizli')).toBe('gizli');

@@ -11,6 +11,8 @@ const DB_NAME = 'leafbot-wallpaper';
 const STORE = 'images';
 const IMAGE_KEY = 'current';
 const DIM_KEY = 'leafbot.wallpaper.dim';
+const BLUR_KEY = 'leafbot.wallpaper.blur';
+const OWN_BUBBLE_KEY = 'leafbot.wallpaper.ownBubble';
 
 /** How much of the theme's own background lies over the picture, in percent: text must stay readable. */
 export const DIM_MIN = 0;
@@ -25,6 +27,37 @@ export function clampDim(value: unknown): number {
   const n = typeof value === 'string' ? Number(value) : value;
   if (typeof n !== 'number' || !Number.isFinite(n)) return DIM_DEFAULT;
   return Math.round(Math.min(DIM_MAX, Math.max(DIM_MIN, n)));
+}
+
+/**
+ * How the person's own bubbles sit over the picture: frosted like the rest, or filled with their
+ * colour, which keeps their white text readable over any picture.
+ */
+export type OwnBubble = 'glass' | 'solid';
+
+/** Frosted glass by default: the picture comes through as colour, never as shapes behind the text. */
+function readBlur(): boolean {
+  try {
+    return localStorage.getItem(BLUR_KEY) !== 'off';
+  } catch {
+    return true;
+  }
+}
+
+function readOwnBubble(): OwnBubble {
+  try {
+    return localStorage.getItem(OWN_BUBBLE_KEY) === 'solid' ? 'solid' : 'glass';
+  } catch {
+    return 'glass';
+  }
+}
+
+function store(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Held for this page.
+  }
 }
 
 function readDim(): number {
@@ -116,37 +149,50 @@ export class WallpaperError extends Error {
   }
 }
 
-function apply(url: string | null, dim: number) {
+interface Look {
+  dim: number;
+  blur: boolean;
+  ownBubble: OwnBubble;
+}
+
+function apply(url: string | null, look: Look) {
   const root = document.documentElement;
   root.toggleAttribute('data-wallpaper', !!url);
-  root.style.setProperty('--wallpaper-dim', `${dim}%`);
+  root.toggleAttribute('data-wallpaper-sharp', !look.blur);
+  root.toggleAttribute('data-wallpaper-solid', look.ownBubble === 'solid');
+  root.style.setProperty('--wallpaper-dim', `${look.dim}%`);
 }
 
 interface WallpaperState {
   /** The picture's blob: address while one is chosen. */
   url: string | null;
   dim: number;
+  /** Whether the panels and bubbles blur the picture behind them, or let it show sharp. */
+  blur: boolean;
+  ownBubble: OwnBubble;
   choose(file: Blob): Promise<void>;
   remove(): Promise<void>;
   setDim(dim: number): void;
+  setBlur(blur: boolean): void;
+  setOwnBubble(ownBubble: OwnBubble): void;
 }
 
 export const useWallpaper = create<WallpaperState>((set, get) => {
   const show = (image: Blob | null) => {
     const old = get().url;
     const url = image ? URL.createObjectURL(image) : null;
-    apply(url, get().dim);
+    apply(url, get());
     set({ url });
     if (old) URL.revokeObjectURL(old);
   };
-  const dim = readDim();
-  if (typeof document !== 'undefined') apply(null, dim);
+  const look: Look = { dim: readDim(), blur: readBlur(), ownBubble: readOwnBubble() };
+  if (typeof document !== 'undefined') apply(null, look);
   void readImage().then((image) => {
     if (image && !get().url) show(image);
   });
   return {
     url: null,
-    dim,
+    ...look,
     choose: async (file) => {
       const image = await shrink(file);
       await writeImage(image);
@@ -158,13 +204,19 @@ export const useWallpaper = create<WallpaperState>((set, get) => {
     },
     setDim: (value) => {
       const next = clampDim(value);
-      try {
-        localStorage.setItem(DIM_KEY, String(next));
-      } catch {
-        // Held for this page.
-      }
-      apply(get().url, next);
+      store(DIM_KEY, String(next));
+      apply(get().url, { ...get(), dim: next });
       set({ dim: next });
+    },
+    setBlur: (blur) => {
+      store(BLUR_KEY, blur ? 'on' : 'off');
+      apply(get().url, { ...get(), blur });
+      set({ blur });
+    },
+    setOwnBubble: (ownBubble) => {
+      store(OWN_BUBBLE_KEY, ownBubble);
+      apply(get().url, { ...get(), ownBubble });
+      set({ ownBubble });
     },
   };
 });

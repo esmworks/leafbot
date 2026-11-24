@@ -102,7 +102,7 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { useSendKey, type SendKey } from '@/lib/sendKey';
 import { TONES, useTheme, type ThemeChoice, type ToneChoice } from '@/lib/theme';
-import { DIM_MAX, DIM_MIN, useWallpaper, WallpaperError } from '@/lib/wallpaper';
+import { DIM_MAX, DIM_MIN, type OwnBubble, useWallpaper, WallpaperError } from '@/lib/wallpaper';
 import {
   useChatWidth,
   useDensity,
@@ -306,18 +306,18 @@ export function SettingsPage() {
         <nav className="scroll-thin flex shrink-0 flex-col gap-1 overflow-y-auto bg-sidebar px-3 pb-3 phone:min-h-0 phone:flex-1 roomy:w-64 roomy:border-e">
           {/* Room for the window buttons; empty in a browser. */}
           <div className="window-drag h-12 shrink-0 phone:hidden" />
-          <div className="flex shrink-0 items-center gap-1 pb-3 phone:pt-1">
+          {/* The title goes back as well as the arrow: it is the larger mark, and where a hand reaches for. */}
+          <h1 className="flex shrink-0 pb-3 phone:pt-1">
             <Button
               variant="ghost"
-              size="icon"
               onClick={close}
-              aria-label={t('settings.close')}
               title={t('settings.close')}
+              className="h-9 gap-1 ps-2 pe-3 text-base font-semibold phone:text-lg"
             >
               <ChevronLeft className="size-5 rtl:-scale-x-100" />
+              {t('settings.title')}
             </Button>
-            <h1 className="text-base font-semibold phone:text-lg">{t('settings.title')}</h1>
-          </div>
+          </h1>
           <Input
             ref={searchRef}
             value={find}
@@ -366,11 +366,18 @@ export function SettingsPage() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {phone ? (
             // The section's own title bar, with the way back to the list.
-            <div className="flex h-14 shrink-0 items-center gap-1 border-b bg-sidebar px-1">
-              <Button variant="ghost" size="icon" onClick={toList} aria-label={t('settings.back')}>
-                <ChevronLeft className="size-5 rtl:-scale-x-100" />
-              </Button>
-              <h1 className="truncate text-lg font-semibold">{t(`settings.tab.${current.id}`)}</h1>
+            <div className="flex h-14 shrink-0 items-center border-b bg-sidebar px-1">
+              <h1 className="flex min-w-0">
+                <Button
+                  variant="ghost"
+                  onClick={toList}
+                  title={t('settings.back')}
+                  className="h-10 min-w-0 gap-1 ps-2 pe-3 text-lg font-semibold"
+                >
+                  <ChevronLeft className="size-5 rtl:-scale-x-100" />
+                  <span className="truncate">{t(`settings.tab.${current.id}`)}</span>
+                </Button>
+              </h1>
             </div>
           ) : (
             <div className="window-drag h-12 shrink-0" />
@@ -546,7 +553,9 @@ function WallpaperRows() {
   const t = useT();
   const url = useWallpaper((s) => s.url);
   const dim = useWallpaper((s) => s.dim);
-  const { choose, remove, setDim } = useWallpaper.getState();
+  const blur = useWallpaper((s) => s.blur);
+  const ownBubble = useWallpaper((s) => s.ownBubble);
+  const { choose, remove, setDim, setBlur, setOwnBubble } = useWallpaper.getState();
   const file = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const pick = async (picked: File) => {
@@ -617,6 +626,24 @@ function WallpaperRows() {
             />
             <span className="w-12 shrink-0 text-end text-sm tabular-nums text-muted-foreground">{`${dim}%`}</span>
           </div>
+        </Row>
+      )}
+      {url && (
+        <Row label={t('general.wallpaperBlur')} hint={t('general.wallpaperBlurHint')}>
+          <Switch checked={blur} onCheckedChange={setBlur} aria-label={t('general.wallpaperBlur')} />
+        </Row>
+      )}
+      {url && (
+        <Row label={t('general.wallpaperOwnBubble')} hint={t('general.wallpaperOwnBubbleHint')}>
+          <Select value={ownBubble} onValueChange={(v) => setOwnBubble(v as OwnBubble)}>
+            <SelectTrigger className="w-44 rounded-full" aria-label={t('general.wallpaperOwnBubble')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="glass">{t('general.wallpaperOwnBubble.glass')}</SelectItem>
+              <SelectItem value="solid">{t('general.wallpaperOwnBubble.solid')}</SelectItem>
+            </SelectContent>
+          </Select>
         </Row>
       )}
     </>

@@ -1909,6 +1909,10 @@ export const tr = {
   'general.tone.neutral': 'Nötr',
   'general.tone.slate': 'Arduvaz',
   'general.tone.leaf': 'Yaprak',
+  'general.tone.rose': 'Gül',
+  'general.tone.lavender': 'Lavanta',
+  'general.tone.peach': 'Şeftali',
+  'general.tone.sand': 'Kum',
   'general.wallpaper': 'Arka plan',
   'general.wallpaperHint':
     'Kenar çubuğunun ve sohbetin arkasında kendi seçtiğiniz bir görsel. Bu cihazda saklanır.',
@@ -1919,6 +1923,14 @@ export const tr = {
   'general.wallpaper.unreadable': 'Bu dosya görsel olarak açılamadı.',
   'general.wallpaperDim': 'Arka plan karartması',
   'general.wallpaperDimHint': 'Karartma arttıkça yazılar daha kolay okunur.',
+  'general.wallpaperBlur': 'Arka plan bulanıklığı',
+  'general.wallpaperBlurHint':
+    'Kapalıyken resim panellerin ve mesajların arkasında net görünür; yazılar zor okunursa karartmayı artırın.',
+  'general.wallpaperOwnBubble': 'Mesajlarınız',
+  'general.wallpaperOwnBubbleHint':
+    'Düz seçilirse mesajlarınız tam renginde kalır, her resmin üstünde okunur.',
+  'general.wallpaperOwnBubble.glass': 'Cam',
+  'general.wallpaperOwnBubble.solid': 'Düz',
   'general.languageHint': 'Arayüz, botların istemi ve sohbete yazılan sistem mesajları bu dilde olur.',
   'general.bots': 'Botlar',
   'general.useDeviceZone': 'Bu cihazınkini kullan: {zone}',

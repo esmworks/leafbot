@@ -34,7 +34,7 @@ import {
 } from '../connections/client';
 import type { CallToolResult, ElicitResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ElicitForm } from '../connections/elicit';
-import { gmailSender, isGmailMcp, runGmailTool, withGmailTools } from '../connections/gmail';
+import { gmailSender, isGmailMcp, runGmailTool, toolKind, withGmailTools } from '../connections/gmail';
 import { inlinePictures } from '../connections/mail-signature';
 import type { Ctx } from '../context';
 import { schema } from '../db';
@@ -329,7 +329,7 @@ export class ConnectionService {
         title: t.title,
         description: t.description,
         hinted: t.hinted,
-        kind: t.local ? 'write' : (t.kind ?? t.hinted),
+        kind: toolKind(t),
         enabled: t.enabled,
         ...(t.ui && { app: true }),
       })),
@@ -1193,6 +1193,8 @@ export class ConnectionService {
     showApp?: ShowApp,
     /** Puts a Sign-in card in the conversation when a call finds its connection signed out. */
     showSignIn?: ShowSignIn,
+    /** Keeps a file a tool fetched (a mail's attachment) in the conversation folder; returns where. */
+    keepFile?: KeepFile,
   ): Promise<AppTool[]> {
     const chosen = this.ctx.db
       .select({ id: schema.botConnections.connectionId })
@@ -1231,7 +1233,9 @@ export class ConnectionService {
       // A tool meant for its view alone is not the bot's to call.
       const tools = row.tools.filter((x) => x.enabled && !x.appOnly);
       for (const tool of tools)
-        out.push(this.appTool(row, tool, names.get(tool.name)!, t, signal, elicit, keep, showApp, signIn));
+        out.push(
+          this.appTool(row, tool, names.get(tool.name)!, t, signal, elicit, keep, showApp, signIn, keepFile),
+        );
     }
     return out;
   }
@@ -1246,9 +1250,9 @@ export class ConnectionService {
     keep?: KeepResult,
     showApp?: ShowApp,
     showSignIn?: ShowSignIn,
+    keepFile?: KeepFile,
   ): AppTool {
-    // A tool this server adds sends or changes mail: it always counts as a change, whatever it was set to.
-    const kind = tool.local ? 'write' : (tool.kind ?? tool.hinted);
+    const kind = toolKind(tool);
     const about = [tool.title, tool.description].filter(Boolean).join(' — ');
     return {
       name: exposed,
@@ -1271,7 +1275,7 @@ export class ConnectionService {
         const sent = tool.local ? args : botToolArgs(current, tool.name, args);
         try {
           const result = tool.local
-            ? await runGmailTool(this.target(current), tool.name, args, signal)
+            ? await runGmailTool(this.target(current), tool.name, args, signal, { saveFile: keepFile })
             : serviceText(
                 current,
                 await callTool(
@@ -1366,6 +1370,9 @@ export type TurnElicit = (form: ElicitForm, connection: string) => Promise<Elici
 
 /** Writes a long answer to a file and gives back its path. */
 export type KeepResult = (name: string, text: string) => Promise<string>;
+
+/** Keeps a file's bytes in the conversation folder under a free name made from `name`; gives back its path. */
+export type KeepFile = (name: string, data: Buffer) => Promise<string>;
 
 /**
  * A tool's answer as text (and pictures) for the model. An answer longer than the model should

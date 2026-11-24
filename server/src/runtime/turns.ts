@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { Readable } from 'node:stream';
 import {
   describeAction,
   INTL_LOCALE,
@@ -20,6 +21,7 @@ import type { Ctx } from '../context';
 import { schema } from '../db';
 import type { TurnStep } from '../db/schema';
 import { redactSecrets } from '../services/secrets';
+import { saveUpload } from '../uploads';
 import {
   endsSilent,
   isSilentReply,
@@ -228,6 +230,20 @@ function keepToolResult(threadDir: string) {
     const file = join(dir, `${safe}-${new Date().toISOString().replace(/[:.]/g, '-')}.txt`);
     await writeFile(file, text, { mode: 0o600 });
     return file;
+  };
+}
+
+/**
+ * Keeps a file a connection's tool fetched (a mail's attachment) in the conversation folder, as a
+ * file the person sends is kept: the bot reads it with its file tools, the library lists it, and
+ * it goes with the conversation. The name comes from someone else's mail, so it is made a plain
+ * one and never replaces a file there.
+ */
+function keepToolFile(threadDir: string) {
+  return async (name: string, data: Buffer) => {
+    await mkdir(threadDir, { recursive: true });
+    const saved = await saveUpload(threadDir, name, Readable.from([data]));
+    return join(threadDir, saved.name);
   };
 }
 
@@ -1479,6 +1495,7 @@ export class TurnManager {
           }
           return true;
         },
+        keepToolFile(paths.threadDir),
       )),
     ];
     const connectionNames = await this.services.connections.names();
