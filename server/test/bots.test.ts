@@ -226,18 +226,66 @@ describe('botlar arası', () => {
     const a = await t.bot({ name: 'Ali', groupId: g.id });
     const b = await t.bot({ name: 'Ayşe', groupId: g.id });
     const ta = await main(a.id);
-    let parent: string | null = null;
+    // Each request is made by the turn working on the one before it, in the target's thread.
+    let parent: { id: string; toThreadId: string } | null = null;
     for (let i = 0; i < 4; i++) {
       const [from, to] = i % 2 ? [b, a] : [a, b];
-      const job: { id: string } = await t.services.jobs.send({
+      const job: { id: string; toThreadId: string } = await t.services.jobs.send({
         from,
         to,
-        fromThreadId: ta.id,
-        parentJobId: parent,
+        fromThreadId: parent?.toThreadId ?? ta.id,
+        parentJobId: parent?.id ?? null,
         text: `adım ${i}`,
         kind: 'send',
       });
+      parent = job;
+    }
+    await expect(
+      t.services.jobs.send({
+        from: a,
+        to: b,
+        fromThreadId: parent!.toThreadId,
+        parentJobId: parent!.id,
+        text: 'fazla',
+        kind: 'send',
+      }),
+    ).rejects.toThrow(/derin/);
+    await t.services.turns.idle();
+  });
+
+  it('cevabı okuyan tur yeniden sorunca zincir derinleşmez; sırayla giden istekleri bütçe sınırlar', async () => {
+    const g = await group('Ekip');
+    const a = await t.bot({ name: 'Ali', groupId: g.id });
+    const b = await t.bot({ name: 'Ayşe', groupId: g.id });
+    const ta = await main(a.id);
+    // Ali asks, reads the answer in its own thread, and asks again, round after round.
+    let parent: string | null = null;
+    const depths: number[] = [];
+    for (let i = 0; i < 6; i++) {
+      const job: { id: string; depth: number } = await t.services.jobs.send({
+        from: a,
+        to: b,
+        fromThreadId: ta.id,
+        parentJobId: parent,
+        text: `tur ${i}`,
+        kind: i % 2 ? 'notify' : 'send',
+      });
+      depths.push(job.depth);
       parent = job.id;
+    }
+    expect(depths).toEqual([1, 1, 1, 1, 1, 1]);
+    // Rounds that go on without end still stop at the chain's budget.
+    for (let i = 6; i < t.services.ctx.config.maxJobsPerChain; i++) {
+      parent = (
+        await t.services.jobs.send({
+          from: a,
+          to: b,
+          fromThreadId: ta.id,
+          parentJobId: parent,
+          text: `tur ${i}`,
+          kind: 'notify',
+        })
+      ).id;
     }
     await expect(
       t.services.jobs.send({
@@ -246,9 +294,47 @@ describe('botlar arası', () => {
         fromThreadId: ta.id,
         parentJobId: parent,
         text: 'fazla',
-        kind: 'send',
+        kind: 'notify',
       }),
-    ).rejects.toThrow(/derin/);
+    ).rejects.toThrow();
+    await t.services.turns.idle();
+  });
+
+  it('kişinin mesajıyla başlayan iş, derinlik sınırından çok tur sürse de kişinin işi sayılır', async () => {
+    const g = await group('Ekip');
+    const a = await t.bot({ name: 'Ali', groupId: g.id });
+    const b = await t.bot({ name: 'Ayşe', groupId: g.id });
+    const ta = await main(a.id);
+    const userId = ta.userId!;
+    const turn = async (source: 'user' | 'bot', jobId: string | null) => {
+      const id = `tur-${Math.random().toString(36).slice(2)}`;
+      await t.services.ctx.db
+        .insert(schema.turns)
+        .values({ id, threadId: ta.id, botId: a.id, source, userId, status: 'done', prompt: 'x', jobId });
+      return id;
+    };
+    let job = await t.services.jobs.send({
+      from: a,
+      to: b,
+      fromThreadId: ta.id,
+      fromTurnId: await turn('user', null),
+      parentJobId: null,
+      text: 'ilk',
+      kind: 'send',
+    });
+    // Each answer is read in a turn of Ali's own, which asks again.
+    for (let i = 0; i < t.services.ctx.config.maxJobDepth + 3; i++) {
+      job = await t.services.jobs.send({
+        from: a,
+        to: b,
+        fromThreadId: ta.id,
+        fromTurnId: await turn('bot', job.id),
+        parentJobId: job.id,
+        text: `tur ${i}`,
+        kind: 'send',
+      });
+    }
+    expect(await t.services.jobs.startedByPerson(job.id, userId)).toBe(true);
     await t.services.turns.idle();
   });
 

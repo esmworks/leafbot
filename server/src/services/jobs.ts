@@ -44,7 +44,8 @@ export class JobService {
    */
   async startedByPerson(jobId: string, userId: string): Promise<boolean> {
     let id: string | null = jobId;
-    for (let hop = 0; id && hop <= this.ctx.config.maxJobDepth; hop++) {
+    // Rounds of asking and reading answers are hops too, so the chain's budget bounds the walk.
+    for (let hop = 0; id && hop <= this.ctx.config.maxJobsPerChain; hop++) {
       const at: string = id;
       const [row] = await this.ctx.db
         .select({ turn: schema.turns, thread: schema.threads })
@@ -94,7 +95,11 @@ export class JobService {
       throw new HttpError(403, 'error.cannotMessage', { from: from.name, to: to.name });
     }
     const parent = opts.parentJobId ? await this.get(opts.parentJobId).catch(() => null) : null;
-    const depth = parent ? parent.depth + 1 : 1;
+    // A turn in the sender's own thread is reading the answers to what it asked: asking again
+    // from there is the next round of the same work, not a request nested in that answer. Only
+    // work handed on by the target goes a level deeper; rounds share the chain's budget.
+    const reading = parent?.fromThreadId === opts.fromThreadId;
+    const depth = parent ? parent.depth + (reading ? 0 : 1) : 1;
     const rootId = parent ? parent.rootId : newId();
     if (depth > this.ctx.config.maxJobDepth) {
       throw new HttpError(429, 'error.chainTooDeep', { depth });
@@ -456,7 +461,8 @@ export class JobService {
     const all: JobRow[] = [];
     // Answers to what those turns asked other bots come back as further turns here.
     let asking = [...turns];
-    for (let i = 0; asking.length && i <= this.ctx.config.maxJobDepth; i++) {
+    // One pass per round of asking and reading answers, which the chain's budget bounds.
+    for (let i = 0; asking.length && i <= this.ctx.config.maxJobsPerChain; i++) {
       const asked = await this.ctx.db
         .select()
         .from(schema.jobs)
