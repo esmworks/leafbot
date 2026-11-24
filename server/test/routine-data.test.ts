@@ -133,7 +133,10 @@ describe('fetch and extract steps of a routine', () => {
     });
     const run = await runOnce(made.body);
     expect(run.status).toBe('done');
-    const turns = await t.services.ctx.db.select().from(schema.turns).where(eq(schema.turns.routineRunId, run.id));
+    const turns = await t.services.ctx.db
+      .select()
+      .from(schema.turns)
+      .where(eq(schema.turns.routineRunId, run.id));
     // The routine's own instruction read nothing from outside; the step after the read did.
     expect(turns.find((x) => x.prompt.includes('ilk iş'))!.outside).toBeNull();
     expect(turns.find((x) => x.prompt.includes('özetle'))!.outside).toBe('web');
