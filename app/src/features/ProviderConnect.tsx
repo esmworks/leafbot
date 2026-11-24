@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils';
 import { Chip } from './onboarding/Chip';
 
 /** Offered first; every other provider the server knows is under "Other". */
-const POPULAR = ['openai', 'google', 'openrouter', 'deepseek', 'xai', 'mistral', 'groq'];
+export const POPULAR = ['openai', 'google', 'openrouter', 'deepseek', 'xai', 'mistral', 'groq'];
 /**
  * Product names, not words to translate. A provider missing here shows its id, which is also
  * how regional plans (`minimax-cn`, `xiaomi-token-plan-sgp`) stay told apart.
@@ -73,7 +73,7 @@ const CUSTOM = '+custom';
  * Plans the person signs in to instead of pasting a key, first among the chips. The chip value is
  * not a provider id for ChatGPT, whose provider (OpenAI) also takes a key.
  */
-const PLANS = [
+export const PLANS = [
   { chip: '+chatgpt', provider: 'openai', name: 'ChatGPT' },
   { chip: '+copilot', provider: 'github-copilot', name: 'GitHub Copilot' },
 ] as const;
@@ -87,7 +87,7 @@ export function connectionName(p: ProviderInfo): string {
   return plan && p.signIn?.signedIn && !p.hint ? plan.name : providerName(p.id);
 }
 /** Providers reached only by signing in to a plan: no key chip for them. */
-const PLAN_ONLY = new Set(['github-copilot']);
+export const PLAN_ONLY = new Set(['github-copilot']);
 /** Ollama's address on the same computer; an address, not a word to translate. */
 const EXAMPLE_URL = 'http://localhost:11434/v1';
 
@@ -312,7 +312,7 @@ export function AddProviderForm({ onAdded }: { onAdded?: () => void }) {
  * does in their browser: open a page and type a code (Copilot), or sign in on a page that comes
  * back by itself on this computer, or whose final address is pasted here from elsewhere (ChatGPT).
  */
-function PlanSignIn({ plan, onDone }: { plan: (typeof PLANS)[number]; onDone?: () => void }) {
+export function PlanSignIn({ plan, onDone }: { plan: (typeof PLANS)[number]; onDone?: () => void }) {
   const t = useT();
   const qc = useQueryClient();
   const [session, setSession] = useState<ProviderSignIn | null>(null);
@@ -517,7 +517,7 @@ const modelList = (text: string) =>
  * Changes a saved endpoint's name, address, key or models; an empty key field keeps the saved
  * key. The models start as the saved list, so one the server leaves out can be added by hand.
  */
-function EndpointEdit({ provider: p, onDone }: { provider: ProviderInfo; onDone(): void }) {
+export function EndpointEdit({ provider: p, onDone }: { provider: ProviderInfo; onDone(): void }) {
   const t = useT();
   const qc = useQueryClient();
   const [name, setName] = useState(p.custom!.name);
@@ -603,7 +603,14 @@ function EndpointEdit({ provider: p, onDone }: { provider: ProviderInfo; onDone(
  * Adds an OpenAI-compatible endpoint, such as Ollama or LM Studio on this network, or a hosted
  * service. The server asks it for its models; the key is optional and stays on the server.
  */
-export function EndpointForm({ onAdded }: { onAdded?: () => void }) {
+export function EndpointForm({
+  onAdded,
+  hideFound = false,
+}: {
+  onAdded?: () => void;
+  /** Leaves out the servers found on the server's computer, for a page that lists them itself. */
+  hideFound?: boolean;
+}) {
   const t = useT();
   const qc = useQueryClient();
   const [name, setName] = useState('');
@@ -649,7 +656,7 @@ export function EndpointForm({ onAdded }: { onAdded?: () => void }) {
   });
   return (
     <div className="space-y-2">
-      {found.length > 0 && (
+      {!hideFound && found.length > 0 && (
         <div className="space-y-1.5 rounded-2xl border border-dashed p-3">
           <div className="text-xs font-medium text-muted-foreground">{t('provider.found')}</div>
           {found.map((f) => (

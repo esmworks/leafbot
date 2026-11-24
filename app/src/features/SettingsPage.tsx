@@ -3,10 +3,8 @@ import {
   CONNECTION_CATALOG,
   describeSchedule,
   INTL_LOCALE,
-  leavesForEngine,
   LOCALE_NAMES,
   LOCALES,
-  newBotEngine,
   STALE_MEMORY_DAYS,
   type BotNoteGroup,
   type Locale,
@@ -19,10 +17,10 @@ import {
   Brain,
   ChartColumn,
   Check,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Clock,
+  Cpu,
   ExternalLink,
   ImageIcon,
   FileInput,
@@ -35,8 +33,6 @@ import {
   LogOut,
   MessageCircle,
   Plug,
-  Plus,
-  RefreshCw,
   Shield,
   Smartphone,
   Sparkles,
@@ -47,7 +43,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { BotAvatar } from '@/components/BotAvatar';
 import { Button } from '@/components/ui/button';
@@ -63,7 +59,6 @@ import { noteExpired, noteMatches, pinnedFirst, placeLabel, placeNoteGroups } fr
 import { PHONE, useMedia } from '@/lib/media';
 import {
   useBots,
-  useClaudeAuth,
   useConnections,
   useGroups,
   useInfo,
@@ -129,38 +124,35 @@ import { UsageTab } from './UsageTab';
 import { VaultTab } from './VaultTab';
 import { PeopleTab, personName, personNameOf } from './PeopleTab';
 import { AccountForm } from './AccountSetup';
-import { ClaudeConnect } from './ClaudeConnect';
-import { ModelDefaults } from './ModelDefaults';
 import { ApnsCard } from './PhoneSettings';
 import { TailscaleCard } from './TailscaleSettings';
 import { DoctorCard } from './DoctorCard';
 import { HealthStatus, needsAttention } from './RoutineHealth';
-import { Chip } from './onboarding/Chip';
-import {
-  AddProviderForm,
-  isPiModel,
-  PiModelPicker,
-  ProviderRows,
-  useHasProvider,
-  useSavePiModel,
-} from './ProviderConnect';
+import { ProvidersTab, useProviderTitle } from './ProvidersTab';
 
-const TABS: { id: SettingsTab; icon: React.ReactNode }[] = [
-  { id: 'profile', icon: <UserRound /> },
-  { id: 'people', icon: <Users /> },
-  { id: 'general', icon: <SlidersHorizontal /> },
-  { id: 'connection', icon: <Link2 /> },
-  { id: 'channels', icon: <MessageCircle /> },
-  { id: 'permissions', icon: <Shield /> },
-  { id: 'vault', icon: <KeyRound /> },
-  { id: 'memory', icon: <Brain /> },
-  { id: 'services', icon: <AudioLines /> },
-  { id: 'routines', icon: <Clock /> },
-  { id: 'skills', icon: <Sparkles /> },
-  { id: 'groups', icon: <Folder /> },
-  { id: 'import', icon: <FileInput /> },
-  { id: 'usage', icon: <ChartColumn /> },
-  { id: 'about', icon: <Info /> },
+/**
+ * The settings sections in groups, so a long list reads as a few short ones: what is the person's
+ * own, the AI the bots think with, what the bots do, who may reach what, and the server itself.
+ * The first group has no heading; it is what most people come for.
+ */
+type TabGroup = 'own' | 'ai' | 'bots' | 'access' | 'server';
+const TABS: { id: SettingsTab; icon: React.ReactNode; group: TabGroup }[] = [
+  { id: 'profile', icon: <UserRound />, group: 'own' },
+  { id: 'general', icon: <SlidersHorizontal />, group: 'own' },
+  { id: 'providers', icon: <Cpu />, group: 'ai' },
+  { id: 'services', icon: <AudioLines />, group: 'ai' },
+  { id: 'memory', icon: <Brain />, group: 'ai' },
+  { id: 'routines', icon: <Clock />, group: 'bots' },
+  { id: 'skills', icon: <Sparkles />, group: 'bots' },
+  { id: 'channels', icon: <MessageCircle />, group: 'bots' },
+  { id: 'groups', icon: <Folder />, group: 'bots' },
+  { id: 'people', icon: <Users />, group: 'access' },
+  { id: 'permissions', icon: <Shield />, group: 'access' },
+  { id: 'vault', icon: <KeyRound />, group: 'access' },
+  { id: 'connection', icon: <Link2 />, group: 'server' },
+  { id: 'import', icon: <FileInput />, group: 'server' },
+  { id: 'usage', icon: <ChartColumn />, group: 'server' },
+  { id: 'about', icon: <Info />, group: 'server' },
 ];
 
 /** Every time zone the browser knows, for the searchable list. */
@@ -242,6 +234,10 @@ export function SettingsPage() {
   const known = !!useSession().data?.user;
   const tabs = TABS.filter((tb) => !known || manages || !SERVER_TABS.has(tb.id));
   const current = tabs.find((t) => t.id === tab) ?? tabs[0]!;
+  // A provider's own page puts its name after the section's in the title.
+  const providerView = useUi((s) => s.providerView);
+  const providerName = useProviderTitle(current.id === 'providers' ? providerView : null);
+  const providerTitle = current.id === 'providers' ? providerName : null;
   // A phone shows one of two screens: the list of sections, or the section picked from it.
   const phone = useMedia(PHONE);
   const listing = useUi((s) => s.settingsList) && phone;
@@ -335,20 +331,26 @@ export function SettingsPage() {
             aria-label={t('settings.search')}
             className="mb-2 h-8 shrink-0 rounded-full text-sm phone:h-10 phone:text-base"
           />
-          {shownTabs.map((tb) => (
-            <button
-              key={tb.id}
-              onClick={() => open(tb.id)}
-              aria-current={!phone && current.id === tb.id ? 'page' : undefined}
-              className={cn(
-                'flex shrink-0 items-center gap-3 rounded-xl px-3 py-2 text-sm whitespace-nowrap transition-colors hover:bg-accent [&>svg]:size-4 phone:py-3 phone:text-base',
-                !phone && current.id === tb.id && 'bg-accent font-medium',
+          {shownTabs.map((tb, i) => (
+            <Fragment key={tb.id}>
+              {tb.group !== 'own' && tb.group !== shownTabs[i - 1]?.group && (
+                <h2 className="shrink-0 px-3 pt-4 pb-1 text-xs font-medium text-muted-foreground phone:text-sm">
+                  {t(`settings.group.${tb.group}`)}
+                </h2>
               )}
-            >
-              {tb.icon}
-              <span className="flex-1 text-start">{t(`settings.tab.${tb.id}`)}</span>
-              {phone && <ChevronRight className="text-muted-foreground rtl:-scale-x-100" />}
-            </button>
+              <button
+                onClick={() => open(tb.id)}
+                aria-current={!phone && current.id === tb.id ? 'page' : undefined}
+                className={cn(
+                  'flex shrink-0 items-center gap-3 rounded-xl px-3 py-2 text-sm whitespace-nowrap transition-colors hover:bg-accent [&>svg]:size-4 phone:py-3 phone:text-base',
+                  !phone && current.id === tb.id && 'bg-accent font-medium',
+                )}
+              >
+                {tb.icon}
+                <span className="flex-1 text-start">{t(`settings.tab.${tb.id}`)}</span>
+                {phone && <ChevronRight className="text-muted-foreground rtl:-scale-x-100" />}
+              </button>
+            </Fragment>
           ))}
           {appsFound && (
             <button
@@ -374,12 +376,12 @@ export function SettingsPage() {
               <h1 className="flex min-w-0">
                 <Button
                   variant="ghost"
-                  onClick={toList}
-                  title={t('settings.back')}
+                  onClick={providerTitle ? () => useUi.setState({ providerView: null }) : toList}
+                  title={providerTitle ? t('providers.all') : t('settings.back')}
                   className="h-10 min-w-0 gap-1 ps-2 pe-3 text-lg font-semibold"
                 >
                   <ChevronLeft className="size-5 rtl:-scale-x-100" />
-                  <span className="truncate">{t(`settings.tab.${current.id}`)}</span>
+                  <span className="truncate">{providerTitle ?? t(`settings.tab.${current.id}`)}</span>
                 </Button>
               </h1>
             </div>
@@ -392,10 +394,27 @@ export function SettingsPage() {
             className="scroll-thin min-h-0 flex-1 overflow-y-auto p-4 roomy:px-8 roomy:pt-2 roomy:pb-12"
           >
             <div className="mx-auto w-full max-w-3xl">
-              <h2 className="mb-6 text-2xl font-semibold phone:hidden">{t(`settings.tab.${current.id}`)}</h2>
+              <h2 className="mb-6 flex min-w-0 items-center gap-2 text-2xl font-semibold phone:hidden">
+                {providerTitle ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => useUi.setState({ providerView: null })}
+                      className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      {t('settings.tab.providers')}
+                    </button>
+                    <ChevronRight className="size-5 shrink-0 text-muted-foreground rtl:-scale-x-100" />
+                    <span className="truncate">{providerTitle}</span>
+                  </>
+                ) : (
+                  t(`settings.tab.${current.id}`)
+                )}
+              </h2>
               {current.id === 'profile' && <ProfileTab />}
               {current.id === 'people' && <PeopleTab />}
               {current.id === 'general' && <General />}
+              {current.id === 'providers' && <ProvidersTab />}
               {current.id === 'connection' && <Connection />}
               {current.id === 'channels' && <ChannelsTab />}
               {current.id === 'permissions' && <Permissions />}
@@ -852,86 +871,12 @@ function Connection() {
   const t = useT();
   const { data: info } = useInfo();
   const setAuthed = useUi((s) => s.setAuthed);
-  const qc = useQueryClient();
-  const check = useMutation({
-    mutationFn: api.checkClaude,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['info'] }),
-    onError: (e) => toast.error((e as Error).message),
-  });
   const logout = useMutation({ mutationFn: api.logout, onSettled: () => setAuthed(false) });
-  // Everyone keeps their own account, devices and sign-out here; the AI account, models and the
-  // server's environment are for those who look after the server.
+  // Everyone keeps their own account, devices and sign-out here; the server's environment is for
+  // those who look after the server. The AI providers have their own section.
   const manages = useManagesServer();
-  const { data: claudeAuth } = useClaudeAuth();
-  // Opened from the model card too, when another provider is picked before any is connected.
-  const [adding, setAdding] = useState(false);
-  const addAnchor = useRef<HTMLDivElement>(null);
-  const addProvider = () => {
-    setAdding(true);
-    requestAnimationFrame(() => addAnchor.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
-  };
-  const status = info?.claude.status ?? 'unknown';
-  const claude = info?.claude;
-  const hint =
-    status === 'logged-out'
-      ? t('connection.loggedOutHint')
-      : claude?.reason === 'api-key'
-        ? t('connection.apiKeyInUse', { source: claude.detail ?? '' })
-        : claude?.reason === 'timeout'
-          ? t('connection.timeout')
-          : (claude?.detail ?? t('connection.defaultHint'));
   return (
     <>
-      {manages && (
-        <Card title={t('connection.ai')}>
-          {claudeAuth === null ? (
-            <Row label={t('connection.claude')} hint={hint}>
-              <span
-                className={cn(
-                  'flex items-center gap-1.5 text-sm',
-                  status === 'ok'
-                    ? 'text-emerald-500'
-                    : status === 'unknown'
-                      ? 'text-muted-foreground'
-                      : 'text-amber-500',
-                )}
-              >
-                {status === 'ok' ? (
-                  <Check className="size-4" />
-                ) : status === 'unknown' ? null : (
-                  <X className="size-4" />
-                )}
-                {t(`connection.status.${status}`)}
-              </span>
-              <Button
-                variant="secondary"
-                size="sm"
-                className="rounded-full"
-                onClick={() => check.mutate()}
-                disabled={check.isPending}
-              >
-                <RefreshCw className={cn(check.isPending && 'animate-spin')} /> {t('connection.check')}
-              </Button>
-            </Row>
-          ) : (
-            <div className="space-y-3 px-4 py-4">
-              <ClaudeConnect checking={check.isPending} />
-              <Button
-                variant="ghost"
-                size="sm"
-                className="rounded-full text-muted-foreground"
-                onClick={() => check.mutate()}
-                disabled={check.isPending}
-              >
-                <RefreshCw className={cn(check.isPending && 'animate-spin')} /> {t('connection.check')}
-              </Button>
-            </div>
-          )}
-          <ProviderRows plain />
-          <AddProvider open={adding} onOpenChange={setAdding} anchor={addAnchor} />
-        </Card>
-      )}
-      {manages && <ModelCard onAddProvider={addProvider} />}
       {manages && (
         <Card title={t('connection.environment')}>
           <ShellSandboxRow sandbox={info?.shellSandbox} />
@@ -1105,279 +1050,6 @@ function Devices() {
   );
 }
 
-/** Default model and effort for Claude bots; hidden on servers that cannot store them. */
-function ModelCard({ onAddProvider }: { onAddProvider(): void }) {
-  const t = useT();
-  const { data: settings } = useSettings();
-  const save = useSaveSettings();
-  const [picked, setPicked] = useState<'claude' | 'pi' | null>(null);
-  const [claudeOpen, setClaudeOpen] = useState(false);
-  if (settings?.defaultModel === undefined) return null;
-  const kind = picked ?? settings.defaultEngine ?? 'claude';
-  // Bots already on Claude keep using this setting, so it stays reachable, folded out of the way.
-  const folded = kind === 'pi' && !claudeOpen;
-  return (
-    <Card title={t('model.title')}>
-      {settings.defaultEngine !== undefined && (
-        <NewBotEngine kind={kind} onPick={setPicked} onAddProvider={onAddProvider} />
-      )}
-      <div className="space-y-3 px-4 py-4">
-        {settings.defaultEngine !== undefined && (
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className="text-sm font-medium">{t('model.claudeBots')}</div>
-              <div className="text-xs text-muted-foreground">
-                {kind === 'pi' ? t('model.claudeBotsFoldedHint') : t('model.claudeBotsHint')}
-              </div>
-            </div>
-            {kind === 'pi' && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="shrink-0 rounded-full text-muted-foreground"
-                aria-expanded={!folded}
-                onClick={() => setClaudeOpen(!claudeOpen)}
-              >
-                {folded ? t('model.show') : t('model.hide')}
-                <ChevronDown className={cn('transition-transform', !folded && 'rotate-180')} />
-              </Button>
-            )}
-          </div>
-        )}
-        {!folded && (
-          <ModelDefaults
-            value={{ model: settings.defaultModel, effort: settings.effort ?? '' }}
-            onChange={(v) => save.mutate({ defaultModel: v.model, effort: v.effort })}
-          />
-        )}
-      </div>
-      {!folded && settings.claudeCompactWindow !== undefined && <CompactWindow />}
-      {!folded && settings.idleCompact !== undefined && !!settings.claudeCompactWindow && (
-        <Row label={t('model.idleCompact')} hint={t('model.idleCompactHint')}>
-          <Switch
-            checked={settings.idleCompact}
-            onCheckedChange={(v) => save.mutate({ idleCompact: v })}
-            aria-label={t('model.idleCompact')}
-          />
-        </Row>
-      )}
-      {settings.backupModel !== undefined && <BackupModel onAddProvider={onAddProvider} />}
-    </Card>
-  );
-}
-
-/** Sizes offered, in tokens; 0 leaves it to Claude. The server starts at the recommended one. */
-const COMPACT_CHOICES = [100_000, 150_000, 200_000, 300_000, 400_000, 600_000, 800_000, 1_000_000, 0];
-const COMPACT_RECOMMENDED = 200_000;
-
-/** How big a Claude bot's conversation grows before its older part is folded into a summary. */
-function CompactWindow() {
-  const t = useT();
-  const { data: settings } = useSettings();
-  const save = useSaveSettings();
-  const value = settings?.claudeCompactWindow ?? COMPACT_RECOMMENDED;
-  // A size another client saved stays listed, so the box never shows empty.
-  const choices = COMPACT_CHOICES.includes(value) ? COMPACT_CHOICES : [...COMPACT_CHOICES, value];
-  const label = (n: number) => {
-    const size =
-      n === 0
-        ? t('model.compactAuto')
-        : n >= 1_000_000
-          ? t('model.compactMillion', { count: n / 1_000_000 })
-          : t('model.compactThousand', { count: n / 1_000 });
-    return n === COMPACT_RECOMMENDED ? t('model.compactRecommended', { size }) : size;
-  };
-  return (
-    <Row label={t('model.compact')} hint={t('model.compactHint')}>
-      <Select value={String(value)} onValueChange={(v) => save.mutate({ claudeCompactWindow: Number(v) })}>
-        <SelectTrigger className="w-56 rounded-full" aria-label={t('model.compact')}>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {choices.map((n) => (
-            <SelectItem key={n} value={String(n)}>
-              {label(n)}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </Row>
-  );
-}
-
-/** The model that carries the work once the usage limit is spent, instead of waiting for it. */
-function BackupModel({ onAddProvider }: { onAddProvider(): void }) {
-  const t = useT();
-  const { data: settings } = useSettings();
-  const save = useSaveSettings();
-  const [on, setOn] = useState<boolean | null>(null);
-  const [ref, setRef] = useState<string | null>(null);
-  const pi = useSavePiModel(() => setRef(null), true);
-  const hasProvider = useHasProvider();
-  const stored = settings?.backupModel ?? '';
-  const open = on ?? !!stored;
-  const value = ref ?? stored;
-  return (
-    <div className="space-y-3 border-t px-4 py-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-sm font-medium">{t('model.backup')}</div>
-          <div className="text-xs text-muted-foreground">{t('model.backupHint')}</div>
-        </div>
-        <Switch
-          checked={open}
-          onCheckedChange={(v) => {
-            setOn(v);
-            if (!v && stored) save.mutate({ backupModel: '' });
-          }}
-          aria-label={t('model.backup')}
-        />
-      </div>
-      {open && (
-        <div className="space-y-2">
-          <PiModelPicker value={value} onChange={setRef} empty={<NoProvider onAdd={onAddProvider} />} />
-          {hasProvider && (
-            <div className="flex items-center gap-3">
-              <Button
-                size="sm"
-                className="rounded-full"
-                onClick={() => pi.save.mutate(value)}
-                disabled={!isPiModel(value) || value === stored || pi.save.isPending}
-              >
-                {pi.save.isPending && <Loader2 className="animate-spin" />}
-                {pi.save.isPending ? t('claude.testing') : t('provider.tryAndSave')}
-              </Button>
-              {stored && value === stored && (
-                <span className="text-xs text-muted-foreground">{t('provider.inUse')}</span>
-              )}
-            </div>
-          )}
-          {pi.error && (
-            <p className="text-sm text-destructive">{t('provider.failed', { detail: pi.error })}</p>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/**
- * Which AI new bots start with: Claude, or a model of a provider with a stored key. The choice
- * is held by the card, which folds the Claude settings away while another provider is picked.
- */
-function NewBotEngine({
-  kind,
-  onPick,
-  onAddProvider,
-}: {
-  kind: 'claude' | 'pi';
-  onPick(kind: 'claude' | 'pi'): void;
-  onAddProvider(): void;
-}) {
-  const t = useT();
-  const { data: settings } = useSettings();
-  const save = useSaveSettings();
-  const [ref, setRef] = useState<string | null>(null);
-  const pi = useSavePiModel(() => setRef(null));
-  const hasProvider = useHasProvider();
-  const value = ref ?? settings?.piModel ?? '';
-  const saved = settings?.defaultEngine === 'pi' && settings.piModel === value;
-  return (
-    <div className="space-y-3 border-b px-4 py-4">
-      <div>
-        <div className="text-sm font-medium">{t('model.newBots')}</div>
-        <div className="text-xs text-muted-foreground">{t('model.newBotsHint')}</div>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <Chip
-          on={kind === 'claude'}
-          onClick={() => {
-            onPick('claude');
-            if (settings?.defaultEngine !== 'claude') save.mutate({ defaultEngine: 'claude' });
-          }}
-        >
-          {t('ai.claude')}
-        </Chip>
-        <Chip on={kind === 'pi'} onClick={() => onPick('pi')}>
-          {t('ai.other')}
-        </Chip>
-      </div>
-      {kind === 'pi' && (
-        <div className="space-y-2">
-          <PiModelPicker value={value} onChange={setRef} empty={<NoProvider onAdd={onAddProvider} />} />
-          {hasProvider && (
-            <div className="flex items-center gap-3">
-              <Button
-                size="sm"
-                className="rounded-full"
-                onClick={() => pi.save.mutate(value)}
-                disabled={!isPiModel(value) || saved || pi.save.isPending}
-              >
-                {pi.save.isPending && <Loader2 className="animate-spin" />}
-                {pi.save.isPending ? t('claude.testing') : t('provider.tryAndSave')}
-              </Button>
-              {saved && <span className="text-xs text-muted-foreground">{t('provider.inUse')}</span>}
-            </div>
-          )}
-          {pi.error && (
-            <p className="text-sm text-destructive">{t('provider.failed', { detail: pi.error })}</p>
-          )}
-        </div>
-      )}
-      {settings?.defaultEngine === kind && (kind === 'claude' || saved) && <MoveExistingBots />}
-    </div>
-  );
-}
-
-/**
- * Offers to move the bots that run on another AI to what new bots start with, since changing
- * that setting leaves every existing bot as it was.
- */
-function MoveExistingBots() {
-  const t = useT();
-  const qc = useQueryClient();
-  const { data: settings } = useSettings();
-  const { data: bots = [] } = useBots();
-  const target = newBotEngine(settings);
-  const count = bots.filter((b) => leavesForEngine(b, target)).length;
-  const move = useMutation({
-    mutationFn: api.moveBotsToNewEngine,
-    onSuccess: ({ changed }) => {
-      void qc.invalidateQueries({ queryKey: ['bots'] });
-      void qc.invalidateQueries({ queryKey: ['routines'] });
-      toast.success(t('model.moved', { count: changed }));
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
-  if (!count) return null;
-  const confirm = () => {
-    const pi = target.engine === 'pi';
-    const text = [
-      pi
-        ? t('model.moveConfirm.pi', { count, model: target.model })
-        : t('model.moveConfirm.claude', { count }),
-      t('model.moveKeeps'),
-      ...(pi ? [t('bot.engineHint.pi')] : []),
-    ].join('\n\n');
-    if (window.confirm(text)) move.mutate();
-  };
-  return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/50 px-3 py-2">
-      <span className="text-xs text-muted-foreground">{t('model.moveExisting', { count })}</span>
-      <Button
-        size="sm"
-        variant="outline"
-        className="rounded-full"
-        onClick={confirm}
-        disabled={move.isPending}
-      >
-        {move.isPending && <Loader2 className="animate-spin" />}
-        {t('model.moveButton')}
-      </Button>
-    </div>
-  );
-}
-
 /** In the desktop app: switch this window to another server, or back to the one on this computer. */
 function DesktopServerRow() {
   const t = useT();
@@ -1407,61 +1079,6 @@ function DesktopServerRow() {
         </Button>
       )}
     </Row>
-  );
-}
-
-/**
- * Adds a provider other than Claude: folded to one button once some provider is connected, open
- * while none is, since then it is the way on.
- */
-function AddProvider({
-  open,
-  onOpenChange,
-  anchor,
-}: {
-  open: boolean;
-  onOpenChange(open: boolean): void;
-  anchor: React.RefObject<HTMLDivElement | null>;
-}) {
-  const t = useT();
-  const hasProvider = useHasProvider();
-  const shown = open || !hasProvider;
-  return (
-    <div ref={anchor} className="px-4 py-4">
-      {shown ? (
-        <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">{t('keys.hint')}</p>
-          <AddProviderForm onAdded={() => onOpenChange(false)} />
-          {hasProvider && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="rounded-full text-muted-foreground"
-              onClick={() => onOpenChange(false)}
-            >
-              {t('common.cancel')}
-            </Button>
-          )}
-        </div>
-      ) : (
-        <Button variant="secondary" size="sm" className="rounded-full" onClick={() => onOpenChange(true)}>
-          <Plus /> {t('provider.add')}
-        </Button>
-      )}
-    </div>
-  );
-}
-
-/** In the model card while no provider is connected: says so and opens the form above. */
-function NoProvider({ onAdd }: { onAdd(): void }) {
-  const t = useT();
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      <p className="text-sm text-muted-foreground">{t('provider.noneYet')}</p>
-      <Button variant="secondary" size="sm" className="rounded-full" onClick={onAdd}>
-        <Plus /> {t('provider.add')}
-      </Button>
-    </div>
   );
 }
 

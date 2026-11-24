@@ -14,17 +14,18 @@ export interface PaletteCommand {
 /** The settings sections in the order the settings page lists them. */
 export const SETTINGS_TABS: readonly SettingsTab[] = [
   'profile',
-  'people',
   'general',
-  'connection',
-  'channels',
-  'permissions',
-  'vault',
-  'memory',
+  'providers',
   'services',
+  'memory',
   'routines',
   'skills',
+  'channels',
   'groups',
+  'people',
+  'permissions',
+  'vault',
+  'connection',
   'import',
   'usage',
   'about',
@@ -32,6 +33,7 @@ export const SETTINGS_TABS: readonly SettingsTab[] = [
 
 /** Sections only those who look after the server use: what they change is the server's. */
 export const SERVER_TABS: ReadonlySet<SettingsTab> = new Set([
+  'providers',
   'channels',
   'services',
   'groups',

@@ -266,7 +266,7 @@ export function MessageItem({
                 <Button
                   size="sm"
                   className="rounded-full"
-                  onClick={() => useUi.getState().openSettings('connection')}
+                  onClick={() => useUi.getState().openSettings('providers', false, 'claude')}
                 >
                   {t('message.connectClaude')}
                 </Button>
