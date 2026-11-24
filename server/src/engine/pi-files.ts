@@ -5,6 +5,7 @@ import { DEFAULT_LOCALE } from '@leafbot/shared';
 import { z } from 'zod';
 import { translator, type T } from '../i18n';
 import { canFitImages } from './fit-image';
+import { PDF_MAX_PAGES, PdfError, readPdf, type PdfRun } from './pdf';
 import type { Sandbox, ToolResult } from './types';
 
 /**
@@ -45,6 +46,8 @@ const IMAGE_TYPES: Record<string, string> = {
  */
 const MAX_IMAGE = 25 * 1024 * 1024;
 const MAX_IMAGE_UNFITTED = 5 * 1024 * 1024;
+/** A PDF larger than this is not opened: a mail or a chat app brings nothing bigger. */
+const MAX_PDF = 100 * 1024 * 1024;
 const MAX_LIST = 500;
 const MAX_MATCHES = 200;
 
@@ -105,12 +108,18 @@ function inside(p: string, root: string) {
   return r === '' || (!r.startsWith('..') && !isAbsolute(r));
 }
 
-/** `seesImages`: the model takes pictures, so read_file shows it one instead of its bytes. */
+/**
+ * `seesImages`: the model takes pictures, so read_file shows it one instead of its bytes.
+ * `pictures`: how many pictures a request keeps; a PDF read draws no more pages than that, or the
+ * first pages' pictures would be left out of the request unseen. `pdfRun`: what runs poppler's
+ * programs, for tests.
+ */
 export function fileTools(
   sb: Sandbox,
   t: T = translator(DEFAULT_LOCALE),
-  { seesImages = false }: { seesImages?: boolean } = {},
+  { seesImages = false, pictures, pdfRun }: { seesImages?: boolean; pictures?: number; pdfRun?: PdfRun } = {},
 ): FileTool[] {
+  const pdfPages = seesImages && pictures ? Math.min(pictures, PDF_MAX_PAGES) : PDF_MAX_PAGES;
   const readRoots = [sb.cwd, ...sb.additionalDirectories].filter(existsSync).map((d) => realpathSync(d));
   const writeRoots = sb.writable.filter(existsSync).map((d) => realpathSync(d));
 
@@ -124,6 +133,53 @@ export function fileTools(
     return abs;
   };
 
+  /**
+   * A PDF as its pages' text and, for a model that sees pictures, the pages themselves: a scanned
+   * delivery note has no text layer and is read from its picture.
+   */
+  const readPdfFile = async (
+    abs: string,
+    a: Record<string, unknown>,
+    size: number,
+    signal: AbortSignal,
+  ): Promise<ToolResult> => {
+    if (size > MAX_PDF) throw new PathError(t('files.tooLarge'));
+    let pdf;
+    try {
+      pdf = await readPdf(abs, {
+        pages: typeof a.pages === 'string' ? a.pages : undefined,
+        images: seesImages,
+        maxPages: pdfPages,
+        signal,
+        run: pdfRun,
+      });
+    } catch (err) {
+      if (!(err instanceof PdfError)) throw err;
+      const vars = { count: err.count, max: pdfPages, pages: String(a.pages ?? '') };
+      const key = {
+        noPoppler: 'files.pdfNoPoppler',
+        locked: 'files.pdfLocked',
+        broken: 'files.pdfBroken',
+        tooLong: 'files.pdfTooLong',
+        badRange: 'files.pdfBadRange',
+      } as const;
+      throw new PathError(t(key[err.problem], vars));
+    }
+    const pages = pdf.texts.map(
+      (text, i) => `${t('files.pdfPage', { page: pdf.from + i })}\n${text || t('files.pdfNoText')}`,
+    );
+    const lead = t('files.pdf', { path: String(a.path), from: pdf.from, to: pdf.to, count: pdf.count });
+    const tail = pdf.images.length
+      ? `\n\n${t('files.pdfPictures')}`
+      : pdf.texts.some((x) => !x)
+        ? `\n\n${t('files.pdfUnseen')}`
+        : '';
+    let text = `${lead}\n\n${pages.join('\n\n')}`;
+    if (text.length > MAX_READ) text = `${text.slice(0, MAX_READ)}\n… (kesildi)`;
+    text += tail;
+    return pdf.images.length ? { text, images: pdf.images } : text;
+  };
+
   const read: FileTool = {
     name: 'read_file',
     permissionName: 'Read',
@@ -132,10 +188,14 @@ export function fileTools(
       path: z.string().describe(t('files.readPath')),
       offset: z.number().int().min(1).optional(),
       limit: z.number().int().min(1).max(5000).optional(),
+      pages: z
+        .string()
+        .optional()
+        .describe(t('files.readPages', { max: pdfPages })),
     },
     target: (a) => resolvePath(a.path, false),
     cardInput: (_a, abs) => ({ file_path: abs }),
-    async run(a) {
+    async run(a, signal) {
       const abs = resolvePath(a.path, false);
       const info = await stat(abs);
       if (!info.isFile()) throw new PathError(t('files.notAFile'));
@@ -151,6 +211,7 @@ export function fileTools(
           images: [{ data: (await readFile(abs)).toString('base64'), mimeType }],
         };
       }
+      if (abs.toLowerCase().endsWith('.pdf')) return readPdfFile(abs, a, info.size, signal);
       if (info.size > MAX_READ * 8) throw new PathError(t('files.tooLarge'));
       const lines = (await readFile(abs, 'utf8')).split('\n');
       const from = ((a.offset as number | undefined) ?? 1) - 1;
