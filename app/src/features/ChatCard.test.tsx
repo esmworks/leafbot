@@ -77,11 +77,13 @@ describe('ChatCard', () => {
     expect(sent).toMatchObject({ rev: 2, values: { topic: 'Bütçe', day: '2026-12-01', remind: true } });
   });
 
-  it('does not send while a required field is empty', () => {
+  it('does not send while a required field is empty, and drops the warning once it is filled', () => {
     draw(message());
     fireEvent.click(screen.getByRole('button', { name: 'Ayarla' }));
     expect(answerCard).not.toHaveBeenCalled();
     expect(screen.getByText(/Konu/, { selector: 'div' })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText('Konu'), { target: { value: 'Bütçe' } });
+    expect(screen.queryByText(/Konu/, { selector: 'div' })).toBeNull();
   });
 
   it('opens a link button in a new window instead of answering', () => {
