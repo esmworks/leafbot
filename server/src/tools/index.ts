@@ -1444,12 +1444,16 @@ export class ToolFactory {
           const held = (r.steps ?? []).filter((x) => x.kind === 'approval');
           const before = r.steps ?? [];
           const at = (id: string) => steps?.findIndex((y) => y.id === id) ?? -1;
-          // Taken away, or with a step that came after it (and so waited for the person) now before it.
+          // Taken away, or with a step that came after it (and so waited for the person) now before it,
+          // or given a condition that can pass it over and let the steps after it run unasked.
           const loosened =
             steps &&
             held.some((x) => {
               const now = steps.findIndex((y) => y.id === x.id && y.kind === 'approval');
               if (now < 0) return true;
+              const when = steps[now]!.when;
+              if (when && when.otherwise !== 'end' && JSON.stringify(when) !== JSON.stringify(x.when ?? null))
+                return true;
               return before.slice(before.indexOf(x) + 1).some((y) => {
                 const there = at(y.id);
                 return there >= 0 && there < now;

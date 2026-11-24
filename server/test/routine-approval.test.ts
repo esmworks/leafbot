@@ -87,6 +87,22 @@ describe('an approval step of a routine', () => {
     expect(await reports(bot.id)).toHaveLength(0);
   });
 
+  it('sends a correction back past a step its condition passed over, to the one that did the work', async () => {
+    const bot = await t.bot();
+    const r = await make(bot.id, [
+      { id: 'kontrol', kind: 'agent', prompt: 'denetle', when: { filter: 'count!=0' } },
+      { id: 'onay', kind: 'approval', question: 'Uygun mu?' },
+    ]);
+    // A bot's prose is no JSON: the filter does not hold, and the step is passed over, not stuck.
+    const run = await runOnce(r);
+    expect(run.steps?.map((s) => s.status)).toEqual(['done', 'skipped', 'waiting']);
+    await answer((await card(run)).id, { decision: 'allow', answer: 'daha kısa olsun' });
+    const again = t.engine.requests.at(-1)!.prompt;
+    expect(again).toContain('daha kısa olsun');
+    expect(again).toContain('taslak yaz');
+    expect(t.engine.requests.some((q) => q.prompt.includes('denetle'))).toBe(false);
+  });
+
   it('does the step before it again with a correction in words, then asks again', async () => {
     const bot = await t.bot();
     const r = await make(bot.id, [{ id: 'onay', kind: 'approval', question: 'Uygun mu?' }]);

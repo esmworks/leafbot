@@ -2729,7 +2729,7 @@ export class RoutineService {
           r.routine.name,
           run.promptSnapshot,
           steps,
-          botStepAt(steps, step.position - 1),
+          botStepAt(steps, step.position - 1, rows),
           rows,
           t('routine.reviseNote', { answer: o.revise }),
           t,

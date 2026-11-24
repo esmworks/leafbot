@@ -190,6 +190,30 @@ describe('routine tools with steps', () => {
     await t.api('POST', `/api/approvals/${next.id}`, { decision: 'allow', answer: 'Onayla' });
     await t.services.turns.idle();
     expect((await mine(bot.id)).steps!.map((s) => s.kind)).toEqual(['agent', 'notify', 'approval']);
+
+    // A condition that could pass the approval over lets what follows run unasked: asked about too.
+    const now = (await mine(bot.id)).steps!;
+    const gated = now.map((s) =>
+      s.kind === 'approval'
+        ? { id: s.id, kind: 'approval', question: 'Gönderilsin mi?', when: { contains: 'acil' } }
+        : s.kind === 'agent'
+          ? { id: s.id, kind: 'agent', prompt: s.prompt, model: s.model }
+          : { id: s.id, kind: 'notify', text: 'Brifing hazır' },
+    );
+    await t.send(thread.id, `[araç:routine_update ${JSON.stringify({ routine: 'Brifing', steps: gated })}]`);
+    const third = await waitFor(async () => (await pending())[0]);
+    expect(third.summary).toContain('koşul');
+    await t.api('POST', `/api/approvals/${third.id}`, { decision: 'allow', answer: 'Reddet' });
+    await t.services.turns.idle();
+    expect((await mine(bot.id)).steps!.find((s) => s.kind === 'approval')!.when).toBeFalsy();
+    // One that ends the run when it does not hold lets nothing through, so it needs no card.
+    const ending = gated.map((s) =>
+      s.kind === 'approval' ? { ...s, when: { contains: 'acil', otherwise: 'end' } } : s,
+    );
+    expect(await ask(thread.id, 'routine_update', { routine: 'Brifing', steps: ending })).toContain(
+      'rutini güncellendi',
+    );
+    expect(await pending()).toHaveLength(0);
   });
 
   it('gives a routine whose step waits for its webhook an address, and keeps the filter', async () => {

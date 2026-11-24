@@ -58,10 +58,17 @@ export function handedOn(
   return parts.length ? parts.join('\n\n') : null;
 }
 
-/** The nearest bot step at or before `position`: the one a written correction sends back to. */
-export function botStepAt(steps: readonly RoutineStep[], position: number): number {
+/**
+ * The nearest bot step at or before `position` that ran: the one a written correction sends back
+ * to. One its condition passed over did no work to correct.
+ */
+export function botStepAt(
+  steps: readonly RoutineStep[],
+  position: number,
+  rows: readonly StepRow[] = [],
+): number {
   let p = position;
-  while (p > 0 && !isBotStep(steps, p)) p--;
+  while (p > 0 && (!isBotStep(steps, p) || rows.find((r) => r.position === p)?.status === 'skipped')) p--;
   return p;
 }
 

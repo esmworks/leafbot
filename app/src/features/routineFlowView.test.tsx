@@ -84,11 +84,21 @@ describe('rutin akışı', () => {
   });
 
   it('adımın koşulu listede açılır, akışın kutusunda da aynı görünür; kapatılınca silinir', () => {
-    let last: StepForm[] = [];
+    const changed = vi.fn<(next: StepForm[]) => void>();
+    const last = () => changed.mock.lastCall![0];
     function Watch() {
       const [steps, setSteps] = useState([agent('a', 'Summarise it')]);
-      last = steps;
-      return <StepsEditor steps={steps} onChange={setSteps} modelListId="m" modelPlaceholder="" />;
+      return (
+        <StepsEditor
+          steps={steps}
+          onChange={(next) => {
+            setSteps(next);
+            changed(next);
+          }}
+          modelListId="m"
+          modelPlaceholder=""
+        />
+      );
     }
     render(<Watch />);
     expect(screen.queryByPlaceholderText(/Text to look for/)).toBeNull();
@@ -96,9 +106,9 @@ describe('rutin akışı', () => {
     fireEvent.change(screen.getByPlaceholderText(/Text to look for/), { target: { value: '[1]' } });
     fireEvent.click(screen.getByRole('radio', { name: 'It lacks' }));
     fireEvent.click(screen.getByRole('radio', { name: 'End the run' }));
-    expect(last[0]!.when).toEqual({ contains: '[1]', filter: '', absent: true, otherwise: 'end' });
+    expect(last()[0]!.when).toEqual({ contains: '[1]', filter: '', absent: true, otherwise: 'end' });
     fireEvent.click(screen.getByRole('switch', { name: 'Run this step only if…' }));
-    expect(last[0]!.when).toBeNull();
+    expect(last()[0]!.when).toBeNull();
     cleanup();
 
     const gated: StepForm = {
