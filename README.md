@@ -72,7 +72,8 @@ cannot turn right to left without a restart. [docs/i18n.md](docs/i18n.md) covers
   on Today as a skill, written from the steps that worked and what the person corrected. Routines run on a schedule
   (including cron and day/hour windows), when the server starts, from a filtered webhook or an app's event (GitHub,
   GitLab, Stripe, Shopify, Linear, Sentry, Calendly, Typeform, each with its signature checked), when a row of a bot's table
-  is ready, or only when a watched page or a connected app's answer changes; they can build on their last report, and
+  is ready, or only when a watched page or a connected app's answer changes, or only when a condition holds (files
+  came, a mail arrived, a row is there), looked at with no AI and rechecked until a time; they can build on their last report, and
   they run in the bot's main conversation unless they read WhatsApp, wait for the person or are started by outside text. A routine's steps can be laid out as boxes on a canvas, edited in place, with each
   box showing how the latest run went there. A new or changed routine can be rehearsed before it runs for real. A
   routine whose runs fail ten times in a row switches itself off and tells the person. A routine set to "Only tell me"

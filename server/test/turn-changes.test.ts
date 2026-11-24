@@ -176,6 +176,7 @@ describe('taking back what one turn changed', () => {
       tableTrigger: null,
       tableFilter: '',
       flowLayout: null,
+      condition: null,
     });
     await say(thread.id, `[araç:routine_update ${JSON.stringify({ routine: 'Noon', prompt: 'Say bye.' })}]`);
     const changed = await lastTurn(thread.id);

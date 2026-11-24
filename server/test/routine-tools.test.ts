@@ -94,6 +94,26 @@ describe('routine tools with steps', () => {
     expect(await t.services.routines.list(bot.id)).toHaveLength(0);
   });
 
+  it('refuses a misspelt model for the routine or a step, and takes a full model id', async () => {
+    const bot = await t.bot({ permissionMode: 'auto' });
+    const thread = await main(bot.id);
+    expect(await ask(thread.id, 'routine_create', { ...briefing, model: 'sonet' })).toContain(
+      'sonet kullanılabilir bir model değil',
+    );
+    const step = await ask(thread.id, 'routine_create', {
+      ...briefing,
+      steps: [{ kind: 'agent', prompt: 'Derle', model: 'anthropic/opus' }],
+    });
+    expect(step).toContain('anthropic/opus kullanılabilir bir model değil');
+    expect(await t.services.routines.list(bot.id)).toHaveLength(0);
+    await ask(thread.id, 'routine_create', { ...briefing, model: 'claude-haiku-5-5' });
+    expect((await mine(bot.id)).model).toBe('claude-haiku-5-5');
+    expect(await ask(thread.id, 'routine_update', { routine: 'Brifing', model: 'opsu' })).toContain(
+      'opsu kullanılabilir',
+    );
+    expect((await mine(bot.id)).model).toBe('claude-haiku-5-5');
+  });
+
   it('asks the person before an approval step is taken out, even at full access', async () => {
     const bot = await t.bot({ permissionMode: 'auto' });
     const thread = await main(bot.id);

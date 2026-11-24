@@ -12,11 +12,13 @@ import {
   ROUTINE_VARS_MAX,
   nextRun,
   zonedTime,
+  wallClock,
   occurrenceKey,
   parseFilter,
   passesFilter,
   type Routine,
   type RoutineCheck,
+  type RoutineCondition,
   type RoutineCreate,
   type RoutineRevision,
   type RoutineRun,
@@ -54,6 +56,7 @@ import { toRoutine, toRun } from './mappers';
 import { botStepAt, handedOn, snapshotSteps, stepList, varsWanted } from './routine-steps';
 import { fetchPublicText } from './skill-link';
 import { mailText } from './email';
+import { RoutineConditions, type ConditionResult } from './routine-conditions';
 import type { Services } from '.';
 
 /** The largest watched page read, and how much of its text goes to the bot. */
@@ -132,6 +135,8 @@ export class RoutineService {
   /** The pass over answered approval steps under way, and whether another was asked for meanwhile. */
   private settling: Promise<void> | null = null;
   private settleAgain = false;
+  /** Looks at a routine's condition with no AI before a scheduled run. */
+  private conditions: RoutineConditions;
 
   constructor(
     private ctx: Ctx,
@@ -140,6 +145,7 @@ export class RoutineService {
     private engineFor: (bot: Bot) => Engine,
     private clock: () => Date = () => new Date(),
   ) {
+    this.conditions = new RoutineConditions(ctx, services, clock);
     // A card answered anywhere (the app, a phone, a chat channel) lets a run held at it go on.
     ctx.bus.on('refresh', (e) => {
       if (e.scope === 'approvals')
@@ -267,6 +273,13 @@ export class RoutineService {
     if (made >= MAX_ROUTINES_PER_BOT)
       throw new HttpError(400, 'error.routineLimit', { max: MAX_ROUTINES_PER_BOT });
     if (input.check) await this.checkCheck(input.botId, input.check, userId, !!input.slackChannel);
+    if (input.condition)
+      await this.checkCondition(
+        input.botId,
+        input.condition,
+        userId ?? (await this.services.access.botOwner(input.botId)),
+        input.slackChannel,
+      );
     if (input.whatsappGroup || input.whatsappPeople) {
       checkWhatsAppPlace(input.slackChannel);
       await this.checkGroup(userId ?? (await this.services.access.botOwner(input.botId)));
@@ -323,6 +336,10 @@ export class RoutineService {
     const check = patch.check !== undefined ? patch.check : person !== was ? current.check : null;
     const slackChannel = patch.slackChannel !== undefined ? patch.slackChannel : current.slackChannel;
     if (check) await this.checkCheck(current.botId, check, person, !!slackChannel);
+    // The condition reads for the routine's person too: a new one, or the old one for its new person.
+    const condition =
+      patch.condition !== undefined ? patch.condition : person !== was ? (current.condition ?? null) : null;
+    if (condition) await this.checkCondition(current.botId, condition, person, slackChannel);
     // WhatsApp is read for the person whose WhatsApp it is, also once the routine changes hands.
     const group = patch.whatsappGroup !== undefined ? patch.whatsappGroup : current.whatsappGroup;
     const people = patch.whatsappPeople ?? current.whatsappPeople ?? false;
@@ -424,6 +441,49 @@ export class RoutineService {
     const person = team ? null : (userId ?? (await this.services.access.botOwner(botId)));
     const tool = await this.services.connections.checkTool(botId, check.connectionId, check.tool, person);
     if (!tool) throw new HttpError(400, 'error.routineCheckTool');
+  }
+
+  /**
+   * A condition may only look at what is kept for it: a check that something is absent from a
+   * source nobody collects would always hold. Each check reads for the routine's person.
+   */
+  private async checkCondition(
+    botId: string,
+    condition: RoutineCondition,
+    person: string,
+    slackChannel: string | null | undefined,
+  ) {
+    for (const c of condition.checks) {
+      if (c.kind === 'tool') await this.checkCheck(botId, { ...c }, person, !!slackChannel);
+      else if (c.kind === 'table') await this.checkTable(botId, c.tableId, c.filter);
+      else if (c.kind === 'files' && c.folder === 'group') {
+        const bot = await this.services.bots.get(botId);
+        if (!bot.groupId) throw new HttpError(400, 'error.routineConditionGroup');
+      } else if (c.kind === 'email') {
+        const [address] = await this.ctx.db
+          .select({ name: schema.emailAddresses.name })
+          .from(schema.emailAddresses)
+          .where(eq(schema.emailAddresses.botId, botId))
+          .limit(1);
+        if (!address) throw new HttpError(400, 'error.routineConditionEmail');
+      } else if (c.kind === 'whatsapp') {
+        checkWhatsAppPlace(slackChannel);
+        await this.checkGroup(person);
+        const [follows] = await this.ctx.db
+          .select({ id: schema.routines.id })
+          .from(schema.routines)
+          .where(or(isNotNull(schema.routines.whatsappGroup), eq(schema.routines.whatsappPeople, true)))
+          .limit(1);
+        if (!follows) throw new HttpError(400, 'error.routineConditionWhatsapp');
+      }
+    }
+  }
+
+  /** What the routine's condition says now, with no AI; null for a routine with none. */
+  async conditionNow(id: string): Promise<ConditionResult | null> {
+    const routine = await this.get(id);
+    if (!routine.condition) return null;
+    return this.conditions.evaluate(routine, routine.condition, await this.services.settings.translator());
   }
 
   /** A one-time run must be ahead; one set in the past would run at once by surprise. */
@@ -552,7 +612,7 @@ export class RoutineService {
     for (const r of due) {
       // One still reading from an earlier pass is not started a second time.
       if (this.watching.has(r.id)) continue;
-      if (r.watchUrl || r.check) {
+      if (r.watchUrl || r.check || r.condition) {
         const read = this.readSlot()
           .then(async () => {
             try {
@@ -620,6 +680,9 @@ export class RoutineService {
         );
       } else if (late && routine.missed === 'skip') {
         await this.record(toRoutine(routine), occurrence, 'skipped', t('routine.missedSkipped'));
+      } else if (routine.condition && (await this.conditionStops(routine, now, occurrence, t))) {
+        // Looked at before the page and the app's check: those keep what they read as they read it,
+        // so a change they found would be lost on a run the condition held back.
       } else if (routine.watchUrl || routine.check) {
         // A watched page and an app's check are read with no AI; the bot runs only when one of
         // them changed, and gets what is new.
@@ -688,6 +751,91 @@ export class RoutineService {
     await this.advance(routine).catch((err) =>
       console.error(`Routine ${routine.id} could not move to its next run`, err),
     );
+  }
+
+  /**
+   * Looks at the routine's condition before a scheduled run; true when the run must not start.
+   * Not met, it is looked at again later the same day when the routine says so, as long as that
+   * comes before its next regular run; at the end its note, if it has one, goes where it reports.
+   * A check that could not be read holds the run back too, but never sends the note: the note says
+   * something did not come, which nobody knows then.
+   */
+  private async conditionStops(row: RoutineRow, now: Date, occurrence: string, t: T): Promise<boolean> {
+    const routine = toRoutine(row);
+    const condition = routine.condition!;
+    const result = await this.conditions.evaluate(routine, condition, t);
+    if (result.outcome === 'holds') return false;
+    const reason = result.lines.join('; ');
+    const schedule = row.schedule as Schedule;
+    if (condition.recheckMinutes && condition.recheckUntil) {
+      const w = wallClock(now, row.timezone);
+      const p = (n: number) => String(n).padStart(2, '0');
+      const until = zonedTime(`${w.year}-${p(w.month)}-${p(w.day)}`, condition.recheckUntil, row.timezone);
+      const again = new Date(now.getTime() + condition.recheckMinutes * 60_000);
+      const regular =
+        schedule.type === 'once'
+          ? null
+          : (row.resumeAt ?? nextRun(schedule, row.timezone, now, row.nextRunAt));
+      if (again.getTime() <= until.getTime() && (!regular || again.getTime() < regular.getTime())) {
+        // `advance` then leaves the slot alone: it moves on only from the slot it was due at.
+        await this.ctx.db
+          .update(schema.routines)
+          .set({ nextRunAt: again, resumeAt: regular })
+          .where(and(eq(schema.routines.id, row.id), eq(schema.routines.nextRunAt, row.nextRunAt!)));
+        const hm = wallClock(again, row.timezone);
+        await this.recordQuiet(
+          routine,
+          occurrence,
+          'skipped',
+          t('routine.conditionRecheck', { reason, at: `${p(hm.hour)}:${p(hm.minute)}` }),
+        );
+        return true;
+      }
+    }
+    if (result.outcome === 'fails' && condition.otherwise)
+      await this.post(
+        routine,
+        condition.otherwise,
+        `cond:${occurrence}`,
+        t('routine.conditionSkipped', { reason }),
+      );
+    else
+      await this.recordQuiet(
+        routine,
+        occurrence,
+        result.outcome === 'unreadable' ? 'error' : 'skipped',
+        t(result.outcome === 'unreadable' ? 'routine.conditionError' : 'routine.conditionSkipped', {
+          reason,
+        }),
+      );
+    return true;
+  }
+
+  /**
+   * Records a slot the routine did not run, as one line with the one before it when that one ended
+   * the same way for the same reason: a routine every five minutes whose condition is not met for a
+   * day leaves one line, not hundreds.
+   */
+  private async recordQuiet(
+    routine: Routine,
+    occurrence: string,
+    status: 'skipped' | 'error',
+    reason: string,
+  ) {
+    const [last] = await this.ctx.db
+      .select()
+      .from(schema.routineRuns)
+      .where(eq(schema.routineRuns.routineId, routine.id))
+      .orderBy(desc(schema.routineRuns.startedAt), desc(schema.routineRuns.id))
+      .limit(1);
+    if (last?.status === status && last.reason === reason) {
+      await this.ctx.db
+        .update(schema.routineRuns)
+        .set({ finishedAt: this.clock() })
+        .where(eq(schema.routineRuns.id, last.id));
+      return;
+    }
+    await this.record(routine, occurrence, status, reason);
   }
 
   /**
@@ -1198,7 +1346,16 @@ export class RoutineService {
    * A notification-style webhook: what the call carries lands in the routine's conversation as the
    * bot's own message, with no AI turn and no cost. The run is recorded as done.
    */
-  private async post(routine: Routine, payload: string, delivery: string | null): Promise<RoutineRun | null> {
+  /**
+   * Posts what a webhook call carries as the bot's message, with no AI. With `skipped`, it is a
+   * condition's note instead: the run is kept as skipped for that reason, since no run took place.
+   */
+  private async post(
+    routine: Routine,
+    payload: string,
+    delivery: string | null,
+    skipped?: string,
+  ): Promise<RoutineRun | null> {
     const t = await this.services.settings.translator();
     const bot = await this.services.bots.get(routine.botId).catch(() => null);
     const occurrence = delivery ?? `post:${this.clock().toISOString()}:${newId().slice(0, 8)}`;
@@ -1210,16 +1367,18 @@ export class RoutineService {
         id: newId(),
         routineId: routine.id,
         occurrence,
-        status: 'done',
+        status: skipped ? 'skipped' : 'done',
+        reason: skipped ?? null,
         threadId: thread.id,
         promptSnapshot: routine.prompt,
         finishedAt: this.clock(),
       })
       .returning()) as [typeof schema.routineRuns.$inferSelect];
-    await this.ctx.db
-      .update(schema.routines)
-      .set({ lastRunAt: this.clock() })
-      .where(eq(schema.routines.id, routine.id));
+    if (!skipped)
+      await this.ctx.db
+        .update(schema.routines)
+        .set({ lastRunAt: this.clock() })
+        .where(eq(schema.routines.id, routine.id));
     const text = payload.trim()
       ? cutAt(payload.trim(), POST_MAX)
       : t('routine.postEmpty', { name: routine.name });

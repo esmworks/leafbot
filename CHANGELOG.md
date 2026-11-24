@@ -7,13 +7,26 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A routine can wait for something before its scheduled run starts, looked at with no AI: enough files matching a
+  pattern in the bot's or group's folder, a mail or WhatsApp message that meets a filter, a table row, an answer from
+  a connected app's read-only tool, or a word on a page; each check can also hold when the thing is absent. When the
+  condition does not hold, no model is asked: the run is shown as skipped, a row of such slots stays one line, and an
+  optional note you wrote is posted as it is. It can look again every few minutes until a time of day, then keeps to
+  its schedule. When a check cannot be read (an app down, a table gone), the run is an error and the note is not
+  sent, so a failure never reads as "nothing came". A run you start by hand does not wait. Set it in the routine's
+  window under "Only when something holds", or ask the bot. The server migrates its database on start.
+- A bot can start one of its routines at once, or rehearse it, when you ask it to try a routine.
+- A bot that is asked to connect an app you already connected, but that is not open to it, asks you on a card to
+  open it to that bot too instead of connecting it again; it works with your sign-in. A team connection is opened
+  this way only for those who look after the server.
 - Bots can set up a routine's steps when you ask them in the chat: steps after the instruction, each agent step on a
   model of its own (a cheap check first, the real work on a stronger model), approval steps that ask you, notices with
   no AI, and steps that wait for a time, a webhook or a mail; also a webhook's filter and a Slack channel and reaction.
   The approval card lists every step. A bot reads a routine in full before it changes it, with each step's id and
   model and how the steps of the latest runs went, and keeps the steps it leaves as they were. Taking an approval step
   out of a routine, or moving a step that came after it ahead of it, is always asked about on a card, whatever the bot
-  may do by itself. A webhook's signing secret stays yours to enter in the routine's window.
+  may do by itself. A misspelt model for the routine or a step is refused when the bot sets it, rather than failing
+  later in a run nobody watches. A webhook's signing secret stays yours to enter in the routine's window.
 - A manager bot can also set a bot's effort, turn its memory on or off, and pick its object avatar and surface, when
   it creates the bot or later. Spending limits, your Mac, the tool selection and a coding agent stay yours to set in
   the app.

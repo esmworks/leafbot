@@ -591,6 +591,7 @@ export const ROUTINE_KEYS = [
   'onStartup',
   'watchUrl',
   'check',
+  'condition',
   'webhookFilter',
   'webhookPost',
   'model',
