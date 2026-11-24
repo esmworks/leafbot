@@ -156,18 +156,25 @@ describe('sabit metin', () => {
     expect(found).toEqual(['Dosya yüklenemedi', 'dosya seçildi', 'title="Kapat"', 'Gönder ·']);
   });
 
-  it('arayüzde, sunucuda ve masaüstünde kullanıcıya görünen metin kataloglardan gelir', () => {
-    const findings: Finding[] = [];
-    for (const pkg of PACKAGES) {
-      for (const full of sources(join(ROOT, pkg))) {
-        const file = relative(ROOT, full);
-        if (ALLOWED.has(file)) continue;
-        for (const f of findHardcodedText(file, readFileSync(full, 'utf8'))) {
-          if (!ALLOWED_TEXT.some((a) => a.file === file && a.text === f.text)) findings.push({ file, ...f });
+  // Parses every source file of the app, server and desktop: about a second here, but over five on a
+  // CI runner that runs the other test files beside it, so it gets more than the default five.
+  it(
+    'arayüzde, sunucuda ve masaüstünde kullanıcıya görünen metin kataloglardan gelir',
+    { timeout: 30_000 },
+    () => {
+      const findings: Finding[] = [];
+      for (const pkg of PACKAGES) {
+        for (const full of sources(join(ROOT, pkg))) {
+          const file = relative(ROOT, full);
+          if (ALLOWED.has(file)) continue;
+          for (const f of findHardcodedText(file, readFileSync(full, 'utf8'))) {
+            if (!ALLOWED_TEXT.some((a) => a.file === file && a.text === f.text))
+              findings.push({ file, ...f });
+          }
         }
       }
-    }
-    // Shown as `file:line text` so each one is easy to find.
-    expect(findings.map((f) => `${f.file}:${f.line} ${f.text}`)).toEqual([]);
-  });
+      // Shown as `file:line text` so each one is easy to find.
+      expect(findings.map((f) => `${f.file}:${f.line} ${f.text}`)).toEqual([]);
+    },
+  );
 });
