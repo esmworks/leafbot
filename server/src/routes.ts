@@ -2291,6 +2291,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     s.routines.update(IdParams.parse(req.params).id, RoutineUpdate.parse(req.body), me(req).userId),
   );
   app.get('/api/routines/health', async (req) => s.routineHealth.list(me(req)));
+  app.get('/api/unused', async (req) => s.unused.list(me(req)));
   app.post('/api/routines/:id/health/dismiss', async (req) =>
     s.routineHealth.dismiss(
       me(req),
