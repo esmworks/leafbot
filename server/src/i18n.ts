@@ -1728,8 +1728,10 @@ const tr = {
   'web.searchStatus': 'Arama hizmeti yanıt vermedi (HTTP {status})',
   'web.searchNoJson':
     'Arama hizmeti JSON vermiyor; SearXNG ayarlarında search.formats listesine json eklenmeli',
-  'files.read': 'Bir metin dosyasını okur. offset/limit satır numarasıyla (1 tabanlı) bir bölüm seçer.',
+  'files.read':
+    'Bir dosyayı okur. Metin dosyasında offset/limit satır numarasıyla (1 tabanlı) bir bölüm seçer. Bir görüntüyü gösterir. Bir PDF’in her sayfasının yazısını ve sayfanın kendisini görüntü olarak verir, böylece taranmış sayfalar da okunur; uzun bir PDF’i pages ile parça parça oku; bir çağrıda kaç sayfa okunacağını pages anlatır.',
   'files.readPath': 'Dosya yolu; çalışma klasörüne göre ya da mutlak',
+  'files.readPages': 'Yalnızca PDF için sayfa aralığı, ör. "3" ya da "1-5"; bir çağrıda en çok {max} sayfa',
   'files.write': 'Bir dosyayı verilen içerikle oluşturur ya da tamamen değiştirir.',
   'files.edit':
     'Dosyadaki bir metni değiştirir. old_text dosyada tam olarak bir kez geçmelidir (replace_all yoksa).',
@@ -1755,6 +1757,21 @@ const tr = {
     'Önceki kısımdan tam ifade, sayı, kimlik ya da verilmiş bir karar gerekirse tahmin etme: conversations_search ile ara, message_read ile oku.',
   'files.image': '{path} görüntüsü aşağıda.',
   'files.imageUnseen': 'Bu bir görüntü dosyası; kullanılan model görüntü göremiyor.',
+  'files.pdf': '{path}: {count} sayfanın {from}-{to}. sayfaları aşağıda.',
+  'files.pdfPage': '--- Sayfa {page} ---',
+  'files.pdfNoText': '(Bu sayfada yazı katmanı yok; taranmış bir sayfa olabilir.)',
+  'files.pdfPictures':
+    'Her sayfanın görüntüsü sırayla ekte; yazı katmanı olmayan bir sayfayı görüntüsünden oku.',
+  'files.pdfUnseen':
+    'Yazı katmanı olmayan sayfaların yalnızca görüntüsü var ve kullanılan model görüntü göremiyor; bu sayfalar bu modelle okunamaz.',
+  'files.pdfTooLong':
+    'Bu PDF {count} sayfa: pages ile bir aralık ver (ör. "1-5"), bir çağrıda en çok {max} sayfa.',
+  'files.pdfBadRange':
+    'Geçersiz sayfa aralığı "{pages}": PDF {count} sayfa. "3" ya da "1-5" gibi ver, bir çağrıda en çok {max} sayfa.',
+  'files.pdfNoPoppler':
+    'Bu sunucuda PDF okuyan poppler-utils (pdfinfo, pdftotext, pdftoppm) kurulu değil; sunucuyu yöneten birinin kurması gerekir.',
+  'files.pdfLocked': 'PDF parolayla korunuyor; parolasız bir kopyası gerekir.',
+  'files.pdfBroken': 'PDF açılamadı; dosya bozuk ya da PDF değil.',
   'files.written': 'Yazıldı: {path}',
   'files.notFoundText': 'old_text dosyada bulunamadı',
   'files.ambiguous': 'old_text {count} kez geçiyor; daha uzun bir parça verin ya da replace_all kullanın',
@@ -3710,8 +3727,10 @@ const en: Catalog<ServerKey> = {
   'web.searchUnreachable': 'The search service could not be reached',
   'web.searchStatus': 'The search service did not answer (HTTP {status})',
   'web.searchNoJson': 'The search service gives no JSON; add json to search.formats in the SearXNG settings',
-  'files.read': 'Reads a text file. offset/limit pick a section by line number (1-based).',
+  'files.read':
+    'Reads a file. For a text file, offset/limit pick a section by line number (1-based). Shows a picture. Gives each page of a PDF as its text and as a picture of the page, so scanned pages can be read too; read a long PDF a part at a time with pages, which says how many pages a call takes.',
   'files.readPath': 'File path, relative to the working folder or absolute',
+  'files.readPages': 'For a PDF only, the pages to read, e.g. "3" or "1-5"; at most {max} pages a call',
   'files.write': 'Creates a file with the given content, or replaces it entirely.',
   'files.edit': 'Replaces text in a file. old_text must occur exactly once in the file (unless replace_all).',
   'files.list': 'Lists the files in a folder; with recursive it also goes into subfolders.',
@@ -3737,6 +3756,21 @@ const en: Catalog<ServerKey> = {
     'When you need exact wording, a number, an id or a decision from the earlier part, do not guess: find it with conversations_search and read it with message_read.',
   'files.image': 'The picture {path} is below.',
   'files.imageUnseen': 'This is a picture; the model in use cannot see pictures.',
+  'files.pdf': 'Pages {from}-{to} of the {count} of {path} are below.',
+  'files.pdfPage': '--- Page {page} ---',
+  'files.pdfNoText': '(This page has no text layer; it may be scanned.)',
+  'files.pdfPictures':
+    'A picture of each page follows in order; read a page with no text layer from its picture.',
+  'files.pdfUnseen':
+    'Pages with no text layer exist only as pictures, and the model in use cannot see pictures; those pages cannot be read with this model.',
+  'files.pdfTooLong':
+    'This PDF has {count} pages: give a range with pages (e.g. "1-5"), at most {max} pages a call.',
+  'files.pdfBadRange':
+    'The page range "{pages}" is not valid: the PDF has {count} pages. Give one like "3" or "1-5", at most {max} pages a call.',
+  'files.pdfNoPoppler':
+    'poppler-utils (pdfinfo, pdftotext, pdftoppm), which reads PDFs, is not installed on this server; someone who looks after the server needs to install it.',
+  'files.pdfLocked': 'The PDF is protected by a password; an unprotected copy is needed.',
+  'files.pdfBroken': 'The PDF could not be opened; the file is damaged or not a PDF.',
   'files.written': 'Written: {path}',
   'files.notFoundText': 'old_text was not found in the file',
   'files.ambiguous': 'old_text occurs {count} times; give a longer piece or use replace_all',
