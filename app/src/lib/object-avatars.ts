@@ -1,3 +1,4 @@
+import type { BotMaterial } from '@leafbot/shared';
 import { getExample, type AvatarDefinition } from 'open-bot-avatar';
 
 /**
@@ -100,5 +101,27 @@ const OWN: Record<string, AvatarDefinition> = {
   },
 };
 
-/** The drawing of an object avatar: one of the plain shapes or one of the engine's objects. */
-export const objectDefinition = (id: string): AvatarDefinition | undefined => OWN[id] ?? getExample(id);
+/**
+ * How much larger the eyes are drawn on a fluffy body. The coat buries each eye as a bead, showing
+ * little more than half its height and hiding its edge under the fur, so at the flat size the face
+ * reads as two specks. Every offered shape still holds eyes this large.
+ */
+export const FLUFFY_EYE_SCALE = 1.3;
+
+const fluffyDrawings = new Map<string, AvatarDefinition>();
+
+/**
+ * The drawing of an object avatar: one of the plain shapes or one of the engine's objects. A fluffy
+ * body gets larger eyes (see `FLUFFY_EYE_SCALE`); the same drawing comes back each time, so a mounted
+ * avatar is not drawn anew on every render.
+ */
+export function objectDefinition(id: string, material: BotMaterial = 'flat'): AvatarDefinition | undefined {
+  const flat = OWN[id] ?? getExample(id);
+  if (!flat || material === 'flat') return flat;
+  let fluffy = fluffyDrawings.get(id);
+  if (!fluffy) {
+    fluffy = { ...flat, eyes: { ...flat.eyes, scale: (flat.eyes.scale ?? 1) * FLUFFY_EYE_SCALE } };
+    fluffyDrawings.set(id, fluffy);
+  }
+  return fluffy;
+}

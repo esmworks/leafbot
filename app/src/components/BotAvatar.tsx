@@ -221,7 +221,7 @@ export function ObjectArt({
   const [focused, setFocused] = useState(true);
   const [gaze] = useState(() => gazeOf(seed, activity));
   const moving = motion !== 'still' && focused;
-  const definition = objectDefinition(id);
+  const definition = objectDefinition(id, material);
   const steering = moving && steered(activity);
   const celebrating = useCelebration(activity);
   const turning = turnable && moving && !steering;
