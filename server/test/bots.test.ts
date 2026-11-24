@@ -733,4 +733,15 @@ describe('var olan botları yeni botların yapay zekâsına geçirme', () => {
     expect(r.status).toBe(400);
     expect(await get(bot.id)).toMatchObject({ engine: 'claude', model: '' });
   });
+
+  it('gövde yüzeyi düz başlar, tüylü seçilince kalır ve onu anmayan bir düzenleme onu düze döndürmez', async () => {
+    const bot = await t.bot();
+    expect(bot.material).toBe('flat');
+    const fluffy = await t.api<Bot>('PATCH', `/api/bots/${bot.id}`, { material: 'fluffy' });
+    expect(fluffy.body.material).toBe('fluffy');
+    // An older phone app sends no finish: the one chosen stays.
+    await t.api('PATCH', `/api/bots/${bot.id}`, { color: '#16a34a' });
+    expect((await t.api<Bot>('GET', `/api/bots/${bot.id}`)).body.material).toBe('fluffy');
+    expect((await t.api('PATCH', `/api/bots/${bot.id}`, { material: 'velvet' })).status).toBe(400);
+  });
 });

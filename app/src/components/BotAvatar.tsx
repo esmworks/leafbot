@@ -1,4 +1,4 @@
-import { BRAND_COLOR, DEFAULT_AVATAR, type ObjectAvatar } from '@leafbot/shared';
+import { BRAND_COLOR, DEFAULT_AVATAR, type BotMaterial, type ObjectAvatar } from '@leafbot/shared';
 import type { AvatarDefinition } from 'open-bot-avatar';
 import { mountAvatar, type MountedAvatar } from 'open-bot-avatar/dom';
 import { useEffect, useRef, useState } from 'react';
@@ -194,6 +194,7 @@ function useFollowPointer(
  * pointed at: while the window has the focus it breathes, blinks and looks at the pointer wherever it
  * is on the page, which is what makes these avatars feel alive. The engine itself stops
  * one that is off screen and follows the system's reduced motion setting; `still` draws one picture.
+ * A fluffy body is a coat of fur; where the page can't draw one (no WebGL2) it comes out flat.
  */
 export function ObjectArt({
   id,
@@ -202,9 +203,12 @@ export function ObjectArt({
   motion = 'still',
   seed,
   turnable = false,
+  material = 'flat',
 }: {
   id: ObjectAvatar;
   color: string;
+  /** How the body is finished: a plain fill or a coat of fur. */
+  material?: BotMaterial;
   activity?: BotActivity;
   motion?: AvatarMotion;
   /** The bot's id: its avatars share one gaze, so they look the same way at once. */
@@ -256,6 +260,7 @@ export function ObjectArt({
       color: hexColor(color),
       eyeColor: OBJECT_EYES,
       ...objectLook(activity, celebrating),
+      material,
       still: !moving,
       // Followed by `useFollowPointer`, which reaches further for a small avatar.
       followPointer: false,
@@ -296,9 +301,12 @@ export function BotAvatar({
   activity,
   motion = 'hover',
   seed,
+  material,
 }: {
   avatar: string;
   color: string;
+  /** How an object avatar's body is finished; an uploaded picture has no body to finish. */
+  material?: BotMaterial;
   size?: number;
   className?: string;
   badge?: React.ReactNode;
@@ -332,6 +340,7 @@ export function BotAvatar({
           motion={lively ? motion : 'still'}
           seed={seed}
           turnable={lively && motion === 'always'}
+          material={material}
         />
       )}
       {badge}

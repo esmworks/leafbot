@@ -42,6 +42,7 @@ export const toBot = (r: Row<typeof schema.bots>): Bot => ({
   groupId: r.groupId,
   color: r.color,
   avatar: r.avatar,
+  material: r.material,
   permissionMode: r.permissionMode,
   internet: r.internet,
   personComputer: r.personComputer,

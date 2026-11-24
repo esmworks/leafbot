@@ -1256,6 +1256,7 @@ export function Working({
     <div className="flex items-center gap-2.5 py-1 text-sm text-muted-foreground" role="status">
       <BotAvatar
         avatar={bot.avatar}
+        material={bot.material}
         color={bot.color}
         seed={bot.id}
         size={28}
@@ -1310,7 +1311,7 @@ function IncomingBot({ m, bot }: { m: Message; bot: Bot }) {
   return (
     <div className="max-w-(--bubble-width) space-y-2">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <BotAvatar avatar={bot.avatar} color={bot.color} seed={bot.id} size={20} />
+        <BotAvatar avatar={bot.avatar} material={bot.material} color={bot.color} seed={bot.id} size={20} />
         <span className="font-medium text-foreground">{bot.name}</span> {t('message.wrote')}
       </div>
       {typeof m.props.openedFrom === 'string' && <OpenedFrom threadId={m.props.openedFrom} />}
@@ -1472,7 +1473,15 @@ function Marker({ m, bots }: { m: Message; bots: Map<string, Bot> }) {
       >
         <span>{t('message.count', { count: said || props.count || 1 })}</span>
         <span>·</span>
-        {peer && <BotAvatar avatar={peer.avatar} color={peer.color} seed={peer.id} size={18} />}
+        {peer && (
+          <BotAvatar
+            avatar={peer.avatar}
+            material={peer.material}
+            color={peer.color}
+            seed={peer.id}
+            size={18}
+          />
+        )}
         <span className="font-medium">{peer?.name ?? t('common.bot')}</span>
         {waiting > 0 ? (
           <span
@@ -1504,7 +1513,15 @@ function Marker({ m, bots }: { m: Message; bots: Map<string, Bot> }) {
                   return (
                     <div key={x.id} className="space-y-1">
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {who && <BotAvatar avatar={who.avatar} color={who.color} seed={who.id} size={16} />}
+                        {who && (
+                          <BotAvatar
+                            avatar={who.avatar}
+                            material={who.material}
+                            color={who.color}
+                            seed={who.id}
+                            size={16}
+                          />
+                        )}
                         <span className="font-medium">{who?.name ?? t('common.bot')}</span>
                       </div>
                       <div className="ps-6 text-sm">

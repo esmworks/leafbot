@@ -180,7 +180,13 @@ function SearchBody({ onDone }: { onDone(): void }) {
                   <CornerDownLeft className="size-3.5" />
                 </span>
               ) : bot ? (
-                <BotAvatar avatar={bot.avatar} color={bot.color} seed={bot.id} size={28} />
+                <BotAvatar
+                  avatar={bot.avatar}
+                  material={bot.material}
+                  color={bot.color}
+                  seed={bot.id}
+                  size={28}
+                />
               ) : (
                 <span className="size-7 shrink-0 rounded-full bg-secondary" />
               )}

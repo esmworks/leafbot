@@ -7,6 +7,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A bot's object avatar can wear a coat of fur: pick "Fluffy" under Surface in the bot's window, beside the shapes
+  and colours. The choice is kept per bot and shows wherever the bot appears in the app. The phone, and a browser
+  without WebGL2, keep drawing the body smooth. The server migrates its database on start.
 - A routine can be set to "Only tell me": it looks and reports, and whatever the bot may do elsewhere, it changes
   nothing in those runs. A step that would change something (sending, clicking or typing in a page, writing a file,
   a connected app that writes, handing work to a looser bot) is refused, not asked, and the bot is told to write what

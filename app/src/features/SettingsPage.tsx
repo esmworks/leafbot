@@ -2012,7 +2012,15 @@ function RoutinesTab() {
         const bot = bots.find((b) => b.id === r.botId);
         return (
           <div key={r.id} className="flex items-center gap-3 px-4 py-3">
-            {bot && <BotAvatar avatar={bot.avatar} color={bot.color} seed={bot.id} size={28} />}
+            {bot && (
+              <BotAvatar
+                avatar={bot.avatar}
+                material={bot.material}
+                color={bot.color}
+                seed={bot.id}
+                size={28}
+              />
+            )}
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium">{r.name}</div>
               <div className="truncate text-xs text-muted-foreground">

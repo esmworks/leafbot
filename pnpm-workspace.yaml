@@ -19,7 +19,7 @@ minimumReleaseAgeExclude:
   - framer-motion@14.13.0
   - motion-dom@14.13.0
   - motion@14.13.0
-  - open-bot-avatar@0.3.0
+  - open-bot-avatar@0.4.0
   - prettier@3.10.1
 # Dependencies of dependencies moved past versions with published advisories, until the packages that
 # pull them in ask for fixed versions themselves:

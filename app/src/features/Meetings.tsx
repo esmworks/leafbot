@@ -937,7 +937,7 @@ function Recipient({
         on && 'bg-accent/70',
       )}
     >
-      <BotAvatar avatar={bot.avatar} color={bot.color} seed={bot.id} size={26} />
+      <BotAvatar avatar={bot.avatar} material={bot.material} color={bot.color} seed={bot.id} size={26} />
       <span className="min-w-0 flex-1 truncate text-sm font-medium">{bot.name}</span>
       {note && <span className="shrink-0 text-xs text-muted-foreground">{note}</span>}
       <span
