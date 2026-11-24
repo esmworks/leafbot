@@ -58,6 +58,7 @@ services:
       # shares with all its apps, where `leafbot` can be another installation's server; this name
       # exists only on this installation's `edge`.
       edge: { aliases: [leafbot-edge] }
+      services: {}
     read_only: true
     tmpfs:
       - /tmp:size=512m,mode=1777
@@ -237,6 +238,14 @@ networks:
       com.docker.network.bridge.enable_icc: 'false'
   # Server to computer service only; no route out.
   computer:
+    internal: true
+  # The server to model services of your own (Whisper, Kokoro, Ollama, SearXNG) that run outside this
+  # installation, without joining a panel's shared network (see "Kendi model servisleriniz" in
+  # docker/README.md). With LEAFBOT_SERVICES_NETWORK it is that existing network, which the services
+  # join too and `down` leaves in place; without it, an empty network of this installation's own with
+  # no route out.
+  services:
+    name: ${LEAFBOT_SERVICES_NETWORK:-${COMPOSE_PROJECT_NAME}_services}
     internal: true
   # A tunnel (Cloudflare, Tailscale) to the server only; no route out, so it adds none for the server.
   edge:
