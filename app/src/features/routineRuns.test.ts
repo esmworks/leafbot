@@ -70,4 +70,17 @@ describe('rutin çalışma satırları', () => {
     );
     expect(isRoutineRunLine(msg({}))).toBe(false);
   });
+
+  it('raporu, çalışma satırı hemen üstündeyse başlıksız, araya bir şey girdiyse başlıklı gösterir', () => {
+    const line = run('r1', 'x1', '2026-11-24T06:00:00.000Z');
+    const report = msg({
+      role: 'assistant',
+      author: 'bot:b',
+      createdAt: '2026-11-24T06:01:00.000Z',
+      props: { routineInMain: true, routineRunId: 'x1' },
+    });
+    expect(foldRoutineRuns([line, report]).at(-1)!.props.underRunLine).toBe(true);
+    const between = msg({ role: 'marker', author: 'bot:b', createdAt: '2026-11-24T06:00:30.000Z' });
+    expect(foldRoutineRuns([line, between, report]).at(-1)!.props.underRunLine).toBeUndefined();
+  });
 });

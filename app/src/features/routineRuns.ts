@@ -55,5 +55,24 @@ export function foldRoutineRuns(rows: readonly Message[], firstNew?: string | nu
     else out.push(m);
   }
   close();
-  return out;
+  return underLines(out);
+}
+
+/**
+ * A run's report right under its run's line is marked so: the line already names the routine, so
+ * the report goes without a header saying it again. One with anything between them keeps it.
+ */
+function underLines(rows: Message[]): Message[] {
+  return rows.map((m, i) => {
+    const prev = rows[i - 1];
+    const run = m.props.routineRunId;
+    return m.role === 'assistant' &&
+      m.props.routineInMain === true &&
+      typeof run === 'string' &&
+      prev &&
+      isRoutineRunLine(prev) &&
+      prev.props.routineRunId === run
+      ? { ...m, props: { ...m.props, underRunLine: true } }
+      : m;
+  });
 }

@@ -768,6 +768,9 @@ describe('rutinler', () => {
     expect(after).toHaveLength(before.length + 2);
     expect(after.at(-1)!.props).toMatchObject({ routineRunId: second.id, routineQuiet: true });
     expect(after.at(-1)!.props.quietNote).toBeUndefined();
+    // The list shows what was said last, not the routine's instruction.
+    const listed2 = (await t.api<Thread>('GET', `/api/bots/${a.id}/main-thread`)).body;
+    expect(listed2.preview).toBe(before.at(-1)!.text.replace(/\s+/g, ' '));
   });
 
   it('ana sohbetten kendi sohbetine dönen rutin ana sohbeti kendi sohbeti saymaz', async () => {
