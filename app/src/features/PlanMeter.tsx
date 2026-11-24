@@ -73,7 +73,10 @@ export function PlanMeter() {
           <PopoverTrigger asChild>
             <Button
               variant="ghost"
-              className={cn('h-9 gap-1.5 rounded-full px-2 tabular-nums', PLAN_TONE_TEXT[tone])}
+              className={cn(
+                'wallpaper-chip h-9 gap-1.5 rounded-full px-2 tabular-nums',
+                PLAN_TONE_TEXT[tone],
+              )}
               aria-label={label}
               data-plan-meter={tone}
             >

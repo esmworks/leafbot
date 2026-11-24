@@ -141,13 +141,13 @@ export function MessageItem({
         <div className="group/own flex flex-col items-end gap-1" data-message-id={m.id}>
           {quote && <QuoteLine quote={quote} threadId={m.threadId} />}
           {m.author.startsWith('ticket:') && (
-            <span className="flex items-center gap-1 px-2 text-xs text-muted-foreground">
+            <span className="wallpaper-chip flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs text-muted-foreground">
               <KanbanSquare className="size-3" />
               {t('message.ticketNamed', { number: String(m.props.ticketNumber ?? '') })}
             </span>
           )}
           {m.author.startsWith('routine:') && (
-            <span className="flex items-center gap-1 px-2 text-xs text-muted-foreground">
+            <span className="wallpaper-chip flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs text-muted-foreground">
               <Clock className="size-3" />
               {typeof m.props.routineName === 'string'
                 ? t('message.routineNamed', { name: m.props.routineName })
@@ -239,7 +239,7 @@ export function MessageItem({
       );
     case 'error':
       return (
-        <div className="flex max-w-(--bubble-width) gap-3 rounded-3xl border border-destructive/30 bg-destructive/10 px-5 py-4 text-[15px]">
+        <div className="wallpaper-frost [--frost-tint:color-mix(in_oklab,var(--color-destructive)_10%,transparent)] flex max-w-(--bubble-width) gap-3 rounded-3xl border border-destructive/30 bg-destructive/10 px-5 py-4 text-[15px]">
           <AlertCircle className="mt-0.5 size-5 shrink-0 text-destructive" />
           <div className="min-w-0 flex-1 whitespace-pre-wrap [overflow-wrap:anywhere]">
             {m.text}
@@ -300,7 +300,7 @@ export function MessageItem({
       // A page hid instructions for agents: a warning the person should not scroll past.
       if (m.props.kind === 'planted')
         return (
-          <div className="flex max-w-(--bubble-width) gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm [overflow-wrap:anywhere]">
+          <div className="wallpaper-frost [--frost-tint:color-mix(in_oklab,var(--color-amber-500)_10%,transparent)] flex max-w-(--bubble-width) gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm [overflow-wrap:anywhere]">
             <AlertCircle className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
             <div className="min-w-0 flex-1">{m.text}</div>
           </div>
@@ -308,7 +308,7 @@ export function MessageItem({
       // What taking a turn back put back and left: several lines, kept as lines.
       if (m.props.kind === 'turnUndo')
         return (
-          <div className="max-w-(--bubble-width) rounded-2xl border bg-card/50 px-4 py-3 text-sm whitespace-pre-line [overflow-wrap:anywhere]">
+          <div className="wallpaper-frost max-w-(--bubble-width) rounded-2xl border bg-card/50 px-4 py-3 text-sm whitespace-pre-line [overflow-wrap:anywhere]">
             {m.text}
           </div>
         );
@@ -377,7 +377,7 @@ function OfferCard({ m }: { m: Message }) {
   });
   const answered = typeof m.props.answer === 'string' ? m.props.answer : null;
   return (
-    <div className="flex max-w-(--bubble-width) items-start gap-3 rounded-2xl border bg-card/50 px-4 py-3 text-sm">
+    <div className="wallpaper-frost flex max-w-(--bubble-width) items-start gap-3 rounded-2xl border bg-card/50 px-4 py-3 text-sm">
       <Lightbulb className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
       <div className="min-w-0 flex-1 [overflow-wrap:anywhere]">
         <div>{m.text}</div>
@@ -419,7 +419,7 @@ function AppSuggestion({ catalogId, reason, botId }: { catalogId: string; reason
       (!botId || c.allBots || c.botIds.includes(botId)),
   );
   return (
-    <section className="flex max-w-[80%] items-center gap-3 self-start rounded-2xl border bg-card/60 px-4 py-3">
+    <section className="wallpaper-frost flex max-w-[80%] items-center gap-3 self-start rounded-2xl border bg-card/60 px-4 py-3">
       <AppLogo id={catalogId} name={entry.name} size={36} />
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium">{t('message.appSuggestTitle', { app: entry.name })}</div>
@@ -450,7 +450,7 @@ function SignInCard({ connectionId, text, botId }: { connectionId: string; text:
   const c = connections.find((x) => x.id === connectionId);
   if (!c) return null;
   return (
-    <section className="flex max-w-[80%] items-center gap-3 self-start rounded-2xl border bg-card/60 px-4 py-3">
+    <section className="wallpaper-frost flex max-w-[80%] items-center gap-3 self-start rounded-2xl border bg-card/60 px-4 py-3">
       <AppLogo id={c.catalogId} name={c.name} size={36} />
       <div className="min-w-0 flex-1">
         <div className="text-sm font-medium">{text}</div>
@@ -485,7 +485,7 @@ function PlanCard({ items }: { items: PlanItem[] }) {
   return (
     <section
       aria-label={t('message.plan')}
-      className="max-w-[80%] min-w-64 self-start rounded-2xl border bg-card/60 px-4 py-3 text-sm"
+      className="wallpaper-frost max-w-[80%] min-w-64 self-start rounded-2xl border bg-card/60 px-4 py-3 text-sm"
     >
       <div className="mb-2 flex items-center justify-between gap-4 text-xs text-muted-foreground">
         <span className="font-medium">{t('message.plan')}</span>
@@ -564,7 +564,7 @@ function SubagentCard({ sub }: { sub: Subagent }) {
   return (
     <section
       aria-label={t('message.subagent')}
-      className="max-w-[80%] min-w-64 self-start rounded-2xl border bg-card/60 px-4 py-3 text-sm"
+      className="wallpaper-frost max-w-[80%] min-w-64 self-start rounded-2xl border bg-card/60 px-4 py-3 text-sm"
     >
       <div className="flex items-start gap-2">
         <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
@@ -633,7 +633,7 @@ function SubagentGroupCard({ list }: { list: Subagent[] }) {
   return (
     <section
       aria-label={t('message.subagentGroup')}
-      className="w-full max-w-[80%] min-w-64 self-start rounded-2xl border bg-card/60 px-4 py-3 text-sm"
+      className="wallpaper-frost w-full max-w-[80%] min-w-64 self-start rounded-2xl border bg-card/60 px-4 py-3 text-sm"
     >
       <button
         type="button"
@@ -736,7 +736,7 @@ function QuoteLine({ quote, threadId }: { quote: ReplyQuote; threadId: string })
       type="button"
       onClick={jump}
       aria-label={t('message.replyTo', { text: quote.text })}
-      className="flex max-w-[80%] items-start gap-1.5 rounded-2xl px-3 py-1 text-start text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      className="wallpaper-chip flex max-w-[80%] items-start gap-1.5 rounded-2xl px-3 py-1 text-start text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
     >
       <Reply className="mt-0.5 size-3.5 shrink-0" />
       <span className="line-clamp-2 [overflow-wrap:anywhere]">{quote.text}</span>
@@ -1324,13 +1324,17 @@ function RoutineReportLine({ m }: { m: Message }) {
     </>
   );
   if (!run)
-    return <span className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">{inner}</span>;
+    return (
+      <span className="wallpaper-chip -mx-2 mb-1 flex w-fit items-center gap-1 rounded-lg px-2 py-0.5 text-xs text-muted-foreground">
+        {inner}
+      </span>
+    );
   return (
     <button
       type="button"
       onClick={() => useUi.getState().selectThread(run)}
       title={t('message.openRoutineRun')}
-      className="mb-1 flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+      className="wallpaper-chip -mx-2 mb-1 flex w-fit items-center gap-1 rounded-lg px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
     >
       {inner}
     </button>
@@ -1455,7 +1459,7 @@ function Marker({ m, bots }: { m: Message; bots: Map<string, Bot> }) {
     <div className="flex flex-col items-center">
       <button
         onClick={() => setChosen(!open)}
-        className="flex items-center gap-2 rounded-full px-3 py-1 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="wallpaper-chip flex items-center gap-2 rounded-full px-3 py-1 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
         <span>{t('message.count', { count: said || props.count || 1 })}</span>
         <span>·</span>
@@ -1481,7 +1485,7 @@ function Marker({ m, bots }: { m: Message; bots: Map<string, Bot> }) {
             exit={{ height: 0, opacity: 0 }}
             className="w-full max-w-(--bubble-width) overflow-hidden"
           >
-            <div className="mt-2 space-y-3 rounded-3xl border p-4">
+            <div className="wallpaper-frost mt-2 space-y-3 rounded-3xl border p-4">
               {job.isLoading && <div className="text-sm text-muted-foreground">{t('common.loading')}</div>}
               {shown
                 .filter((x) => !docked.includes(x))
@@ -1561,7 +1565,7 @@ function ApprovalCard({
     const { items } = questionItems(a);
     if (items.length && !items.some((q) => q.secret)) {
       return (
-        <div className="max-w-(--bubble-width) space-y-2 rounded-3xl border border-dashed px-5 py-4 text-[15px]">
+        <div className="wallpaper-frost max-w-(--bubble-width) space-y-2 rounded-3xl border border-dashed px-5 py-4 text-[15px]">
           {items.map((q, i) => (
             <div key={i}>{q.question}</div>
           ))}
@@ -1634,7 +1638,7 @@ function ApprovalCard({
   if (a.status !== 'pending') return <AnsweredLine text={answeredText(a, botName, t, locale, service)} />;
   const action = describeAction(a.toolName, a.input, { bot: botName, locale, service });
   return (
-    <div className="max-w-(--bubble-width) space-y-3 rounded-3xl border border-amber-500/40 bg-amber-500/5 px-5 py-4">
+    <div className="wallpaper-frost [--frost-tint:color-mix(in_oklab,var(--color-amber-500)_5%,transparent)] max-w-(--bubble-width) space-y-3 rounded-3xl border border-amber-500/40 bg-amber-500/5 px-5 py-4">
       <div className="flex items-start gap-3">
         <ShieldAlert className="mt-0.5 size-5 shrink-0 text-amber-500" />
         <div className="min-w-0 flex-1 space-y-1 text-[15px]">
@@ -1717,7 +1721,7 @@ function LoginCard({ a }: { a: Approval }) {
   return (
     <form
       onSubmit={submit}
-      className="max-w-(--bubble-width) space-y-3 rounded-3xl border border-[var(--brand)]/30 bg-bubble px-5 py-4"
+      className="wallpaper-frost max-w-(--bubble-width) space-y-3 rounded-3xl border border-[var(--brand)]/30 bg-bubble px-5 py-4"
     >
       <div className="flex items-start gap-3">
         <KeyRound className="mt-0.5 size-5 shrink-0 text-[var(--brand)]" />
@@ -1912,8 +1916,9 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
       )}
       <div
         className={cn(
-          'space-y-3 rounded-3xl border px-5 py-4',
-          !answered && 'border-amber-500/40 bg-amber-500/5',
+          'wallpaper-frost space-y-3 rounded-3xl border px-5 py-4',
+          !answered &&
+            'border-amber-500/40 bg-amber-500/5 [--frost-tint:color-mix(in_oklab,var(--color-amber-500)_5%,transparent)]',
         )}
       >
         <div className={cn('text-[15px]', answered ? 'text-muted-foreground' : 'font-medium')}>

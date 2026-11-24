@@ -1069,7 +1069,7 @@ function Conversation({
                 <Fragment key={m.clientId ?? m.id}>
                   {needsDivider(rows[i - 1], m) && (
                     <div className="py-2 text-center text-xs text-muted-foreground">
-                      {dayLabel(m.createdAt)}
+                      <span className="wallpaper-chip rounded-lg px-2 py-0.5">{dayLabel(m.createdAt)}</span>
                     </div>
                   )}
                   {m.id === firstNew && (
@@ -1078,7 +1078,7 @@ function Conversation({
                       role="separator"
                     >
                       <span className="h-px flex-1 bg-sky-500/40" />
-                      {t('chat.newSince')}
+                      <span className="wallpaper-chip rounded-lg px-2 py-0.5">{t('chat.newSince')}</span>
                       <span className="h-px flex-1 bg-sky-500/40" />
                     </div>
                   )}
