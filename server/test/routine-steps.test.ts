@@ -190,6 +190,54 @@ describe('a routine with steps', () => {
     expect(t.engine.requests[1]!.prompt).not.toContain('Issue 42');
   });
 
+  it('passes over a step whose condition does not hold, with no AI, handing on what reached it', async () => {
+    const bot = await t.bot();
+    const r = await make(bot.id, 'ilk iş', [
+      { id: 'a', kind: 'agent', prompt: 'ikinci iş', when: { contains: 'olmayan söz' } },
+      { id: 'b', kind: 'agent', prompt: 'üçüncü iş', when: { contains: 'İLK İŞ' } },
+    ]);
+    expect(r.steps?.[0]?.when).toMatchObject({ contains: 'olmayan söz', absent: false, otherwise: 'skip' });
+    await t.api('POST', `/api/routines/${r.id}/run`);
+    await t.services.turns.idle();
+    const [run] = await runs(r.id);
+    expect(run!.status).toBe('done');
+    expect(run!.steps?.map((s) => s.status)).toEqual(['done', 'skipped', 'done']);
+    expect(run!.steps?.[1]?.reason).toContain('olmayan söz');
+    const asked = t.engine.requests.filter((q) => q.prompt.includes('Akış'));
+    // The passed-over step asked no model; the one after it read what the first step ended with.
+    expect(asked).toHaveLength(2);
+    expect(asked[1]!.prompt).toContain('üçüncü iş');
+    expect(asked[1]!.prompt).toContain('ilk iş');
+    expect(asked[1]!.prompt).not.toContain('ikinci iş');
+    const sent = await reports(bot.id);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text).toContain('üçüncü iş');
+  });
+
+  it('ends the run where a condition says so, reporting what came so far', async () => {
+    const bot = await t.bot();
+    const r = await make(bot.id, 'ilk iş', [
+      {
+        id: 'a',
+        kind: 'agent',
+        prompt: 'ikinci iş',
+        when: { contains: 'ilk', absent: true, otherwise: 'end' },
+      },
+      { id: 'b', kind: 'notify', text: 'bitti' },
+    ]);
+    await t.api('POST', `/api/routines/${r.id}/run`);
+    await t.services.turns.idle();
+    const [run] = await runs(r.id);
+    expect(run!.status).toBe('done');
+    expect(run!.reason).toContain('koşulu tutmadı');
+    expect(run!.steps?.map((s) => s.status)).toEqual(['done', 'skipped', 'skipped']);
+    expect(t.engine.requests.filter((q) => q.prompt.includes('Akış'))).toHaveLength(1);
+    const sent = await reports(bot.id);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text).toContain('ilk iş');
+    expect(sent[0]!.text).not.toContain('bitti');
+  });
+
   it('turns away two steps with the same id', async () => {
     const bot = await t.bot();
     const res = await t.api('POST', '/api/routines', {

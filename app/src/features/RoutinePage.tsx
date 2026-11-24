@@ -67,6 +67,17 @@ export function useOpenedRoutine(): { botId: string; routine?: Routine; showRuns
 }
 
 /** Validation messages are message keys; `Field` shows them in the current language. */
+/** What must hold for a step to run; the window always fills every field, so none has a default here. */
+const stepWhen = z
+  .object({
+    contains: z.string().max(500),
+    filter: z.string().max(2000),
+    absent: z.boolean(),
+    otherwise: z.enum(['skip', 'end']),
+  })
+  .nullable()
+  .optional();
+
 const Form = z.object({
   name: z.string().trim().min(1, 'routine.nameRequired').max(80),
   prompt: z.string().trim().min(1, 'routine.promptRequired').max(20_000),
@@ -78,18 +89,21 @@ const Form = z.object({
         kind: z.literal('agent'),
         prompt: z.string().trim().min(1, 'routine.stepPromptRequired').max(20_000),
         model: z.string().max(200),
+        when: stepWhen,
       }),
       z.object({
         id: z.string(),
         kind: z.literal('approval'),
         question: z.string().trim().min(1, 'routine.stepQuestionRequired').max(2000),
         timeoutDays: z.number().int().min(1).max(ROUTINE_APPROVAL_MAX_DAYS),
+        when: stepWhen,
       }),
       z.object({
         id: z.string(),
         kind: z.literal('notify'),
         text: z.string().max(4000),
         withBefore: z.boolean(),
+        when: stepWhen,
       }),
       z.object({
         id: z.string(),
@@ -98,6 +112,7 @@ const Form = z.object({
         minutes: z.number().int().min(1).max(ROUTINE_WAIT_MAX_MINUTES),
         filter: z.string().max(2000),
         timeoutDays: z.number().int().min(1).max(ROUTINE_APPROVAL_MAX_DAYS),
+        when: stepWhen,
       }),
     ]),
   ),
@@ -189,9 +204,9 @@ function fromRoutine(r?: Routine): Form {
     prompt: r?.prompt ?? '',
     steps: (r?.steps ?? []).map((x): StepForm =>
       x.kind === 'agent'
-        ? { id: x.id, kind: x.kind, prompt: x.prompt, model: x.model ?? '' }
+        ? { id: x.id, kind: x.kind, prompt: x.prompt, model: x.model ?? '', when: x.when ?? null }
         : x.kind === 'approval'
-          ? { id: x.id, kind: x.kind, question: x.question, timeoutDays: x.timeoutDays }
+          ? { id: x.id, kind: x.kind, question: x.question, timeoutDays: x.timeoutDays, when: x.when ?? null }
           : { ...x },
     ),
     type: s?.type ?? 'weekdays',

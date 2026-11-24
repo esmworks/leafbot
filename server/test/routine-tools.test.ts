@@ -73,6 +73,32 @@ describe('routine tools with steps', () => {
     expect(await pending()).toHaveLength(0);
   });
 
+  it('sets a step to run only when the step before found something, and reads it back the same', async () => {
+    const bot = await t.bot({ name: 'Paşa', permissionMode: 'auto' });
+    const thread = await main(bot.id);
+    const steps = [
+      { kind: 'agent', prompt: 'Siparişleri say.' },
+      { kind: 'notify', text: 'Gecikmiş sipariş var', when: { filter: 'late!=0', otherwise: 'end' } },
+    ];
+    expect(await ask(thread.id, 'routine_create', { ...briefing, steps })).toContain('rutini kuruldu');
+    const r = await mine(bot.id);
+    expect(r.steps![0]!.when).toBeUndefined();
+    expect(r.steps![1]!.when).toEqual({ contains: '', filter: 'late!=0', absent: false, otherwise: 'end' });
+    const read = await ask(thread.id, 'routine_read', { routine: 'Brifing' });
+    expect(read).toContain('"filter": "late!=0"');
+    expect(read).toContain('"otherwise": "end"');
+    // A step sent back without its condition runs every time again.
+    const ids = r.steps!.map((s) => s.id);
+    await ask(thread.id, 'routine_update', {
+      routine: 'Brifing',
+      steps: [
+        { id: ids[0], kind: 'agent', prompt: 'Siparişleri say.' },
+        { id: ids[1], kind: 'notify', text: 'Gecikmiş sipariş var' },
+      ],
+    });
+    expect((await mine(bot.id)).steps![1]!.when).toBeFalsy();
+  });
+
   it('refuses a step it cannot keep, and more steps than a routine takes', async () => {
     const bot = await t.bot({ permissionMode: 'auto' });
     const thread = await main(bot.id);
@@ -164,6 +190,30 @@ describe('routine tools with steps', () => {
     await t.api('POST', `/api/approvals/${next.id}`, { decision: 'allow', answer: 'Onayla' });
     await t.services.turns.idle();
     expect((await mine(bot.id)).steps!.map((s) => s.kind)).toEqual(['agent', 'notify', 'approval']);
+
+    // A condition that could pass the approval over lets what follows run unasked: asked about too.
+    const now = (await mine(bot.id)).steps!;
+    const gated = now.map((s) =>
+      s.kind === 'approval'
+        ? { id: s.id, kind: 'approval', question: 'Gönderilsin mi?', when: { contains: 'acil' } }
+        : s.kind === 'agent'
+          ? { id: s.id, kind: 'agent', prompt: s.prompt, model: s.model }
+          : { id: s.id, kind: 'notify', text: 'Brifing hazır' },
+    );
+    await t.send(thread.id, `[araç:routine_update ${JSON.stringify({ routine: 'Brifing', steps: gated })}]`);
+    const third = await waitFor(async () => (await pending())[0]);
+    expect(third.summary).toContain('koşul');
+    await t.api('POST', `/api/approvals/${third.id}`, { decision: 'allow', answer: 'Reddet' });
+    await t.services.turns.idle();
+    expect((await mine(bot.id)).steps!.find((s) => s.kind === 'approval')!.when).toBeFalsy();
+    // One that ends the run when it does not hold lets nothing through, so it needs no card.
+    const ending = gated.map((s) =>
+      s.kind === 'approval' ? { ...s, when: { contains: 'acil', otherwise: 'end' } } : s,
+    );
+    expect(await ask(thread.id, 'routine_update', { routine: 'Brifing', steps: ending })).toContain(
+      'rutini güncellendi',
+    );
+    expect(await pending()).toHaveLength(0);
   });
 
   it('gives a routine whose step waits for its webhook an address, and keeps the filter', async () => {
@@ -239,5 +289,18 @@ describe('routine tools with steps', () => {
     expect(detail).toContain('1. bot [opus]: Brifingi derle');
     expect(detail).toContain('2. sana sorar: Gönderilsin mi?');
     expect(detail).toContain('3. bildirir: Brifing hazır');
+    const gated = describeAction(
+      'mcp__leafbot__routine_create',
+      {
+        ...briefing,
+        steps: [
+          { kind: 'agent', prompt: 'Gönder', when: { contains: '[1]', otherwise: 'end' } },
+          { kind: 'notify', text: 'Boş', when: { absent: true } },
+        ],
+      },
+      { bot: 'Paşa', locale: 'tr' },
+    ).detail;
+    expect(gated).toContain('(yalnız varsa: "[1]"; yoksa çalışma biter)');
+    expect(gated).toContain('(yalnız önceki adımdan bir şey gelmezse)');
   });
 });

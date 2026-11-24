@@ -23,6 +23,7 @@ import {
   type RoutineRevision,
   type RoutineRun,
   type RoutineStep,
+  type RoutineStepWhen,
   type Schedule,
 } from '@leafbot/shared';
 import {
@@ -56,7 +57,7 @@ import { toRoutine, toRun } from './mappers';
 import { botStepAt, handedOn, snapshotSteps, stepList, varsWanted } from './routine-steps';
 import { fetchPublicText } from './skill-link';
 import { mailText } from './email';
-import { RoutineConditions, type ConditionResult } from './routine-conditions';
+import { describeWhen, RoutineConditions, stepWhenHolds, type ConditionResult } from './routine-conditions';
 import type { Services } from '.';
 
 /** The largest watched page read, and how much of its text goes to the bot. */
@@ -2064,6 +2065,8 @@ export class RoutineService {
     note?: string,
   ) {
     const step = steps[position - 1]!;
+    if (step.when && !stepWhenHolds(step.when, before))
+      return this.passOver(run, routineName, steps, step.when, position, before, t);
     if (step.kind === 'approval') return this.askApproval(run, step, position, before, t);
     if (step.kind === 'wait') return this.holdForWait(run, step, position, t);
     if (step.kind === 'notify') return this.notify(run, routineName, steps, step, position, before, t);
@@ -2102,6 +2105,68 @@ export class RoutineService {
       ...reportCap(reportOnly),
     });
     await this.stepStarted(run.id, position, step.kind, turn.id);
+  }
+
+  /**
+   * A step whose condition does not hold, read with no AI: it is passed over and the next one gets
+   * what reached it, or the run ends there as done. A run that ends so reports what reached the
+   * step, as a run whose last step it was would.
+   */
+  private async passOver(
+    run: StepRun,
+    routineName: string,
+    steps: readonly RoutineStep[],
+    when: RoutineStepWhen,
+    position: number,
+    before: string | null,
+    t: T,
+  ) {
+    const now = this.clock();
+    const passed = {
+      status: 'skipped' as const,
+      reason: t('routine.stepWhenNot', { what: describeWhen(when, t) }),
+      output: null,
+      turnId: null,
+      approvalId: null,
+      startedAt: now,
+      finishedAt: now,
+    };
+    await this.ctx.db
+      .insert(schema.routineStepRuns)
+      .values({ id: newId(), runId: run.id, position, kind: steps[position - 1]!.kind, ...passed })
+      .onConflictDoUpdate({
+        target: [schema.routineStepRuns.runId, schema.routineStepRuns.position],
+        set: passed,
+      });
+    if (when.otherwise === 'skip' && position < steps.length) {
+      await this.startStep(run, routineName, steps, position + 1, before, t);
+      return;
+    }
+    const [row] = await this.ctx.db
+      .select({ trigger: schema.routineRuns.trigger, slackChannel: schema.routines.slackChannel })
+      .from(schema.routineRuns)
+      .innerJoin(schema.routines, eq(schema.routines.id, schema.routineRuns.routineId))
+      .where(eq(schema.routineRuns.id, run.id));
+    await this.ctx.db
+      .update(schema.routineRuns)
+      .set({
+        status: 'done',
+        reason:
+          when.otherwise === 'end' && position < steps.length
+            ? t('routine.stepWhenEnded', { step: String(position + 1) })
+            : null,
+        stepModel: null,
+        finishedAt: now,
+      })
+      .where(eq(schema.routineRuns.id, run.id));
+    await this.deliver(run.botId, run.threadId, before ?? '', {
+      id: run.id,
+      routineName,
+      outside: row?.trigger ?? null,
+      slackChannel: row?.slackChannel ?? null,
+    });
+    this.ctx.bus.refresh({ scope: 'routines' });
+    await this.startQueued(run.routineId);
   }
 
   /**
@@ -2667,7 +2732,7 @@ export class RoutineService {
           r.routine.name,
           run.promptSnapshot,
           steps,
-          botStepAt(steps, step.position - 1),
+          botStepAt(steps, step.position - 1, rows),
           rows,
           t('routine.reviseNote', { answer: o.revise }),
           t,

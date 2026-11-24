@@ -45,7 +45,10 @@ export function handedOn(
 ): string | null {
   const parts: string[] = [];
   for (let p = position - 1; p >= 0; p--) {
-    const output = rows.find((r) => r.position === p)?.output?.trim() || null;
+    const row = rows.find((r) => r.position === p);
+    // A step its condition passed over hands on what reached it, as if it were not there.
+    if (row?.status === 'skipped') continue;
+    const output = row?.output?.trim() || null;
     if (isBotStep(steps, p)) {
       if (output) parts.unshift(output);
       break;
@@ -55,10 +58,17 @@ export function handedOn(
   return parts.length ? parts.join('\n\n') : null;
 }
 
-/** The nearest bot step at or before `position`: the one a written correction sends back to. */
-export function botStepAt(steps: readonly RoutineStep[], position: number): number {
+/**
+ * The nearest bot step at or before `position` that ran: the one a written correction sends back
+ * to. One its condition passed over did no work to correct.
+ */
+export function botStepAt(
+  steps: readonly RoutineStep[],
+  position: number,
+  rows: readonly StepRow[] = [],
+): number {
   let p = position;
-  while (p > 0 && !isBotStep(steps, p)) p--;
+  while (p > 0 && (!isBotStep(steps, p) || rows.find((r) => r.position === p)?.status === 'skipped')) p--;
   return p;
 }
 

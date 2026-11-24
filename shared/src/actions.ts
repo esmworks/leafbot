@@ -50,10 +50,33 @@ function stepsText(raw: unknown, locale: Locale): string | null {
         return `${n} ${String(x.kind)}`;
     }
   };
+  // What a step's condition looks for, after its line: the person sees when it is passed over.
+  const when = (x: Record<string, unknown>) => {
+    const w = x.when && typeof x.when === 'object' ? (x.when as Record<string, unknown>) : null;
+    if (!w) return '';
+    const what = str(w.filter) ? cut(str(w.filter)!) : str(w.contains) ? `"${cut(str(w.contains)!)}"` : '';
+    const no = w.absent === true;
+    const test = tr
+      ? what
+        ? `${no ? 'yoksa' : 'varsa'}: ${what}`
+        : no
+          ? 'önceki adımdan bir şey gelmezse'
+          : 'önceki adımdan bir şey gelirse'
+      : what
+        ? `${no ? 'if not there' : 'if there'}: ${what}`
+        : no
+          ? 'if nothing comes from the step before'
+          : 'if something comes from the step before';
+    const end = w.otherwise === 'end' ? (tr ? '; yoksa çalışma biter' : '; otherwise the run ends') : '';
+    return ` (${tr ? 'yalnız ' : 'only '}${test}${end})`;
+  };
   const head = tr ? 'Adımlar:' : 'Steps:';
   return [
     head,
-    ...raw.map((x, i) => line(x && typeof x === 'object' ? (x as Record<string, unknown>) : {}, i)),
+    ...raw.map((x, i) => {
+      const step = x && typeof x === 'object' ? (x as Record<string, unknown>) : {};
+      return line(step, i) + when(step);
+    }),
   ].join('\n');
 }
 /**
