@@ -47,6 +47,8 @@ version is 0.x, a minor release may change the data format or the API; the serve
   still not sent, and the bot reads what you wrote and answers it or redoes the draft. Before, such an answer counted
   as a plain "no" and the bot never saw it. The same goes for the front door's card suggesting a bot for a chat: words
   written there leave the chat with no bot, and the front door reads them (to suggest another bot, or answer you).
+  And on a manager bot's card asking to change another bot, words written instead of Approve or Decline reach the
+  manager with the refusal.
 - WhatsApp no longer wipes its link when the server's secret key changes; it says the saved keys cannot be read and
   asks you to link again. Telegram, Slack, Discord and Teams show as not connected, with a reason, when their saved
   tokens can no longer be read, instead of showing as connected while doing nothing.

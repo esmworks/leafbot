@@ -438,6 +438,20 @@ describe('yönetici bot', () => {
     await t.api('POST', `/api/approvals/${card.id}`, { decision: 'allow', answer: 'Reddet' });
     await t.services.turns.idle();
     expect((await t.messages(tm.id)).at(-1)!.text).toContain('onaylamadı');
+    expect((await t.messages(tm.id)).at(-1)!.text).not.toContain('kendi sözleriyle');
+    // Words written on the card in place of a button reach the manager with the refusal.
+    await t.send(tm.id, '[araç:bot_update {"bot":"Yazar","instructions":"Uzun yaz."}]');
+    const again = await waitFor(
+      async () => (await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body[0],
+    );
+    await t.api('POST', `/api/approvals/${again.id}`, {
+      decision: 'allow',
+      answer: 'Uzun değil, orta olsun',
+    });
+    await t.services.turns.idle();
+    const told = (await t.messages(tm.id)).at(-1)!.text;
+    expect(told).toContain('onaylamadı');
+    expect(told).toContain('Uzun değil, orta olsun');
     expect((await t.api<Bot>('GET', `/api/bots/${yazar.id}`)).body).toMatchObject({
       instructions: 'Kısa yaz.',
       groupId: null,
