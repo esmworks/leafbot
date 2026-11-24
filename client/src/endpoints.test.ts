@@ -20,11 +20,17 @@ describe('endpoints', () => {
     await api.updateBot('b1', { name: 'x' });
     await api.removeRule('r/1');
     await api.endSession('others');
+    await api.answerCard('m1', { node: 'n4', rev: 2, values: { time: '09:00' } });
     expect(sent.map(({ method, path, body }) => ({ method, path, body }))).toEqual([
       { method: 'GET', path: '/api/bots', body: undefined },
       { method: 'PATCH', path: '/api/bots/b1', body: { name: 'x' } },
       { method: 'DELETE', path: '/api/rules/r/1', body: undefined },
       { method: 'DELETE', path: '/api/sessions/others', body: undefined },
+      {
+        method: 'POST',
+        path: '/api/messages/m1/card',
+        body: { node: 'n4', rev: 2, values: { time: '09:00' } },
+      },
     ]);
   });
 

@@ -250,6 +250,17 @@ const tr = {
   'error.payloadTooLarge': 'Gönderilen metin çok uzun (en çok {max} karakter)',
   'error.notOffer': 'Bu bir iş önerisi değil',
   'error.offerAnswered': 'Bu öneri zaten cevaplandı',
+  'error.notCard': 'Bu bir kart değil',
+  'error.cardChanged': 'Kart bu arada değişti; yeni haline bakıp yeniden gönder',
+  'error.cardNoSuchPart': 'Kartta böyle bir düğme yok',
+  'error.cardAnswerFixed': 'Kart cevabı değiştirilemez; geri alıp kartı yeniden doldurabilirsin',
+  'error.cardValue.required': '"{field}" doldurulmalı',
+  'error.cardValue.notOption': '"{field}" için seçeneklerden birini seç',
+  'error.cardValue.badDate': '"{field}" geçerli bir tarih değil',
+  'error.cardValue.outOfRange': '"{field}" izin verilen tarihlerin dışında',
+  'error.cardValue.tooLong': '"{field}" çok uzun',
+  'error.cardValue.notNumber': '"{field}" bir sayı olmalı',
+  'error.cardValue.badEmail': '"{field}" bir e-posta adresi olmalı',
   'error.tailscaleMissing':
     'Bu bilgisayarda Tailscale kurulu değil. Önce tailscale.com adresinden kurup giriş yapın.',
   'error.tailscaleStopped':
@@ -1066,6 +1077,37 @@ const tr = {
   'tool.quick_replies':
     'Yanıtının altına kullanıcının tek dokunuşla seçebileceği kısa cevaplar koy (en çok 6, her biri birkaç sözcük); seçilen metin kullanıcının sonraki mesajı olarak gelir. Sorunu yine yanıtında yaz. Beklemen gereken bir karar için değil, kolaylık için kullan; cevabı mutlaka gerekiyorsa ask_user kullan.',
   'tool.quickRepliesShown': 'Hızlı cevaplar yanıtının altında gösterilecek.',
+  'tool.show_card':
+    'Sohbete etkileşimli bir kart koy: dokunarak cevaplanacak bir seçim (birkaç seçenekten biri, bir gün, bir saat), var olan bir şeyi değiştirmek için önceden doldurulmuş bir form ya da yerinde güncellenen bir durum. card tek bir JSON ağacıdır ve OpenAI ChatKit widget bileşenlerinin adlarını ve özelliklerini kullanır. Kök {type:"Card", children, confirm?:{label,action}, cancel?:{label,action}} ya da seçilecek satırlar için {type:"ListView", children:[{type:"ListViewItem", onClickAction?, children}]}. Bileşenler: Row, Col, Box, Form{onSubmitAction, children}, Spacer, Divider, Title, Text, Caption, Markdown, Badge{label,color}, Icon{name}, Label{value,fieldName}, Button{label, onClickAction?, submit?, style?: primary|secondary}. Alanların her birinin bir name\'i ve kısa bir etiketi olsun: Select ve RadioGroup{options:[{value,label}], defaultValue?}, Checkbox{label, defaultChecked?}, Input{inputType?: text|number|email|tel|url, defaultValue?, placeholder?}, Textarea, DatePicker{min?, max?, defaultValue?} (YYYY-MM-DD); zorunlu alana required:true ver. Eylem {type, payload?} biçimindedir; {type:"open_url", payload:{url}} bir bağlantı açar. Kişi bir düğmeye bastığında ya da formu gönderdiğinde cevap (düğmenin adı, alanların değerleri, eylemin type ve payload\'ı) sonraki mesajı olarak gelir ve kart kapanır; bir kart yalnızca bir kez cevaplanır. Cevabı bekleme: kartı gösterip turunu bitir; kişi kartı kullanmadan yazarsa yazdığı şey cevabıdır. Bir kartı yerinde değiştirmek için (ilerleyen bir iş, değişen bir durum) aynı card_id ile yeniden çağır; cevaplanmış bir kart değişmez. Kartı küçük tut: sorabileceğin ya da makul bir varsayılanla geçebileceğin şeyi sorma. Veri ve karşılaştırmalar için kart değil, yanıtında markdown tablo kullan; düz bir evet/hayır sorusu için kart gerekmez. Şifre, anahtar ya da kart numarası isteme: onlar için credential_request var. Görsel (Image) ve grafik (Chart) çizilmez; grafik için show_page kullan. Telegram ya da WhatsApp gibi uygulamalarda kart düz metin olarak görünür ve kişi yazarak cevaplar.',
+  'tool.cardShown':
+    'Kart sohbette (card_id: {id}). Cevap kişinin sonraki mesajı olarak gelecek; beklemeden turunu bitir.',
+  'tool.cardUpdated': 'Kart yerinde güncellendi (card_id: {id}).',
+  'tool.cardAnswered':
+    'Bu kart cevaplandı ya da bu arada değişti; değiştirilemez. Gerekirse yeni bir kart göster.',
+  'tool.cardNotFound': 'Bu sohbette bu card_id ile senin gösterdiğin bir kart yok.',
+  'tool.cardNotHere': 'Bu sohbette kart gösterilmez; soruyu yazıyla sor.',
+  'tool.cardInvalid': "Kart gösterilmedi: {problem} ({path}). Düzeltip show_card'ı yeniden çağır.",
+  'card.issue.notObject': 'burada bir bileşen nesnesi olmalı',
+  'card.issue.tooLarge': 'kart çok büyük (en çok {detail} bayt)',
+  'card.issue.tooDeep': 'bileşenler çok derin iç içe (en çok {detail} kat)',
+  'card.issue.tooManyNodes': 'çok fazla bileşen (en çok {detail})',
+  'card.issue.tooManyFields': 'çok fazla alan (en çok {detail})',
+  'card.issue.tooManyItems': 'çok fazla satır ya da seçenek (en çok {detail})',
+  'card.issue.unknownType': '"{detail}" diye bir bileşen yok',
+  'card.issue.unsupported': '{detail} çizilmez; bunun yerine {other} kullan',
+  'card.issue.missing': '"{detail}" eksik',
+  'card.issue.badAction':
+    'eylem {type, payload?} olmalı: type harf, rakam ve _ . : - ile en çok 64 karakter, payload en çok 2000 bayt',
+  'card.issue.badName': '"{detail}" geçerli bir alan adı değil; harfle başlayan, boşluksuz bir ad ver',
+  'card.issue.duplicateName': '"{detail}" iki kez kullanılmış',
+  'card.issue.noOptions': 'seçenekler (options) boş',
+  'card.issue.secret':
+    '"{detail}" alanı bir şifre ya da anahtar istiyor gibi; bunlar için credential_request kullan',
+  'card.issue.listItemOutside': 'ListViewItem yalnızca bir ListView içinde olur',
+  'card.yes': 'Evet',
+  'card.no': 'Hayır',
+  'card.forBot': '[Kart cevabı · eylem: {action} · değerler: {values}]',
+  'card.noAction': 'yok',
   'tool.conversations_search':
     'Kendi geçmiş sohbetlerinde (hepsinde, ne kadar eski olursa olsun) bir sözcük ya da ifade ara. Kullanıcı daha önce konuşulan bir şeyi sorduğunda ya da önceki bir işi tekrarlamadan önce kullan. Her sonuç sohbetin ve mesajın kimliğini verir; tamamını message_read ile oku.',
   'tool.message_read':
@@ -2184,6 +2226,17 @@ const en: Catalog<ServerKey> = {
   'error.payloadTooLarge': 'The text sent is too long (at most {max} characters)',
   'error.notOffer': 'This is not a work offer',
   'error.offerAnswered': 'This offer has already been answered',
+  'error.notCard': 'This is not a card',
+  'error.cardChanged': 'The card changed meanwhile; look at it again and send once more',
+  'error.cardNoSuchPart': 'The card has no such button',
+  'error.cardAnswerFixed': 'A card answer cannot be changed; take it back and fill in the card again',
+  'error.cardValue.required': '"{field}" must be filled in',
+  'error.cardValue.notOption': 'Pick one of the options for "{field}"',
+  'error.cardValue.badDate': '"{field}" is not a valid date',
+  'error.cardValue.outOfRange': '"{field}" is outside the dates allowed',
+  'error.cardValue.tooLong': '"{field}" is too long',
+  'error.cardValue.notNumber': '"{field}" must be a number',
+  'error.cardValue.badEmail': '"{field}" must be an email address',
   'error.tailscaleMissing':
     'Tailscale is not installed on this computer. Install it from tailscale.com and sign in first.',
   'error.tailscaleStopped': 'Tailscale is not running or not signed in. Open the Tailscale app and connect.',
@@ -3002,6 +3055,38 @@ const en: Catalog<ServerKey> = {
   'tool.quick_replies':
     "Put short answers under your reply that the user can pick with one tap (at most 6, a few words each); the picked text arrives as the user's next message. Still write the question in your reply. It is a convenience, not a wait: when you need the answer, use ask_user.",
   'tool.quickRepliesShown': 'The quick replies will show under your reply.',
+  'tool.show_card':
+    'Put an interactive card in the conversation: a choice answered with a tap (one of a few options, a day, a time), a form filled in beforehand to change something that exists, or a status updated in place. card is one JSON tree using the component names and props of OpenAI ChatKit widgets. The root is {type:"Card", children, confirm?:{label,action}, cancel?:{label,action}}, or, for rows to choose from, {type:"ListView", children:[{type:"ListViewItem", onClickAction?, children}]}. Components: Row, Col, Box, Form{onSubmitAction, children}, Spacer, Divider, Title, Text, Caption, Markdown, Badge{label,color}, Icon{name}, Label{value,fieldName}, Button{label, onClickAction?, submit?, style?: primary|secondary}. Give every field a name and a short label: Select and RadioGroup{options:[{value,label}], defaultValue?}, Checkbox{label, defaultChecked?}, Input{inputType?: text|number|email|tel|url, defaultValue?, placeholder?}, Textarea, DatePicker{min?, max?, defaultValue?} (YYYY-MM-DD); required:true makes a field compulsory. An action is {type, payload?}; {type:"open_url", payload:{url}} opens a link. When the person presses a button or sends the form, the answer (the button\'s name, the field values, the action\'s type and payload) arrives as their next message and the card closes; a card is answered once. Do not wait for it: show the card and end your turn; if the person writes instead of using the card, what they write is the answer. To change a card in place (work moving on, a status changing), call again with its card_id; an answered card does not change. Keep cards small: do not ask what you can find out or sensibly default. Data and comparisons go in a markdown table in your reply, not a card; a plain yes or no needs no card. Never ask for passwords, keys or card numbers: credential_request is for those. Images (Image) and charts (Chart) are not drawn; use show_page for a chart. In chat apps such as Telegram or WhatsApp the card shows as plain text and the person answers in words.',
+  'tool.cardShown':
+    "The card is in the conversation (card_id: {id}). The answer will arrive as the person's next message; end your turn instead of waiting.",
+  'tool.cardUpdated': 'The card was updated in place (card_id: {id}).',
+  'tool.cardAnswered':
+    'That card has been answered or changed meanwhile; it cannot be replaced. Show a new card if needed.',
+  'tool.cardNotFound': 'There is no card of yours with that card_id in this conversation.',
+  'tool.cardNotHere': 'Cards are not shown in this conversation; ask in words.',
+  'tool.cardInvalid': 'The card was not shown: {problem} (at {path}). Fix it and call show_card again.',
+  'card.issue.notObject': 'a component object is expected here',
+  'card.issue.tooLarge': 'the card is too large (at most {detail} bytes)',
+  'card.issue.tooDeep': 'components are nested too deep (at most {detail} levels)',
+  'card.issue.tooManyNodes': 'too many components (at most {detail})',
+  'card.issue.tooManyFields': 'too many fields (at most {detail})',
+  'card.issue.tooManyItems': 'too many rows or options (at most {detail})',
+  'card.issue.unknownType': 'there is no "{detail}" component',
+  'card.issue.unsupported': '{detail} is not drawn; use {other} instead',
+  'card.issue.missing': '"{detail}" is missing',
+  'card.issue.badAction':
+    'an action must be {type, payload?}: type in letters, digits and _ . : - up to 64 characters, payload up to 2000 bytes',
+  'card.issue.badName':
+    '"{detail}" is not a valid field name; use one that starts with a letter and has no spaces',
+  'card.issue.duplicateName': '"{detail}" is used twice',
+  'card.issue.noOptions': 'the options are empty',
+  'card.issue.secret':
+    'the field "{detail}" looks like it asks for a password or key; use credential_request for those',
+  'card.issue.listItemOutside': 'ListViewItem belongs only inside a ListView',
+  'card.yes': 'Yes',
+  'card.no': 'No',
+  'card.forBot': '[Card answer · action: {action} · values: {values}]',
+  'card.noAction': 'none',
   'tool.conversations_search':
     'Search your own past conversations (all of them, however old) for a word or phrase. Use it when the user asks about something discussed before, or before redoing earlier work. Each hit gives the conversation and message ids; read the whole message with message_read.',
   'tool.message_read':
