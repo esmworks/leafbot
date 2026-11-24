@@ -2777,6 +2777,7 @@ export class ToolFactory {
           // A card is filled only for the person who wrote this turn themselves, here and now: not
           // for a chat app's unknown sender, a guest, a routine or another bot.
           attended: attended(turn.source) && !!turn.userId && turn.userId === own && !turn.guest,
+          ownRoutine: turn.source === 'routine' && !turn.guest,
           siteNotes: async (host) =>
             bot.memory
               ? (await s.memory.forSite(bot.id, host, own, await place())).map((m) => m.content)

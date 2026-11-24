@@ -1587,6 +1587,8 @@ const tr = {
   'browser.contactTeam': 'İletişim bilgileri kişiseldir ve takım konuşmasında kullanılamaz.',
   'browser.contactUnattended':
     'İletişim bilgileri {site} sitesinde daha önce onaylanmadı; ilk kez yalnızca kullanıcının başlattığı bir konuşmada sorularak doldurulur. Bu adımı kullanıcıya bırak.',
+  'browser.contactNotOwn':
+    'İletişim bilgileri yalnızca kullanıcının kendi başlattığı bir konuşmada ya da kendi rutininde doldurulur; bu adımı kullanıcıya bırak.',
   'browser.contactInsecure': 'Bu sayfa https değil; iletişim bilgisi buraya yazılmaz.',
   'browser.contactNone':
     'Kullanabileceğin kayıtlı iletişim bilgisi yok. Kullanıcıdan Ayarlar > Kasa bölümüne eklemesini ya da alanları kendisinin doldurmasını iste.',
@@ -3828,6 +3830,8 @@ const en: Catalog<ServerKey> = {
   'browser.contactTeam': 'Contact details are personal and cannot be used in a team conversation.',
   'browser.contactUnattended':
     'The contact details were not allowed on {site} before; the first time they are filled only in a conversation the user started, after asking them. Leave this step to the user.',
+  'browser.contactNotOwn':
+    "Contact details are filled only in a conversation the user started or in the user's own routine; leave this step to the user.",
   'browser.contactInsecure': 'This page is not https; contact details are not typed here.',
   'browser.contactNone':
     'There are no saved contact details you may use. Ask the user to add them under Settings > Vault, or to fill the fields themselves.',

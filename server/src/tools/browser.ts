@@ -660,6 +660,8 @@ export function browserTools(opts: {
   askContact?: AskContact;
   /** Whether the person is in the conversation, having started this turn: a card is filled only then. */
   attended?: boolean;
+  /** The turn is a routine of the person's own: their contact details go only to sites agreed to. */
+  ownRoutine?: boolean;
   /** What the bot noted earlier about how a site works. */
   siteNotes?: (host: string) => Promise<string[]>;
   /** A page of `site` hides text written to steer an agent; the person is told. */
@@ -1356,7 +1358,7 @@ export function browserTools(opts: {
     // a code's or another part of the address. A field with none or with "on" is the bot's call.
     const named = info.autocomplete
       .split(/\s+/)
-      .filter((w) => w && !/^(section-|shipping|billing|home|work|mobile|on|off)/.test(w));
+      .filter((w) => w && !/^(section-.*|shipping|billing|home|work|mobile|on|off)$/.test(w));
     const other = named.length > 0 && !named.some((w) => CONTACT_AUTOCOMPLETE[part].includes(w));
     if (!tagOk || info.search || other) return refuse(t('browser.contactNotField', { part: what }));
     const frame: Frame | null = await field.ownerFrame();
@@ -1376,6 +1378,9 @@ export function browserTools(opts: {
     // A person's own details, or the team's while working for someone in it; never for a team
     // conversation or someone with no account here.
     if (!person) return t('browser.contactTeam');
+    // Only the person's own work: a turn they started, or a routine of theirs. A message from a chat
+    // app's unknown sender or another bot's request would read the details back from the page.
+    if (!opts.attended && !opts.ownRoutine) return t('browser.contactNotOwn');
     let host: string;
     try {
       const url = await use(async (page) => new URL(page.url()));

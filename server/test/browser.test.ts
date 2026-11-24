@@ -1364,6 +1364,18 @@ describe.skipIf(!BROWSER)('botun tarayıcısı', () => {
     await t.services.turns.idle();
     expect((await t.messages(run.threadId)).map((m) => m.text).join('\n')).toContain('dolduruldu');
 
+    // A chat app's message from someone not paired with an account is not the person's own work,
+    // even on a site they allowed.
+    await t.services.turns.enqueue({
+      threadId: thread.id,
+      botId: bot.id,
+      source: 'user',
+      prompt: `[araç:browser_contact ${JSON.stringify({ fields: [fields[1]] })}]`,
+      userId: null,
+    });
+    await t.services.turns.idle();
+    expect((await t.messages(thread.id)).at(-1)!.text).toContain('kendi başlattığı');
+
     // Taken back, a routine's turn may not ask for it: nothing is filled.
     const [saved] = (await t.api<ContactDetails[]>('GET', '/api/contacts')).body;
     await t.api('PATCH', `/api/contacts/${saved!.id}`, { forgetSites: saved!.sites });
