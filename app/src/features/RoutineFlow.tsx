@@ -33,6 +33,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useLocale, useT, type MessageKey } from '@/i18n';
 import {
+  BOX_MAX_H,
   BOX_W,
   canvasSize,
   insertStep,
@@ -60,6 +61,9 @@ import {
   StepIcon,
   type StepForm,
 } from './RoutineSteps';
+
+/** A box's title bar, `h-11`: the fields under it get the rest of the box's height. */
+const TITLE_H = 44;
 
 /** The width the canvas is laid out for before it is measured (and where nothing is, in tests). */
 const FALLBACK_WIDTH = 1100;
@@ -402,7 +406,9 @@ export function RoutineFlow({
           {o.status && statusChip(o.status)}
           {o.menu}
         </div>
-        <div className="space-y-2 p-3">{o.children}</div>
+        <div className="scroll-thin space-y-2 overflow-y-auto p-3" style={{ maxHeight: BOX_MAX_H - TITLE_H }}>
+          {o.children}
+        </div>
       </section>
     );
   };
