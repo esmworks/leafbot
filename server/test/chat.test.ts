@@ -75,6 +75,25 @@ describe('sohbet', () => {
     expect(last.prompt).toBe('adım neydi');
   });
 
+  it('a session holding tools from before an update hands the conversation to a new one, and says so', async () => {
+    const bot = await t.bot({ name: 'Paşa' });
+    const thread = await main(bot.id);
+    await t.send(thread.id, 'adım Ayşe');
+    await t.services.turns.idle();
+    t.engine.outdate(`fake-${thread.id}`, ['routine_create', 'routine_update']);
+
+    await t.send(thread.id, 'rutine koşul ekle');
+    await t.services.turns.idle();
+    const msgs = await t.messages(thread.id);
+    const note = msgs.find((m) => m.props.kind === 'toolsHandoff')!;
+    expect(note.text).toContain('routine_create, routine_update');
+    const [stale, fresh] = t.engine.requests.slice(-2);
+    expect(stale!.sessionId).toBe(`fake-${thread.id}`);
+    expect(fresh!.sessionId).toBeNull();
+    expect(fresh!.prompt).toMatch(/adım Ayşe/);
+    expect(msgs.at(-1)!.text).toContain('rutine koşul ekle');
+  });
+
   it('oturumun kaydı silinince yeni bir oturum son konuşmayı alıp devam eder', async () => {
     const bot = await t.bot({ name: 'Kahya' });
     const thread = await main(bot.id);

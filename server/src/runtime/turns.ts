@@ -2377,7 +2377,18 @@ export class TurnManager {
         ),
       );
       if (!outcome.ok && outcome.kind === 'lostSession') {
-        // Its transcript is gone: a new session takes the thread over, once, with the recent exchange.
+        // Its transcript is gone, or it holds tools as they were before the server was updated: a
+        // new session takes the thread over, once, with the recent exchange.
+        if (outcome.staleTools?.length)
+          await threads.addMessage({
+            threadId: thread.id,
+            role: 'system',
+            author: 'system',
+            text: t('turn.toolsHandoff', { tools: outcome.staleTools.slice(0, 8).join(', ') }),
+            props: { kind: 'toolsHandoff' },
+            turnId: turn.id,
+            quiet: true,
+          });
         session = null;
         await saveSession(null);
         spent += outcome.costUsd ?? 0;
