@@ -86,6 +86,23 @@ describe('routine health', () => {
     expect(ids(input({ routine: { steps: handled }, steps: stepRuns }))).not.toContain('stepFails');
   });
 
+  it('finds a data step that keeps failing, unless it has a way to go on', () => {
+    const steps: RoutineStep[] = [{ id: 'a', kind: 'fetch', url: 'https://ornek.com/a.json' }];
+    const stepRuns = ['r0', 'r1', 'r2'].map((runId) => ({
+      runId,
+      position: 1,
+      kind: 'fetch',
+      status: 'error',
+    }));
+    expect(healthFindings(input({ routine: { steps }, steps: stepRuns }))).toContainEqual({
+      id: 'stepFails',
+      step: 1,
+      count: 3,
+    });
+    const handled: RoutineStep[] = [{ ...steps[0], onError: 'b' } as RoutineStep];
+    expect(ids(input({ routine: { steps: handled }, steps: stepRuns }))).not.toContain('stepFails');
+  });
+
   it('leaves out a wait already at its longest, and a wait for a time', () => {
     const steps: RoutineStep[] = [
       { id: 'a', kind: 'wait', on: 'email', minutes: 60, filter: '', timeoutDays: 30 },

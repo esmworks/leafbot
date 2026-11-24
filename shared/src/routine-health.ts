@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ROUTINE_APPROVAL_MAX_DAYS, type Routine, type RoutineStep } from './schedule';
+import { ROUTINE_APPROVAL_MAX_DAYS, ROUTINE_FAILING_STEPS, type Routine, type RoutineStep } from './schedule';
 
 /**
  * A routine's health, worked out from its runs with no AI: how they ended, what they cost, and
@@ -177,7 +177,8 @@ export function healthFindings(input: HealthInput): RoutineHealthFinding[] {
     const step = steps[position - 1];
     // A step with a way to go on failure has its failures handled already, often on purpose (a
     // backup source, a routine that watches for something going down).
-    if (ids.size >= 3 && step?.kind === 'agent' && !step.onError)
+    const failing = step && (ROUTINE_FAILING_STEPS as readonly string[]).includes(step.kind);
+    if (ids.size >= 3 && failing && !('onError' in step && step.onError))
       out.push({ id: 'stepFails', step: position, count: ids.size });
   }
   for (const [position, ids] of [...timeoutsAt].sort((a, b) => a[0] - b[0])) {
