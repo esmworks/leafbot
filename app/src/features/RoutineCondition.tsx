@@ -1,5 +1,12 @@
-import { ROUTINE_CONDITION_MAX, type RoutineCondition, type RoutineConditionCheck } from '@leafbot/shared';
+import {
+  NUMBER_BASELINE_MIN,
+  NUMBER_WINDOW_MAX,
+  ROUTINE_CONDITION_MAX,
+  type RoutineCondition,
+  type RoutineConditionCheck,
+} from '@leafbot/shared';
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +19,7 @@ import { useConnections } from '@/lib/queries';
 import { Field } from './RoutinePage';
 
 type Kind = RoutineConditionCheck['kind'];
-const KINDS: Kind[] = ['files', 'email', 'whatsapp', 'table', 'tool', 'page'];
+const KINDS: Kind[] = ['files', 'email', 'whatsapp', 'table', 'tool', 'page', 'number'];
 
 /** A first check of each kind, with the values the server would fill in. */
 function blank(kind: Kind): RoutineConditionCheck {
@@ -28,6 +35,21 @@ function blank(kind: Kind): RoutineConditionCheck {
       return { kind, connectionId: '', tool: '', args: {}, filter: '', contains: '', absent: false };
     case 'page':
       return { kind, url: '', contains: '', absent: false };
+    case 'number':
+      return {
+        kind,
+        from: 'tool',
+        connectionId: '',
+        tool: '',
+        args: {},
+        url: '',
+        path: '',
+        op: 'above',
+        than: 'value',
+        threshold: 0,
+        window: 10,
+        absent: false,
+      };
   }
 }
 
@@ -255,6 +277,7 @@ function CheckFields({
       )}
       {c.kind === 'table' && <TableCheck botId={botId} check={c} onChange={onChange} />}
       {c.kind === 'tool' && <ToolCheck botId={botId} check={c} onChange={onChange} />}
+      {c.kind === 'number' && <NumberCheck botId={botId} check={c} onChange={onChange} />}
       {c.kind === 'page' && (
         <>
           <Input
@@ -274,10 +297,12 @@ function CheckFields({
           />
         </>
       )}
-      <label className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span className="flex-1">{t('routine.conditionAbsent')}</span>
-        <Switch checked={c.absent} onCheckedChange={(v) => onChange({ ...c, absent: v })} />
-      </label>
+      {c.kind !== 'number' && (
+        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="flex-1">{t('routine.conditionAbsent')}</span>
+          <Switch checked={c.absent} onCheckedChange={(v) => onChange({ ...c, absent: v })} />
+        </label>
+      )}
     </div>
   );
 }
@@ -374,44 +399,15 @@ function ToolCheck({
   onChange(next: RoutineConditionCheck): void;
 }) {
   const t = useT();
-  const { data: connections = [] } = useConnections();
-  // Only tools that read, of connections this bot may use; the server checks the same on save.
-  const options = connections
-    .filter((x) => x.allBots || x.botIds.includes(botId))
-    .flatMap((x) =>
-      x.tools
-        .filter((tool) => tool.kind === 'read' && tool.enabled)
-        .map((tool) => ({
-          value: `${x.id}\n${tool.name}`,
-          label: `${x.name} · ${tool.title || tool.name}`,
-        })),
-    );
-  const current = `${c.connectionId}\n${c.tool}`;
-  const known = !c.tool || options.some((o) => o.value === current);
-  const args = Object.keys(c.args).length ? JSON.stringify(c.args) : null;
   return (
     <>
-      <Select
-        value={c.tool ? current : undefined}
-        onValueChange={(v) => {
-          const [connectionId = '', tool = ''] = v.split('\n');
-          // Another tool takes other arguments, so the old ones go.
-          if (v !== current) onChange({ ...c, connectionId, tool, args: {} });
-        }}
-      >
-        <SelectTrigger className="w-full rounded-xl" aria-label={t('routine.conditionTool')}>
-          <SelectValue placeholder={t('routine.conditionTool')} />
-        </SelectTrigger>
-        <SelectContent>
-          {!known && <SelectItem value={current}>{`${c.connectionId} · ${c.tool}`}</SelectItem>}
-          {options.map((o) => (
-            <SelectItem key={o.value} value={o.value}>
-              {o.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {args && <code className="block break-all font-mono text-[11px] text-muted-foreground">{args}</code>}
+      <ToolPicker
+        botId={botId}
+        connectionId={c.connectionId}
+        tool={c.tool}
+        args={c.args}
+        onPick={(connectionId, tool) => onChange({ ...c, connectionId, tool, args: {} })}
+      />
       <Textarea
         value={c.filter}
         onChange={(e) => onChange({ ...c, filter: e.target.value })}
@@ -429,6 +425,178 @@ function ToolCheck({
         className="rounded-xl"
       />
       <p className="text-xs text-muted-foreground">{t('routine.conditionToolHint')}</p>
+    </>
+  );
+}
+
+/** A read-only tool of a connection this bot may use, with the arguments it is called with. */
+function ToolPicker({
+  botId,
+  connectionId,
+  tool,
+  args,
+  onPick,
+}: {
+  botId: string;
+  connectionId: string;
+  tool: string;
+  args: Record<string, unknown>;
+  onPick(connectionId: string, tool: string): void;
+}) {
+  const t = useT();
+  const { data: connections = [] } = useConnections();
+  // Only tools that read, of connections this bot may use; the server checks the same on save.
+  const options = connections
+    .filter((x) => x.allBots || x.botIds.includes(botId))
+    .flatMap((x) =>
+      x.tools
+        .filter((one) => one.kind === 'read' && one.enabled)
+        .map((one) => ({
+          value: `${x.id}\n${one.name}`,
+          label: `${x.name} · ${one.title || one.name}`,
+        })),
+    );
+  const current = `${connectionId}\n${tool}`;
+  const known = !tool || options.some((o) => o.value === current);
+  const shown = Object.keys(args).length ? JSON.stringify(args) : null;
+  return (
+    <>
+      <Select
+        value={tool ? current : undefined}
+        onValueChange={(v) => {
+          const [nextConnection = '', nextTool = ''] = v.split('\n');
+          // Another tool takes other arguments, so the old ones go.
+          if (v !== current) onPick(nextConnection, nextTool);
+        }}
+      >
+        <SelectTrigger className="w-full rounded-xl" aria-label={t('routine.conditionTool')}>
+          <SelectValue placeholder={t('routine.conditionTool')} />
+        </SelectTrigger>
+        <SelectContent>
+          {!known && <SelectItem value={current}>{`${connectionId} · ${tool}`}</SelectItem>}
+          {options.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {shown && <code className="block break-all font-mono text-[11px] text-muted-foreground">{shown}</code>}
+    </>
+  );
+}
+
+/**
+ * A number read from an app's tool or a page, compared with a threshold or with the average of
+ * the readings of earlier slots.
+ */
+function NumberCheck({
+  botId,
+  check: c,
+  onChange,
+}: {
+  botId: string;
+  check: Extract<RoutineConditionCheck, { kind: 'number' }>;
+  onChange(next: RoutineConditionCheck): void;
+}) {
+  const t = useT();
+  // The threshold as typed, so a minus sign or a decimal point on its way is not lost.
+  const [threshold, setThreshold] = useState(String(c.threshold));
+  const average = c.than === 'average';
+  return (
+    <>
+      <Select
+        value={c.from}
+        onValueChange={(v) => v !== c.from && onChange({ ...c, from: v as 'tool' | 'page' })}
+      >
+        <SelectTrigger className="w-full rounded-xl" aria-label={t('routine.numberFrom')}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="tool">{t('routine.numberFrom.tool')}</SelectItem>
+          <SelectItem value="page">{t('routine.numberFrom.page')}</SelectItem>
+        </SelectContent>
+      </Select>
+      {c.from === 'tool' ? (
+        <ToolPicker
+          botId={botId}
+          connectionId={c.connectionId}
+          tool={c.tool}
+          args={c.args}
+          onPick={(connectionId, tool) => onChange({ ...c, connectionId, tool, args: {} })}
+        />
+      ) : (
+        <Input
+          value={c.url}
+          onChange={(e) => onChange({ ...c, url: e.target.value })}
+          placeholder={t('routine.watchUrlPlaceholder')}
+          inputMode="url"
+          maxLength={2000}
+          className="rounded-xl"
+        />
+      )}
+      <Input
+        value={c.path}
+        onChange={(e) => onChange({ ...c, path: e.target.value })}
+        placeholder={t('routine.numberPathPlaceholder')}
+        maxLength={300}
+        className={mono}
+        spellCheck={false}
+      />
+      <Select
+        value={c.than}
+        onValueChange={(v) => {
+          const than = v as 'value' | 'average';
+          // Both ways only against the average; a plain threshold says which side.
+          onChange({ ...c, than, op: than === 'value' && c.op === 'either' ? 'above' : c.op });
+        }}
+      >
+        <SelectTrigger className="w-full rounded-xl" aria-label={t('routine.numberThan')}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="value">{t('routine.numberThan.value')}</SelectItem>
+          <SelectItem value="average">{t('routine.numberThan.average')}</SelectItem>
+        </SelectContent>
+      </Select>
+      <div className="flex items-center gap-2">
+        <Select value={c.op} onValueChange={(v) => onChange({ ...c, op: v as typeof c.op })}>
+          <SelectTrigger className="w-full rounded-xl" aria-label={t('routine.numberOp')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="above">{t('routine.numberOp.above')}</SelectItem>
+            <SelectItem value="below">{t('routine.numberOp.below')}</SelectItem>
+            {average && <SelectItem value="either">{t('routine.numberOp.either')}</SelectItem>}
+          </SelectContent>
+        </Select>
+        <Input
+          type="number"
+          step="any"
+          min={average ? 0 : undefined}
+          value={threshold}
+          onChange={(e) => {
+            setThreshold(e.target.value);
+            const n = Number(e.target.value);
+            if (e.target.value.trim() !== '' && Number.isFinite(n)) onChange({ ...c, threshold: n });
+          }}
+          className="h-9 w-28 shrink-0 rounded-xl text-sm"
+          aria-label={t(average ? 'routine.numberPercent' : 'routine.numberThreshold')}
+        />
+        {average && <span className="text-sm text-muted-foreground">%</span>}
+      </div>
+      {average && (
+        <Num
+          label={t('routine.numberWindow')}
+          value={c.window}
+          min={NUMBER_BASELINE_MIN}
+          max={NUMBER_WINDOW_MAX}
+          onChange={(n) => onChange({ ...c, window: n ?? 10 })}
+        />
+      )}
+      <p className="text-xs text-muted-foreground">
+        {t(average ? 'routine.numberAverageHint' : 'routine.numberHint')}
+      </p>
     </>
   );
 }

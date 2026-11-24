@@ -148,7 +148,7 @@ const ConditionInput = z.object({
   checks: z
     .array(
       z.object({
-        kind: z.enum(['files', 'email', 'whatsapp', 'table', 'tool', 'page']),
+        kind: z.enum(['files', 'email', 'whatsapp', 'table', 'tool', 'page', 'number']),
         folder: z.enum(['bot', 'group']).optional(),
         pattern: z.string().max(300).optional(),
         min: z.number().int().optional(),
@@ -159,6 +159,11 @@ const ConditionInput = z.object({
         args: z.record(z.string(), z.unknown()).optional(),
         contains: z.string().max(500).optional(),
         url: z.string().max(2000).optional(),
+        path: z.string().max(300).optional(),
+        op: z.enum(['above', 'below', 'either']).optional(),
+        than: z.enum(['value', 'average']).optional(),
+        threshold: z.number().optional(),
+        window: z.number().int().optional(),
         absent: z.boolean().optional(),
       }),
     )
@@ -937,6 +942,13 @@ export class ToolFactory {
           const named = x.tool ? await s.connections.checkFromName(botId, x.tool, person) : null;
           if (!named) return t('tool.routineBadCheck', { tool: x.tool ?? '-' });
           checks.push({ ...common, ...named, args: x.args, filter: x.filter, contains: x.contains });
+        } else if (x.kind === 'number') {
+          const reading = { path: x.path, op: x.op, than: x.than, threshold: x.threshold, window: x.window };
+          if (x.tool) {
+            const named = await s.connections.checkFromName(botId, x.tool, person);
+            if (!named) return t('tool.routineBadCheck', { tool: x.tool });
+            checks.push({ kind: x.kind, from: 'tool', ...named, args: x.args, ...reading });
+          } else checks.push({ kind: x.kind, from: 'page', url: x.url ?? '', ...reading });
         } else checks.push({ ...common, url: x.url ?? '', contains: x.contains ?? '' });
       }
       const parsed = ConditionSchema.safeParse({
@@ -1006,6 +1018,16 @@ export class ToolFactory {
               ...(x.filter && { filter: x.filter }),
               ...(x.contains && { contains: x.contains }),
               ...absent,
+            };
+          if (x.kind === 'number')
+            return {
+              kind: x.kind,
+              ...(x.from === 'tool' ? { tool: x.tool, args: x.args } : { url: x.url }),
+              ...(x.path && { path: x.path }),
+              op: x.op,
+              than: x.than,
+              threshold: x.threshold,
+              ...(x.than === 'average' && { window: x.window }),
             };
           return { kind: x.kind, url: x.url, contains: x.contains, ...absent };
         }),

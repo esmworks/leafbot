@@ -750,6 +750,13 @@
       "when": 1795554025520,
       "tag": "0106_routine_versions",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1795558224802,
+      "tag": "0107_routine_readings",
+      "breakpoints": true
     }
   ]
 }

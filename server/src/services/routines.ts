@@ -742,6 +742,13 @@ export class RoutineService {
   ) {
     for (const c of condition.checks) {
       if (c.kind === 'tool') await this.checkCheck(botId, { ...c }, person, !!slackChannel);
+      else if (c.kind === 'number' && c.from === 'tool')
+        await this.checkCheck(
+          botId,
+          { connectionId: c.connectionId, tool: c.tool, args: c.args },
+          person,
+          !!slackChannel,
+        );
       else if (c.kind === 'table') await this.checkTable(botId, c.tableId, c.filter);
       else if (c.kind === 'files' && c.folder === 'group') {
         const bot = await this.services.bots.get(botId);
@@ -955,6 +962,14 @@ export class RoutineService {
     if (!r) return;
     const routine = r;
     const occurrence = occurrenceKey(routine.nextRunAt!);
+    // What the condition's number checks read when they held, for the run to start from.
+    let found: string[] = [];
+    const conditionStops = async () => {
+      const r = await this.conditionStops(routine, now, occurrence, t);
+      if (r === true) return true;
+      found = r;
+      return false;
+    };
     try {
       const late = now.getTime() - routine.nextRunAt!.getTime() > MISSED_GRACE_MS;
       const waitingOn = await this.signInStillWaiting(routine);
@@ -967,7 +982,7 @@ export class RoutineService {
         );
       } else if (late && routine.missed === 'skip') {
         await this.record(toRoutine(routine), occurrence, 'skipped', t('routine.missedSkipped'));
-      } else if (routine.condition && (await this.conditionStops(routine, now, occurrence, t))) {
+      } else if (routine.condition && (await conditionStops())) {
         // Looked at before the page and the app's check: those keep what they read as they read it,
         // so a change they found would be lost on a run the condition held back.
       } else if (routine.watchUrl || routine.check) {
@@ -1006,11 +1021,12 @@ export class RoutineService {
         }
         // Its new answer is already kept: a change found while the server stops still runs.
         const still = news.length ? await current(routine) : null;
+        const read = found.length ? [t('routine.numberFound', { lines: found.join('\n') })] : [];
         if (still)
           await this.fire(
             toRoutine(still),
             occurrence,
-            news.join('\n\n'),
+            [...read, ...news].join('\n\n'),
             false,
             { trigger: 'watch', input: changes.join('\n\n') },
             undefined,
@@ -1021,7 +1037,7 @@ export class RoutineService {
         await this.fire(
           toRoutine(routine),
           occurrence,
-          undefined,
+          found.length ? t('routine.numberFound', { lines: found.join('\n') }) : undefined,
           false,
           undefined,
           undefined,
@@ -1041,17 +1057,23 @@ export class RoutineService {
   }
 
   /**
-   * Looks at the routine's condition before a scheduled run; true when the run must not start.
+   * Looks at the routine's condition before a scheduled run; true when the run must not start,
+   * otherwise what its number checks read, for the run to start from.
    * Not met, it is looked at again later the same day when the routine says so, as long as that
    * comes before its next regular run; at the end its note, if it has one, goes where it reports.
    * A check that could not be read holds the run back too, but never sends the note: the note says
    * something did not come, which nobody knows then.
    */
-  private async conditionStops(row: RoutineRow, now: Date, occurrence: string, t: T): Promise<boolean> {
+  private async conditionStops(
+    row: RoutineRow,
+    now: Date,
+    occurrence: string,
+    t: T,
+  ): Promise<true | string[]> {
     const routine = toRoutine(row);
     const condition = routine.condition!;
-    const result = await this.conditions.evaluate(routine, condition, t);
-    if (result.outcome === 'holds') return false;
+    const result = await this.conditions.evaluate(routine, condition, t, occurrence);
+    if (result.outcome === 'holds') return result.found;
     const reason = result.lines.join('; ');
     const schedule = row.schedule as Schedule;
     if (condition.recheckMinutes && condition.recheckUntil) {

@@ -134,6 +134,18 @@ function stepsText(raw: unknown, locale: Locale): string | null {
  * A routine's condition as the card shows it: what is looked at with no AI before each scheduled
  * run, when it is looked at again, and the note sent when it is not met.
  */
+/** A number check as the card shows it: where it is read and what it is compared with. */
+function numberText(x: Record<string, unknown>, tr: boolean): string {
+  const where = `${str(x.tool) ?? str(x.url) ?? ''}${str(x.path) ? ` ${str(x.path)}` : ''}`;
+  const op = x.op === 'below' ? '<' : x.op === 'either' ? '≠' : '>';
+  const threshold = typeof x.threshold === 'number' ? x.threshold : 0;
+  if (x.than !== 'average') return `${where} ${op} ${threshold}`;
+  const window = typeof x.window === 'number' ? x.window : 10;
+  return tr
+    ? `${where} ${op} son ${window} okumanın ortalaması ±%${threshold}`
+    : `${where} ${op} average of the last ${window} ±${threshold}%`;
+}
+
 function conditionText(raw: unknown, locale: Locale): string | null {
   if (!raw || typeof raw !== 'object') return null;
   const c = raw as Record<string, unknown>;
@@ -147,11 +159,13 @@ function conditionText(raw: unknown, locale: Locale): string | null {
         ? `${str(x.pattern) ?? ''}${typeof x.min === 'number' && x.min > 1 ? ` ×${x.min}` : ''}`
         : x.kind === 'page'
           ? `${str(x.url) ?? ''} "${str(x.contains) ?? ''}"`
-          : x.kind === 'tool'
-            ? `${str(x.tool) ?? ''} ${str(x.filter) ?? str(x.contains) ?? ''}`.trim()
-            : x.kind === 'table'
-              ? `${str(x.table) ?? ''} ${str(x.filter) ?? ''}`.trim()
-              : (str(x.filter) ?? '*');
+          : x.kind === 'number'
+            ? numberText(x, tr)
+            : x.kind === 'tool'
+              ? `${str(x.tool) ?? ''} ${str(x.filter) ?? str(x.contains) ?? ''}`.trim()
+              : x.kind === 'table'
+                ? `${str(x.table) ?? ''} ${str(x.filter) ?? ''}`.trim()
+                : (str(x.filter) ?? '*');
     return `${no}${String(x.kind)} ${cut(what.replace(/\n/g, ', '))}`;
   };
   const lines = [`${tr ? 'Koşul (yapay zekâsız)' : 'Condition (no AI)'}: ${checks.map(one).join(' + ')}`];

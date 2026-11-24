@@ -7,6 +7,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A routine's condition can look at a number, with no AI: read from an app's tool or a web address (at a path in
+  its JSON, or after a label on a page), it holds above or below a threshold, or once it is more than a percent away
+  from the average of its last scheduled readings. The run then starts with the number and the average, so the bot
+  can look into why. Each scheduled time keeps one reading; until three are kept there is no average, a number that
+  could not be read is neither kept nor taken as zero, and looking at the condition outside a slot keeps nothing.
 - A routine's wait step can wait for a chat reply: it goes on with the person's answer in the run's conversation, a
   reply to the run's message from a chat app, a WhatsApp reply that comes back to the run, or, when the step names a
   filter such as `text~=onay`, a Telegram, Slack or WhatsApp message in the main conversation that meets it. Only the

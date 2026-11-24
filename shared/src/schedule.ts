@@ -67,6 +67,10 @@ export type RoutineCheck = z.infer<typeof RoutineCheck>;
 
 /** The most checks a routine's condition may have; all of them must hold. */
 export const ROUTINE_CONDITION_MAX = 5;
+/** How many earlier readings a number check needs before it has an average to compare with. */
+export const NUMBER_BASELINE_MIN = 3;
+/** The most earlier readings a number check averages, and keeps. */
+export const NUMBER_WINDOW_MAX = 100;
 
 /** How far back a check of mail or WhatsApp looks, in hours; 0 is since midnight in the routine's time zone. */
 const withinHours = z
@@ -90,7 +94,12 @@ const filePattern = z
  * meets `filter` (on chat, writer, text). `table`: a row of the bot's table meets `filter`.
  * `tool`: a connected app's read-only tool answers so that its JSON meets `filter`, or its text
  * contains `contains`, or (with neither) it answers anything but an empty list or object. `page`:
- * an https page's text contains `contains`.
+ * an https page's text contains `contains`. `number`: a number read from an app's tool or an https
+ * page (at `path` in its JSON, or after the text `path` on a page that is not JSON, or the first
+ * one) is `above` or `below` `threshold` (`than: 'value'`), or more than `threshold` percent away
+ * from the average of the last `window` scheduled readings (`than: 'average'`, `either` for both
+ * sides); with fewer than `NUMBER_BASELINE_MIN` readings kept there is no average yet and it does
+ * not hold.
  */
 export const RoutineConditionCheck = z.discriminatedUnion('kind', [
   z.object({
@@ -138,6 +147,27 @@ export const RoutineConditionCheck = z.discriminatedUnion('kind', [
     contains: z.string().trim().min(1).max(500),
     absent: z.boolean().default(false),
   }),
+  z
+    .object({
+      kind: z.literal('number'),
+      from: z.enum(['tool', 'page']),
+      connectionId: z.string().max(64).default(''),
+      tool: z.string().max(200).default(''),
+      args: z.record(z.string(), z.unknown()).default({}),
+      url: z.string().trim().max(2000).default(''),
+      path: z.string().trim().max(300).default(''),
+      op: z.enum(['above', 'below', 'either']),
+      than: z.enum(['value', 'average']).default('value'),
+      threshold: z.number().finite().min(-1e15).max(1e15),
+      window: z.number().int().min(NUMBER_BASELINE_MIN).max(NUMBER_WINDOW_MAX).default(10),
+      // The way to turn it around is the other side of the line, so it never holds on "absent".
+      absent: z.literal(false).default(false),
+    })
+    .refine((c) => (c.from === 'tool' ? !!c.connectionId && !!c.tool : /^https:\/\/\S+$/.test(c.url)), {
+      message: 'validation.conditionNumberSource',
+    })
+    .refine((c) => c.than === 'average' || c.op !== 'either', { message: 'validation.conditionNumberEither' })
+    .refine((c) => c.than === 'value' || c.threshold > 0, { message: 'validation.conditionNumberPercent' }),
 ]);
 export type RoutineConditionCheck = z.infer<typeof RoutineConditionCheck>;
 
