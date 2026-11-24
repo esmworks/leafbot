@@ -126,6 +126,8 @@ deb:
   recommends:
     - bubblewrap
     - socat
+    # Claude's Read tool turns chosen PDF pages into pictures with it; a long scanned PDF needs it.
+    - poppler-utils
 nsis:
   # A per-user install needs no administrator rights; the user still picks the folder.
   oneClick: false
