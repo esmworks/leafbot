@@ -1,4 +1,10 @@
-import { FLOW_LAYOUT_MAX, ROUTINE_STEP_MAX, type RoutineRun, type RoutineStepRun } from '@leafbot/shared';
+import {
+  FLOW_LAYOUT_MAX,
+  ROUTINE_STEP_END,
+  ROUTINE_STEP_MAX,
+  type RoutineRun,
+  type RoutineStepRun,
+} from '@leafbot/shared';
 
 /**
  * Changes to a routine's steps as the flow view makes them: insert at a place, move one to another
@@ -39,6 +45,11 @@ const GAP = 56;
 const EDGE = 24;
 /** How far apart rows of boxes start; boxes are seldom taller than this less the gap. */
 const ROW = 340;
+/**
+ * The tallest a box may grow before its fields scroll inside it: past this the box below covers
+ * them, since boxes may sit this close.
+ */
+export const BOX_MAX_H = ROW - GAP;
 
 /** A place on the canvas's grid, never off its top or left, nor past where a place may be kept. */
 export function snap(v: number): number {
@@ -109,6 +120,62 @@ export function link(from: Spot, to: Spot): { path: string; mid: Spot } {
       `L ${b.x} ${lane} C ${b.x - into} ${lane} ${b.x - into} ${b.y} ${b.x} ${b.y}`,
     mid: { x: (a.x + b.x) / 2, y: lane },
   };
+}
+
+/**
+ * The line of a way that jumps ahead. On one row it leaves the top of the first box, runs along a
+ * lane just above the row and comes down into the top of the box it goes to, so it does not run
+ * through the boxes it passes over; between rows it goes as `link` draws it. `lane` keeps several
+ * such lines apart.
+ */
+export function jumpLink(from: Spot, to: Spot, lane: number): { path: string; mid: Spot } {
+  if (Math.abs(from.y - to.y) >= ROW / 2) return link(from, to);
+  const a = { x: from.x + BOX_W - 40, y: from.y };
+  const b = { x: to.x + 40, y: to.y };
+  const y = Math.max(4, Math.min(a.y, b.y) - 10 - lane * 8);
+  return {
+    path: `M ${a.x} ${a.y} L ${a.x} ${y} L ${b.x} ${y} L ${b.x} ${b.y}`,
+    mid: { x: (a.x + b.x) / 2, y },
+  };
+}
+
+/** A step as its ways are read. */
+type Wayed = {
+  id: string;
+  kind: string;
+  when?: { otherwise: string; goto?: string } | null;
+  next?: string;
+  onError?: string;
+};
+
+/**
+ * The lines the run went along, as `from>to` by box id (`prompt` for the routine's instruction),
+ * followed from the instruction with each box's part saying where the run went from it: on after a
+ * step that ended well, where the condition's other way leads after one it passed over, and where
+ * the way on failure leads after one that failed, when the run went on there.
+ */
+export function takenWays(steps: readonly Wayed[], part: (id: string) => RunPart | undefined): Set<string> {
+  const out = new Set<string>();
+  const ids = ['prompt', ...steps.map((s) => s.id)];
+  let at = 0;
+  while (at < ids.length) {
+    const id = ids[at]!;
+    const step = at > 0 ? steps[at - 1] : undefined;
+    const status = part(id)?.status;
+    const after = ids[at + 1];
+    let to: string | undefined;
+    if (status === 'done') to = !step?.next ? after : step.next === ROUTINE_STEP_END ? undefined : step.next;
+    else if (status === 'skipped' && step?.when)
+      to =
+        step.when.otherwise === 'goto' ? step.when.goto : step.when.otherwise === 'skip' ? after : undefined;
+    else if (status === 'error' && step?.kind === 'agent') to = step.onError || undefined;
+    const there = to ? ids.indexOf(to) : -1;
+    const went = there > at ? part(to!)?.status : undefined;
+    if (!went || went === 'pending') break;
+    out.add(`${id}>${to}`);
+    at = there;
+  }
+  return out;
 }
 
 /** The places worth keeping: only the boxes there are, on the grid. */
