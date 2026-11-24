@@ -1,6 +1,6 @@
 import { createHmac } from 'node:crypto';
 import type { Message, Routine, RoutineRun, Thread } from '@leafbot/shared';
-import { desc, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { schema } from '../src/db';
 import type * as SkillLink from '../src/services/skill-link';
@@ -133,13 +133,10 @@ describe('fetch and extract steps of a routine', () => {
     });
     const run = await runOnce(made.body);
     expect(run.status).toBe('done');
-    const [turn] = await t.services.ctx.db
-      .select()
-      .from(schema.turns)
-      .where(eq(schema.turns.routineRunId, run.id))
-      .orderBy(desc(schema.turns.createdAt))
-      .limit(1);
-    expect(turn!.outside).toBe('web');
+    const turns = await t.services.ctx.db.select().from(schema.turns).where(eq(schema.turns.routineRunId, run.id));
+    // The routine's own instruction read nothing from outside; the step after the read did.
+    expect(turns.find((x) => x.prompt.includes('ilk iş'))!.outside).toBeNull();
+    expect(turns.find((x) => x.prompt.includes('özetle'))!.outside).toBe('web');
     const [thread] = await t.services.ctx.db
       .select()
       .from(schema.threads)

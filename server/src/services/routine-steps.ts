@@ -83,7 +83,7 @@ export function handedOn(
 const JSON_TAIL_PARTS = 20;
 
 /**
- * The JSON an extract step reads in what reached it: all of it, or else its last JSON part. What
+ * The JSON an extract step reads in what reached it: all of it, or else its shortest tail that is JSON. What
  * reaches a step after a wait step is the bot step's answer and then what came in (a webhook's
  * body), a paragraph apart. Undefined when there is none.
  */
@@ -93,7 +93,7 @@ export function jsonIn(text: string): unknown {
     try {
       return JSON.parse(parts.slice(i === 0 ? 0 : parts.length - i).join('\n\n'));
     } catch {
-      // Not JSON from here: try a shorter tail.
+      // Not JSON: try the last paragraphs, one more each time.
     }
   }
   return undefined;
