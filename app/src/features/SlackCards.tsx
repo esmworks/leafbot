@@ -79,7 +79,7 @@ function SlackForm({ status, bots }: { status: SlackStatus; bots: Bot[] }) {
   );
 
   return (
-    <Card title={t('slack.title')}>
+    <Card>
       <div className="space-y-4 px-4 py-4">
         <div className="flex items-center gap-2">
           <span

@@ -113,7 +113,7 @@ import { ruleLabel } from '@/lib/ruleLabel';
 import { appsHit, settingsMatch } from '@/lib/settingsMatch';
 import { useZoom, ZOOMS } from '@/lib/zoom';
 import { cn } from '@/lib/utils';
-import { ChannelsTab } from './ChannelsTab';
+import { ChannelsTab, useChannelTitle } from './ChannelsTab';
 import { AiServicesTab } from './AiServicesTab';
 import { MemoryFlags } from './MemoryFlags';
 import { PendingMemory } from './PendingMemory';
@@ -234,10 +234,13 @@ export function SettingsPage() {
   const known = !!useSession().data?.user;
   const tabs = TABS.filter((tb) => !known || manages || !SERVER_TABS.has(tb.id));
   const current = tabs.find((t) => t.id === tab) ?? tabs[0]!;
-  // A provider's own page puts its name after the section's in the title.
-  const providerView = useUi((s) => s.providerView);
-  const providerName = useProviderTitle(current.id === 'providers' ? providerView : null);
-  const providerTitle = current.id === 'providers' ? providerName : null;
+  // A provider's or a chat app's own page puts its name after the section's in the title.
+  const view = useUi((s) => s.settingsView);
+  const providerName = useProviderTitle(current.id === 'providers' ? view : null);
+  const channelName = useChannelTitle(current.id === 'channels' ? view : null);
+  const viewTitle =
+    current.id === 'providers' ? providerName : current.id === 'channels' ? channelName : null;
+  const toSection = () => useUi.setState({ settingsView: null });
   // A phone shows one of two screens: the list of sections, or the section picked from it.
   const phone = useMedia(PHONE);
   const listing = useUi((s) => s.settingsList) && phone;
@@ -376,12 +379,12 @@ export function SettingsPage() {
               <h1 className="flex min-w-0">
                 <Button
                   variant="ghost"
-                  onClick={providerTitle ? () => useUi.setState({ providerView: null }) : toList}
-                  title={providerTitle ? t('providers.all') : t('settings.back')}
+                  onClick={viewTitle ? toSection : toList}
+                  title={viewTitle ? t(`settings.tab.${current.id}`) : t('settings.back')}
                   className="h-10 min-w-0 gap-1 ps-2 pe-3 text-lg font-semibold"
                 >
                   <ChevronLeft className="size-5 rtl:-scale-x-100" />
-                  <span className="truncate">{providerTitle ?? t(`settings.tab.${current.id}`)}</span>
+                  <span className="truncate">{viewTitle ?? t(`settings.tab.${current.id}`)}</span>
                 </Button>
               </h1>
             </div>
@@ -395,17 +398,17 @@ export function SettingsPage() {
           >
             <div className="mx-auto w-full max-w-3xl">
               <h2 className="mb-6 flex min-w-0 items-center gap-2 text-2xl font-semibold phone:hidden">
-                {providerTitle ? (
+                {viewTitle ? (
                   <>
                     <button
                       type="button"
-                      onClick={() => useUi.setState({ providerView: null })}
+                      onClick={toSection}
                       className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
                     >
-                      {t('settings.tab.providers')}
+                      {t(`settings.tab.${current.id}`)}
                     </button>
                     <ChevronRight className="size-5 shrink-0 text-muted-foreground rtl:-scale-x-100" />
-                    <span className="truncate">{providerTitle}</span>
+                    <span className="truncate">{viewTitle}</span>
                   </>
                 ) : (
                   t(`settings.tab.${current.id}`)

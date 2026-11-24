@@ -49,7 +49,7 @@ function DiscordForm({ status, bots }: { status: DiscordStatus; bots: Bot[] }) {
   });
 
   return (
-    <Card title={t('discord.title')}>
+    <Card>
       <div className="space-y-4 px-4 py-4">
         <div className="flex items-center gap-2">
           <span

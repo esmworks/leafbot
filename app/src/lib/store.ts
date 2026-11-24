@@ -85,10 +85,11 @@ export interface UiState {
   /** On a phone, whether the settings show their list of sections rather than one section. */
   settingsList: boolean;
   /**
-   * The provider whose page the providers section shows (`claude` or a provider id), or null for
-   * the list of them. Held here so a message about a sign-in can open Claude's page directly.
+   * The page within a settings section that lists things, each with a page of its own: a provider
+   * (`claude` or a provider id) or a chat app; null shows the list. Held here so a message about
+   * a sign-in can open Claude's page directly.
    */
-  providerView: string | null;
+  settingsView: string | null;
   searchOpen: boolean;
   /** What the search starts with when opened from the sidebar. */
   searchQuery: string;
@@ -157,7 +158,7 @@ export interface UiState {
   togglePanelSheet(open?: boolean): void;
   resizeSidebar(dragged: number): void;
   /** `list`: on a phone, start from the list of sections (the settings button) instead of `tab`. */
-  openSettings(tab: SettingsTab | null, list?: boolean, provider?: string): void;
+  openSettings(tab: SettingsTab | null, list?: boolean, view?: string): void;
   openSearch(open: boolean, query?: string): void;
   focusMessage(target: { id: string; threadId: string } | null): void;
   setFindOpen(open: boolean, seed?: { query: string; messageId: string }): void;
@@ -243,7 +244,7 @@ export const useUi = create<UiState>((set, get) => ({
   sidebarWidth: sidebarWidthFor(saved.sidebarWidth ?? SIDEBAR.default),
   settingsTab: null,
   settingsList: false,
-  providerView: null,
+  settingsView: null,
   searchOpen: false,
   searchQuery: '',
   focusedMessage: null,
@@ -301,8 +302,8 @@ export const useUi = create<UiState>((set, get) => ({
   togglePanel: (open) => set((s) => ({ panelOpen: open ?? !s.panelOpen })),
   togglePanelSheet: (open) => set((s) => ({ panelSheet: open ?? !s.panelSheet })),
   resizeSidebar: (dragged) => set({ sidebarWidth: sidebarWidthFor(dragged) }),
-  openSettings: (settingsTab, list = false, provider) =>
-    set({ settingsTab, settingsList: list, providerView: provider ?? null }),
+  openSettings: (settingsTab, list = false, view) =>
+    set({ settingsTab, settingsList: list, settingsView: view ?? null }),
   openSearch: (searchOpen, searchQuery = '') => set({ searchOpen, searchQuery }),
   focusMessage: (focusedMessage) => set({ focusedMessage }),
   setFindOpen: (findOpen, seed) => set({ findOpen, findSeed: findOpen ? (seed ?? null) : null }),

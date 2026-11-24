@@ -77,7 +77,7 @@ function TeamsForm({ status, bots }: { status: TeamsStatus; bots: Bot[] }) {
   );
 
   return (
-    <Card title={t('teams.title')}>
+    <Card>
       <div className="space-y-4 px-4 py-4">
         <div className="flex items-center gap-2">
           <span

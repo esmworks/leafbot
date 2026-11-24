@@ -15,10 +15,9 @@ import {
   Pencil,
   RefreshCw,
   Search,
-  Server,
   X,
 } from 'lucide-react';
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -61,13 +60,14 @@ import {
   useHasProvider,
   useSavePiModel,
 } from './ProviderConnect';
+import { Heading, ListRow, Mark, PageHead, rowClass, Status, Tag, type Health } from './SettingsList';
 import { Card, Row, useSaveSettings } from './SettingsPage';
 
 /** Claude's place among the providers; never a provider id, which the server names in lowercase words. */
 export const CLAUDE = 'claude';
 
 /** Opens one provider's page, or the list with null. */
-const show = (id: string | null) => useUi.setState({ providerView: id });
+const show = (id: string | null) => useUi.setState({ settingsView: id });
 
 /**
  * The AI providers on one page: what new bots start with, the providers already connected, and
@@ -75,7 +75,7 @@ const show = (id: string | null) => useUi.setState({ providerView: id });
  * and its models, so the list stays one line per provider however much each one holds.
  */
 export function ProvidersTab() {
-  const view = useUi((s) => s.providerView);
+  const view = useUi((s) => s.settingsView);
   const { data: providers, isLoading } = useProviders();
   const known = view === CLAUDE || !!providers?.some((p) => p.id === view && p.configured);
   // A provider whose last key or sign-in was just removed has no page left; back to the list.
@@ -135,67 +135,9 @@ function useClaudeStatus() {
   return { status, detail };
 }
 
-/** A provider's mark: the first letter of its name, or a server for the person's own endpoints. */
-function Mark({
-  name,
-  endpoint = false,
-  large = false,
-}: {
-  name: string;
-  endpoint?: boolean;
-  large?: boolean;
-}) {
-  return (
-    <span
-      aria-hidden
-      className={cn(
-        'flex shrink-0 items-center justify-center rounded-xl border bg-secondary font-semibold text-muted-foreground',
-        large ? 'size-12 text-lg' : 'size-9 text-sm',
-      )}
-    >
-      {endpoint ? <Server className={large ? 'size-5' : 'size-4'} /> : name.trim().charAt(0).toUpperCase()}
-    </span>
-  );
-}
-
-type Health = 'ok' | 'unknown' | 'logged-out' | 'error';
-
-/** Whether a provider works: a coloured dot and a word. */
-function Status({ health }: { health: Health }) {
-  const t = useT();
-  const word =
-    health === 'ok'
-      ? t('providers.status.connected')
-      : health === 'unknown'
-        ? t('providers.status.unchecked')
-        : health === 'logged-out'
-          ? t('providers.status.signedOut')
-          : t('providers.status.error');
-  return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-1.5 text-xs',
-        health === 'ok'
-          ? 'text-emerald-600 dark:text-emerald-400'
-          : health === 'unknown'
-            ? 'text-muted-foreground'
-            : 'text-amber-600 dark:text-amber-400',
-      )}
-    >
-      <span className="size-1.5 rounded-full bg-current" />
-      {word}
-    </span>
-  );
-}
-
-/** A small label for what a provider or a model is used for. */
-function Tag({ children }: { children: ReactNode }) {
-  return (
-    <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground">
-      {children}
-    </span>
-  );
-}
+/** Claude's state in the words the lists use. */
+const claudeHealth = (status: string): Health =>
+  status === 'ok' ? 'ok' : status === 'unknown' ? 'unknown' : status === 'logged-out' ? 'off' : 'error';
 
 function RoleTags({ id }: { id: string }) {
   const t = useT();
@@ -207,19 +149,6 @@ function RoleTags({ id }: { id: string }) {
     </>
   );
 }
-
-/** A heading over a group of rows, with room for something on its right. */
-function Heading({ title, children }: { title: string; children?: ReactNode }) {
-  return (
-    <div className="mb-2 flex min-h-8 flex-wrap items-center justify-between gap-2 px-1">
-      <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
-      {children}
-    </div>
-  );
-}
-
-const rowClass =
-  'flex w-full items-center gap-3 px-4 py-3 text-start transition-colors first:rounded-t-2xl last:rounded-b-2xl';
 
 // ─── The list ────────────────────────────────────────────────────────────────
 
@@ -277,25 +206,17 @@ function ClaudeRow() {
   const bots = useBotCount(CLAUDE);
   const { data: auth } = useClaudeAuth();
   return (
-    <button type="button" onClick={() => show(CLAUDE)} className={cn(rowClass, 'hover:bg-accent/60')}>
-      <Mark name={t('ai.claude')} />
-      <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="text-sm font-medium">{t('ai.claude')}</span>
-          <Status health={status} />
-          <RoleTags id={CLAUDE} />
-        </span>
-        <span className="block truncate text-xs text-muted-foreground">
-          {[
-            auth === null ? t('connection.defaultHint') : detail,
-            bots ? t('providers.bots', { count: bots }) : '',
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-        </span>
-      </span>
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground rtl:-scale-x-100" />
-    </button>
+    <ListRow
+      name={t('ai.claude')}
+      mark={<Mark name={t('ai.claude')} />}
+      status={<Status health={claudeHealth(status)} />}
+      tags={<RoleTags id={CLAUDE} />}
+      detail={[
+        auth === null ? t('connection.defaultHint') : detail,
+        bots > 0 && t('providers.bots', { count: bots }),
+      ]}
+      onOpen={() => show(CLAUDE)}
+    />
   );
 }
 
@@ -318,26 +239,19 @@ function ConnectedRow({ provider: p }: { provider: ProviderInfo }) {
   const { data: models } = useProviderModelInfo(p.id);
   const name = connectionName(p);
   return (
-    <button type="button" onClick={() => show(p.id)} className={cn(rowClass, 'hover:bg-accent/60')}>
-      <Mark name={name} endpoint={!!p.custom} />
-      <span className="min-w-0 flex-1">
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="text-sm font-medium">{name}</span>
-          <Status health="ok" />
-          <RoleTags id={p.id} />
-        </span>
-        <span className={cn('block truncate text-xs text-muted-foreground', p.custom && 'font-mono')}>
-          {[
-            reach,
-            models ? t('provider.foundModels', { count: models.length }) : '',
-            bots ? t('providers.bots', { count: bots }) : '',
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-        </span>
-      </span>
-      <ChevronRight className="size-4 shrink-0 text-muted-foreground rtl:-scale-x-100" />
-    </button>
+    <ListRow
+      name={name}
+      mark={<Mark name={name} endpoint={!!p.custom} />}
+      status={<Status health="ok" />}
+      tags={<RoleTags id={p.id} />}
+      detail={[
+        reach,
+        models && t('provider.foundModels', { count: models.length }),
+        bots > 0 && t('providers.bots', { count: bots }),
+      ]}
+      mono={!!p.custom}
+      onOpen={() => show(p.id)}
+    />
   );
 }
 
@@ -802,18 +716,13 @@ function ProviderPage({ id }: { id: string }) {
   });
   return (
     <>
-      <div className="mb-6 flex items-center gap-4">
-        <Mark name={name} endpoint={!!p?.custom} large />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="text-lg font-semibold">{name}</span>
-            <Status health={claude ? status : 'ok'} />
-            <RoleTags id={id} />
-          </div>
-          <div className="text-sm text-muted-foreground">
-            {bots ? t('providers.bots', { count: bots }) : t('providers.noBots')}
-          </div>
-        </div>
+      <PageHead
+        name={name}
+        mark={<Mark name={name} endpoint={!!p?.custom} large />}
+        status={<Status health={claude ? claudeHealth(status) : 'ok'} />}
+        tags={<RoleTags id={id} />}
+        line={bots ? t('providers.bots', { count: bots }) : t('providers.noBots')}
+      >
         {claude && (
           <Button
             variant="secondary"
@@ -825,7 +734,7 @@ function ProviderPage({ id }: { id: string }) {
             <RefreshCw className={cn(check.isPending && 'animate-spin')} /> {t('connection.check')}
           </Button>
         )}
-      </div>
+      </PageHead>
       {claude ? <ClaudePage checking={check.isPending} /> : p && <KeyPage provider={p} />}
     </>
   );

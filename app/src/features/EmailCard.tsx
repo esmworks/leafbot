@@ -39,7 +39,7 @@ export function EmailCard() {
     else toast.error(t('message.copyFailed'));
   };
   return (
-    <Card title={t('email.title')}>
+    <Card>
       <p className="px-4 py-3 text-sm text-muted-foreground">{t('email.hint')}</p>
       <Row label={t('email.domain')} hint={t('email.domainHint')}>
         <Input
