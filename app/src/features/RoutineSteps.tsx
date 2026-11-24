@@ -37,6 +37,7 @@ import { useLocale, useT, type MessageKey } from '@/i18n';
 import { api } from '@/lib/api';
 import { useApprovals } from '@/lib/queries';
 import { cn } from '@/lib/utils';
+import { LongText } from './LongText';
 
 /**
  * A step as the routine's window edits it; text fields stay strings while typed. `when` is what
@@ -272,6 +273,7 @@ export function StepFields({
   error,
   modelListId,
   modelPlaceholder,
+  inFlow,
 }: {
   step: StepForm;
   /** The steps after it, which its ways may go on at. */
@@ -281,6 +283,8 @@ export function StepFields({
   error?: string;
   modelListId: string;
   modelPlaceholder: string;
+  /** In a box on the flow, where a long text opens in a window rather than growing the box. */
+  inFlow?: boolean;
 }) {
   const t = useT();
   // A way that goes nowhere it can is shown under the ways; any other message under the step's text.
@@ -290,13 +294,14 @@ export function StepFields({
     <>
       {s.kind === 'agent' ? (
         <>
-          <Textarea
+          <LongText
             value={s.prompt}
-            onChange={(e) => onChange({ ...s, prompt: e.target.value })}
+            onChange={(prompt) => onChange({ ...s, prompt })}
             rows={3}
             placeholder={t('routine.stepPromptPlaceholder')}
             className="scroll-thin max-h-60 overflow-y-auto rounded-xl"
-            aria-label={t('routine.step.agent')}
+            label={t('routine.step.agent')}
+            inFlow={inFlow}
           />
           {textError && <p className="text-sm text-destructive">{t(textError as MessageKey)}</p>}
           <Input
@@ -325,26 +330,28 @@ export function StepFields({
         </>
       ) : s.kind === 'extract' ? (
         <>
-          <Textarea
+          <LongText
             value={s.fields}
-            onChange={(e) => onChange({ ...s, fields: e.target.value })}
+            onChange={(fields) => onChange({ ...s, fields })}
             rows={3}
             placeholder={t('routine.extractPlaceholder')}
             className="scroll-thin max-h-40 overflow-y-auto rounded-xl text-sm"
-            aria-label={t('routine.step.extract')}
+            label={t('routine.step.extract')}
+            inFlow={inFlow}
           />
           {textError && <p className="text-sm text-destructive">{t(textError as MessageKey)}</p>}
           <p className="text-xs text-muted-foreground">{t('routine.extractHint')}</p>
         </>
       ) : s.kind === 'notify' ? (
         <>
-          <Textarea
+          <LongText
             value={s.text}
-            onChange={(e) => onChange({ ...s, text: e.target.value })}
+            onChange={(text) => onChange({ ...s, text })}
             rows={2}
             placeholder={t('routine.notifyPlaceholder')}
             className="scroll-thin max-h-40 overflow-y-auto rounded-xl"
-            aria-label={t('routine.step.notify')}
+            label={t('routine.step.notify')}
+            inFlow={inFlow}
           />
           <label className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
             <span>{t('routine.notifyWithBefore')}</span>
@@ -354,13 +361,14 @@ export function StepFields({
         </>
       ) : (
         <>
-          <Textarea
+          <LongText
             value={s.question}
-            onChange={(e) => onChange({ ...s, question: e.target.value })}
+            onChange={(question) => onChange({ ...s, question })}
             rows={2}
             placeholder={t('routine.stepQuestionPlaceholder')}
             className="scroll-thin max-h-40 overflow-y-auto rounded-xl"
-            aria-label={t('routine.step.approval')}
+            label={t('routine.step.approval')}
+            inFlow={inFlow}
           />
           {textError && <p className="text-sm text-destructive">{t(textError as MessageKey)}</p>}
           <p className="text-xs text-muted-foreground">{t('routine.stepApprovalHint')}</p>

@@ -1683,6 +1683,8 @@ export const en: Catalog<MessageKey> = {
   'flow.wayError': 'if it fails',
   'flow.addStep': 'Add a step here',
   'flow.drag': 'Drag to move the box',
+  'flow.openText': 'Open to read and edit',
+  'flow.textDone': 'Done',
   'flow.pickHint':
     'Drag a box by its title to place it, or move it with the arrow keys. Steps run along the lines, one after another; labelled dashed lines are the ways a step jumps ahead. Change their order from a box’s menu or with Alt and an arrow key.',
   'flow.alsoStarts': 'Also starts {what}.',
