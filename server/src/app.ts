@@ -303,13 +303,30 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
   };
   const claudeSignIn = new ClaudeSignInService({
     executable: () => (opts.claudeExecutable === undefined ? bundledClaude() : opts.claudeExecutable),
-    // What the engine passes the CLI, so the login lands where the bots' Claude looks for it.
-    env: () => engineEnv({ CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR }),
+    // What the engine passes the CLI, so the login lands where the bots' Claude looks for it, and
+    // the desktop's display, so on a Linux desktop it can open the sign-in page in the browser.
+    env: () =>
+      engineEnv({
+        CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR,
+        ...Object.fromEntries(
+          ['DISPLAY', 'WAYLAND_DISPLAY', 'XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS', 'BROWSER'].map(
+            (k) => [k, process.env[k]],
+          ),
+        ),
+      }),
     // A saved token or key would come before the new login: the person chose to sign in instead.
+    // When Claude does not answer with the login, the token or key goes back as it was.
     async onSignedIn() {
+      const saved = await services.claudeAuth.credential();
       await services.claudeAuth.clear();
       models = null;
-      await checkClaude(true);
+      const status = await checkClaude(true);
+      if (status.status === 'ok') return null;
+      if (saved) {
+        await services.claudeAuth.set(saved);
+        await checkClaude();
+      }
+      return status.detail ?? status.reason ?? status.status;
     },
   });
   const claudeAuth = {

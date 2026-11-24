@@ -339,6 +339,7 @@ function ClaudeSignIn({ onDone }: { onDone(): void }) {
               {t('common.save')}
             </Button>
           </div>
+          {now.message && <p className="text-sm text-amber-600 dark:text-amber-400">{now.message}</p>}
         </form>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2">

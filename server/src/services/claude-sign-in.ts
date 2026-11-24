@@ -86,14 +86,19 @@ export interface ClaudeSignInOptions {
   executable: () => string | null;
   /** The program's environment: the engine's own, so the sign-in is saved where the bots read it. */
   env: () => Record<string, string>;
-  /** Called once the program saved the sign-in, before the app hears it is done. */
-  onSignedIn: () => Promise<void>;
+  /**
+   * Called once the program saved the sign-in, before the app hears how it ended: null when Claude
+   * answers with the new login, else why not.
+   */
+  onSignedIn: () => Promise<string | null>;
 }
 
 interface Session extends ProviderSignIn {
   child: ChildProcessWithoutNullStreams;
   timer: NodeJS.Timeout;
   output: string;
+  /** What the program wrote since the last pasted code; null before any. */
+  sincePaste: string | null;
 }
 
 const live = (s: Session) => s.status === 'starting' || s.status === 'waiting';
@@ -130,15 +135,25 @@ export class ClaudeSignInService {
       userCode: null,
       needsPaste: false,
       error: null,
+      message: null,
       child,
       output: '',
+      sincePaste: null,
       timer: setTimeout(() => this.end(session, 'cancelled'), SIGN_IN_MS),
     };
     session.timer.unref();
     this.sessions.set(session.id, session);
     const read = (chunk: Buffer) => {
       if (!live(session)) return;
-      session.output = (session.output + chunk.toString('utf8')).slice(-8000);
+      const text = chunk.toString('utf8');
+      session.output = (session.output + text).slice(-8000);
+      // A code it cannot take (cut short, say) is answered with why, and it goes on waiting for one.
+      if (session.sincePaste !== null) {
+        session.sincePaste = (session.sincePaste + text).slice(-2000);
+        const line = lastLine(session.sincePaste);
+        // Taking a good code is not something to point out.
+        session.message = line && !/^signing in/i.test(line) ? line : null;
+      }
       if (session.url) return;
       const url = signInUrl(session.output);
       if (!url) return;
@@ -162,12 +177,15 @@ export class ClaudeSignInService {
         this.end(session, 'error');
         return;
       }
-      // Done only once the server uses the new login, so the app's next look shows Claude connected.
+      // Done only once Claude answers with the new login, so the app's next look shows it connected.
       session.needsPaste = false;
       void this.opts
         .onSignedIn()
-        .catch((err: unknown) => console.warn(`After the Claude sign-in: ${String(err)}`))
-        .finally(() => this.end(session, 'done'));
+        .catch((err: unknown) => (err instanceof Error ? err.message : String(err)))
+        .then((problem) => {
+          session.error = problem;
+          this.end(session, problem ? 'error' : 'done');
+        });
     });
     return this.view(session);
   }
@@ -191,6 +209,7 @@ export class ClaudeSignInService {
       userCode: s.userCode,
       needsPaste: s.needsPaste,
       error: s.error,
+      message: s.message ?? null,
     };
   }
 
@@ -211,8 +230,10 @@ export class ClaudeSignInService {
   paste(id: string, input: string): ProviderSignIn {
     const s = this.get(id);
     if (!live(s) || !s.needsPaste) throw new HttpError(409, 'error.signInNoPaste');
+    s.sincePaste = '';
+    s.message = null;
+    // The field stays: a code the program does not take is pasted again.
     s.child.stdin.write(`${input.replace(/\s+/g, '')}\n`);
-    s.needsPaste = false;
     return this.view(s);
   }
 

@@ -11,7 +11,8 @@ const PAGE = 'https://claude.com/cai/oauth/authorize?code=true&client_id=x';
 
 /**
  * A stand-in for Claude Code's `auth login`: it prints the sign-in page the way the real one does
- * (as a terminal link), waits for a pasted code, and saves the login only for the right one.
+ * (as a terminal link) and waits for a pasted code. As the real one, it says why a code cut short
+ * is not taken and goes on waiting, ends with an error for a wrong code, and saves the right one.
  */
 function fakeClaude(dir: string, page = PAGE): string {
   const file = join(dir, 'claude');
@@ -22,8 +23,13 @@ printf '%s\\n' "$*" > "${dir}/args"
 printf 'Opening browser to sign in\\342\\200\\246\\n'
 printf "If the browser didn't open, visit: \\033]8;;${page}\\007${page}\\033]8;;\\007\\n"
 printf 'Paste code here if prompted > '
-read code
-if [ "$code" = "good#state" ]; then echo 'Login successful.'; exit 0; fi
+while read code; do
+  case "$code" in
+    *'#'*) break ;;
+    *) printf "That doesn't look like the full code. Copy all of it, including the # in the middle.\\n" ;;
+  esac
+done
+if [ "$code" = "good#state" ]; then printf 'Signing in\\342\\200\\246 '; echo 'Login successful.'; exit 0; fi
 echo 'Authentication failed: Invalid authorization code' >&2
 exit 1
 `,
@@ -63,14 +69,34 @@ describe.skipIf(process.platform === 'win32')('Claude ile giriş', () => {
     const pasted = await t.api<ProviderSignIn>('POST', `/api/claude/sign-in/${started.body.id}/paste`, {
       input: ' good#state \n',
     });
-    expect(pasted.body.needsPaste).toBe(false);
-    await until(started.body.id, 'done');
+    // The field stays while it runs: a code the program does not take is pasted again.
+    expect(pasted.body.needsPaste).toBe(true);
+    const done = await until(started.body.id, 'done');
+    expect(done.message ?? null).toBeNull();
     expect((await t.api('GET', '/api/claude/auth')).body).toEqual({ kind: 'login', hint: null });
   });
 
-  it('yanlış kodda Claude Code’un nedenini gösterir', async () => {
+  it('Claude yeni girişle yanıt vermezse girişi hata sayar ve kayıtlı belirteci geri koyar', async () => {
+    await t.api('PUT', '/api/claude/auth', { kind: 'token', value: TOKEN });
+    Object.assign(t.engine, { account: async () => ({ status: 'logged-out', detail: 'Not logged in' }) });
     const { body } = await t.api<ProviderSignIn>('POST', '/api/claude/sign-in');
     await until(body.id, 'waiting');
+    await t.api('POST', `/api/claude/sign-in/${body.id}/paste`, { input: 'good#state' });
+    const failed = await until(body.id, 'error');
+    expect(failed.error).toBe('Not logged in');
+    expect((await t.api('GET', '/api/claude/auth')).body).toEqual({ kind: 'token', hint: '…tokn' });
+  });
+
+  it('eksik kodda nedenini söyler ve yeniden yapıştırmayı bekler; yanlış kodda girişi bitirir', async () => {
+    const { body } = await t.api<ProviderSignIn>('POST', '/api/claude/sign-in');
+    await until(body.id, 'waiting');
+    await t.api('POST', `/api/claude/sign-in/${body.id}/paste`, { input: 'cut-short' });
+    const told = await waitFor(async () => {
+      const s = (await signIn(body.id)).body;
+      return s.message ? s : null;
+    });
+    expect(told).toMatchObject({ status: 'waiting', needsPaste: true });
+    expect(told.message).toMatch(/full code/);
     await t.api('POST', `/api/claude/sign-in/${body.id}/paste`, { input: 'bad#state' });
     const failed = await until(body.id, 'error');
     expect(failed.error).toBe('Authentication failed: Invalid authorization code');
