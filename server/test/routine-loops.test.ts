@@ -7,7 +7,8 @@ import {
   type RoutineRun,
   type Thread,
 } from '@leafbot/shared';
-import { eq } from 'drizzle-orm';
+import { createHmac } from 'node:crypto';
+import { and, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { schema } from '../src/db';
 import type * as SkillLink from '../src/services/skill-link';
@@ -151,6 +152,55 @@ describe('a routine that goes back, or on after a no', () => {
     // The wait was not on the last pass.
     expect(done!.steps?.map((s) => s.status)).toEqual(['done', 'done', 'done', 'skipped']);
     expect((await runRow(done!.id)).backs).toBe(2);
+  });
+
+  it('waits for the webhook again after a call that was not the one, and goes on at the right one', async () => {
+    const bot = await t.bot();
+    const r = await make(bot.id, [
+      { id: 'bekle', kind: 'wait', on: 'webhook', filter: 'event=issues' },
+      {
+        id: 'bildir',
+        kind: 'notify',
+        text: 'Kapandı',
+        withBefore: false,
+        when: { contains: 'closed', otherwise: 'goto', goto: 'bekle' },
+        next: 'end',
+      },
+    ]);
+    const { webhookToken } = (await t.api<Routine>('POST', `/api/routines/${r.id}/webhook`)).body;
+    const deliver = async (action: string, delivery: string) => {
+      const raw = JSON.stringify({ action, issue: { number: 7 } });
+      await t.app.inject({
+        method: 'POST',
+        url: `/api/hooks/routines/${r.id}/${webhookToken}`,
+        headers: {
+          host: 'localhost',
+          'content-type': 'application/json',
+          'x-github-event': 'issues',
+          'x-github-delivery': delivery,
+          'x-hub-signature-256': `sha256=${createHmac('sha256', webhookToken!).update(raw).digest('hex')}`,
+        },
+        payload: raw,
+      });
+      await settle();
+    };
+    const run = await runOnce(r);
+    expect(run.status).toBe('waiting');
+    await deliver('opened', 'teslim-1');
+    const again = (await runs(r.id)).find((x) => x.id === run.id)!;
+    // Not the one: the run went back and waits for the next call, with what it took let go.
+    expect(again.status).toBe('waiting');
+    expect((await runRow(run.id)).backs).toBe(1);
+    const [held] = await t.services.ctx.db
+      .select()
+      .from(schema.routineStepRuns)
+      .where(and(eq(schema.routineStepRuns.runId, run.id), eq(schema.routineStepRuns.position, 1)));
+    expect(held!.status).toBe('waiting');
+    expect(held!.eventId).toBeNull();
+    await deliver('closed', 'teslim-2');
+    const done = (await runs(r.id)).find((x) => x.id === run.id)!;
+    expect(done.status).toBe('done');
+    expect((await reports(bot.id)).at(-1)!.text).toBe('Kapandı');
   });
 
   it('stops a run that never comes out of its loop, as failed', async () => {

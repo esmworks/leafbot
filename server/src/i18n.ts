@@ -661,7 +661,7 @@ const tr = {
   'routine.stepWhenNot': 'Koşulu tutmadığı için atlandı: {what}',
   'routine.stepOffRoute': 'Bu çalışmanın izlediği yolda değildi',
   'routine.stepRouteLost':
-    '"{step}" adımına gidilecekti ama bu çalışmada ondan sonra öyle bir adım yok; çalışma orada durdu.',
+    '"{step}" adımına gidilecekti ama bu çalışmada öyle bir adım yok; çalışma orada durdu.',
   'routine.stepFailedBefore': '{step}. adım başarısız oldu: {reason}',
   'routine.fetchNoInternet': 'Bu botun internete çıkma izni kapalı; adres okunmadı',
   'routine.fetchMissing': 'Adres için gereken değer kaydedilmemiş: {names}',
@@ -2800,7 +2800,7 @@ const en: Catalog<ServerKey> = {
   'routine.stepWhenNot': 'Passed over, as its condition did not hold: {what}',
   'routine.stepOffRoute': 'Not on the way this run took',
   'routine.stepRouteLost':
-    'The run was to go on at step "{step}", which this run does not have after it; it stopped there.',
+    'The run was to go on at step "{step}", which this run does not have; it stopped there.',
   'routine.stepFailedBefore': 'Step {step} failed: {reason}',
   'routine.fetchNoInternet': 'This bot may not reach the internet, so the address was not read',
   'routine.fetchMissing': 'A value the address needs was not saved: {names}',

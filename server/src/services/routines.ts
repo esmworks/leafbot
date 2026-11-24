@@ -3870,8 +3870,9 @@ export const FAILURE_LIMIT = 10;
  * the first two would end every routine at once.
  */
 /**
- * Turns away steps whose routes name no step after their own: the bot's tools and an import write
- * steps without the request's schema, and a route that goes back could run a step again and again.
+ * Turns away steps whose routes name no other step of the routine: the bot's tools and an import
+ * write steps without the request's schema, and a route to the step itself would run it again and
+ * again with what it was given.
  */
 function checkRoutes(steps: readonly RoutineStep[] | undefined) {
   const problem = steps ? stepRoutesProblem(steps) : null;
