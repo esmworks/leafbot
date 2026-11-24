@@ -79,6 +79,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- A command a bot ran on its computer for more than five minutes ended with "The computer service cannot be reached"
+  while it was still running: the server stopped waiting for the answer after five minutes. It now waits as long as
+  the command may take, and a command that outlasts that is reported as not answering, with a note that it may still
+  be running.
 - A bot that asked another bot, read the answer and asked again went one level deeper in the chain each round, so
   its fifth message, even a notice, failed with "Chain too deep" although nothing was nested. Only work a bot hands on
   while answering counts now; a chain's overall limit on requests still stops rounds that never end.

@@ -1546,6 +1546,8 @@ const tr = {
     'Sen beklerken kullanıcı bilgisayarı bir süre kendisi kullandı ve denetimi geri verdi. Ekranda bir şeyleri kapatmış ya da değiştirmiş olabilir: kaldığın yerden sürdürmeden önce ekrana bak.',
   'computer.full': 'Şu an açık bilgisayar sayısı sınırda; biraz sonra yeniden dene.',
   'computer.unreachable': 'Bilgisayar hizmetine ulaşılamıyor.',
+  'computer.noAnswer':
+    'Bilgisayar hizmeti {seconds} saniyede cevap vermedi. Komut orada hâlâ sürüyor olabilir: yeniden çalıştırmadan önce sonucuna bak; uzun işleri background ile başlat.',
   'computer.failed': 'Bilgisayarda bir sorun çıktı: {message}',
   'personComputer.screen': "Mac'in ekranı ({width}x{height}).",
   'personComputer.accessibility':
@@ -3651,6 +3653,8 @@ const en: Catalog<ServerKey> = {
     'While you waited, the user used the computer themselves for a while and gave control back. They may have closed or changed things on the screen: look at it before you go on from where you were.',
   'computer.full': 'The limit of computers open at once is reached; try again a little later.',
   'computer.unreachable': 'The computer service cannot be reached.',
+  'computer.noAnswer':
+    'The computer service did not answer in {seconds} seconds. The command may still be running there: check its result before you run it again, and start long work with background.',
   'computer.failed': 'Something went wrong on the computer: {message}',
   'personComputer.screen': "The Mac's screen ({width}x{height}).",
   'personComputer.accessibility':

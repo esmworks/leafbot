@@ -11,16 +11,26 @@ import {
   type DesktopGit,
   type DesktopStart,
 } from '@leafbot/shared';
+import { Agent } from 'undici';
 import { z } from 'zod';
 
 export class ComputerError extends Error {
   constructor(
-    readonly code: ComputerErrorCode | 'unreachable' | 'userControl',
+    readonly code: ComputerErrorCode | 'unreachable' | 'userControl' | 'noAnswer',
     detail = '',
+    /** For `noAnswer`: how long the call waited. */
+    readonly seconds = 0,
   ) {
     super(detail || code);
   }
 }
+
+/**
+ * Waits for an answer as long as each call allows. fetch's own agent gives up on one whose headers
+ * take over five minutes, but the service answers a command only when it ends, which can take ten.
+ */
+let patient: Agent | undefined;
+const patientDispatcher = () => (patient ??= new Agent({ headersTimeout: 0, bodyTimeout: 0 }));
 
 /** The computer service's HTTP API (see `shared/src/computer.ts`). */
 export class ComputerClient {
@@ -46,8 +56,13 @@ export class ComputerClient {
         },
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: AbortSignal.timeout(timeoutMs),
-      });
+        dispatcher: patientDispatcher(),
+      } as RequestInit);
     } catch (err) {
+      // The service took the call but did not answer in time: what it was doing may still go on.
+      if ((err as Error).name === 'TimeoutError') {
+        throw new ComputerError('noAnswer', (err as Error).message, Math.round(timeoutMs / 1000));
+      }
       throw new ComputerError('unreachable', (err as Error).message);
     }
     const data = (await res.json().catch(() => null)) as { error?: string; code?: ComputerErrorCode } | null;

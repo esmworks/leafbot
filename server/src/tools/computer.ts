@@ -32,6 +32,7 @@ export function computerErrorText(err: unknown, t: T): string {
     if (err.code === 'userControl') return t('computer.userControl');
     if (err.code === 'full') return t('computer.full');
     if (err.code === 'unreachable') return t('computer.unreachable');
+    if (err.code === 'noAnswer') return t('computer.noAnswer', { seconds: err.seconds });
     return t('computer.failed', { message: err.message });
   }
   return t('computer.failed', { message: (err as Error).message });
