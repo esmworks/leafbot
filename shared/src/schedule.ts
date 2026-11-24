@@ -207,28 +207,50 @@ export function fillFilter(filter: string, vars: Readonly<Record<string, string>
  * ends the run. `notify`: with no AI, `text` (the run's saved values put in for `{{name}}`) and,
  * with `withBefore`, what the step before it ended with go where the routine reports.
  */
+/**
+ * What must hold, read with no AI, for a step to run: looked at in what reaches it from the steps
+ * before (the last bot step's answer, and what a wait step brought). With neither `contains` nor
+ * `filter`, it holds when something reached the step at all.
+ */
+export const RoutineStepWhen = z.object({
+  /** Text that must be in it, any letter case. */
+  contains: z.string().trim().max(500).default(''),
+  /** Lines it must meet as JSON, written as a webhook's filter is. */
+  filter: z.string().max(2000).default(''),
+  /** The step runs when it is not there instead. */
+  absent: z.boolean().default(false),
+  /** When it does not hold: the step is passed over, or the run ends there. */
+  otherwise: z.enum(['skip', 'end']).default('skip'),
+});
+export type RoutineStepWhen = z.infer<typeof RoutineStepWhen>;
+const when = RoutineStepWhen.nullable().optional();
+
 export const RoutineStep = z.discriminatedUnion('kind', [
   z.object({
     id: stepId,
     kind: z.literal('agent'),
+    when,
     prompt: z.string().trim().min(1, 'validation.stepPrompt').max(20_000),
     model: z.string().trim().max(200).default(''),
   }),
   z.object({
     id: stepId,
     kind: z.literal('approval'),
+    when,
     question: z.string().trim().min(1, 'validation.stepQuestion').max(2000),
     timeoutDays: z.number().int().min(1).max(ROUTINE_APPROVAL_MAX_DAYS).default(7),
   }),
   z.object({
     id: stepId,
     kind: z.literal('notify'),
+    when,
     text: z.string().trim().max(4000).default(''),
     withBefore: z.boolean().default(true),
   }),
   z.object({
     id: stepId,
     kind: z.literal('wait'),
+    when,
     on: z.enum(['time', 'webhook', 'email']),
     minutes: z.number().int().min(1).max(ROUTINE_WAIT_MAX_MINUTES).default(60),
     filter: z.string().max(2000).default(''),

@@ -4,6 +4,7 @@ import {
   ROUTINE_WAIT_MAX_MINUTES,
   type RoutineRun,
   type RoutineStepRun,
+  type RoutineStepWhen,
 } from '@leafbot/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
@@ -33,8 +34,11 @@ import { api } from '@/lib/api';
 import { useApprovals } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 
-/** A step as the routine's window edits it; text fields stay strings while typed. */
-export type StepForm =
+/**
+ * A step as the routine's window edits it; text fields stay strings while typed. `when` is what
+ * must hold in what the step before ended with for it to run; none, it always runs.
+ */
+export type StepForm = (
   | { id: string; kind: 'agent'; prompt: string; model: string }
   | { id: string; kind: 'approval'; question: string; timeoutDays: number }
   | { id: string; kind: 'notify'; text: string; withBefore: boolean }
@@ -45,7 +49,8 @@ export type StepForm =
       minutes: number;
       filter: string;
       timeoutDays: number;
-    };
+    }
+) & { when?: RoutineStepWhen | null };
 
 const WAIT_ON = ['time', 'webhook', 'email'] as const;
 
@@ -298,7 +303,93 @@ export function StepFields({
           </label>
         </>
       )}
+      <WhenFields when={s.when ?? null} onChange={(when) => onChange({ ...s, when })} />
     </>
+  );
+}
+
+/**
+ * Whether the step runs only when what the step before ended with has, or lacks, a text or passes
+ * a JSON filter; looked at with no AI, so a step that has nothing to do costs nothing.
+ */
+function WhenFields({
+  when,
+  onChange,
+}: {
+  when: RoutineStepWhen | null;
+  onChange(next: RoutineStepWhen | null): void;
+}) {
+  const t = useT();
+  const on = (absent: boolean) => (
+    <Button
+      type="button"
+      size="sm"
+      role="radio"
+      aria-checked={when?.absent === absent}
+      variant={when?.absent === absent ? 'default' : 'secondary'}
+      className="h-7 rounded-full px-3 text-xs"
+      onClick={() => when && onChange({ ...when, absent })}
+    >
+      {t(absent ? 'routine.stepWhenLacks' : 'routine.stepWhenHas')}
+    </Button>
+  );
+  const otherwise = (to: RoutineStepWhen['otherwise']) => (
+    <Button
+      type="button"
+      size="sm"
+      role="radio"
+      aria-checked={when?.otherwise === to}
+      variant={when?.otherwise === to ? 'default' : 'secondary'}
+      className="h-7 rounded-full px-3 text-xs"
+      onClick={() => when && onChange({ ...when, otherwise: to })}
+    >
+      {t(to === 'end' ? 'routine.stepWhenEnd' : 'routine.stepWhenSkip')}
+    </Button>
+  );
+  return (
+    <div className="space-y-2 border-t pt-2">
+      <label className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+        <span>{t('routine.stepWhen')}</span>
+        <Switch
+          checked={!!when}
+          onCheckedChange={(v) =>
+            onChange(v ? { contains: '', filter: '', absent: false, otherwise: 'skip' } : null)
+          }
+        />
+      </label>
+      {when && (
+        <>
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t('routine.stepWhen')}>
+            {on(false)}
+            {on(true)}
+          </div>
+          <Input
+            value={when.contains}
+            onChange={(e) => onChange({ ...when, contains: e.target.value })}
+            placeholder={t('routine.stepWhenContains')}
+            className="h-8 rounded-xl text-sm"
+            aria-label={t('routine.stepWhenContains')}
+          />
+          <Input
+            value={when.filter}
+            onChange={(e) => onChange({ ...when, filter: e.target.value })}
+            placeholder={t('routine.stepWhenFilter')}
+            className="h-8 rounded-xl text-sm"
+            aria-label={t('routine.stepWhenFilter')}
+          />
+          <div
+            className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"
+            role="radiogroup"
+            aria-label={t('routine.stepWhenOtherwise')}
+          >
+            <span>{t('routine.stepWhenOtherwise')}</span>
+            {otherwise('skip')}
+            {otherwise('end')}
+          </div>
+          <p className="text-xs text-muted-foreground">{t('routine.stepWhenHint')}</p>
+        </>
+      )}
+    </div>
   );
 }
 

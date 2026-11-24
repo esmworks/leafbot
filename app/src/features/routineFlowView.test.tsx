@@ -83,6 +83,43 @@ describe('rutin akışı', () => {
     expect(listed()).toEqual(['Pick the top three', 'Summarise it']);
   });
 
+  it('adımın koşulu listede açılır, akışın kutusunda da aynı görünür; kapatılınca silinir', () => {
+    const changed = vi.fn<(next: StepForm[]) => void>();
+    const last = () => changed.mock.lastCall![0];
+    function Watch() {
+      const [steps, setSteps] = useState([agent('a', 'Summarise it')]);
+      return (
+        <StepsEditor
+          steps={steps}
+          onChange={(next) => {
+            setSteps(next);
+            changed(next);
+          }}
+          modelListId="m"
+          modelPlaceholder=""
+        />
+      );
+    }
+    render(<Watch />);
+    expect(screen.queryByPlaceholderText(/Text to look for/)).toBeNull();
+    fireEvent.click(screen.getByRole('switch', { name: 'Run this step only if…' }));
+    fireEvent.change(screen.getByPlaceholderText(/Text to look for/), { target: { value: '[1]' } });
+    fireEvent.click(screen.getByRole('radio', { name: 'It lacks' }));
+    fireEvent.click(screen.getByRole('radio', { name: 'End the run' }));
+    expect(last()[0]!.when).toEqual({ contains: '[1]', filter: '', absent: true, otherwise: 'end' });
+    fireEvent.click(screen.getByRole('switch', { name: 'Run this step only if…' }));
+    expect(last()[0]!.when).toBeNull();
+    cleanup();
+
+    const gated: StepForm = {
+      ...agent('b', 'Send it'),
+      when: { contains: 'approved', filter: '', absent: false, otherwise: 'skip' },
+    };
+    render(<Both initial={[gated]} />);
+    expect(flow().getByDisplayValue('approved')).toBeTruthy();
+    expect(list().getByDisplayValue('approved')).toBeTruthy();
+  });
+
   it('Alt ve ok tuşuyla sırayı değiştirir, Delete siler; bir alana yazarken tuşlar alanındır', () => {
     render(<Both initial={[agent('a', 'One'), agent('b', 'Two')]} />);
     fireEvent.keyDown(titles()[3]!, { key: 'ArrowUp', altKey: true });

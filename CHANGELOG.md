@@ -7,6 +7,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A routine's step can run only when what the step before ended with has (or lacks) a text, passes a JSON filter,
+  or is anything at all; looked at with no AI, so a check that finds nothing costs no model. When it does not hold
+  the step is shown as skipped and the next step gets what reached it, or the run ends there and reports what came
+  so far. Set it on each step in the routine's window, in the list or the flow, or ask the bot; the approval card
+  shows it on the step.
 - A manager bot can set up a routine for a bot it looks after, as it could already change and remove theirs; the
   card names that bot. It still cannot for another manager.
 - A routine can wait for something before its scheduled run starts, looked at with no AI: enough files matching a
