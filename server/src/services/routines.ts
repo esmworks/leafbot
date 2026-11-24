@@ -314,6 +314,7 @@ export class RoutineService {
       input.botId,
       input.steps,
       userId ?? (await this.services.access.botOwner(input.botId)),
+      input.slackChannel,
     );
     if (input.check) await this.checkCheck(input.botId, input.check, userId, !!input.slackChannel);
     if (input.condition)
@@ -354,11 +355,20 @@ export class RoutineService {
 
   /**
    * Refuses a step another bot does when that bot is gone or archived, or the routine's person may
-   * not talk with it: the bot works for them, and reaches no further than they do.
+   * not talk with it: the bot works for them, and reaches no further than they do. A routine that
+   * reports to Slack works for its team, with no one's own apps, so no other bot does a step of it:
+   * that bot would work in its person's own conversation, with their apps.
    */
-  private async checkStepBots(botId: string, steps: readonly RoutineStep[] | undefined, person: string) {
+  private async checkStepBots(
+    botId: string,
+    steps: readonly RoutineStep[] | undefined,
+    person: string,
+    slackChannel: string | null | undefined,
+  ) {
     for (const [i, step] of (steps ?? []).entries()) {
       if (step.kind !== 'agent' || !step.bot || step.bot === botId) continue;
+      // Numbered as the routine's window and its health number steps: the instruction is not one.
+      if (slackChannel) throw new HttpError(400, 'error.stepBotSlack', { n: String(i + 1) });
       if (!(await this.stepBot(botId, step.bot, person)))
         throw new HttpError(400, 'error.stepBot', { n: String(i + 1) });
     }
@@ -398,12 +408,13 @@ export class RoutineService {
     const was = await this.personOf(current);
     const shapes = Object.keys(patch).some((k) => k !== 'enabled');
     const person = by && shapes ? by : was;
-    // Another bot does a step for the routine's person: a new one, or the old ones for its new person.
-    if (patch.steps || person !== was)
-      await this.checkStepBots(current.botId, patch.steps ?? current.steps ?? [], person);
     // The check runs for the routine's person: a new one, or the old one for its new person.
     const check = patch.check !== undefined ? patch.check : person !== was ? current.check : null;
     const slackChannel = patch.slackChannel !== undefined ? patch.slackChannel : current.slackChannel;
+    // Another bot does a step for the routine's person: a new one, or the old ones for its new
+    // person, or for a routine that now reports to Slack.
+    if (patch.steps || person !== was || patch.slackChannel !== undefined)
+      await this.checkStepBots(current.botId, patch.steps ?? current.steps ?? [], person, slackChannel);
     if (check) await this.checkCheck(current.botId, check, person, !!slackChannel);
     // The condition reads for the routine's person too: a new one, or the old one for its new person.
     const condition =
@@ -589,14 +600,14 @@ export class RoutineService {
         at: r.startedAt,
         status: r.status,
         outcome: r.outcome,
-        reason: r.reason,
+        reason: clean(r.reason),
         older: JSON.stringify([r.promptSnapshot, snapshotSteps(r.stepsSnapshot) ?? []]) !== now,
         parts: own.length
           ? own.map((p) => ({
               position: p.position,
               kind: p.kind,
               status: p.status,
-              reason: p.reason,
+              reason: clean(p.reason),
               output: clean(p.output),
             }))
           : [{ position: 0, kind: 'prompt', status: r.status, reason: null, output: clean(answer) }],
@@ -609,14 +620,22 @@ export class RoutineService {
       language: await this.services.settings.locale(),
     });
     const settings = await this.services.settings.all();
-    const { text, costUsd } = await engine.complete({
-      model:
-        bot.model || (bot.engine === 'claude' ? settings.defaultModel : '') || this.ctx.config.claudeModel,
-      system,
-      user,
-      signal: AbortSignal.timeout(120_000),
-      locale: await this.services.settings.locale(),
-    });
+    let text: string;
+    let costUsd: number | null;
+    try {
+      ({ text, costUsd } = await engine.complete({
+        model:
+          bot.model || (bot.engine === 'claude' ? settings.defaultModel : '') || this.ctx.config.claudeModel,
+        system,
+        user,
+        signal: AbortSignal.timeout(120_000),
+        locale: await this.services.settings.locale(),
+      }));
+    } catch (err) {
+      // The provider down, or too slow: the person is told so in their language, and may ask again.
+      console.warn(`A fix for routine ${id} was not written: ${String(err)}`);
+      throw new HttpError(502, 'error.routineFixFailed');
+    }
     await this.services.usage.background(bot.id, 'routineFix', costUsd);
     const fix = parseFix(text, routine.prompt, steps);
     if (!fix) throw new HttpError(502, 'error.routineFixUnreadable');
@@ -2362,10 +2381,17 @@ export class RoutineService {
     // been archived, or the person lost it, since the routine was saved.
     const by = step.bot && step.bot !== run.botId ? step.bot : null;
     const person = by ? (run.userId ?? (await this.services.access.botOwner(run.botId))) : null;
-    const target = by && person ? await this.stepBot(run.botId, by, person) : null;
+    // A routine that came to report to Slack since works for its team: no other bot does its step.
+    const [team] = by
+      ? await this.ctx.db
+          .select({ slackChannel: schema.routines.slackChannel })
+          .from(schema.routines)
+          .where(eq(schema.routines.id, run.routineId))
+      : [];
+    const target = by && person && !team?.slackChannel ? await this.stepBot(run.botId, by, person) : null;
     if (person && !target) {
       await this.stepStarted(run.id, position, step.kind, null);
-      const reason = t('routine.stepBotGone', { step: String(position + 1) });
+      const reason = t('routine.stepBotGone', { step: String(position) });
       return this.dataFailed(run, routineName, steps, step, position, reason, t);
     }
     const where = target ? await this.services.threads.peerThread(target.id, run.botId, person!) : null;
@@ -3609,7 +3635,14 @@ export class RoutineService {
       botId: run.botId,
       userId: run.userId,
     };
-    if (handed && at.threadId !== turn.threadId && outcome.text.trim() && !isSilentReply(outcome.text)) {
+    // Only an answer the step finished: what a failed one wrote stays with the step's own record.
+    if (
+      handed &&
+      outcome.ok &&
+      at.threadId !== turn.threadId &&
+      outcome.text.trim() &&
+      !isSilentReply(outcome.text)
+    ) {
       const home = await this.services.threads.row(at.threadId).catch(() => null);
       await this.services.threads.addMessage({
         threadId: at.threadId,

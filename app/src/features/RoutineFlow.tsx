@@ -708,7 +708,8 @@ export function RoutineFlow({
                         inFlow
                       />
                       {statusBody(st)}
-                      {s.kind === 'agent' && tryButton(s.prompt, true)}
+                      {/* A step another bot does is tried on that bot in a run only: a try here would run it on the routine's. */}
+                      {s.kind === 'agent' && !s.bot && tryButton(s.prompt, true)}
                     </>
                   ),
                 });
