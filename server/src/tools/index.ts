@@ -2269,8 +2269,14 @@ export class ToolFactory {
           });
         },
       });
-      return r.status === 'allowed' && (!r.answer || r.answer === approve);
+      if (r.status === 'allowed' && (!r.answer || r.answer === approve)) return true;
+      // Words written on the card in place of a button reach the manager with the refusal.
+      const words = r.status === 'allowed' && r.answer !== t('tool.reject') ? (r.answer?.trim() ?? '') : '';
+      return { words };
     };
+    /** What the manager is told when the person did not approve, with their words if they wrote any. */
+    const refused = (message: string, r: { words: string }) =>
+      r.words ? `${message}\n\n${t('tool.changeAnswered', { answer: r.words })}` : message;
     const groupId = async (name: string | undefined) => {
       if (!name) return undefined;
       const groups = await s.bots.listGroups();
@@ -2428,7 +2434,7 @@ export class ToolFactory {
               { bot: target.name, permission_mode: a.permission_mode, internet: a.internet },
               'bot_update',
             );
-            if (!ok) return t('tool.loosenDenied');
+            if (ok !== true) return refused(t('tool.loosenDenied'), ok);
           } else if (changes.length) {
             if (loosens) changes.push(t('tool.changePermissions'));
             const said = t('tool.changeSummary', {
@@ -2449,7 +2455,7 @@ export class ToolFactory {
               },
               'bot_update',
             );
-            if (!ok) return t('tool.changeDenied');
+            if (ok !== true) return refused(t('tool.changeDenied'), ok);
           }
           const patch = {
             ...(a.name !== undefined && { name: a.name }),
@@ -2527,7 +2533,7 @@ export class ToolFactory {
               skill: skill.name,
             });
             const ok = await confirm(said, { bot: target.name, skill: skill.name, on: a.on }, 'bot_skill');
-            if (!ok) return t('tool.changeDenied');
+            if (ok !== true) return refused(t('tool.changeDenied'), ok);
           }
           const was = skill.botIds.includes(target.id);
           await s.skills.setBot(skill.id, target.id, a.on);

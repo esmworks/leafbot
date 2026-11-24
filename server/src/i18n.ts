@@ -1689,6 +1689,8 @@ const tr = {
   'tool.changeEngine': 'motoru ve modeli',
   'tool.changePermissions': 'izinleri',
   'tool.changeDenied': 'Kullanıcı bu değişikliği onaylamadı; değişiklik yapılmadı.',
+  'tool.changeAnswered':
+    'Kullanıcı kartta bir seçenek seçmek yerine kendi sözleriyle şunu yazdı; buna göre devam et:\n<<<\n{answer}\n>>>',
   'tool.skillOnSummary': '{manager}, {target} botuna “{skill}” becerisini açmak istiyor',
   'tool.skillOffSummary': '{manager}, {target} botunda “{skill}” becerisini kapatmak istiyor',
   'tool.updated': '{name} güncellendi.',
@@ -3700,6 +3702,8 @@ const en: Catalog<ServerKey> = {
   'tool.changeEngine': 'engine and model',
   'tool.changePermissions': 'permissions',
   'tool.changeDenied': 'The user did not approve this change; nothing was changed.',
+  'tool.changeAnswered':
+    'Instead of picking an option, the user wrote this on the card in their own words; go on from it:\n<<<\n{answer}\n>>>',
   'tool.skillOnSummary': '{manager} wants to turn on the skill “{skill}” for {target}',
   'tool.skillOffSummary': '{manager} wants to turn off the skill “{skill}” for {target}',
   'tool.updated': '{name} updated.',
