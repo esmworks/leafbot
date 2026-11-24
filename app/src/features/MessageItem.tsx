@@ -1260,8 +1260,11 @@ export function Working({
         activity={activity}
         motion="always"
       />
-      <span>{doing ?? t(`activity.${activity}`)}</span>
-      <Elapsed key={doing ?? activity} />
+      {/* Its own backing, as the line sits straight on the chat, where a picture swallows grey text. */}
+      <span className="wallpaper-chip flex items-center gap-1 rounded-lg px-2 py-0.5">
+        <span>{doing ?? t(`activity.${activity}`)}</span>
+        <Elapsed key={doing ?? activity} />
+      </span>
       {activity === 'browsing' && (
         <Button
           type="button"

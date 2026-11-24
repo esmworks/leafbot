@@ -517,7 +517,7 @@
  * laid over the frost, so a warning still looks like one. A bubble's outline is drawn inside, so it
  * keeps its size. The person's own bubble lets the least through, as its white text loses out first
  * over a bright picture. Small lines written straight on the chat (a routine's name, a quoted reply,
- * the day, the plan meter) get a backing of their own, or a bright picture swallows their grey
+ * the day, the plan meter, what the bot is doing, an empty chat's greeting) get a backing of their own, or a bright picture swallows their grey
  * text; a hovered button keeps its own hover fill.
  *
  * Two choices of the person's change this. With blur off (`data-wallpaper-sharp`) the picture shows
