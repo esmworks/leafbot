@@ -147,6 +147,8 @@ function refresh(qc: QueryClient, e: RefreshScope) {
       inv('routine-revisions');
       inv('routine-rehearsals');
       inv('routine-replayable');
+      // A run that ended, or a routine changed, changes how it stands.
+      inv('routine-health');
       inv('summaries');
       // A run's line in a conversation shows how the run stands.
       inv('messages');

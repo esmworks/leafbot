@@ -34,3 +34,4 @@ export * from './old-names';
 export * from './app-events';
 export * from './phone';
 export * from './card';
+export * from './routine-health';

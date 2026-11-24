@@ -49,6 +49,7 @@ import { ConditionFields } from './RoutineCondition';
 import { MissingApps } from './MissingApps';
 import { PromptHistory } from './PromptHistory';
 import { RoutineFlow } from './RoutineFlow';
+import { RoutineHealthBlock } from './RoutineHealth';
 import { RoutineRehearsal } from './RoutineRehearsal';
 import { RunSteps, StepsEditor, TemplatePicker, type StepForm } from './RoutineSteps';
 
@@ -764,6 +765,7 @@ export function RoutinePage({
               />
               <ScheduleFields form={form} values={values} />
               {settingsFields}
+              {routine && <RoutineHealthBlock routine={routine} locked={dirty} />}
             </>
           ) : (
             <>
@@ -824,6 +826,8 @@ export function RoutinePage({
                   </>
                 }
               />
+              {/* Under the canvas, not in its settings: what is wrong with a routine should be in sight. */}
+              {routine && <RoutineHealthBlock routine={routine} locked={dirty} />}
               {routine && (
                 <div ref={rehearsal}>
                   <RoutineRehearsal

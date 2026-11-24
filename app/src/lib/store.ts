@@ -113,6 +113,11 @@ export interface UiState {
   /** Text picked in a message, waiting to be quoted at the top of the draft. */
   pendingQuote: string | null;
   /**
+   * A message written for the person to read and send themselves (asking a bot about a routine's
+   * health), waiting for the text box of the conversation it is for. Never sent on its own.
+   */
+  pendingDraft: { threadId: string; text: string } | null;
+  /**
    * The apps (connections) page, over whatever the main area shows, which stays as it was under it.
    * `botId` is the bot it was opened for, whose switch a new connection turns on; `catalogId` opens
    * it on one service of the catalog, `connectionId` on one connection.
@@ -164,6 +169,7 @@ export interface UiState {
   /** Closes that page without asking, once its changes are saved or it is gone. */
   closePage(): void;
   quote(text: string | null): void;
+  draft(draft: UiState['pendingDraft']): void;
   openApps(apps: UiState['apps']): void;
   /** Opens a new bot, or a bot's settings, in place of the chat; `null` leaves it as `leavePage` does. */
   openBotPage(page: UiState['botPage']): void;
@@ -242,6 +248,7 @@ export const useUi = create<UiState>((set, get) => ({
   routine: null,
   botPage: null,
   pendingQuote: null,
+  pendingDraft: null,
   apps: null,
   computerBotId: null,
   computerFloat: saved.computerFloat ?? false,
@@ -323,6 +330,7 @@ export const useUi = create<UiState>((set, get) => ({
     set({ routine: null, botPage: null, apps: null });
   },
   quote: (pendingQuote) => set({ pendingQuote }),
+  draft: (pendingDraft) => set({ pendingDraft }),
   // The page under it is kept as it is, typed changes too, for when the apps page closes.
   openApps: (apps) => set(apps ? { apps, phonePane: 'chat', panelSheet: false } : { apps }),
   openBotPage: (page) => {

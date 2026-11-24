@@ -671,6 +671,12 @@ export const routineRuns = pgTable(
     promptSnapshot: text('prompt_snapshot').notNull(),
     /** The bot itself said the run could not do its task. */
     failedByBot: boolean('failed_by_bot').notNull().default(false),
+    /**
+     * How the run ended for the routine's health: `ok` did its work, `quiet` found nothing to
+     * report, `failed` really failed. Null for every other ending (a wait, a skip, the person's
+     * stop, a usage limit, a sign-in problem, a restart) and for runs from before it was kept.
+     */
+    outcome: text('outcome', { enum: ['ok', 'quiet', 'failed'] }),
     /** What the routine pre-check said before the run; null when none ran. */
     gateDecision: text('gate_decision', { enum: ['run', 'skip'] }),
     gateReason: text('gate_reason'),
@@ -2150,4 +2156,23 @@ export const routineRehearsals = pgTable(
     prunedAt: ts('pruned_at'),
   },
   (t) => [index('routine_rehearsals_routine_idx').on(t.routineId, t.startedAt)],
+);
+
+/**
+ * A finding of a routine's health a person set aside. It shows again only when the runs after
+ * `dismissedAt` meet it once more, so setting it aside is not forever, and each person's own.
+ */
+export const routineHealthDismissals = pgTable(
+  'routine_health_dismissals',
+  {
+    routineId: text('routine_id')
+      .notNull()
+      .references(() => routines.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    finding: text('finding').notNull(),
+    dismissedAt: ts('dismissed_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.routineId, t.userId, t.finding] })],
 );

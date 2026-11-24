@@ -1457,6 +1457,19 @@ function Composer({
       }),
     [],
   );
+  // A message written for the person (about a routine's health) goes into its conversation's box
+  // for them to read and send; it is set as the conversation opens, so it is looked for when the
+  // box first shows too. The box of the conversation being left does not take it.
+  useEffect(() => {
+    const take = (draft: { threadId: string; text: string } | null) => {
+      if (draft?.threadId !== threadId) return;
+      useUi.getState().draft(null);
+      setText((prev) => (prev.trim() ? `${prev}\n\n${draft.text}` : draft.text));
+      requestAnimationFrame(() => ref.current?.focus());
+    };
+    take(useUi.getState().pendingDraft);
+    return useUi.subscribe((state) => take(state.pendingDraft));
+  }, [threadId]);
   const send = useMutation({
     mutationFn: (m: {
       clientId: string;

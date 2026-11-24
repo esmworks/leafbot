@@ -58,6 +58,7 @@ import {
   SkillSuggestionAccept,
   RoutineUpdate,
   RehearsalStart,
+  RoutineHealthDismiss,
   RoomCreate,
   RoomSend,
   MeetingAnswer,
@@ -2288,6 +2289,14 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   });
   app.patch('/api/routines/:id', async (req) =>
     s.routines.update(IdParams.parse(req.params).id, RoutineUpdate.parse(req.body), me(req).userId),
+  );
+  app.get('/api/routines/health', async (req) => s.routineHealth.list(me(req)));
+  app.post('/api/routines/:id/health/dismiss', async (req) =>
+    s.routineHealth.dismiss(
+      me(req),
+      IdParams.parse(req.params).id,
+      RoutineHealthDismiss.parse(req.body).finding,
+    ),
   );
   app.delete('/api/routines/:id', async (req) => {
     await s.routines.remove(IdParams.parse(req.params).id);

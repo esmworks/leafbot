@@ -7,6 +7,15 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Each routine shows its health: how its runs of the last 30 days ended (done, nothing to report, failed), what they
+  cost and how long they took, worked out from the runs with no AI. It points out a routine that keeps failing, that
+  switched itself off, that waits for a sign-in, a step that keeps failing, a wait that keeps running out, runs that
+  mostly find nothing to report with what they cost, and a routine not used for 30 days. A wait that runs out can be
+  made twice as long with one press, and undone; for the rest, "Ask the bot" puts a message about it in the bot's
+  chat for you to send, asking the bot to check with you before it changes anything; the bot then changes the routine
+  only as far as its permissions allow. A finding you hide comes back only when the runs after that meet it again.
+  Settings → Routines shows each routine's health and can list only those needing attention, and Today says how many
+  have a problem.
 - A routine's steps can branch. When a step's condition does not hold, the run can go on at a later step instead
   of only skipping it or ending; after a step ends, the run can end there or go on at a later step, so a "yes"
   branch does not run into the "no" branch after it; and when a bot step really fails, or the bot says it could not
