@@ -1,4 +1,6 @@
 import {
+  BOT_MATERIALS,
+  BotMaterial,
   BRAND_COLOR,
   DEFAULT_AVATAR,
   EFFORTS,
@@ -9,6 +11,7 @@ import {
   ToolSelection,
   type Bot,
   type Effort,
+  type ObjectAvatar,
 } from '@leafbot/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -81,6 +84,7 @@ const Form = z
     newGroup: z.string().max(60),
     color: z.string(),
     avatar: z.string(),
+    material: BotMaterial,
     permissionMode: z.enum(PERMISSION_MODES),
     isManager: z.boolean(),
     memory: z.boolean(),
@@ -121,6 +125,7 @@ function initial(bot?: Bot, start: BotEngine = { engine: 'claude', model: '' }):
     newGroup: '',
     color: bot?.color ?? COLORS[0]!,
     avatar: bot?.avatar ?? DEFAULT_AVATAR,
+    material: bot?.material ?? 'flat',
     permissionMode: bot ? shownMode(bot.permissionMode) : 'auto',
     isManager: bot?.isManager ?? false,
     memory: bot?.memory ?? true,
@@ -285,6 +290,7 @@ function BotForm({
         groupId,
         color: f.color,
         avatar: f.avatar,
+        material: f.material,
         permissionMode: f.permissionMode,
         isManager: f.isManager,
         memory: f.memory,
@@ -401,7 +407,9 @@ function BotForm({
           <AvatarEditor
             avatar={v.avatar}
             color={v.color}
+            material={v.material}
             onAvatar={(a) => form.setValue('avatar', a, { shouldDirty: true })}
+            onMaterial={(m) => form.setValue('material', m, { shouldDirty: true })}
             onColor={(c) => form.setValue('color', c, { shouldDirty: true })}
           />
           <div className="grid gap-4 sm:grid-cols-2">
@@ -779,13 +787,17 @@ function ModelPicker({
 function AvatarEditor({
   avatar,
   color,
+  material,
   onAvatar,
   onColor,
+  onMaterial,
 }: {
   avatar: string;
   color: string;
+  material: BotMaterial;
   onAvatar(a: string): void;
   onColor(c: string): void;
+  onMaterial(m: BotMaterial): void;
 }) {
   const t = useT();
   const file = useRef<HTMLInputElement>(null);
@@ -800,7 +812,14 @@ function AvatarEditor({
   return (
     <div className="flex flex-col gap-4 rounded-3xl bg-secondary/50 p-4 sm:flex-row">
       <div className="flex shrink-0 items-center justify-center sm:w-36">
-        <BotAvatar avatar={avatar} color={color} size={96} activity="idle" motion="always" />
+        <BotAvatar
+          avatar={avatar}
+          color={color}
+          material={material}
+          size={96}
+          activity="idle"
+          motion="always"
+        />
       </div>
       <Tabs defaultValue={avatar.startsWith('data:') ? 'upload' : 'object'} className="flex-1">
         <TabsList className="rounded-full">
@@ -825,10 +844,16 @@ function AvatarEditor({
                 aria-label={t(`bot.object.${o}`)}
                 title={t(`bot.object.${o}`)}
               >
-                <ObjectArt id={o} color={color} motion="always" />
+                <ObjectArt id={o} color={color} material={material} motion="always" />
               </button>
             ))}
           </div>
+          <MaterialRow
+            id={(avatar.startsWith('object:') ? avatar : DEFAULT_AVATAR).slice(7) as ObjectAvatar}
+            color={color}
+            material={material}
+            onMaterial={onMaterial}
+          />
           <ColorRow color={color} onColor={onColor} />
         </TabsContent>
         <TabsContent value="upload" className="space-y-3">
@@ -863,6 +888,47 @@ function AvatarEditor({
           <ColorRow color={color} onColor={onColor} />
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+/**
+ * The body's finish, each shown on the chosen object so the difference is seen rather than named.
+ * Only the object tab has it: an uploaded picture has no body to finish.
+ */
+function MaterialRow({
+  id,
+  color,
+  material,
+  onMaterial,
+}: {
+  id: ObjectAvatar;
+  color: string;
+  material: BotMaterial;
+  onMaterial(m: BotMaterial): void;
+}) {
+  const t = useT();
+  return (
+    <div role="radiogroup" aria-label={t('bot.material')} className="flex flex-wrap items-center gap-2">
+      <span className="text-xs text-muted-foreground">{t('bot.material')}</span>
+      {BOT_MATERIALS.map((m) => (
+        <button
+          type="button"
+          key={m}
+          role="radio"
+          aria-checked={material === m}
+          onClick={() => onMaterial(m)}
+          className={cn(
+            'inline-flex items-center gap-2 rounded-xl py-1 pe-3 ps-1 text-sm transition-colors hover:bg-accent',
+            material === m && 'bg-accent ring-2 ring-ring/40',
+          )}
+        >
+          <span className="size-7 shrink-0">
+            <ObjectArt id={id} color={color} material={m} />
+          </span>
+          {t(`bot.material.${m}`)}
+        </button>
+      ))}
     </div>
   );
 }

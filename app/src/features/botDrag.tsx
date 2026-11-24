@@ -123,7 +123,13 @@ export function BotDragProvider({
           className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2 rounded-full shadow-lg"
           style={{ left: drag.x, top: drag.y }}
         >
-          <BotAvatar avatar={drag.bot.avatar} color={drag.bot.color} seed={drag.bot.id} size={44} />
+          <BotAvatar
+            avatar={drag.bot.avatar}
+            material={drag.bot.material}
+            color={drag.bot.color}
+            seed={drag.bot.id}
+            size={44}
+          />
         </div>
       )}
     </Ctx.Provider>

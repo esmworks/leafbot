@@ -97,6 +97,15 @@ export const BotAccess = z.object({
 });
 export type BotAccess = z.infer<typeof BotAccess>;
 
+/**
+ * How the body of an object avatar is finished: a plain fill, or a coat of fur with the eyes set into
+ * it. Only an object avatar has a body to finish; an uploaded picture ignores it. Where fur can't be
+ * drawn (the phone, a browser without WebGL2) the body is drawn flat.
+ */
+export const BOT_MATERIALS = ['flat', 'fluffy'] as const;
+export const BotMaterial = z.enum(BOT_MATERIALS);
+export type BotMaterial = z.infer<typeof BotMaterial>;
+
 export const Bot = z.object({
   id: Id,
   name: z.string(),
@@ -112,6 +121,8 @@ export const Bot = z.object({
   groupId: Id.nullable(),
   color: z.string(),
   avatar: z.string(),
+  /** How the body of an object avatar is finished; missing on older servers, which draw it flat. */
+  material: BotMaterial.default('flat'),
   permissionMode: PermissionMode,
   /** Whether the bot may reach the internet: web search, reading pages, its browser and desktop. */
   internet: z.boolean(),
@@ -247,6 +258,7 @@ export const BotCreate = z.object({
     .regex(/^#[0-9a-f]{6}$/i)
     .default(BRAND_COLOR),
   avatar: Avatar.default(DEFAULT_AVATAR),
+  material: BotMaterial.default('flat'),
   permissionMode: PermissionMode.default('auto'),
   internet: z.boolean().default(true),
   personComputer: z.boolean().default(false),

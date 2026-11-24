@@ -2346,6 +2346,7 @@ export class ToolFactory {
               groupId: a.group !== undefined ? ((await groupId(a.group)) ?? null) : manager.groupId,
               color: a.color ?? BRAND_COLOR,
               avatar: DEFAULT_AVATAR,
+              material: 'flat',
               // The level a bot the person creates starts at, as one made in the app.
               permissionMode: 'auto',
               internet: false,

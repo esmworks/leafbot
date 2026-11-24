@@ -463,6 +463,7 @@ function Header({
             <button className="pointer-events-auto flex max-w-full min-w-0 items-center gap-2 rounded-full border bg-background/80 py-1.5 pe-3 ps-1.5 shadow-sm backdrop-blur transition-colors hover:bg-accent">
               <BotAvatar
                 avatar={bot.avatar}
+                material={bot.material}
                 color={bot.color}
                 seed={bot.id}
                 size={28}
@@ -1255,6 +1256,7 @@ function Empty({ bot }: { bot: Bot }) {
     <div className="flex flex-col items-center gap-3 pt-[12vh] text-center">
       <BotAvatar
         avatar={bot.avatar}
+        material={bot.material}
         color={bot.color}
         seed={bot.id}
         size={72}

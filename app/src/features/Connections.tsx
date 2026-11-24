@@ -1516,7 +1516,7 @@ function BotSwitch({ bot, connection }: { bot: Bot; connection: Connection }) {
   const on = openTo(connection, bot.id);
   return (
     <div className="flex items-center gap-3 px-4 py-2.5">
-      <BotAvatar avatar={bot.avatar} color={bot.color} size={28} />
+      <BotAvatar avatar={bot.avatar} material={bot.material} color={bot.color} size={28} />
       <span className="min-w-0 flex-1 truncate text-sm">{bot.name}</span>
       <Switch
         checked={on}
