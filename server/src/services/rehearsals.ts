@@ -16,8 +16,19 @@ export const REHEARSAL_KEEP_DAYS = 7;
 const STEPS_MAX = 200;
 /** How many of a routine's latest runs can be replayed. */
 const REPLAY_RUNS = 5;
-/** How many rehearsals of a routine are listed. */
+/** How many rehearsals of a routine are listed: a comparison of the last five inputs on two models fits. */
 const LIST_MAX = 10;
+
+/** One rehearsal of a batch still to start: the run whose input it replays, and the model it runs on. */
+interface BatchItem {
+  runId?: string;
+  model?: string;
+}
+/** A batch item as `begin` takes it, leaving out what it does not name. */
+const item = (one: BatchItem) => ({
+  ...(one.runId ? { replayRunId: one.runId } : {}),
+  ...(one.model ? { model: one.model } : {}),
+});
 
 /**
  * Trying a routine once without doing anything. The bot works as the routine's run would, for the
@@ -38,7 +49,10 @@ export class RehearsalService {
    * Rehearsals on a routine's last real inputs still to start, by routine: one runs at a time, so
    * each starts when the one before ends. Kept in memory; after a restart the rest do not start.
    */
-  private batches = new Map<string, { batchId: string; userId: string; prompt?: string; runIds: string[] }>();
+  private batches = new Map<
+    string,
+    { batchId: string; userId: string; prompt?: string; items: BatchItem[] }
+  >();
 
   constructor(
     private ctx: Ctx,
@@ -84,23 +98,22 @@ export class RehearsalService {
     }
     this.starting.add(routineId);
     try {
-      if (!input.replayLast) return await this.begin(routineId, userId, input);
+      if (!input.replayLast && !input.models) return await this.begin(routineId, userId, input);
       // The newest runs that kept what started them, one rehearsal each.
-      const runIds = (await this.replayable(routineId, userId))
-        .filter((r) => r.replayable)
-        .slice(0, input.replayLast)
-        .map((r) => r.runId);
+      const runIds: (string | undefined)[] = input.replayLast
+        ? (await this.replayable(routineId, userId))
+            .filter((r) => r.replayable)
+            .slice(0, input.replayLast)
+            .map((r) => r.runId)
+        : [input.replayRunId];
       if (!runIds.length) throw new HttpError(400, 'error.rehearsalNoInput');
+      // Each input on each model, the models side by side: at most five inputs on two models.
+      const models: (string | undefined)[] = input.models ?? [undefined];
+      const items = runIds.flatMap((runId) => models.map((model) => ({ runId, model })));
       const batchId = newId();
-      const first = await this.begin(
-        routineId,
-        userId,
-        { prompt: input.prompt, replayRunId: runIds[0] },
-        batchId,
-      );
-      if (runIds.length > 1) {
-        this.batches.set(routineId, { batchId, userId, prompt: input.prompt, runIds: runIds.slice(1) });
-      }
+      const [head, ...rest] = items;
+      const first = await this.begin(routineId, userId, { prompt: input.prompt, ...item(head!) }, batchId);
+      if (rest.length) this.batches.set(routineId, { batchId, userId, prompt: input.prompt, items: rest });
       return first;
     } finally {
       this.starting.delete(routineId);
@@ -110,7 +123,7 @@ export class RehearsalService {
   private async begin(
     routineId: string,
     userId: string,
-    input: RehearsalStart,
+    input: Omit<RehearsalStart, 'models'> & { model?: string },
     batchId: string | null = null,
   ): Promise<Rehearsal> {
     const t = await this.services.settings.translator();
@@ -175,6 +188,7 @@ export class RehearsalService {
         draft,
         replayRunId: replay?.id ?? null,
         batchId,
+        model: input.model ?? null,
         prompt,
       })
       .returning();
@@ -318,6 +332,7 @@ export class RehearsalService {
       startedAt: r.startedAt.toISOString(),
       finishedAt: r.finishedAt?.toISOString() ?? null,
       batchId: r.batchId,
+      model: r.model,
       replay,
     };
   }
@@ -362,20 +377,20 @@ export class RehearsalService {
     if (!row?.batchId || !batch || batch.batchId !== row.batchId) return;
     const { routineId } = row;
     const stopped = !outcome.ok && outcome.kind === 'interrupted';
-    if (stopped || !batch.runIds.length) {
+    if (stopped || !batch.items.length) {
       this.batches.delete(routineId);
-      if (stopped) await this.notTried(routineId, batch, batch.runIds, 'error.rehearsalBatchStopped');
+      if (stopped) await this.notTried(routineId, batch, batch.items, 'error.rehearsalBatchStopped');
       return;
     }
-    const runId = batch.runIds.shift()!;
+    const one = batch.items.shift()!;
     this.starting.add(routineId);
     try {
-      await this.begin(routineId, batch.userId, { prompt: batch.prompt, replayRunId: runId }, batch.batchId);
-      if (!batch.runIds.length) this.batches.delete(routineId);
+      await this.begin(routineId, batch.userId, { prompt: batch.prompt, ...item(one) }, batch.batchId);
+      if (!batch.items.length) this.batches.delete(routineId);
     } catch (err) {
       this.batches.delete(routineId);
       console.warn(`Could not start the next rehearsal of routine ${routineId}: ${String(err)}`);
-      await this.notTried(routineId, batch, [runId, ...batch.runIds], 'error.rehearsalBatchCut');
+      await this.notTried(routineId, batch, [one, ...batch.items], 'error.rehearsalBatchCut');
     } finally {
       this.starting.delete(routineId);
     }
@@ -385,10 +400,10 @@ export class RehearsalService {
   private async notTried(
     routineId: string,
     batch: { batchId: string; userId: string; prompt?: string },
-    runIds: string[],
+    items: BatchItem[],
     why: 'error.rehearsalBatchStopped' | 'error.rehearsalBatchCut',
   ): Promise<void> {
-    if (!runIds.length) return;
+    if (!items.length) return;
     const t = await this.services.settings.translator();
     const routine = await this.services.routines.get(routineId).catch(() => null);
     if (!routine) return;
@@ -397,13 +412,14 @@ export class RehearsalService {
     await this.ctx.db
       .insert(schema.routineRehearsals)
       .values(
-        runIds.map((runId) => ({
+        items.map((one) => ({
           id: newId(),
           routineId,
           userId: batch.userId,
           draft: prompt !== routine.prompt,
-          replayRunId: runId,
+          replayRunId: one.runId ?? null,
           batchId: batch.batchId,
+          model: one.model ?? null,
           prompt,
           status: 'stopped' as const,
           error: t(why),

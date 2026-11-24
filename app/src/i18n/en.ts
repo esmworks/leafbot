@@ -3201,6 +3201,17 @@ export const en: Catalog<MessageKey> = {
   'rehearsal.ranNone': 'No step only read.',
   'rehearsal.earlier': 'Earlier rehearsals',
   'rehearsal.kept': 'Rehearsals are kept for 7 days and do not affect the later runs of this routine.',
+  'rehearsal.compare': 'Compare two models',
+  'rehearsal.compareHint':
+    'The same input is rehearsed on each model, one after the other, and shown side by side with what each really cost and how long it took. Steps with a model of their own are not part of a rehearsal.',
+  'rehearsal.compareModel': 'Model {n}',
+  'rehearsal.compareRun': 'Compare',
+  'rehearsal.compareLast': 'Compare on the last {count} inputs ({total} rehearsals)',
+  'rehearsal.compareTitle': '{count} inputs on two models',
+  'rehearsal.compareTotal': '{cost} · {time} · {would} steps it would take',
+  'rehearsal.compareUnpriced': '{count} without a price',
+  'rehearsal.compareNoInput': 'No input',
+  'rehearsal.modelTag': 'on {model}',
   'usage.rehearsalOf': 'Rehearsal: {name}',
   'apps.missing': {
     one: 'This instruction mentions {apps}, but the bot cannot use it yet.',

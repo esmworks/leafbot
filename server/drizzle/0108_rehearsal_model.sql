@@ -1,0 +1,1 @@
+ALTER TABLE "routine_rehearsals" ADD COLUMN "model" text;

@@ -431,6 +431,7 @@ const tr = {
   'validation.conditionNumberSource': 'Sayı bir uygulamanın aracından ya da bir https adresinden okunmalı',
   'validation.conditionNumberEither': 'İki yöne birden yalnız ortalamaya göre bakılabilir',
   'validation.conditionNumberPercent': 'Ortalamaya göre bakarken eşik sıfırdan büyük bir yüzde olmalı',
+  'validation.rehearsalModelsSame': 'Karşılaştırmak için iki farklı model seçilmeli',
   'validation.slackChannel': 'Slack kanalının kimliği C ya da G ile başlar (kanal ayrıntılarının en altında)',
   'validation.slackReaction': "Tepkinin Slack'teki adını yazın, ör. eyes ya da white_check_mark",
   'validation.whatsappGroup': 'Bir WhatsApp grubu seçin',
@@ -2606,6 +2607,7 @@ const en: Catalog<ServerKey> = {
   'validation.conditionNumberSource': 'The number is read from an app’s tool or an https address',
   'validation.conditionNumberEither': 'Both ways can only be looked at against the average',
   'validation.conditionNumberPercent': 'Against the average, the threshold is a percent above zero',
+  'validation.rehearsalModelsSame': 'Pick two different models to compare',
   'validation.slackReaction': "Write the reaction's name as Slack has it, e.g. eyes or white_check_mark",
   'validation.slackChannel':
     "A Slack channel's id starts with C or G (at the bottom of the channel's details)",

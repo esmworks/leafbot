@@ -778,6 +778,15 @@ export const RehearsalStart = z.object({
   replayRunId: z.string().min(1).max(64).optional(),
   /** Rehearses on the inputs of the routine's last runs that kept theirs, this many, one after another. */
   replayLast: z.number().int().min(2).max(5).optional(),
+  /**
+   * Two models to compare: each input is rehearsed once on each, one after another, so the reports,
+   * steps, cost and time sit side by side.
+   */
+  models: z
+    .array(z.string().trim().min(1).max(200))
+    .length(2)
+    .refine((m) => m[0] !== m[1], 'validation.rehearsalModelsSame')
+    .optional(),
 });
 export type RehearsalStart = z.infer<typeof RehearsalStart>;
 
@@ -799,6 +808,8 @@ export const Rehearsal = z.object({
   finishedAt: z.string().nullable(),
   /** Rehearsals started together on the routine's last real inputs share it; null for one alone. */
   batchId: z.string().nullable().optional(),
+  /** The model it ran on when models were compared; null (or missing on older servers) for the routine's own. */
+  model: z.string().nullable().optional(),
   /** The run whose input was replayed, with the report it actually wrote; null when none was. */
   replay: z
     .object({

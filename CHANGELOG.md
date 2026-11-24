@@ -7,6 +7,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A routine's rehearsal can compare two models: the same input, or each of the last inputs, is rehearsed on each
+  model one after the other and shown side by side with each one's status, report, steps it would take, real cost
+  and time, and each model's totals. It shows what happened rather than a score, and like any rehearsal it records
+  no run, so the routine's history and its versions' cost are unchanged.
 - A routine's condition can look at a number, with no AI: read from an app's tool or a web address (at a path in
   its JSON, or after a label on a page), it holds above or below a threshold, or once it is more than a percent away
   from the average of its last scheduled readings. The run then starts with the number and the average, so the bot
