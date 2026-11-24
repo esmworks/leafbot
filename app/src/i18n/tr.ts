@@ -1668,6 +1668,8 @@ export const tr = {
   'flow.wayError': 'olmazsa',
   'flow.addStep': 'Buraya adım ekle',
   'flow.drag': 'Kutuyu taşımak için sürükle',
+  'flow.openText': 'Okumak ve düzenlemek için aç',
+  'flow.textDone': 'Tamam',
   'flow.pickHint':
     'Kutuyu başlığından sürükleyerek ya da ok tuşlarıyla yerleştir. Adımlar çizgiler boyunca sırayla çalışır; etiketli kesikli çizgiler bir adımın ileriye atladığı yollardır. Sıralarını kutunun menüsünden ya da Alt ile ok tuşundan değiştir.',
   'flow.alsoStarts': 'Ayrıca {what} başlar.',
