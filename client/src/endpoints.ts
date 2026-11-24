@@ -6,6 +6,7 @@ import type {
   PersonComputerState,
   AcpAgentState,
   TurnChanges,
+  TurnLogEntry,
   RoutineSuggestion,
   RoutineSuggestionAccept,
   SkillSuggestion,
@@ -55,6 +56,7 @@ import type {
   MailSender,
   LiveText,
   Memory,
+  MemoryGraph,
   MemoryChange,
   MemoryFlag,
   MemoryHistoryLine,
@@ -582,6 +584,7 @@ export function endpoints(send: Transport, base = '') {
     removeRule: (id: string) => http.del<{ ok: true }>(`/api/rules/${id}`),
 
     memory: () => http.get<Memory[]>('/api/memory'),
+    memoryGraph: () => http.get<MemoryGraph>('/api/memory/graph'),
     addMemory: (m: {
       scope: 'bot' | 'user';
       botId?: string | null;
@@ -716,6 +719,7 @@ export function endpoints(send: Transport, base = '') {
     turnChangesPending: (threadId: string) =>
       http.get<Record<string, number>>(`/api/threads/${threadId}/turn-changes`),
     turnChanges: (turnId: string) => http.get<TurnChanges>(`/api/turns/${turnId}/changes`),
+    actionLog: (threadId: string) => http.get<TurnLogEntry[]>(`/api/threads/${threadId}/action-log`),
     undoTurn: (turnId: string) => http.post<TurnChanges>(`/api/turns/${turnId}/undo`, {}),
     canaryAlarmSeen: (id: string) => http.post<{ ok: true }>(`/api/canary-alarms/${id}/seen`, {}),
     importApiKeys: (input: ApiKeyImport) => http.post<ApiKeyImportResult>('/api/api-keys/import', input),

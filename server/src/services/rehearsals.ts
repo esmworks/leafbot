@@ -34,6 +34,11 @@ export class RehearsalService {
    * writes are two queries, so two quick starts would both pass it.
    */
   private starting = new Set<string>();
+  /**
+   * Rehearsals on a routine's last real inputs still to start, by routine: one runs at a time, so
+   * each starts when the one before ends. Kept in memory; after a restart the rest do not start.
+   */
+  private batches = new Map<string, { batchId: string; userId: string; prompt?: string; runIds: string[] }>();
 
   constructor(
     private ctx: Ctx,
@@ -76,13 +81,35 @@ export class RehearsalService {
     if (this.starting.has(routineId)) throw new HttpError(409, 'error.rehearsalRunning');
     this.starting.add(routineId);
     try {
-      return await this.begin(routineId, userId, input);
+      if (!input.replayLast) return await this.begin(routineId, userId, input);
+      // The newest runs that kept what started them, one rehearsal each.
+      const runIds = (await this.replayable(routineId, userId))
+        .filter((r) => r.replayable)
+        .slice(0, input.replayLast)
+        .map((r) => r.runId);
+      if (!runIds.length) throw new HttpError(400, 'error.rehearsalNoInput');
+      const batchId = newId();
+      const first = await this.begin(
+        routineId,
+        userId,
+        { prompt: input.prompt, replayRunId: runIds[0] },
+        batchId,
+      );
+      if (runIds.length > 1) {
+        this.batches.set(routineId, { batchId, userId, prompt: input.prompt, runIds: runIds.slice(1) });
+      }
+      return first;
     } finally {
       this.starting.delete(routineId);
     }
   }
 
-  private async begin(routineId: string, userId: string, input: RehearsalStart): Promise<Rehearsal> {
+  private async begin(
+    routineId: string,
+    userId: string,
+    input: RehearsalStart,
+    batchId: string | null = null,
+  ): Promise<Rehearsal> {
     const t = await this.services.settings.translator();
     const routine = await this.services.routines.get(routineId);
     const bot = await this.services.bots.get(routine.botId);
@@ -144,6 +171,7 @@ export class RehearsalService {
         threadId: thread.id,
         draft,
         replayRunId: replay?.id ?? null,
+        batchId,
         prompt,
       })
       .returning();
@@ -286,6 +314,7 @@ export class RehearsalService {
       costUsd: r.costUsd,
       startedAt: r.startedAt.toISOString(),
       finishedAt: r.finishedAt?.toISOString() ?? null,
+      batchId: r.batchId,
       replay,
     };
   }
@@ -312,6 +341,38 @@ export class RehearsalService {
     this.steps.delete(id);
     this.writes.delete(id);
     this.ctx.bus.refresh({ scope: 'routines' });
+    await this.next(id, outcome);
+  }
+
+  /** Starts the next rehearsal of a batch on the routine's last inputs; a stopped one ends the batch. */
+  private async next(id: string, outcome: TurnOutcome): Promise<void> {
+    const [row] = await this.ctx.db
+      .select({ routineId: schema.routineRehearsals.routineId, batchId: schema.routineRehearsals.batchId })
+      .from(schema.routineRehearsals)
+      .where(eq(schema.routineRehearsals.id, id))
+      .limit(1);
+    const batch = row && this.batches.get(row.routineId);
+    if (!row?.batchId || !batch || batch.batchId !== row.batchId) return;
+    const runId = batch.runIds.shift();
+    if (!runId || (!outcome.ok && outcome.kind === 'interrupted')) {
+      this.batches.delete(row.routineId);
+      return;
+    }
+    if (!batch.runIds.length) this.batches.delete(row.routineId);
+    await this.begin(
+      row.routineId,
+      batch.userId,
+      { prompt: batch.prompt, replayRunId: runId },
+      batch.batchId,
+    ).catch((err: unknown) => {
+      this.batches.delete(row.routineId);
+      console.warn(`Could not start the next rehearsal of routine ${row.routineId}: ${String(err)}`);
+    });
+  }
+
+  /** Whether a batch of rehearsals is still to go on for the routine (tests). */
+  batchGoing(routineId: string): boolean {
+    return this.batches.has(routineId);
   }
 
   /**

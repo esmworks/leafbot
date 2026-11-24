@@ -7,6 +7,20 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Memory can be seen as a map (Memory → Map): each note a dot coloured by whose it is, clustered by owner, linked to
+  notes about the same site, written in the same conversation, or, with search by meaning on, near it in meaning. A
+  dot opens the note to fix, pin or forget, as in the list.
+- A routine started by something (a mail, a webhook, a watched page) can be rehearsed on the inputs of its last runs at
+  once: up to five, one after another, with a list of what it would have changed or sent for each input. Nothing is
+  done; each rehearsal is billed like a run, and the button says how many it starts.
+- Each conversation has an action log (in the conversation's menu): the turns that changed or sent something, newest
+  first, each listing what can still be taken back, what was, and what no one can take back, such as a mail that went
+  out or a call to another service. A turn can be taken back from there.
+- A bot can have a reviewer: a second model, best of another family than the bot's own, that reads a mail about to
+  go out, or data about to leave, while its card waits for you. When something looks wrong (an address the request
+  never named, private data going out, a step that does more than was asked, text the bot read steering it) it adds
+  one line to the card. It never decides, never holds the bot up and adds no cards; a card it finds nothing on stays
+  as it was. Off by default; set it in the bot's settings. Its cost shows on the usage page.
 - Each routine shows its health: how its runs of the last 30 days ended (done, nothing to report, failed), what they
   cost and how long they took, worked out from the runs with no AI. It points out a routine that keeps failing, that
   switched itself off, that waits for a sign-in, a step that keeps failing, a wait that keeps running out, runs that

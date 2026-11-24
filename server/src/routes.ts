@@ -849,6 +849,9 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.get('/api/threads/:id/turn-changes', async (req) =>
     s.changes.pending(IdParams.parse(req.params).id, me(req).userId),
   );
+  app.get('/api/threads/:id/action-log', async (req) =>
+    s.changes.log(IdParams.parse(req.params).id, me(req).userId),
+  );
   app.get('/api/turns/:id/changes', async (req) =>
     s.changes.preview(IdParams.parse(req.params).id, me(req).userId),
   );
@@ -2158,6 +2161,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       .parse(req.query);
     return s.memory.list({ ...q, reach: await memoryReach(req) });
   });
+  app.get('/api/memory/graph', async (req) => s.memory.graph(await memoryReach(req)));
   app.post('/api/memory', async (req) => {
     const b = MemoryCreate.parse(req.body);
     // A bot's note needs its bot, and leave to change it.
