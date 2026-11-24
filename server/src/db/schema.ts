@@ -2026,12 +2026,20 @@ export const memoryTidyChecks = pgTable(
 );
 
 /** The kinds of background call kept in `background_calls`. */
-export const BACKGROUND_CALLS = ['memoryReview', 'title', 'minutes', 'followUps', 'review'] as const;
+export const BACKGROUND_CALLS = [
+  'memoryReview',
+  'title',
+  'minutes',
+  'followUps',
+  'review',
+  'routineFix',
+] as const;
 
 /**
  * One call the server made to a bot's model in the background that has no table of its own: the
  * memory review of a conversation, a conversation's title, a meeting's minutes, the reading of a
- * turn for what is coming up (follow-ups), the reviewer's look at a card. What it cost, so it
+ * turn for what is coming up (follow-ups), the reviewer's look at a card, a fix proposed for a
+ * routine from its runs. What it cost, so it
  * shows on the usage page and counts toward the spending limits.
  */
 export const backgroundCalls = pgTable(

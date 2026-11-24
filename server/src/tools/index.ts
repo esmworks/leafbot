@@ -131,6 +131,8 @@ const StepInput = z.object({
     .optional(),
   /** After the step ended well: `end`, or the id of another step; none, the step after it. */
   next: z.string().max(40).optional(),
+  /** An agent step another bot does, by its name: it works with its own settings and apps. */
+  by_bot: z.string().max(200).optional(),
   /** An agent, fetch or extract step that fails goes on at this step's id instead of stopping the run. */
   on_error: z.string().max(40).optional(),
   /** An approval step the person turns down goes on at this step's id instead of stopping the run. */
@@ -198,6 +200,8 @@ export function stepsFrom(input: z.infer<typeof StepsInput>, t: T): RoutineStep[
             kind: s.kind,
             prompt: s.prompt ?? '',
             model: s.model ?? '',
+            // A name until the tool finds the bot it means (`stepBotsFrom`).
+            ...(s.by_bot?.trim() && { bot: s.by_bot.trim() }),
             ...(onError && { onError }),
           }
         : s.kind === 'approval'
@@ -255,17 +259,24 @@ const claudeModelOk = (model: string) => {
   const bare = model.replace(/\[1m\]$/i, '');
   return !/^[a-z]+$/i.test(bare) || CLAUDE_NAMES.has(bare.toLowerCase());
 };
-/** The models a routine's agent steps name. */
+/** The models a routine's own agent steps name; a step another bot does names one of that bot's. */
 const stepModels = (steps: readonly RoutineStep[]) =>
-  steps.flatMap((x) => (x.kind === 'agent' && x.model ? [x.model] : []));
+  steps.flatMap((x) => (x.kind === 'agent' && x.model && !x.bot ? [x.model] : []));
 /** Whether a step of the routine waits for its webhook to be called. */
 const waitsOnHook = (steps: readonly RoutineStep[]) =>
   steps.some((x) => x.kind === 'wait' && x.on === 'webhook');
 
-/** A routine's steps in the shape `steps` takes, so a bot can read them and send them back changed. */
-export function stepsOut(steps: readonly RoutineStep[]): Record<string, unknown>[] {
+/**
+ * A routine's steps in the shape `steps` takes, so a bot can read them and send them back changed.
+ * A step another bot does names it as `names` has it, or by its id; both find it again.
+ */
+export function stepsOut(
+  steps: readonly RoutineStep[],
+  names: ReadonlyMap<string, string> = new Map(),
+): Record<string, unknown>[] {
   return steps.map((s) => ({
     ...stepOut(s),
+    ...(s.kind === 'agent' && s.bot && { by_bot: names.get(s.bot) ?? s.bot }),
     ...(s.when && {
       when: {
         ...(s.when.contains && { contains: s.when.contains }),
@@ -283,7 +294,12 @@ export function stepsOut(steps: readonly RoutineStep[]): Record<string, unknown>
 
 function stepOut(s: RoutineStep): Record<string, unknown> {
   return s.kind === 'agent'
-    ? { id: s.id, kind: s.kind, prompt: s.prompt, ...(s.model && { model: s.model }) }
+    ? {
+        id: s.id,
+        kind: s.kind,
+        prompt: s.prompt,
+        ...(s.model && { model: s.model }),
+      }
     : s.kind === 'approval'
       ? { id: s.id, kind: s.kind, question: s.question, timeout_days: s.timeoutDays }
       : s.kind === 'notify'
@@ -858,6 +874,38 @@ export class ToolFactory {
       return null;
     };
     /**
+     * The steps another bot does, with that bot found by its name or id among those the person
+     * reaches: the step keeps its id, and one naming the routine's own bot is its own again. A
+     * model such a step names is that bot's, and is looked at on that bot's engine, unless the
+     * routine already ran the step so (`kept`). Why not, when a model does not fit.
+     */
+    const stepBotsFrom = async (
+      steps: RoutineStep[],
+      ownerId: string,
+      kept: readonly RoutineStep[] = [],
+    ): Promise<RoutineStep[] | string> => {
+      const out: RoutineStep[] = [];
+      for (const x of steps) {
+        if (x.kind !== 'agent' || !x.bot) {
+          out.push(x);
+          continue;
+        }
+        const target = await reachBot(x.bot, 'chat');
+        const { bot: _named, ...own } = x;
+        if (target.id === ownerId) {
+          out.push(own);
+          continue;
+        }
+        const had = kept.some((k) => k.kind === 'agent' && k.bot === target.id && k.model === x.model);
+        if (x.model && !had) {
+          const wrong = await routineModelProblem(target.id, [x.model]);
+          if (wrong) return wrong;
+        }
+        out.push({ ...own, bot: target.id });
+      }
+      return out;
+    };
+    /**
      * A condition as a bot wrote it, as the routine keeps it: a table by its id, an app's tool by
      * its connection; why not, when a part names nothing it can reach or breaks the schema.
      */
@@ -1241,7 +1289,9 @@ export class ToolFactory {
           if (a.check_tool && !check) return t('tool.routineBadCheck', { tool: a.check_tool });
           const watched = a.on_table ? await tableNamed(owner.id, a.on_table) : null;
           if (typeof watched === 'string') return watched;
-          const steps = stepsFrom(a.steps ?? [], t);
+          const written = stepsFrom(a.steps ?? [], t);
+          if (typeof written === 'string') return written;
+          const steps = await stepBotsFrom(written, owner.id);
           if (typeof steps === 'string') return steps;
           const wrongModel = await routineModelProblem(owner.id, [a.model ?? '', ...stepModels(steps)]);
           if (wrongModel) return wrongModel;
@@ -1386,7 +1436,11 @@ export class ToolFactory {
               `\n${t('tool.routineReadSettings')}\n${JSON.stringify(settings)}`,
               conditionLine,
               steps.length
-                ? `\n${t('tool.routineReadSteps')}\n${JSON.stringify(stepsOut(steps), null, 1)}`
+                ? `\n${t('tool.routineReadSteps')}\n${JSON.stringify(
+                    stepsOut(steps, new Map((await s.bots.list()).map((b) => [b.id, b.name]))),
+                    null,
+                    1,
+                  )}`
                 : '',
               runLines.length > 1 || (runLines.length && steps.length)
                 ? `\n${t('tool.routineReadRuns')}\n${runLines.join('\n')}`
@@ -1465,7 +1519,9 @@ export class ToolFactory {
           // The table is the routine's own bot's, which may be another one for a manager.
           const watched = a.on_table ? await tableNamed(r.botId, a.on_table) : null;
           if (typeof watched === 'string') return watched;
-          const steps = a.steps ? stepsFrom(a.steps, t) : undefined;
+          const written = a.steps ? stepsFrom(a.steps, t) : undefined;
+          if (typeof written === 'string') return written;
+          const steps = written && (await stepBotsFrom(written, r.botId, r.steps ?? []));
           if (typeof steps === 'string') return steps;
           // Only a model the routine does not have yet is looked at: one it runs on already stays
           // usable, so a step kept as it was never blocks a change to another one.

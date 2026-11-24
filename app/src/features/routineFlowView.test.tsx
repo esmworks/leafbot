@@ -1,11 +1,22 @@
 import type { FlowLayout, RoutineRun } from '@leafbot/shared';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { useState } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { cleanup, fireEvent, render as draw, screen, within } from '@testing-library/react';
+import { useState, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { RoutineFlow } from './RoutineFlow';
 import { StepsEditor, type StepForm } from './RoutineSteps';
 
-vi.mock('@/lib/api', () => ({ api: {} }));
+vi.mock('@/lib/api', () => ({
+  api: { bots: async () => [{ id: 'b2', name: 'Ayşe', archivedAt: null }] },
+}));
+
+/** The bot pickers read the bots, as the app does. */
+const render = (ui: ReactNode) => {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return draw(ui, {
+    wrapper: ({ children }) => <QueryClientProvider client={qc}>{children}</QueryClientProvider>,
+  });
+};
 
 const agent = (id: string, prompt: string): StepForm => ({ id, kind: 'agent', prompt, model: '' });
 
@@ -239,5 +250,21 @@ describe('rutin akışı', () => {
     // The step taken out and another put in its place: the new one has not run.
     render(<Both initial={[agent('b', 'Sum it up')]} run={run} />);
     expect(within(flow().getByRole('region', { name: 'Bot step' })).queryByText('running')).toBeNull();
+  });
+
+  it('names the bot that does a step on its box, and lets another bot be picked for it', async () => {
+    render(
+      <Both
+        initial={[
+          { id: 'a', kind: 'agent', prompt: 'Research it', model: '', bot: 'b2' },
+          agent('b', 'Check it'),
+        ]}
+      />,
+    );
+    expect(await flow().findByRole('region', { name: 'Bot step: Ayşe' })).toBeTruthy();
+    expect(flow().getByRole('region', { name: 'Bot step' })).toBeTruthy();
+    // The step another bot does runs on that bot's model: the routine's are not offered for it.
+    expect(list().getAllByRole('combobox', { name: 'Done by' })).toHaveLength(2);
+    expect(list().getAllByLabelText("The step's model")).toHaveLength(1);
   });
 });

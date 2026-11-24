@@ -5,10 +5,12 @@ import {
   healthFix,
   needsAttention,
   type Routine,
+  type RoutineFix,
   type RoutineHealthFinding,
   type RoutineHealthStatus,
 } from '@leafbot/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/i18n';
@@ -152,6 +154,152 @@ function Finding({
   );
 }
 
+/** What a proposal is made against: it applies only to the routine as it was then. */
+const shapeOf = (r: Routine) => JSON.stringify([r.prompt, r.steps ?? []]);
+
+/**
+ * A change to the routine's instruction and bot steps proposed from how its last runs went, shown
+ * with why next to what it has now. Nothing changes until the person applies it, and the change can
+ * be taken back, here or from the instruction's earlier versions.
+ */
+function FixProposal({ routine, locked }: { routine: Routine; locked: boolean }) {
+  const t = useT();
+  const qc = useQueryClient();
+  const [asked, setAsked] = useState<{ fix: RoutineFix; from: string } | null>(null);
+  const fail = (e: unknown) => toast.error((e as Error).message);
+  const refresh = () => {
+    void qc.invalidateQueries({ queryKey: ['routines'] });
+    void qc.invalidateQueries({ queryKey: ['routine-health'] });
+  };
+  const propose = useMutation({
+    mutationFn: () => api.proposeRoutineFix(routine.id),
+    onSuccess: (fix) => setAsked({ fix, from: shapeOf(routine) }),
+    onError: fail,
+  });
+  const steps = routine.steps ?? [];
+  const fix = asked?.fix;
+  const changes = fix
+    ? [
+        ...(fix.prompt !== null
+          ? [{ key: 'prompt', label: t('health.fixPrompt'), now: routine.prompt, next: fix.prompt }]
+          : []),
+        ...fix.steps.flatMap((c) => {
+          const i = steps.findIndex((s) => s.id === c.id);
+          const s = steps[i];
+          return s?.kind === 'agent'
+            ? [
+                {
+                  key: c.id,
+                  label: t('health.fixStep', { step: String(i + 1) }),
+                  now: s.prompt,
+                  next: c.prompt,
+                },
+              ]
+            : [];
+        }),
+      ]
+    : [];
+  const apply = useMutation({
+    mutationFn: async () => {
+      if (!fix || !asked) return null;
+      if (asked.from !== shapeOf(routine)) throw new Error(t('health.fixStale'));
+      const before = {
+        ...(fix.prompt !== null && { prompt: routine.prompt }),
+        ...(fix.steps.length > 0 && { steps }),
+      };
+      await api.updateRoutine(routine.id, {
+        ...(fix.prompt !== null && { prompt: fix.prompt }),
+        ...(fix.steps.length > 0 && {
+          steps: steps.map((s) => {
+            const c = fix.steps.find((x) => x.id === s.id);
+            return c && s.kind === 'agent' ? { ...s, prompt: c.prompt } : s;
+          }),
+        }),
+      });
+      return before;
+    },
+    onSuccess: (before) => {
+      if (!before) return;
+      setAsked(null);
+      refresh();
+      toast.success(t('health.applied'), {
+        // Long enough to see what changed on the page and take it back.
+        duration: 10_000,
+        action: {
+          label: t('health.undo'),
+          onClick: () =>
+            void api
+              .updateRoutine(routine.id, before)
+              .then(() => {
+                toast.success(t('health.undone'));
+                refresh();
+              })
+              .catch(fail),
+        },
+      });
+    },
+    onError: fail,
+  });
+  if (!fix)
+    return (
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="rounded-full"
+          disabled={propose.isPending}
+          onClick={() => propose.mutate()}
+        >
+          {propose.isPending ? t('health.fixing') : t('health.fix')}
+        </Button>
+        <p className="text-xs text-muted-foreground">{t('health.fixHint')}</p>
+      </div>
+    );
+  return (
+    <div className="space-y-2 rounded-xl bg-secondary/60 px-3 py-2">
+      <p className="text-xs text-muted-foreground">{t('health.fixFrom', { count: fix.runs })}</p>
+      <p className="whitespace-pre-wrap">{fix.why}</p>
+      {changes.length === 0 && <p className="text-xs text-muted-foreground">{t('health.fixNothing')}</p>}
+      {changes.map((c) => (
+        <div key={c.key} className="space-y-1">
+          <div className="text-xs font-medium">{c.label}</div>
+          <div className="scroll-thin max-h-48 overflow-y-auto whitespace-pre-wrap rounded-lg border bg-background px-3 py-2 text-sm">
+            {c.next}
+          </div>
+          <details className="text-xs text-muted-foreground">
+            <summary className="cursor-pointer">{t('health.fixNow')}</summary>
+            <div className="scroll-thin mt-1 max-h-48 overflow-y-auto whitespace-pre-wrap">{c.now}</div>
+          </details>
+        </div>
+      ))}
+      <div className="flex flex-wrap gap-2">
+        {changes.length > 0 && (
+          <Button
+            type="button"
+            size="sm"
+            className="rounded-full"
+            disabled={locked || apply.isPending}
+            title={locked ? t('health.saveFirst') : undefined}
+            onClick={() => apply.mutate()}
+          >
+            {t('health.apply')}
+          </Button>
+        )}
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="rounded-full"
+          onClick={() => setAsked(null)}
+        >
+          {t('health.fixClose')}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * A routine's health on its page: how its runs of the last 30 days ended, what they cost, and what
  * in them is worth changing, each with what can be done about it.
@@ -195,6 +343,7 @@ export function RoutineHealthBlock({ routine, locked }: { routine: Routine; lock
         {h.hidden > 0 && (
           <p className="text-xs text-muted-foreground">{t('health.hidden', { count: h.hidden })}</p>
         )}
+        {h.runs.total > 0 && <FixProposal routine={routine} locked={locked} />}
       </div>
     </div>
   );

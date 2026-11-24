@@ -2409,6 +2409,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     return s.routines.endWait(p.id, p.runId);
   });
   app.get('/api/routines/:id/revisions', async (req) => s.routines.revisions(IdParams.parse(req.params).id));
+  // Only proposed: the person applies it with a change of the routine, as any other.
+  app.post('/api/routines/:id/fix', async (req) =>
+    s.routines.proposeFix(IdParams.parse(req.params).id, me(req).userId),
+  );
   app.get('/api/routines/:id/versions', async (req) =>
     s.routines.versionStats(IdParams.parse(req.params).id),
   );

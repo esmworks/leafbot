@@ -100,6 +100,7 @@ export const Form = z.object({
           kind: z.literal('agent'),
           prompt: z.string().trim().min(1, 'routine.stepPromptRequired').max(20_000),
           model: z.string().max(200),
+          bot: z.string().optional(),
           when: stepWhen,
           next: stepNext,
           onError: z.string().optional(),
@@ -261,6 +262,7 @@ export function fromRoutine(r?: Routine): Form {
             kind: x.kind,
             prompt: x.prompt,
             model: x.model ?? '',
+            bot: x.bot ?? '',
             when: x.when ?? null,
             next: x.next ?? '',
             onError: x.onError ?? '',
@@ -386,7 +388,7 @@ export function RoutinePage({
         prompt: f.prompt,
         steps: f.steps.map((x) =>
           x.kind === 'agent'
-            ? { ...x, prompt: x.prompt.trim(), model: x.model.trim() }
+            ? { ...x, prompt: x.prompt.trim(), model: x.model.trim(), bot: x.bot || undefined }
             : x.kind === 'approval'
               ? { ...x, question: x.question.trim() }
               : x.kind === 'notify'
@@ -815,6 +817,7 @@ export function RoutinePage({
                 errors={stepErrors}
                 modelListId="routine-model-options"
                 modelPlaceholder={t('routine.stepModelPlaceholder')}
+                botId={botId}
               />
               <ScheduleFields form={form} values={values} />
               {settingsFields}
@@ -850,6 +853,7 @@ export function RoutinePage({
                 errors={stepErrors}
                 modelListId="routine-model-options"
                 modelPlaceholder={t('routine.stepModelPlaceholder')}
+                botId={botId}
                 layout={layout}
                 onLayout={setLayout}
                 promptExtra={<MissingApps text={values.prompt ?? ''} botId={botId} />}

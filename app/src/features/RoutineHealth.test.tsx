@@ -7,11 +7,18 @@ import { toast } from 'sonner';
 import { duration, needsAttention, RoutineHealthBlock } from './RoutineHealth';
 
 vi.mock('@/lib/api', () => ({
-  api: { routineHealth: vi.fn(), updateRoutine: vi.fn(), dismissRoutineHealth: vi.fn(), mainThread: vi.fn() },
+  api: {
+    routineHealth: vi.fn(),
+    updateRoutine: vi.fn(),
+    dismissRoutineHealth: vi.fn(),
+    mainThread: vi.fn(),
+    proposeRoutineFix: vi.fn(),
+  },
 }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 const routineHealth = vi.mocked(api.routineHealth);
 const updateRoutine = vi.mocked(api.updateRoutine);
+const proposeRoutineFix = vi.mocked(api.proposeRoutineFix);
 const success = vi.mocked(toast.success);
 
 const t = ((key: string, p?: Record<string, unknown>) => `${key} ${JSON.stringify(p)}`) as Parameters<
@@ -92,6 +99,31 @@ describe('routine health on screen', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Apply' }));
     await new Promise((r) => setTimeout(r, 20));
     expect(updateRoutine).not.toHaveBeenCalled();
+  });
+
+  it('shows a fix proposed from the runs with why, and applies it only when asked, with a way back', async () => {
+    proposeRoutineFix.mockResolvedValue({
+      why: 'Onay hep zaman aşımına uğradı.',
+      prompt: null,
+      steps: [{ id: 'a', prompt: 'Teklifi kısa yaz' }],
+      runs: 6,
+    });
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: 'Suggest a fix' }));
+    expect(await screen.findByText('Onay hep zaman aşımına uğradı.')).toBeTruthy();
+    expect(screen.getByText('Teklifi kısa yaz')).toBeTruthy();
+    expect(updateRoutine).not.toHaveBeenCalled();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Apply' }).at(-1)!);
+    await waitFor(() => expect(updateRoutine).toHaveBeenCalledTimes(1));
+    expect(updateRoutine.mock.calls[0]).toEqual([
+      'r1',
+      { steps: [{ ...steps[0], prompt: 'Teklifi kısa yaz' }, steps[1]] },
+    ]);
+    await waitFor(() => expect(success).toHaveBeenCalled());
+    const undo = (success.mock.calls[0]![1] as unknown as { action: { onClick(): void } }).action;
+    undo.onClick();
+    await waitFor(() => expect(updateRoutine).toHaveBeenCalledTimes(2));
+    expect(updateRoutine.mock.calls[1]).toEqual(['r1', { steps }]);
   });
 
   it('does not apply while the page has changes not saved', async () => {

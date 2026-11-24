@@ -1764,7 +1764,7 @@ export const UsageReport = z.object({
   background: z
     .array(
       z.object({
-        kind: z.enum(['memoryReview', 'title', 'minutes', 'followUps', 'review']),
+        kind: z.enum(['memoryReview', 'title', 'minutes', 'followUps', 'review', 'routineFix']),
         calls: z.number().int(),
         costUsd: z.number(),
       }),
