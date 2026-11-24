@@ -310,7 +310,7 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
   return (
     <div
       className={cn(
-        'flex w-full flex-col gap-3 self-start rounded-2xl border bg-card/60 p-4 text-[15px]',
+        'wallpaper-frost flex w-full flex-col gap-3 self-start rounded-2xl border bg-card/60 p-4 text-[15px]',
         CARD_WIDTH[str(root.size)] ?? 'max-w-(--bubble-width)',
       )}
       data-card-rev={rev}
