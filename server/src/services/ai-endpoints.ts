@@ -2,6 +2,7 @@ import {
   AI_KINDS,
   AiEndpointSet,
   elevenLabs,
+  googleSpeech,
   type AiEndpoint,
   type AiEndpoints,
   type AiEndpointSet as SetInput,
@@ -131,7 +132,9 @@ export const authHeaders = (s: AiService): Record<string, string> =>
     ? {}
     : elevenLabs(s.baseUrl)
       ? { 'xi-api-key': s.apiKey }
-      : { authorization: `Bearer ${s.apiKey}` };
+      : googleSpeech(s.baseUrl)
+        ? { 'x-goog-api-key': s.apiKey }
+        : { authorization: `Bearer ${s.apiKey}` };
 
 /** What a service said went wrong: OpenAI's `error`, or the `detail` of Whisper servers and ElevenLabs. */
 export function serviceError(body: unknown, status: number): string {

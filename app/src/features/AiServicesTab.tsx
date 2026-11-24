@@ -1,4 +1,4 @@
-import { elevenLabs, type AiEndpoint, type AiKind } from '@leafbot/shared';
+import { elevenLabs, googleSpeech, type AiEndpoint, type AiKind } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
@@ -23,7 +23,8 @@ const KINDS: { kind: AiKind; title: MessageKey; hint: MessageKey; model: Message
 /**
  * The model services the server calls besides the bots' own: memory search by meaning, speech to
  * text and text to speech. Each is an OpenAI-compatible address, such as a server of the person's
- * own (Ollama, a Whisper or Kokoro server) or a provider's API, or ElevenLabs' own API for speech.
+ * own (Ollama, a Whisper or Kokoro server) or a provider's API, or ElevenLabs' or Google's own API
+ * for speech.
  */
 export function AiServicesTab() {
   const t = useT();
@@ -105,6 +106,7 @@ function ServiceForm({
       {(meta.kind === 'stt' || meta.kind === 'tts') && (
         <p className="text-xs text-muted-foreground">{t(`ai.elevenLabs.${meta.kind}`)}</p>
       )}
+      {meta.kind === 'tts' && <p className="text-xs text-muted-foreground">{t('ai.google.tts')}</p>}
       {current.source === 'env' && !dirty && (
         <p className="text-xs text-muted-foreground">{t('ai.fromEnv')}</p>
       )}
@@ -128,7 +130,13 @@ function ServiceForm({
           <Input
             value={voice}
             onChange={(e) => setVoice(e.target.value)}
-            placeholder={elevenLabs(baseUrl) ? t('ai.voiceId') : t('ai.voice')}
+            placeholder={
+              elevenLabs(baseUrl)
+                ? t('ai.voiceId')
+                : googleSpeech(baseUrl)
+                  ? t('ai.voiceName')
+                  : t('ai.voice')
+            }
             aria-label={t('ai.voice')}
             className="w-40"
           />

@@ -33,6 +33,20 @@ export function elevenLabs(baseUrl: string): boolean {
   }
 }
 
+/**
+ * Google Cloud Text-to-Speech, also not OpenAI-compatible: its Chirp 3 HD and Gemini voices read
+ * Turkish far better than OpenAI's, which are tuned for English, and its free monthly allowance
+ * covers one person's spoken replies.
+ */
+export function googleSpeech(baseUrl: string): boolean {
+  try {
+    const host = new URL(baseUrl).hostname;
+    return host === 'texttospeech.googleapis.com' || host.endsWith('-texttospeech.googleapis.com');
+  } catch {
+    return false;
+  }
+}
+
 /** The model services the server calls besides the bots' own: memory search and speech. */
 export const AI_KINDS = ['embeddings', 'stt', 'tts'] as const;
 export type AiKind = (typeof AI_KINDS)[number];

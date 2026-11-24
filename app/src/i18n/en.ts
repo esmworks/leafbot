@@ -807,6 +807,9 @@ export const en: Catalog<MessageKey> = {
   'ai.ttsUrl': 'Address (e.g. http://kokoro:8880/v1)',
   'ai.voice': 'Voice',
   'ai.voiceId': 'Voice ID',
+  'ai.voiceName': 'Voice name',
+  'ai.google.tts':
+    'For Google: address https://texttospeech.googleapis.com/v1, model chirp3-hd and a voice name such as tr-TR-Chirp3-HD-Kore; for Gemini voices, model gemini-2.5-flash-tts and just the name, such as Kore. The key comes from Credentials in Google Cloud.',
   'ai.elevenLabs.stt':
     'For ElevenLabs: address https://api.elevenlabs.io/v1, model scribe_v2; the key comes from Developers → API Keys in ElevenLabs.',
   'ai.elevenLabs.tts':

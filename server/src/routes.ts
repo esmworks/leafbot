@@ -1431,7 +1431,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.get('/api/speech', async () => ({ available: await s.speech.available() }));
   app.post('/api/speech', async (req, reply) => {
     const { text } = z.object({ text: z.string().min(1).max(100_000) }).parse(req.body);
-    const { audio, type } = await s.speech.speak(text);
+    const locale = pickLocale(req.headers['accept-language'], await s.settings.locale());
+    const { audio, type } = await s.speech.speak(text, locale);
     return reply.header('cache-control', 'no-store').type(type).send(audio);
   });
   app.post('/api/transcribe', async (req) => {

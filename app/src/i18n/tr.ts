@@ -774,6 +774,9 @@ export const tr = {
   'ai.ttsUrl': 'Adres (ör. http://kokoro:8880/v1)',
   'ai.voice': 'Ses',
   'ai.voiceId': 'Ses kimliği (voice ID)',
+  'ai.voiceName': 'Ses adı',
+  'ai.google.tts':
+    'Google için adres https://texttospeech.googleapis.com/v1, model chirp3-hd ve Ses alanına tr-TR-Chirp3-HD-Kore gibi bir ses adı; Gemini sesleri için model gemini-2.5-flash-tts ve ses Kore gibi yalnızca adı. Anahtar Google Cloud’daki Credentials’tan.',
   'ai.elevenLabs.stt':
     'ElevenLabs için adres https://api.elevenlabs.io/v1, model scribe_v2; anahtar ElevenLabs’taki Developers → API Keys’ten.',
   'ai.elevenLabs.tts':
