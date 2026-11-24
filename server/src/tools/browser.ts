@@ -624,8 +624,12 @@ export function browserTools(opts: {
     /** Marks the mail used once its code is in the field, so a refused step leaves it for a retry. */
     used(id: string): Promise<void>;
   };
+  /** The turn's own: a step waiting for the person to hand the browser back stops with it. */
+  signal?: AbortSignal;
 }): AppTool[] {
-  const { def, bot, dataDir, threadId, t, browser, vault, person, askLogin } = opts;
+  const { def, bot, dataDir, threadId, t, browser, vault, person, askLogin, signal } = opts;
+  /** Runs on the bot's page; waits while a person has the browser, until the turn stops. */
+  const use = <R>(fn: (page: Page, waited: boolean) => Promise<R>) => browser.use(bot.id, fn, signal);
   /**
    * The page's outline for the bot. It is always read whole, so the refs of every part stay valid
    * (the page keeps only the refs of its last read); `view` picks what of it the bot gets: one part
@@ -789,7 +793,12 @@ export function browserTools(opts: {
     const extraTabs = browser.takeRefusedTabs(bot.id);
     // Sites that asked for a passkey, which this browser cannot give.
     const passkeys = browser.takePasskeys(bot.id);
+    // File pickers a step opened, which were closed unseen: files go up with browser_upload.
+    const pickers = browser.takePickers(bot.id);
+    // The person had the browser while the step waited, and may have changed the page.
+    const back = browser.takeHandedBack(bot.id);
     return [
+      ...(back ? [t('browser.handedBack')] : []),
       ...(exit ? [t(exit === 'computer' ? 'browser.exitComputer' : 'browser.exitServer')] : []),
       ...closed.map((url) => t('browser.tabClosedBySite', { url: url || '-' })),
       ...(extraTabs ? [t('browser.tabsRefused', { count: String(extraTabs), max: String(MAX_TABS) })] : []),
@@ -801,17 +810,18 @@ export function browserTools(opts: {
       ),
       ...(refused.length ? [t('browser.refusedHosts', { hosts: refused.slice(0, 5).join(', ') })] : []),
       ...passkeys.map((site) => t('browser.passkeyRefused', { site: site || '-' })),
+      ...(pickers ? [t('browser.filePicker')] : []),
       ...downloads,
       ...(running.length ? [t('browser.downloadRunning', { names: running.join(', ') })] : []),
     ];
   };
 
   /** Runs one step in the bot's browser; browser problems come back as text the bot can act on. */
-  const step = async (fn: (page: Page) => Promise<ToolResult>): Promise<ToolResult> => {
+  const step = async (fn: (page: Page, waited: boolean) => Promise<ToolResult>): Promise<ToolResult> => {
     let r: ToolResult;
     const mark = browser.downloadMark(bot.id);
     try {
-      r = await browser.use(bot.id, fn);
+      r = await use(fn);
     } catch (err) {
       r = browserErrorText(err, t);
     }
@@ -826,7 +836,10 @@ export function browserTools(opts: {
    * reads the page when it needs to. A step that moved to another address or tab reads it at once.
    */
   const act = (fn: (page: Page) => Promise<void>, brief = false, hold = false) =>
-    step(async (page) => {
+    step(async (page, waited) => {
+      // The person had the browser meanwhile: what the step was to click or type into was chosen
+      // on the page before, so it is not done, and the bot gets the page as it is now.
+      if (waited) return `${t('browser.stepNotDone')}\n\n${await outline(page)}`;
       const before = { url: page.url(), title: await page.title().catch(() => '') };
       const held = await holding(page, hold, async () => {
         await fn(page);
@@ -897,7 +910,7 @@ export function browserTools(opts: {
   const looks = async (fn: (page: Page) => Promise<boolean>): Promise<boolean> => {
     if (!browser.pages(bot.id)) return false;
     try {
-      return await browser.use(bot.id, fn);
+      return await use(fn);
     } catch (err) {
       return !(err instanceof BrowserError);
     }
@@ -1099,7 +1112,7 @@ export function browserTools(opts: {
     if (!opts.attended) return t('browser.cardUnattended');
     let host: string;
     try {
-      const url = await browser.use(bot.id, async (page) => new URL(page.url()));
+      const url = await use(async (page) => new URL(page.url()));
       if (!secure(url)) return t('browser.cardInsecure');
       host = url.hostname;
     } catch (err) {
@@ -1160,7 +1173,7 @@ export function browserTools(opts: {
     // The fields are checked before the person is asked, so a wrong one costs them no question.
     let checked: { wrong: string } | { key: string; frames: string[] };
     try {
-      checked = await browser.use(bot.id, async (page) => {
+      checked = await use(async (page) => {
         const fields: Found[] = [];
         try {
           const wrong = await find(page, fields);
@@ -1526,6 +1539,8 @@ export function browserTools(opts: {
             target.click(),
           ]);
           await chooser.setFiles(payload);
+          // This picker got its files: not one the bot should hear was closed.
+          browser.takePickers(bot.id);
         });
       },
       'internal',
@@ -1544,7 +1559,7 @@ export function browserTools(opts: {
         if (!username_ref && !password_ref) return t('browser.loginNoField');
         let host: string;
         try {
-          const url = await browser.use(bot.id, async (page) => {
+          const url = await use(async (page) => {
             const url = new URL(page.url());
             if (url.protocol !== 'https:' && url.protocol !== 'http:')
               throw new BrowserError('badUrl', page.url());
@@ -1648,7 +1663,7 @@ export function browserTools(opts: {
       async ({ ref: r, account, submit }) => {
         let host: string;
         try {
-          const url = await browser.use(bot.id, async (page) => new URL(page.url()));
+          const url = await use(async (page) => new URL(page.url()));
           if (!secure(url)) return t('browser.loginInsecure');
           host = url.hostname;
         } catch (err) {
@@ -1700,7 +1715,7 @@ export function browserTools(opts: {
               const mail = opts.mailCode!;
               let site: string;
               try {
-                const url = await browser.use(bot.id, async (page) => new URL(page.url()));
+                const url = await use(async (page) => new URL(page.url()));
                 if (!secure(url)) return t('browser.loginInsecure');
                 site = registrableSite(url.hostname);
               } catch (err) {

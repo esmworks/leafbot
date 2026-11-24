@@ -74,13 +74,32 @@ export function computerTools(opts: {
    * command, since what the turn has read by then can change the answer.
    */
   own?: () => Promise<string | null>;
+  /** The turn's own: a step waiting for the person to hand the desktop back stops with it. */
+  signal?: AbortSignal;
 }): AppTool[] {
-  const { def, bot, t, computer, cwd } = opts;
+  const { def, bot, t, computer, cwd, signal } = opts;
   const readOnly = bot.permissionMode === 'readonly';
 
-  const guard = async (fn: (c: ComputerClient) => Promise<ToolResult>): Promise<ToolResult> => {
+  /**
+   * Runs a step on the desktop. One that waited for the person to hand it back says so: they may
+   * have closed or moved things. A step that `touches` the screen is then not carried out, since
+   * its place on the screen was chosen on the one before; the bot gets the screen as it is now.
+   */
+  const guard = async (
+    fn: (c: ComputerClient) => Promise<ToolResult>,
+    touches = false,
+  ): Promise<ToolResult> => {
     try {
-      return await computer.use(bot.id, fn);
+      return await computer.use(
+        bot.id,
+        async (c, waited) => {
+          if (!waited) return fn(c);
+          const notes = [t('computer.handedBack'), ...(touches ? [t('computer.stepNotDone')] : [])].join(' ');
+          const r = touches ? await look(c) : await fn(c);
+          return typeof r === 'string' ? `${notes}\n\n${r}` : { ...r, text: `${notes}\n\n${r.text}` };
+        },
+        signal,
+      );
     } catch (err) {
       return computerErrorText(err, t);
     }
@@ -99,7 +118,7 @@ export function computerTools(opts: {
       await c.action(bot.id, action);
       await new Promise((r) => setTimeout(r, SETTLE_MS));
       return look(c);
-    });
+    }, true);
 
   // Read-only bots may look but not touch: these then go through the normal permission check.
   const touch = async (a: object) => readOnly || ('sends' in a && a.sends === true);

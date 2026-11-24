@@ -1409,7 +1409,13 @@ const tr = {
   'browser.error': 'Tarayıcı hatası: {message}. Gerekirse browser_snapshot ile sayfaya yeniden bak.',
   'browser.unavailable': 'Bu sunucuda tarayıcı yok (Chrome, Edge ya da Chromium bulunamadı).',
   'browser.userControl':
-    'Kullanıcı şu an tarayıcını kullanıyor. Kontrolü geri verene kadar tarayıcıya dokunma; gerekiyorsa ne yaptığını sor.',
+    'Kullanıcı tarayıcını uzun süredir kullanıyor ve kontrolü geri vermedi. Tarayıcıya dokunma; kullanıcıya ne yapmak istediğini yaz, kontrolü geri verince devam edebilirsin.',
+  'browser.handedBack':
+    'Sen beklerken kullanıcı tarayıcıyı bir süre kendisi kullandı ve kontrolü geri verdi. Sayfa değişmiş olabilir: kaldığın yerden sürdürmeden önce ne gördüğüne bak.',
+  'browser.stepNotDone':
+    'Bu adım yapılmadı: sayfa, adımın seçildiği halinden farklı olabilir. Sayfanın şimdiki hali aşağıda; adım hâlâ gerekiyorsa yeniden yap.',
+  'browser.filePicker':
+    'Bir adım sayfanın dosya seçicisini açtırdı; seçici kapatıldı, dosya seçilmedi. Dosya yüklemek için browser_upload kullan, ona dosya alanının ya da yükleme düğmesinin ref değerini ver.',
   'browser.full': 'Şu anda açık tarayıcı sayısı sınırda; biraz sonra yeniden dene.',
   'browser.hung':
     'Tarayıcı {seconds} saniye yanıt vermedi; yeniden başlatıldı. Açık sekmeler kapandı, sayfayı yeniden aç. Son adım sayfaya ulaşmış olabilir: bir şey gönderen bir adımsa, yinelemeden önce sitede gidip gitmediğine bak.',
@@ -1520,7 +1526,11 @@ const tr = {
   'browser.uploadTooBig': 'Dosyalar birlikte {max} MB sınırını aşıyor; daha azını ya da daha küçüğünü yükle.',
   'computer.screen': 'Ekran görüntüsü ({width}x{height}).',
   'computer.userControl':
-    'Kullanıcı şu an bilgisayarının denetimini almış. Bekle ya da kullanıcıya ne yapmak istediğini yaz; denetimi geri verince devam edebilirsin.',
+    'Kullanıcı bilgisayarının denetimini uzun süredir elinde tutuyor ve geri vermedi. Kullanıcıya ne yapmak istediğini yaz; denetimi geri verince devam edebilirsin.',
+  'computer.stepNotDone':
+    'Bu adım yapılmadı: yeri önceki ekrana göre seçilmişti. Ekranın şimdiki hali aşağıda; adım hâlâ gerekiyorsa yeniden yap.',
+  'computer.handedBack':
+    'Sen beklerken kullanıcı bilgisayarı bir süre kendisi kullandı ve denetimi geri verdi. Ekranda bir şeyleri kapatmış ya da değiştirmiş olabilir: kaldığın yerden sürdürmeden önce ekrana bak.',
   'computer.full': 'Şu an açık bilgisayar sayısı sınırda; biraz sonra yeniden dene.',
   'computer.unreachable': 'Bilgisayar hizmetine ulaşılamıyor.',
   'computer.failed': 'Bilgisayarda bir sorun çıktı: {message}',
@@ -3487,7 +3497,13 @@ const en: Catalog<ServerKey> = {
   'browser.error': 'Browser error: {message}. If needed, look at the page again with browser_snapshot.',
   'browser.unavailable': 'There is no browser on this server (no Chrome, Edge or Chromium found).',
   'browser.userControl':
-    'The user is using your browser right now. Do not touch it until they hand control back; if needed, ask what they are doing.',
+    'The user has been using your browser for a long time and has not handed control back. Do not touch it; tell the user what you want to do, and you can continue once they give it back.',
+  'browser.handedBack':
+    'While you waited, the user used the browser themselves for a while and handed control back. The page may have changed: look at what is there before you go on from where you were.',
+  'browser.stepNotDone':
+    'This step was not carried out: the page may no longer be the one it was chosen on. The page as it is now is below; if the step is still needed, do it again.',
+  'browser.filePicker':
+    'A step made the page open its file picker; the picker was closed with no file chosen. To upload files, use browser_upload and give it the ref of the file field or of the upload button.',
   'browser.full': 'Too many browsers are open right now; try again a bit later.',
   'browser.hung':
     'The browser did not answer for {seconds} seconds and was started again. Its tabs are closed; open the page again. The last step may have reached the page: if it sends something, check on the site whether it went before repeating it.',
@@ -3601,7 +3617,11 @@ const en: Catalog<ServerKey> = {
   'browser.uploadTooBig': 'The files together are over the {max} MB limit; upload fewer or smaller ones.',
   'computer.screen': 'Screenshot ({width}x{height}).',
   'computer.userControl':
-    'The user has taken control of your computer. Wait, or tell the user what you want to do; you can continue once they give it back.',
+    'The user has kept control of your computer for a long time and has not given it back. Tell the user what you want to do; you can continue once they give it back.',
+  'computer.stepNotDone':
+    'This step was not carried out: its place was chosen on the screen before. The screen as it is now is below; if the step is still needed, do it again.',
+  'computer.handedBack':
+    'While you waited, the user used the computer themselves for a while and gave control back. They may have closed or changed things on the screen: look at it before you go on from where you were.',
   'computer.full': 'The limit of computers open at once is reached; try again a little later.',
   'computer.unreachable': 'The computer service cannot be reached.',
   'computer.failed': 'Something went wrong on the computer: {message}',

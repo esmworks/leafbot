@@ -3,12 +3,20 @@ import { ComputerClient, ComputerError } from './client';
 
 /** How long a desktop start is waited for: the computer service's own 90 s, and a few more. */
 const START_WAIT_MS = 95_000;
+/**
+ * The longest a bot step waits for a person to give the desktop back. A person takes control to
+ * look at or fix something and then hands it back; the bot's work should go on from there, not
+ * end because one of its steps was turned away meanwhile.
+ */
+export const CONTROL_WAIT_MS = 15 * 60_000;
 
 interface Desk {
   status: ComputerState['status'];
   /** The socket whose person has the mouse and keyboard. */
   user: string | null;
   busy: number;
+  /** Bot steps waiting for the person in control to hand the desktop back. */
+  waiting: number;
   lastUsed: number;
   starting: Promise<void> | null;
   /** A background command runs until about then; the desktop stays awake for it. */
@@ -38,7 +46,7 @@ export interface ComputerOptions {
 /**
  * The bots' desktops on the computer service: started on first use or when a person wakes one,
  * put to sleep when nobody watches and the bot has left it alone for a while. While a person has
- * control, the bot's actions on it are refused.
+ * control, the bot's actions on it wait until they hand it back.
  */
 export class ComputerService {
   readonly client: ComputerClient;
@@ -58,7 +66,13 @@ export class ComputerService {
 
   state(botId: string): ComputerState {
     const d = this.desks.get(botId);
-    return { botId, status: d?.status ?? 'off', user: !!d?.user, busy: (d?.busy ?? 0) > 0 };
+    return {
+      botId,
+      status: d?.status ?? 'off',
+      user: !!d?.user,
+      busy: (d?.busy ?? 0) > 0,
+      waiting: (d?.waiting ?? 0) > 0,
+    };
   }
 
   /** Whether a person has control of this bot's desktop right now. */
@@ -146,10 +160,55 @@ export class ComputerService {
   }
 
   /**
-   * Runs a bot action on its desktop, starting it if needed. Refused while a person has control;
-   * a desktop that stopped on its own is started once more.
+   * Waits while a person has control of the desktop, so that taking it over pauses the bot rather
+   * than ending its work. Says whether it waited. Refused with `userControl` when the person keeps
+   * it longer than `maxMs`, or when the turn is stopped meanwhile.
    */
-  async use<T>(botId: string, fn: (client: ComputerClient) => Promise<T>): Promise<T> {
+  async awaitControl(botId: string, signal?: AbortSignal, maxMs = CONTROL_WAIT_MS): Promise<boolean> {
+    if (!this.userHasControl(botId)) return false;
+    if (signal?.aborted || maxMs <= 0) throw new ComputerError('userControl');
+    const d = this.desk(botId);
+    d.waiting++;
+    this.emit(botId);
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const done = () => {
+          clearTimeout(timer);
+          off();
+          signal?.removeEventListener('abort', refuse);
+        };
+        const refuse = () => {
+          done();
+          reject(new ComputerError('userControl'));
+        };
+        const timer = setTimeout(refuse, maxMs);
+        // Every way control ends (handed back, the person's window closed, the desktop stopped)
+        // is announced as a new state.
+        const off = this.on((s) => {
+          if (s.botId !== botId || s.user) return;
+          done();
+          resolve();
+        });
+        signal?.addEventListener('abort', refuse, { once: true });
+      });
+    } finally {
+      d.waiting--;
+      this.emit(botId);
+    }
+    return true;
+  }
+
+  /**
+   * Runs a bot action on its desktop, starting it if needed. While a person has control it waits
+   * for them to hand it back, and tells `fn` it waited: the screen it chose its action on may be
+   * gone. A desktop that stopped on its own is started once more.
+   */
+  async use<T>(
+    botId: string,
+    fn: (client: ComputerClient, waited: boolean) => Promise<T>,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    const waited = await this.awaitControl(botId, signal);
     if (this.userHasControl(botId)) throw new ComputerError('userControl');
     await this.ensure(botId);
     const d = this.desk(botId);
@@ -158,13 +217,13 @@ export class ComputerService {
     try {
       try {
         await this.syncGit(botId, d);
-        return await fn(this.client);
+        return await fn(this.client, waited);
       } catch (err) {
         if (!(err instanceof ComputerError) || err.code !== 'notRunning') throw err;
         d.status = 'off';
         await this.ensure(botId);
         await this.syncGit(botId, d);
-        return await fn(this.client);
+        return await fn(this.client, waited);
       }
     } finally {
       d.busy--;
@@ -311,7 +370,15 @@ export class ComputerService {
   private desk(botId: string): Desk {
     let d = this.desks.get(botId);
     if (!d) {
-      d = { status: 'off', user: null, busy: 0, lastUsed: Date.now(), starting: null, browserProxied: false };
+      d = {
+        status: 'off',
+        user: null,
+        busy: 0,
+        waiting: 0,
+        lastUsed: Date.now(),
+        starting: null,
+        browserProxied: false,
+      };
       this.desks.set(botId, d);
     }
     return d;

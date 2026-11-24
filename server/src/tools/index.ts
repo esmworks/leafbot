@@ -2559,6 +2559,7 @@ export class ToolFactory {
               ? (await s.memory.forSite(bot.id, host, own, await place())).map((m) => m.content)
               : [],
           exitNote: () => this.ctx.egress?.takeExitNote(bot.id) ?? null,
+          signal,
           onPlanted: async (site) => {
             // Once per site in a turn: reading the same page again says nothing new.
             if (planted.has(site)) return;
@@ -2621,6 +2622,7 @@ export class ToolFactory {
         t,
         computer: this.ctx.computer,
         cwd,
+        signal,
         // A person's own GitHub only for work their own message started in their own conversation,
         // or that another bot handed on from such a message with no outside text read on the way
         // (asked at each command, so a page read before it counts): a routine, a mail, a

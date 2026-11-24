@@ -15,6 +15,7 @@ import {
   type BrowserContext,
   type CDPSession,
   type Download,
+  type FileChooser,
   type Page,
 } from 'playwright-core';
 // The same Playwright version with patches for a browser sites see as a person's: it never enables
@@ -59,6 +60,12 @@ export type BrowserErrorCode =
  * closed; a sign-in pop-up or two fit well within.
  */
 export const MAX_TABS = 10;
+/**
+ * The longest a bot step waits for a person to hand the browser back. They take control for a
+ * login or to look at something, then give it back; the bot's work should go on from there, not
+ * end because one of its steps was turned away meanwhile.
+ */
+export const CONTROL_WAIT_MS = 15 * 60_000;
 /** Largest file a download keeps; a larger one is deleted once it is in. */
 export const MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024;
 /** Downloads running at once in one bot's browser; one more is cancelled. */
@@ -227,7 +234,7 @@ interface Live {
   lastFrame: Frame | null;
   /** Bot actions running now. */
   busy: number;
-  /** A person took control; the bot's actions are refused until they hand it back. */
+  /** A person took control; the bot's actions wait until they hand it back. */
   userControl: boolean;
   /** Control, Meta and Alt keys the person is holding down. */
   modifiers: Set<string>;
@@ -266,6 +273,15 @@ interface Live {
   started: number;
   /** Tabs the bot or this server is closing, which the site did not close. */
   closing: WeakSet<Page>;
+  /**
+   * Catches a page's file picker while the bot drives (see `track`); the same function on every
+   * tab, so it can be taken off and put back.
+   */
+  onChooser: (chooser: FileChooser) => void;
+  /** Tabs `onChooser` is on now. */
+  catching: WeakSet<Page>;
+  /** File pickers a step opened outside `browser_upload`, since the bot last heard. */
+  pickers: number;
   /**
    * The session each tab's speed is set through. One per tab, kept open: its commands arrive in
    * the order sent, and the setting lasts as long as the session that made it.
@@ -327,6 +343,11 @@ export interface BrowserManagerOptions {
   connect?: (botId: string) => Promise<{ url: string; proxied: boolean }>;
   /** True while a person has control of the bot's desktop; the bot's browser steps then wait. */
   blocked?: (botId: string) => boolean;
+  /**
+   * Waits for the person in control of the bot's desktop to hand it back, at most `maxMs`; throws
+   * when they do not or the turn stops. Without it the step looks again every half second.
+   */
+  awaitDesktop?: (botId: string, signal: AbortSignal | undefined, maxMs: number) => Promise<unknown>;
   /** Keeps the bot's desktop awake during a browser step; returns the release. */
   hold?: (botId: string) => () => void;
   /**
@@ -368,6 +389,8 @@ export class BrowserManager {
     userAgentMetadata: NonNullable<ReturnType<typeof windowedHints>>;
   } | null = null;
   private windows = new Map<string, Window>();
+  /** Bots whose step waited for a person to hand the browser back, until the bot hears of it. */
+  private handedBack = new Set<string>();
 
   constructor(private opts: BrowserManagerOptions) {}
 
@@ -407,10 +430,32 @@ export class BrowserManager {
     return this.opts.callMs ?? 90_000;
   }
 
-  /** Runs a bot action on its active page, starting the browser if needed. */
-  async use<T>(botId: string, fn: (page: Page) => Promise<T>): Promise<T> {
+  /**
+   * Runs a bot action on its active page, starting the browser if needed. While a person has the
+   * browser (control of it, its window on their computer, or the bot's desktop) it waits for them
+   * to hand it back, and tells `fn` it waited: the page it chose its action on may have changed.
+   * `signal` is the turn's, which ends the wait when stopped.
+   */
+  use<T>(botId: string, fn: (page: Page, waited: boolean) => Promise<T>, signal?: AbortSignal): Promise<T> {
+    return this.useBy(botId, fn, Date.now() + CONTROL_WAIT_MS, false, signal);
+  }
+
+  private async useBy<T>(
+    botId: string,
+    fn: (page: Page, waited: boolean) => Promise<T>,
+    deadline: number,
+    before: boolean,
+    signal?: AbortSignal,
+  ): Promise<T> {
+    // Before the browser is fetched: an open window would turn its start away.
+    let waited = (await this.awaitTurn(botId, deadline, signal)) || before;
     const live = await this.get(botId);
-    const run = async () => {
+    const run = async (): Promise<{ value: T } | null> => {
+      // Again in the queue, before the step's own time starts: a long wait is not a hung browser.
+      if (await this.awaitTurn(botId, deadline, signal)) waited = true;
+      // The person may have closed the browser while the step waited, or it was put to sleep:
+      // the step starts it again rather than run on a page that is gone.
+      if (this.live.get(botId) !== live) return null;
       if (live.userControl || this.windows.has(botId) || this.opts.blocked?.(botId)) {
         throw new BrowserError('userControl');
       }
@@ -418,7 +463,7 @@ export class BrowserManager {
       this.emitState(live);
       const release = this.opts.hold?.(botId);
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const step = fn(live.page);
+      const step = fn(live.page, waited).then((value) => ({ value }));
       try {
         return await Promise.race([
           step,
@@ -441,7 +486,71 @@ export class BrowserManager {
     };
     const result = live.queue.then(run, run);
     live.queue = result.catch(() => {});
-    return result;
+    const done = await result;
+    return done ? done.value : this.useBy(botId, fn, deadline, waited, signal);
+  }
+
+  /** Whether a person has the bot's browser now: control of it, its window, or the bot's desktop. */
+  private personHas(botId: string): boolean {
+    return !!this.live.get(botId)?.userControl || this.windows.has(botId) || !!this.opts.blocked?.(botId);
+  }
+
+  /**
+   * Waits until no person has the bot's browser, until `deadline` at most; then, or when the turn
+   * stops, the step is refused as before. Says whether it waited; a step that did leaves a note
+   * for the bot.
+   */
+  private async awaitTurn(botId: string, deadline: number, signal?: AbortSignal): Promise<boolean> {
+    let waited = false;
+    while (this.personHas(botId)) {
+      const left = deadline - Date.now();
+      if (signal?.aborted || left <= 0) throw new BrowserError('userControl');
+      waited = true;
+      if (this.opts.blocked?.(botId) && this.opts.awaitDesktop) {
+        try {
+          await this.opts.awaitDesktop(botId, signal, left);
+        } catch {
+          throw new BrowserError('userControl');
+        }
+      } else await sleep(Math.min(500, left));
+    }
+    if (waited) this.handedBack.add(botId);
+    return waited;
+  }
+
+  /** Whether a step waited for a person to hand the browser back since the bot last heard; once. */
+  takeHandedBack(botId: string): boolean {
+    return this.handedBack.delete(botId);
+  }
+
+  /** File pickers a step opened outside `browser_upload` since the bot last heard; heard once. */
+  takePickers(botId: string): number {
+    const l = this.live.get(botId);
+    if (!l) return 0;
+    const n = l.pickers;
+    l.pickers = 0;
+    return n;
+  }
+
+  /**
+   * A person took or gave back the bot's desktop. While they have it, a page's file picker opens
+   * as the desktop's own window for them to choose from; while the bot drives, it is caught.
+   */
+  desktopControl(botId: string, on: boolean) {
+    const l = this.live.get(botId);
+    if (!l) return;
+    for (const p of l.context.pages()) this.catchPickers(l, p, !on);
+  }
+
+  private catchPickers(live: Live, page: Page, on: boolean) {
+    const has = live.catching.has(page);
+    if (on && !has) {
+      live.catching.add(page);
+      page.on('filechooser', live.onChooser);
+    } else if (!on && has) {
+      live.catching.delete(page);
+      page.off('filechooser', live.onChooser);
+    }
   }
 
   /**
@@ -1215,6 +1324,13 @@ export class BrowserManager {
       saving: new Map(),
       started: 0,
       closing: new WeakSet(),
+      // Any step that opened a picker hears that it was closed; `browser_upload`, which gives the
+      // picker its files through a listener of its own, takes the count back.
+      onChooser: () => {
+        if (!live.userControl) live.pickers++;
+      },
+      catching: new WeakSet(),
+      pickers: 0,
       speed: new WeakMap(),
       logs: new WeakMap(),
       call: null,
@@ -1274,6 +1390,12 @@ export class BrowserManager {
 
   private track(live: Live, page: Page) {
     if (!live.logs.has(page)) live.logs.set(page, watchPage(page));
+    // A page's file picker is caught for as long as a listener is on it. Without one it opens as
+    // the system's own window, on a desktop's screen: the bot neither sees nor closes it, so it
+    // stays over the page while the bot goes on underneath. `browser_upload` adding its listener
+    // only as it clicks is too late, as the catching is turned on in the background. Only a
+    // person in control of the desktop gets the window, to choose a file themselves.
+    this.catchPickers(live, page, !this.opts.blocked?.(live.botId));
     // Without a listener a page's confirm is cancelled unseen, and the click that asked it does
     // nothing the bot can tell. A notice is let through; a confirm or prompt is answered as the bot
     // said beforehand, else cancelled, and either way the bot hears what the page asked.

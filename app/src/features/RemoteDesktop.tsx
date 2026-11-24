@@ -13,7 +13,13 @@ import { cn } from '@/lib/utils';
 const ASPECT = `${DESKTOP_SIZE.width} / ${DESKTOP_SIZE.height}`;
 const VIEW_RATIO = DESKTOP_SIZE.width / DESKTOP_SIZE.height;
 
-const ASLEEP = (botId: string): ComputerState => ({ botId, status: 'off', user: false, busy: false });
+const ASLEEP = (botId: string): ComputerState => ({
+  botId,
+  status: 'off',
+  user: false,
+  busy: false,
+  waiting: false,
+});
 
 /** Follows a bot's computer while the calling part of the page is shown. */
 export function useDesktop(botId: string): ComputerState {
@@ -320,7 +326,8 @@ export function DesktopStage({ bot, state }: { bot: Bot; state: ComputerState })
             <>
               <span className="flex items-center gap-2 text-sm">
                 <PhaseDot phase="user" />
-                {t('computer.desktop.inControl')}
+                {/* The bot's step waits for the desktop back; the person learns it goes on then. */}
+                {state.waiting ? t('computer.desktop.waiting') : t('computer.desktop.inControl')}
               </span>
               <Button
                 size="sm"

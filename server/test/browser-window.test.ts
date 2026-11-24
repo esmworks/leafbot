@@ -61,8 +61,11 @@ describe('botun tarayıcısı ayrı pencerede', () => {
     expect(m.state('b1').status).toBe('window');
     expect(states.at(-1)?.status).toBe('window');
 
-    // The bot's steps and a person taking control are both refused while the window is open.
-    await expect(m.use('b1', async () => 'x')).rejects.toMatchObject({ code: 'userControl' });
+    // The bot's steps wait while the window is open: a stopped turn ends the wait, refused. A
+    // person taking control is refused.
+    await expect(m.use('b1', async () => 'x', AbortSignal.abort())).rejects.toMatchObject({
+      code: 'userControl',
+    });
     await expect(m.setControl('b1', true)).rejects.toMatchObject({ code: 'userControl' });
 
     // Opening it again does not start a second program.
