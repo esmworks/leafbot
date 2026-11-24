@@ -352,7 +352,7 @@ describe('botun bilgisayarı', () => {
     const team = await t.services.threads.create(bot.id, { kind: 'team', userId: null, title: 'Ekip' });
     expect((await run(team.id, { command: 'git pull' })).git).toBeUndefined();
 
-    // Nor does work another bot handed on, even in the person's own conversation.
+    // Nor does a bot's turn that no request chain from the person's own message started.
     await t.services.turns.enqueue({
       threadId: mine.id,
       botId: bot.id,
