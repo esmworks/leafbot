@@ -119,7 +119,15 @@ import {
   type StagedFile,
 } from './Attachments';
 import { FindBar } from './FindBar';
-import { AssistantCard, CardDock, ExchangeCards, MessageItem, replyExcerpt, Working } from './MessageItem';
+import {
+  AssistantCard,
+  AwayCard,
+  CardDock,
+  ExchangeCards,
+  MessageItem,
+  replyExcerpt,
+  Working,
+} from './MessageItem';
 import { foldRoutineRuns } from './routineRuns';
 
 export function Chat({ bot }: { bot: Bot }) {
@@ -142,6 +150,7 @@ export function Chat({ bot }: { bot: Bot }) {
   // What the person had read of this bot when its chat opened: the line above the first reply
   // after it marks where the new ones start. Taken once, before opening marks them read.
   const [readUntil] = useState(() => useSeen.getState().seen?.[bot.id] ?? null);
+  const inMain = !!threadId && threadId === main.data?.id;
 
   return (
     <div className="relative flex min-w-0 flex-1 flex-col">
@@ -153,9 +162,11 @@ export function Chat({ bot }: { bot: Bot }) {
           threadId={threadId}
           thread={thread}
           readUntil={readUntil}
+          away={inMain ? <AwayCards botId={bot.id} mainId={threadId} threads={threads} /> : undefined}
           elsewhere={
             <>
-              <WaitingElsewhere threadId={threadId} threads={threads} waiting={waiting} />
+              {/* The main chat shows those cards themselves, at its end. */}
+              {!inMain && <WaitingElsewhere threadId={threadId} threads={threads} waiting={waiting} />}
               <ReplyElsewhere
                 bot={bot}
                 open={thread ?? { id: threadId }}
@@ -291,6 +302,47 @@ function WaitingElsewhere({
       </div>
     </div>
   );
+}
+
+/**
+ * In the bot's main chat, the cards waiting in its other conversations (a ticket's, a routine's), at
+ * its end: the person answers them here as well as there, and the work goes on where it was asked.
+ */
+function AwayCards({ botId, mainId, threads }: { botId: string; mainId: string; threads: Thread[] }) {
+  const t = useT();
+  const { data: approvals } = useApprovals();
+  const { data: bots = [] } = useBots();
+  const { data: rooms = [] } = useRooms();
+  const botMap = useMemo(() => new Map(bots.map((b) => [b.id, b])), [bots]);
+  const selectThread = useUi((s) => s.selectThread);
+  const openRoom = useUi((s) => s.openRoom);
+  const name = useThreadName(mainId);
+  const away = (approvals ?? [])
+    .filter((a) => {
+      const place = cardPlace(a);
+      return a.status === 'pending' && place.botId === botId && place.threadId !== mainId;
+    })
+    // Oldest first, as they were asked.
+    .reverse();
+  return away.map((a) => {
+    const placeId = cardPlace(a).threadId;
+    const room = rooms.find((r) => r.id === placeId);
+    const thread = threads.find((th) => th.id === placeId);
+    const place = room?.title || (thread ? name(thread) : t('chat.newThread'));
+    return (
+      <div key={a.id} className="flex flex-col gap-1.5">
+        <button
+          // A card waiting in a room is answered there too.
+          onClick={() => (room ? openRoom(placeId) : selectThread(placeId))}
+          className="flex items-center gap-1.5 self-start ps-1 text-xs text-muted-foreground hover:text-foreground"
+        >
+          <ShieldAlert className="size-3.5 text-amber-500" />
+          {t('chat.cardFrom', { place })}
+        </button>
+        <AwayCard approval={a} bots={botMap} />
+      </div>
+    );
+  });
 }
 
 /**
@@ -733,6 +785,7 @@ function Conversation({
   threadId,
   thread,
   readUntil,
+  away,
   elsewhere,
 }: {
   bot: Bot;
@@ -740,6 +793,8 @@ function Conversation({
   thread?: Thread;
   /** The time of the bot's latest reply the person had seen when the chat opened. */
   readUntil: string | null;
+  /** Cards waiting in the bot's other conversations, shown at the end of this one. */
+  away?: React.ReactNode;
   elsewhere?: React.ReactNode;
 }) {
   const t = useT();
@@ -1131,6 +1186,7 @@ function Conversation({
               )}
               {/* Cards waiting in exchanges between bots, out of sight where they were asked. */}
               {threadId && <ExchangeCards threadId={threadId} bots={botMap} />}
+              {away}
               {activity !== 'idle' && !streamDone && (
                 <Working bot={bot} activity={activity} threadId={threadId ?? undefined} />
               )}

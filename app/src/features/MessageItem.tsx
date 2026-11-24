@@ -1537,6 +1537,23 @@ function ExchangeCard({
       outside={outsideTrigger(props.outside)}
       noAlways={props.noAlways === true}
       resembles={typeof props.resembles === 'string' ? props.resembles : undefined}
+      reviewReason={typeof props.reviewReason === 'string' ? props.reviewReason : undefined}
+      reviewNote={typeof props.reviewNote === 'string' ? props.reviewNote : undefined}
+    />
+  );
+}
+
+/**
+ * A waiting card shown away from its conversation, as its own line there describes it; answering
+ * it goes on with the work where it was asked.
+ */
+export function AwayCard({ approval, bots }: { approval: Approval; bots: Map<string, Bot> }) {
+  return (
+    <ExchangeCard
+      approvalId={approval.id}
+      fallback={approval.summary}
+      props={approval.answerIn?.props ?? approval.line ?? {}}
+      bots={bots}
     />
   );
 }

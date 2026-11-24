@@ -944,6 +944,7 @@ export const en: Catalog<MessageKey> = {
   'chat.waitingCards': { one: '{count} card waiting', other: '{count} cards waiting' },
   'chat.replyElsewhere': '{bot} wrote in “{place}”',
   'chat.showReply': 'Open',
+  'chat.cardFrom': 'Asked in “{place}”',
   'chat.showWaiting': 'Show',
   'chat.emptyHint': 'Write a message to get started.',
   'chat.toBottom': 'Go to the latest message',

@@ -555,12 +555,18 @@ export class ApprovalService {
       .limit(200);
     const cards = rows.map((r) => r.approval);
     const places = await this.threads.answerPlaces(cards);
-    const lines = await this.threads.cardLines(cards.filter((c) => places.has(c.id)));
+    // A waiting card may be answered outside its conversation too (the bot's main chat shows those
+    // of its other conversations), so it brings its line's props, as a card there would carry them.
+    const lines = await this.threads.cardLines(
+      cards.filter((c) => places.has(c.id) || c.status === 'pending'),
+    );
     return cards.map((c) => {
       const place = places.get(c.id);
+      const line = lines.get(c.id);
       return {
         ...toApproval(c),
-        ...(place && { answerIn: { ...place, props: lines.get(c.id) ?? { approvalId: c.id } } }),
+        ...(place && { answerIn: { ...place, props: line ?? { approvalId: c.id } } }),
+        ...(c.status === 'pending' && line && { line }),
       };
     });
   }

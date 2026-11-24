@@ -2,7 +2,7 @@ import type { Approval, Bot, Message } from '@leafbot/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { CardDock, ExchangeCards, MessageItem } from './MessageItem';
+import { AwayCard, CardDock, ExchangeCards, MessageItem } from './MessageItem';
 
 const message = (id: string, role: Message['role'], props: Message['props'] = {}): Message => ({
   id,
@@ -90,5 +90,32 @@ describe('botlar arası konuşmadaki kart', () => {
   it('cevaplanan kart sohbetin sonunda kalmaz', () => {
     const { end } = show([approval('allowed')]);
     expect(end.textContent).toBe('');
+  });
+});
+
+describe('başka sohbetteki kart ana sohbette', () => {
+  afterEach(cleanup);
+
+  /** A card waiting in a ticket's conversation, shown away from it. */
+  function away(card: Approval) {
+    const qc = new QueryClient({ defaultOptions: { queries: { staleTime: Infinity, retry: false } } });
+    qc.setQueryData(['approvals'], [card]);
+    return render(
+      <QueryClientProvider client={qc}>
+        <AwayCard approval={card} bots={new Map()} />
+      </QueryClientProvider>,
+    ).container;
+  }
+
+  it('cevaplanabilir çıkar', () => {
+    const view = away(approval('pending', { answerIn: null, line: { approvalId: 'a1' } }));
+    expect(view.textContent).toContain('Allow this time');
+    expect(view.textContent).toContain('Always allow');
+  });
+
+  it('kendi satırı "hep izin ver" sunmuyorsa burada da sunmaz', () => {
+    const view = away(approval('pending', { answerIn: null, line: { approvalId: 'a1', noAlways: true } }));
+    expect(view.textContent).toContain('Allow this time');
+    expect(view.textContent).not.toContain('Always allow');
   });
 });

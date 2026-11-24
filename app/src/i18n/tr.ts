@@ -906,6 +906,7 @@ export const tr = {
   'chat.waitingCards': 'Bekleyen {count} kart',
   'chat.replyElsewhere': '{bot} “{place}” sohbetine yazdı',
   'chat.showReply': 'Aç',
+  'chat.cardFrom': '“{place}” sohbetinde soruldu',
   'chat.showWaiting': 'Göster',
   'chat.emptyHint': 'Bir mesaj yazarak başlayın.',
   'chat.toBottom': 'Son mesaja git',
