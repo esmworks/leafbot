@@ -1559,7 +1559,7 @@ export const tr = {
   'routine.webhookCopied': 'Webhook adresi kopyalandı',
   'routine.steps': 'Adımlar',
   'routine.stepsHint':
-    'Talimat ilk adımdır. Buraya eklenen adımlar sırayla, her biri bir önceki iyi bitince çalışır; rapor son adımdan gelir.',
+    'Talimat ilk adımdır. Buraya eklenen adımlar sırayla, her biri bir önceki iyi bitince çalışır; rapor son adımdan gelir. Bir adım, sonrasında ya da başarısız olunca kendinden sonraki bir adıma geçebilir; çalışmanın geçmediği adımlar "yolda değildi" olarak görünür.',
   'routine.step.prompt': 'Talimat',
   'routine.step.agent': 'Bot adımı',
   'routine.stepPromptPlaceholder': 'Bir önceki adımın sonucuyla ne yapsın?',
@@ -1607,10 +1607,7 @@ export const tr = {
   'routine.stepNextEnd': 'Çalışmayı burada bitir',
   'routine.stepOnError': 'Başarısız olursa',
   'routine.stepOnErrorStop': 'Çalışmayı durdur',
-  'routine.stepGoTo': 'Şuna geç: {step}',
   'routine.stepWayLost': 'Bundan sonra gelmeyen bir adım',
-  'routine.stepWaysHint':
-    'Yollar yalnız ileri gider. Çalışmanın geçmediği adımlar "yolda değildi" olarak görünür.',
   'routine.stepWayInvalid':
     'Bu adım, kendinden sonra gelmeyen bir adıma gidiyor. Başka bir adım seç ya da o adımı bunun arkasına taşı.',
   'routine.stepWaitMinutes': '{minutes} dk',
@@ -1632,7 +1629,7 @@ export const tr = {
   'flow.addStep': 'Buraya adım ekle',
   'flow.drag': 'Kutuyu taşımak için sürükle',
   'flow.pickHint':
-    'Kutuyu başlığından sürükleyerek ya da ok tuşlarıyla yerleştir. Adımlar çizgiler boyunca sırayla çalışır; sıralarını kutunun menüsünden ya da Alt ile ok tuşundan değiştir.',
+    'Kutuyu başlığından sürükleyerek ya da ok tuşlarıyla yerleştir. Adımlar çizgiler boyunca sırayla çalışır; etiketli kesikli çizgiler bir adımın ileriye atladığı yollardır. Sıralarını kutunun menüsünden ya da Alt ile ok tuşundan değiştir.',
   'flow.alsoStarts': 'Ayrıca {what} başlar.',
   'flow.nextRun': 'Sıradaki çalışma {when}',
   'flow.noNextRun': 'Yeniden çalışması ayarlı değil',

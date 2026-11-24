@@ -367,7 +367,7 @@ function WaySelect({
   const t = useT();
   const lost = !!value && value !== ROUTINE_STEP_END && !later.some((x) => x.id === value);
   return (
-    <label className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+    <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
       <span className="shrink-0">{label}</span>
       <Select value={value || USUAL} onValueChange={(v) => onChange(v === USUAL ? '' : v)}>
         <SelectTrigger className="h-8 min-w-0 max-w-64 flex-1 rounded-xl text-xs" aria-label={label}>
@@ -378,13 +378,13 @@ function WaySelect({
           {end && <SelectItem value={ROUTINE_STEP_END}>{end}</SelectItem>}
           {later.map((x) => (
             <SelectItem key={x.id} value={x.id}>
-              {t('routine.stepGoTo', { step: wayLabel(x, t) })}
+              {wayLabel(x, t)}
             </SelectItem>
           ))}
           {lost && <SelectItem value={value}>{t('routine.stepWayLost')}</SelectItem>}
         </SelectContent>
       </Select>
-    </label>
+    </div>
   );
 }
 
@@ -423,7 +423,6 @@ function WayFields({
           onChange={(onError) => onChange({ ...s, onError })}
         />
       )}
-      <p className="text-xs text-muted-foreground">{t('routine.stepWaysHint')}</p>
     </div>
   );
 }

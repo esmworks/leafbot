@@ -139,7 +139,7 @@ describe('rutin akışı', () => {
         'true',
       );
       const failing = view.getAllByRole('combobox', { name: 'If it fails' })[0]!;
-      expect(failing.textContent).toContain('Go to Notify step: Nothing changed');
+      expect(failing.textContent).toContain('Notify step: Nothing changed');
       expect(view.getAllByRole('combobox', { name: 'Then' })[1]!.textContent).toContain('End the run here');
     }
     // Two ways leave the first box for the last: the condition's other way and the way on failure.

@@ -1594,7 +1594,7 @@ export const en: Catalog<MessageKey> = {
   'routine.webhookCopied': 'Webhook address copied',
   'routine.steps': 'Steps',
   'routine.stepsHint':
-    'The instruction is the first step. Steps added here run in order, each once the one before it ended well; the report comes from the last one.',
+    'The instruction is the first step. Steps added here run in order, each once the one before it ended well; the report comes from the last one. A step can go on at a later one after it ends, when its condition does not hold, or when it fails; steps the run goes past show as not on its way.',
   'routine.step.prompt': 'Instruction',
   'routine.step.agent': 'Bot step',
   'routine.stepPromptPlaceholder': 'What should it do with what the step before ended with?',
@@ -1642,9 +1642,7 @@ export const en: Catalog<MessageKey> = {
   'routine.stepNextEnd': 'End the run here',
   'routine.stepOnError': 'If it fails',
   'routine.stepOnErrorStop': 'Stop the run',
-  'routine.stepGoTo': 'Go to {step}',
   'routine.stepWayLost': 'A step that is not after this one',
-  'routine.stepWaysHint': 'Ways only go forward. Steps the run goes past show as not on its way.',
   'routine.stepWayInvalid':
     'This step goes on at a step that is not after it. Pick another, or move that step after it.',
   'routine.stepWaitMinutes': '{minutes} min',
@@ -1666,7 +1664,7 @@ export const en: Catalog<MessageKey> = {
   'flow.addStep': 'Add a step here',
   'flow.drag': 'Drag to move the box',
   'flow.pickHint':
-    'Drag a box by its title to place it, or move it with the arrow keys. Steps run along the lines, one after another; change their order from a box’s menu or with Alt and an arrow key.',
+    'Drag a box by its title to place it, or move it with the arrow keys. Steps run along the lines, one after another; labelled dashed lines are the ways a step jumps ahead. Change their order from a box’s menu or with Alt and an arrow key.',
   'flow.alsoStarts': 'Also starts {what}.',
   'flow.nextRun': 'Next run {when}',
   'flow.noNextRun': 'Not set to run again',
