@@ -1296,7 +1296,7 @@ const tr = {
   'tool.my_activity':
     'Kendi diğer sohbetlerinde son günlerde neler konuşulduğunu oku ("bugün ne yaptık?" gibi sorular için). days kaç gün geriye bakılacağını, query bir sözcükle süzmeyi verir.',
   'tool.bot_create':
-    'Yeni bot oluştur (yönetici). Yönetici bot oluşturamazsın. engine (claude ya da pi) ve model verilmezse kullanıcının yeni botlar için seçtiği kullanılır; kullanılabilir modelleri models_list ile gör. Yeni bot internete kapalı başlar; açmak için bot_update kullan.',
+    'Yeni bot oluştur (yönetici). Yönetici bot oluşturamazsın. engine (claude ya da pi) ve model verilmezse kullanıcının yeni botlar için seçtiği kullanılır; kullanılabilir modelleri models_list ile gör. Yeni bot internete kapalı başlar; açmak için bot_update kullan. effort (low, medium, high, xhigh, max; boş: tüm botların ayarı), avatar (object:circle, object:mug, object:lightbulb gibi bir nesne) ve material (flat ya da tüylü görünüm için fluffy) verilebilir.',
   'tool.bot_profile':
     'Bir botun profilini oku: açıklama, motor ve model, izin kipi, internet erişimi, grup, beceriler, rutinler, uygulamalar ve talimat (yönetici).',
   'tool.bot_skill': 'Kitaplıktaki bir beceriyi bir bota aç ya da kapat (yönetici).',
@@ -1305,6 +1305,7 @@ const tr = {
   'tool.profileModel': 'Motor ve model: {engine} / {model}',
   'tool.profileDefaultModel': 'varsayılan',
   'tool.profileMode': 'İzin kipi: {mode}',
+  'tool.profileLook': 'Düşünme düzeyi: {effort}; hafıza: {memory}; avatar: {avatar} ({material})',
   'tool.profileInternetOn': 'İnternet: açık',
   'tool.profileInternetOff': 'İnternet: kapalı',
   'tool.profileGroup': 'Grup: {group}',
@@ -1325,7 +1326,7 @@ const tr = {
     '{model} kullanılabilir bir model değil; models_list ile bak (pi için sağlayıcı/model).',
   'tool.noModelKey': '{provider} için API anahtarı kayıtlı değil.',
   'tool.bot_update':
-    'Bir botun adını, açıklamasını, talimatını, grubunu, rengini, motorunu ve modelini, izin kipini ya da internet erişimini değiştir (yönetici). İzni gevşetmek (readonly→ask→auto) ve interneti açmak kullanıcı onayı ister.',
+    "Bir botun adını, açıklamasını, talimatını, grubunu, rengini, motorunu ve modelini, izin kipini, internet erişimini, düşünme düzeyini (effort), hafızasını (memory: kapalıyken not görmez ve tutmaz), avatarını (object:<ad>) ya da yüzeyini (material: flat, fluffy) değiştir (yönetici). Harcama sınırları, kişinin Mac'i, araç seçimi ve bilgisayardaki kodlama ajanı kullanıcının kendisinin; onları uygulamadan değiştirmesini söyle. İzni gevşetmek (readonly→ask→auto) ve interneti açmak kullanıcı onayı ister.",
   'tool.bot_archive': 'Bir botu arşivle (yönetici). Geri alınabilir.',
   'tool.computer_screenshot':
     'Kendi bilgisayarının (Linux masaüstü: panel, Chromium, terminal, dosya yöneticisi, LibreOffice) ekran görüntüsünü al. Ekran 1280x800; koordinatlar soldan ve üstten piksel.',
@@ -3315,7 +3316,7 @@ const en: Catalog<ServerKey> = {
   'tool.my_activity':
     'Read what was said in your own other conversations in the last days (for questions such as "what did we do today?"). days says how far back to look; query filters by a word.',
   'tool.bot_create':
-    'Create a new bot (manager). You cannot create manager bots. Without engine (claude or pi) and model it starts as the user set new bots to start; see the available models with models_list. A new bot starts with the internet off; turn it on with bot_update.',
+    'Create a new bot (manager). You cannot create manager bots. Without engine (claude or pi) and model it starts as the user set new bots to start; see the available models with models_list. A new bot starts with the internet off; turn it on with bot_update. effort (low, medium, high, xhigh, max; empty for the setting all bots share), avatar (an object such as object:circle, object:mug, object:lightbulb) and material (flat, or fluffy for a coat of fur) can be given.',
   'tool.bot_profile':
     "Read a bot's profile: description, engine and model, permission mode, internet access, group, skills, routines, apps and instructions (manager).",
   'tool.bot_skill': 'Turn a skill from the library on or off for a bot (manager).',
@@ -3324,6 +3325,7 @@ const en: Catalog<ServerKey> = {
   'tool.profileModel': 'Engine and model: {engine} / {model}',
   'tool.profileDefaultModel': 'default',
   'tool.profileMode': 'Permission mode: {mode}',
+  'tool.profileLook': 'Effort: {effort}; memory: {memory}; avatar: {avatar} ({material})',
   'tool.profileInternetOn': 'Internet: on',
   'tool.profileInternetOff': 'Internet: off',
   'tool.profileGroup': 'Group: {group}',
@@ -3343,7 +3345,7 @@ const en: Catalog<ServerKey> = {
   'tool.unknownModel': '{model} is not an available model; check models_list (provider/model for pi).',
   'tool.noModelKey': 'No API key is saved for {provider}.',
   'tool.bot_update':
-    "Change a bot's name, description, instructions, group, color, engine and model, permission mode or internet access (manager). Loosening permissions (readonly→ask→auto) and turning the internet on needs the user's approval.",
+    "Change a bot's name, description, instructions, group, color, engine and model, permission mode, internet access, effort, memory (off, it sees and keeps no notes), avatar (object:<name>) or material (flat, fluffy) (manager). Spending limits, the person's Mac, the tool selection and a coding agent on the computer are the user's own; tell them to change those in the app. Loosening permissions (readonly→ask→auto) and turning the internet on needs the user's approval.",
   'tool.bot_archive': 'Archive a bot (manager). This can be undone.',
   'tool.computer_screenshot':
     'Take a screenshot of your own computer (a Linux desktop: panel, Chromium, terminal, file manager, LibreOffice). The screen is 1280x800; coordinates are pixels from the left and top.',

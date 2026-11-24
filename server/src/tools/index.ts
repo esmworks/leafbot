@@ -1,6 +1,9 @@
 import {
   BRAND_COLOR,
+  BotCreate,
+  BotMaterial,
   DEFAULT_AVATAR,
+  OBJECT_AVATARS,
   ALL_TOOLS,
   catalogEntry,
   CONNECTION_CATALOG,
@@ -2532,6 +2535,9 @@ export class ToolFactory {
             .optional(),
           engine: z.enum(['claude', 'pi']).optional(),
           model: z.string().max(200).optional(),
+          effort: BotCreate.shape.effort.unwrap().optional(),
+          avatar: z.enum(OBJECT_AVATARS.map((x) => `object:${x}`) as [string, ...string[]]).optional(),
+          material: BotMaterial.optional(),
         },
         async (a) => {
           // Without a choice the bot starts as the person set new bots to start.
@@ -2551,8 +2557,8 @@ export class ToolFactory {
               // Without a group named, the new bot joins the manager's own section.
               groupId: a.group !== undefined ? ((await groupId(a.group)) ?? null) : manager.groupId,
               color: a.color ?? BRAND_COLOR,
-              avatar: DEFAULT_AVATAR,
-              material: 'flat',
+              avatar: a.avatar ?? DEFAULT_AVATAR,
+              material: a.material ?? 'flat',
               // The level a bot the person creates starts at, as one made in the app.
               permissionMode: 'auto',
               internet: false,
@@ -2560,7 +2566,7 @@ export class ToolFactory {
               personComputer: false,
               projectDir: null,
               memory: true,
-              effort: '',
+              effort: a.effort ?? '',
               toolSelection: ALL_TOOLS,
               instructionsUrl: null,
               // A bot's spending limits are the person's to set, never another bot's.
@@ -2610,6 +2616,13 @@ export class ToolFactory {
           internet: z.boolean().optional(),
           engine: z.enum(['claude', 'pi']).optional(),
           model: z.string().max(200).optional(),
+          /** How hard a Claude bot thinks; empty for the setting all bots share. */
+          effort: BotCreate.shape.effort.unwrap().optional(),
+          /** Whether the bot reads and keeps notes; off, it sees none. */
+          memory: z.boolean().optional(),
+          /** One of the object avatars, `object:<id>`; an uploaded picture is the person's to choose. */
+          avatar: z.enum(OBJECT_AVATARS.map((x) => `object:${x}`) as [string, ...string[]]).optional(),
+          material: BotMaterial.optional(),
         },
         async (a) => {
           const target = await reach(a.bot);
@@ -2679,6 +2692,10 @@ export class ToolFactory {
             ...(a.permission_mode !== undefined && { permissionMode: a.permission_mode }),
             ...(a.internet !== undefined && { internet: a.internet }),
             ...(a.group !== undefined && { groupId: (await groupId(a.group)) ?? null }),
+            ...(a.effort !== undefined && { effort: a.effort }),
+            ...(a.memory !== undefined && { memory: a.memory }),
+            ...(a.avatar !== undefined && { avatar: a.avatar }),
+            ...(a.material !== undefined && { material: a.material }),
             ...modelPatch,
           };
           const updated = await s.bots.update(target.id, patch);
@@ -2718,6 +2735,12 @@ export class ToolFactory {
               model: target.model || t('tool.profileDefaultModel'),
             }),
             t('tool.profileMode', { mode: target.permissionMode }),
+            t('tool.profileLook', {
+              effort: target.effort || '-',
+              memory: String(target.memory),
+              avatar: target.avatar.startsWith('data:') ? '-' : target.avatar,
+              material: target.material,
+            }),
             t(target.internet ? 'tool.profileInternetOn' : 'tool.profileInternetOff'),
             t('tool.profileGroup', { group: groups.find((g) => g.id === target.groupId)?.name ?? '-' }),
             t('tool.profileSkills', { skills: skills.join(', ') || '-' }),
