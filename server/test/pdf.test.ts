@@ -98,6 +98,7 @@ describe('read_file on a PDF', () => {
     expect(text).toContain('DEVKAR 40x10 YAN 20');
     expect(text).toContain(t('files.pdfNoText'));
     expect(text).toContain(t('files.pdfPictures'));
+    expect(text).toContain(t('files.pdf', { path: 'irsaliye.pdf', from: 1, to: 2, count: 2 }));
   });
 
   it('draws no more pages than the pictures a request keeps', async () => {
@@ -118,6 +119,7 @@ describe('read_file on a PDF', () => {
   it('tells a model without pictures that a scanned page cannot be read', async () => {
     const r = await read(readTool(false, fakePoppler(1, [''])), {});
     expect(r).toContain(t('files.pdfUnseen'));
+    expect(r).toContain(t('files.pdfOne', { path: 'irsaliye.pdf', page: 1, count: 1 }));
   });
 
   it('asks for a range on a long PDF and says why a read failed', async () => {

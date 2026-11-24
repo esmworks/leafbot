@@ -168,7 +168,10 @@ export function fileTools(
     const pages = pdf.texts.map(
       (text, i) => `${t('files.pdfPage', { page: pdf.from + i })}\n${text || t('files.pdfNoText')}`,
     );
-    const lead = t('files.pdf', { path: String(a.path), from: pdf.from, to: pdf.to, count: pdf.count });
+    const lead =
+      pdf.from === pdf.to
+        ? t('files.pdfOne', { path: String(a.path), page: pdf.from, count: pdf.count })
+        : t('files.pdf', { path: String(a.path), from: pdf.from, to: pdf.to, count: pdf.count });
     const tail = pdf.images.length
       ? `\n\n${t('files.pdfPictures')}`
       : pdf.texts.some((x) => !x)

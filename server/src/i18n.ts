@@ -1758,6 +1758,7 @@ const tr = {
   'files.image': '{path} görüntüsü aşağıda.',
   'files.imageUnseen': 'Bu bir görüntü dosyası; kullanılan model görüntü göremiyor.',
   'files.pdf': '{path}: {count} sayfanın {from}-{to}. sayfaları aşağıda.',
+  'files.pdfOne': '{path}: {count} sayfanın {page}. sayfası aşağıda.',
   'files.pdfPage': '--- Sayfa {page} ---',
   'files.pdfNoText': '(Bu sayfada yazı katmanı yok; taranmış bir sayfa olabilir.)',
   'files.pdfPictures':
@@ -1765,9 +1766,9 @@ const tr = {
   'files.pdfUnseen':
     'Yazı katmanı olmayan sayfaların yalnızca görüntüsü var ve kullanılan model görüntü göremiyor; bu sayfalar bu modelle okunamaz.',
   'files.pdfTooLong':
-    'Bu PDF {count} sayfa: pages ile bir aralık ver (ör. "1-5"), bir çağrıda en çok {max} sayfa.',
+    'Bu PDF {count} sayfa: pages ile bir aralık ver (ör. "1-{max}"), bir çağrıda en çok {max} sayfa.',
   'files.pdfBadRange':
-    'Geçersiz sayfa aralığı "{pages}": PDF {count} sayfa. "3" ya da "1-5" gibi ver, bir çağrıda en çok {max} sayfa.',
+    'Geçersiz sayfa aralığı "{pages}": PDF {count} sayfa. "3" ya da "1-{max}" gibi ver, bir çağrıda en çok {max} sayfa.',
   'files.pdfNoPoppler':
     'Bu sunucuda PDF okuyan poppler-utils (pdfinfo, pdftotext, pdftoppm) kurulu değil; sunucuyu yöneten birinin kurması gerekir.',
   'files.pdfLocked': 'PDF parolayla korunuyor; parolasız bir kopyası gerekir.',
@@ -3757,6 +3758,7 @@ const en: Catalog<ServerKey> = {
   'files.image': 'The picture {path} is below.',
   'files.imageUnseen': 'This is a picture; the model in use cannot see pictures.',
   'files.pdf': 'Pages {from}-{to} of the {count} of {path} are below.',
+  'files.pdfOne': 'Page {page} of the {count} of {path} is below.',
   'files.pdfPage': '--- Page {page} ---',
   'files.pdfNoText': '(This page has no text layer; it may be scanned.)',
   'files.pdfPictures':
@@ -3764,9 +3766,9 @@ const en: Catalog<ServerKey> = {
   'files.pdfUnseen':
     'Pages with no text layer exist only as pictures, and the model in use cannot see pictures; those pages cannot be read with this model.',
   'files.pdfTooLong':
-    'This PDF has {count} pages: give a range with pages (e.g. "1-5"), at most {max} pages a call.',
+    'This PDF has {count} pages: give a range with pages (e.g. "1-{max}"), at most {max} pages a call.',
   'files.pdfBadRange':
-    'The page range "{pages}" is not valid: the PDF has {count} pages. Give one like "3" or "1-5", at most {max} pages a call.',
+    'The page range "{pages}" is not valid: the PDF has {count} pages. Give one like "3" or "1-{max}", at most {max} pages a call.',
   'files.pdfNoPoppler':
     'poppler-utils (pdfinfo, pdftotext, pdftoppm), which reads PDFs, is not installed on this server; someone who looks after the server needs to install it.',
   'files.pdfLocked': 'The PDF is protected by a password; an unprotected copy is needed.',
