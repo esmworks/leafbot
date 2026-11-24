@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { needsAttention } from '@leafbot/shared';
 import { Switch } from 'react-native';
 import { toastError } from '@/components/overlay';
 import { Avatar } from '@/components/Avatar';
@@ -8,7 +9,7 @@ import { describeSchedule } from '@/components/panel/schedule';
 import { locale, t } from '@/i18n';
 import { formatters } from '@/lib/format';
 import { nav } from '@/lib/nav';
-import { useBots, useRoutines } from '@/lib/queries';
+import { useBots, useRoutineHealth, useRoutines } from '@/lib/queries';
 import { useApi, useServer } from '@/lib/server';
 import { useColors } from '@/lib/theme';
 
@@ -21,6 +22,7 @@ export function RoutinesSection() {
   const c = useColors();
   const { data: routines = [] } = useRoutines();
   const { data: bots = [] } = useBots();
+  const { data: health = [] } = useRoutineHealth();
   const qc = useQueryClient();
   const toggle = useMutation({
     mutationFn: (r: { id: string; enabled: boolean }) => api.updateRoutine(r.id, { enabled: !r.enabled }),
@@ -40,11 +42,14 @@ export function RoutinesSection() {
       <Rows>
         {routines.map((r) => {
           const bot = bots.find((b) => b.id === r.botId);
+          // Only a routine that wants a look says how it stands; the rest would only add noise.
+          const h = health.find((x) => x.routineId === r.id);
           return (
             <Row
               key={r.id}
               label={r.name}
               detail={[
+                h && needsAttention(h) ? t(`health.status.${h.status}`) : null,
                 bot?.name,
                 describeSchedule(r.schedule),
                 r.reportOnly ? t('routine.reportOnlyShort') : null,

@@ -1,7 +1,10 @@
 import {
+  askText,
+  duration,
+  findingText,
   healthFix,
+  needsAttention,
   type Routine,
-  type RoutineHealth,
   type RoutineHealthFinding,
   type RoutineHealthStatus,
 } from '@leafbot/shared';
@@ -15,12 +18,7 @@ import { useRoutineHealth } from '@/lib/queries';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
-type T = ReturnType<typeof useT>;
-
-/** A routine that wants the person to look at it: something wrong, something to gain, or not used. */
-export function needsAttention(h: Pick<RoutineHealth, 'status'> | undefined): boolean {
-  return h?.status === 'problem' || h?.status === 'improvable' || h?.status === 'unused';
-}
+export { duration, needsAttention };
 
 /** A routine's standing as a coloured dot and its name. */
 export function HealthStatus({ status, className }: { status: RoutineHealthStatus; className?: string }) {
@@ -40,59 +38,6 @@ export function HealthStatus({ status, className }: { status: RoutineHealthStatu
       {t(`health.status.${status}`)}
     </span>
   );
-}
-
-/** How long, in the largest units that read well: seconds, minutes, hours, or days for runs that waited. */
-export function duration(ms: number, t: T): string {
-  const s = Math.round(ms / 1000);
-  if (s < 60) return t('health.seconds', { seconds: s });
-  if (s < 3600) return t('health.minutes', { minutes: Math.floor(s / 60), seconds: s % 60 });
-  if (s < 86_400)
-    return t('health.hours', { hours: Math.floor(s / 3600), minutes: Math.floor((s % 3600) / 60) });
-  return t('health.days', { days: Math.round(s / 86_400) });
-}
-
-/** What a finding says, in the reader's language, from its numbers. */
-function findingText(f: RoutineHealthFinding, t: T, usd: (n: number) => string): string {
-  switch (f.id) {
-    case 'failing':
-      return f.of
-        ? t('health.finding.failing', { count: f.count, of: f.of })
-        : t('health.finding.failingStreak', { count: f.count });
-    case 'pausedByFailures':
-      return t('health.finding.pausedByFailures');
-    case 'signInWait':
-      return t('health.finding.signInWait');
-    case 'stepFails':
-      return t('health.finding.stepFails', { step: f.step ?? 0, count: f.count });
-    case 'waitTimeouts':
-      return t('health.finding.waitTimeouts', { step: f.step ?? 0, count: f.count });
-    case 'mostlyQuiet': {
-      const text = t('health.finding.mostlyQuiet', { count: f.count, of: f.of ?? f.count });
-      return f.costUsd ? `${text} ${t('health.finding.mostlyQuietCost', { cost: usd(f.costUsd) })}` : text;
-    }
-    case 'idle':
-      return f.enabled ? t('health.finding.idleOn') : t('health.finding.idleOff');
-  }
-}
-
-/** The message written for the person to send the bot about a finding; null when the bot can't help. */
-function askText(routine: Routine, f: RoutineHealthFinding, t: T): string | null {
-  const name = routine.name;
-  switch (f.id) {
-    case 'failing':
-      return t('health.ask.failing', { name });
-    case 'pausedByFailures':
-      return t('health.ask.pausedByFailures', { name });
-    case 'stepFails':
-      return t('health.ask.stepFails', { name, step: f.step ?? 0 });
-    case 'mostlyQuiet':
-      return t('health.ask.mostlyQuiet', { name });
-    case 'idle':
-      return f.enabled ? t('health.ask.idle', { name }) : null;
-    default:
-      return null;
-  }
 }
 
 /**

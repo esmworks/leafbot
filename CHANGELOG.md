@@ -7,6 +7,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- The phone app shows a routine's health too: Settings → Routines names the routines that want a look, and a
+  routine's page has the same numbers and findings as on the web, with Apply (and undo), Ask the bot (the message waits
+  in the bot's chat for you to send) and Hide.
 - Settings → Usage lists what sits unused, worked out with no AI: skills no bot has read for 60 days, bots with no
   turn for 60 days, and connections no bot can use (open to none, or signed out). A bot with a routine switched on, a
   chat app it answers in or bots it looks after is left out, and so is a connection a routine checks or waits on. Each
