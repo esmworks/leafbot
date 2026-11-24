@@ -62,6 +62,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
   type ReactNode,
 } from 'react';
@@ -161,10 +162,10 @@ export function MessageItem({
               <div
                 className={cn(
                   'relative max-w-[80%] rounded-3xl px-4 py-2.5 text-[15px] [overflow-wrap:anywhere]',
-                  tint ? 'text-white' : 'bg-secondary',
+                  tint ? 'wallpaper-tint bg-(--tint-fill) text-white' : 'wallpaper-bubble bg-secondary',
                   typeof m.props.reaction === 'string' && 'mb-4',
                 )}
-                style={tint ? { background: `color-mix(in oklab, ${tint} 82%, black)` } : undefined}
+                style={tint ? tintFill(tint) : undefined}
               >
                 <Markdown
                   text={m.text}
@@ -1020,6 +1021,10 @@ function OwnMessageActions({ m }: { m: Message }) {
  * The person's message while the bot is busy with an earlier one: it waits its turn, and until the
  * bot starts on it the person may change it or take it back.
  */
+/** The person's bubble in the bot's colour, darkened so white text reads on it. */
+const tintFill = (tint: string) =>
+  ({ '--tint-fill': `color-mix(in oklab, ${tint} 82%, black)` }) as CSSProperties;
+
 function QueuedMessage({ m, tint, hasFiles }: { m: Message; tint?: string; hasFiles: boolean }) {
   const t = useT();
   const qc = useQueryClient();
@@ -1098,9 +1103,9 @@ function QueuedMessage({ m, tint, hasFiles }: { m: Message; tint?: string; hasFi
         <div
           className={cn(
             'relative max-w-[80%] rounded-3xl px-4 py-2.5 text-[15px] whitespace-pre-wrap opacity-75 [overflow-wrap:anywhere]',
-            tint ? 'text-white' : 'bg-secondary',
+            tint ? 'wallpaper-tint bg-(--tint-fill) text-white' : 'wallpaper-bubble bg-secondary',
           )}
-          style={tint ? { background: `color-mix(in oklab, ${tint} 82%, black)` } : undefined}
+          style={tint ? tintFill(tint) : undefined}
         >
           {m.text}
         </div>
