@@ -1,5 +1,6 @@
+import { elevenLabs } from '@leafbot/shared';
 import { HttpError } from '../util';
-import { askService, authHeaders, type AiEndpointService } from './ai-endpoints';
+import { askService, authHeaders, serviceError, type AiEndpointService } from './ai-endpoints';
 
 /** Text read in one request; a longer reply is read in its first part. */
 export const MAX_SPEECH_CHARS = 4000;
@@ -26,22 +27,33 @@ export class SpeechService {
     if (!s) throw new HttpError(409, 'error.speechNone');
     const input = text.trim().slice(0, MAX_SPEECH_CHARS);
     if (!input) throw new HttpError(400, 'error.speechEmpty');
+    // ElevenLabs names the voice in the address and has no default one; OpenAI's shape falls back to
+    // its first voice.
+    const eleven = elevenLabs(s.baseUrl);
+    if (eleven && !s.voice) throw new HttpError(400, 'error.speechVoiceId');
+    const [url, body] = eleven
+      ? [
+          `${s.baseUrl}/text-to-speech/${encodeURIComponent(s.voice)}?output_format=mp3_44100_128`,
+          { text: input, model_id: s.model },
+        ]
+      : [
+          `${s.baseUrl}/audio/speech`,
+          { model: s.model, input, voice: s.voice || 'alloy', response_format: 'mp3' },
+        ];
     const res = await askService(
       this.fetcher,
-      `${s.baseUrl}/audio/speech`,
+      url,
       {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...authHeaders(s) },
-        body: JSON.stringify({ model: s.model, input, voice: s.voice || 'alloy', response_format: 'mp3' }),
+        body: JSON.stringify(body),
       },
       { unreachable: 'error.speechUnreachable', timeout: 'error.speechTimeout' },
       TIMEOUT_MS,
     );
     if (!res.ok) {
-      const body = (await res.json().catch(() => null)) as { error?: { message?: string } | string } | null;
-      const message =
-        typeof body?.error === 'string' ? body.error : (body?.error?.message ?? String(res.status));
-      throw new HttpError(502, 'error.speechFailed', { message });
+      const failed = (await res.json().catch(() => null)) as unknown;
+      throw new HttpError(502, 'error.speechFailed', { message: serviceError(failed, res.status) });
     }
     return {
       audio: Buffer.from(await res.arrayBuffer()),

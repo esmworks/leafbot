@@ -1,6 +1,6 @@
-import type { Locale } from '@leafbot/shared';
+import { elevenLabs, type Locale } from '@leafbot/shared';
 import { HttpError } from '../util';
-import { askService, authHeaders, type AiEndpointService } from './ai-endpoints';
+import { askService, authHeaders, serviceError, type AiEndpointService } from './ai-endpoints';
 import type { ProviderKeyService } from './keys';
 
 /**
@@ -60,13 +60,26 @@ export class TranscribeService {
     private fetcher: typeof fetch = fetch,
   ) {}
 
-  private async service(): Promise<{ url: string; model: string; headers: Record<string, string> } | null> {
+  private async service(): Promise<{
+    url: string;
+    model: string;
+    headers: Record<string, string>;
+    eleven: boolean;
+  } | null> {
     const own = await this.ai?.get('stt');
-    if (own)
-      return { url: `${own.baseUrl}/audio/transcriptions`, model: own.model, headers: authHeaders(own) };
+    if (own) {
+      const eleven = elevenLabs(own.baseUrl);
+      return {
+        url: `${own.baseUrl}${eleven ? '/speech-to-text' : '/audio/transcriptions'}`,
+        model: own.model,
+        headers: authHeaders(own),
+        eleven,
+      };
+    }
     for (const s of SERVICES) {
       const key = await this.keys.get(s.provider);
-      if (key) return { url: s.url, model: s.model, headers: { authorization: `Bearer ${key}` } };
+      if (key)
+        return { url: s.url, model: s.model, headers: { authorization: `Bearer ${key}` }, eleven: false };
     }
     return null;
   }
@@ -82,8 +95,8 @@ export class TranscribeService {
     if (!audio.length) throw new HttpError(400, 'error.transcribeEmpty');
     const form = new FormData();
     form.append('file', new Blob([new Uint8Array(audio)], { type }), fileName(type));
-    form.append('model', s.model);
-    if (locale) form.append('language', locale);
+    form.append(s.eleven ? 'model_id' : 'model', s.model);
+    if (locale) form.append(s.eleven ? 'language_code' : 'language', locale);
     const res = await askService(
       this.fetcher,
       s.url,
@@ -91,17 +104,9 @@ export class TranscribeService {
       { unreachable: 'error.transcribeUnreachable', timeout: 'error.transcribeTimeout' },
       TIMEOUT_MS,
     );
-    const body = (await res.json().catch(() => null)) as {
-      text?: unknown;
-      error?: { message?: string } | string;
-      detail?: unknown;
-    } | null;
+    const body = (await res.json().catch(() => null)) as { text?: unknown } | null;
     if (!res.ok || typeof body?.text !== 'string') {
-      const message =
-        typeof body?.error === 'string'
-          ? body.error
-          : (body?.error?.message ?? (typeof body?.detail === 'string' ? body.detail : String(res.status)));
-      throw new HttpError(502, 'error.transcribeFailed', { message });
+      throw new HttpError(502, 'error.transcribeFailed', { message: serviceError(body, res.status) });
     }
     return body.text.trim();
   }

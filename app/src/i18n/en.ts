@@ -806,6 +806,11 @@ export const en: Catalog<MessageKey> = {
   'ai.ttsModel': 'Model (e.g. tts-1 or kokoro)',
   'ai.ttsUrl': 'Address (e.g. http://kokoro:8880/v1)',
   'ai.voice': 'Voice',
+  'ai.voiceId': 'Voice ID',
+  'ai.elevenLabs.stt':
+    'For ElevenLabs: address https://api.elevenlabs.io/v1, model scribe_v2; the key comes from Developers → API Keys in ElevenLabs.',
+  'ai.elevenLabs.tts':
+    'For ElevenLabs: address https://api.elevenlabs.io/v1, model eleven_multilingual_v2 (eleven_flash_v2_5 is faster); write the ID of the voice you picked in ElevenLabs in the Voice field.',
   'ai.baseUrl': 'Address',
   'ai.model': 'Model',
   'ai.key': 'API key (optional)',

@@ -19,6 +19,20 @@ export function internalHost(raw: string): boolean {
   );
 }
 
+/**
+ * ElevenLabs' API, which is not OpenAI-compatible: the server sends it requests in its own shape
+ * (an `xi-api-key` header, `model_id`, a voice ID in the address), so speech can use its voices and
+ * transcription, the most natural in Turkish, from the same address field as any other service.
+ */
+export function elevenLabs(baseUrl: string): boolean {
+  try {
+    const host = new URL(baseUrl).hostname;
+    return host === 'elevenlabs.io' || host.endsWith('.elevenlabs.io');
+  } catch {
+    return false;
+  }
+}
+
 /** The model services the server calls besides the bots' own: memory search and speech. */
 export const AI_KINDS = ['embeddings', 'stt', 'tts'] as const;
 export type AiKind = (typeof AI_KINDS)[number];

@@ -1,6 +1,7 @@
 import {
   AI_KINDS,
   AiEndpointSet,
+  elevenLabs,
   type AiEndpoint,
   type AiEndpoints,
   type AiEndpointSet as SetInput,
@@ -126,7 +127,24 @@ export class AiEndpointService {
 
 /** Headers for a call to an OpenAI-compatible service; a local server without a key gets none. */
 export const authHeaders = (s: AiService): Record<string, string> =>
-  s.apiKey ? { authorization: `Bearer ${s.apiKey}` } : {};
+  !s.apiKey
+    ? {}
+    : elevenLabs(s.baseUrl)
+      ? { 'xi-api-key': s.apiKey }
+      : { authorization: `Bearer ${s.apiKey}` };
+
+/** What a service said went wrong: OpenAI's `error`, or the `detail` of Whisper servers and ElevenLabs. */
+export function serviceError(body: unknown, status: number): string {
+  const b = body as {
+    error?: { message?: unknown } | string;
+    detail?: { message?: unknown } | string;
+  } | null;
+  if (typeof b?.error === 'string') return b.error;
+  if (typeof b?.error?.message === 'string') return b.error.message;
+  if (typeof b?.detail === 'string') return b.detail;
+  if (typeof b?.detail?.message === 'string') return b.detail.message;
+  return String(status);
+}
 
 /**
  * A request to a speech service that got no answer at all. Without this the network's error reached

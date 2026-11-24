@@ -773,6 +773,11 @@ export const tr = {
   'ai.ttsModel': 'Model (ör. tts-1 ya da kokoro)',
   'ai.ttsUrl': 'Adres (ör. http://kokoro:8880/v1)',
   'ai.voice': 'Ses',
+  'ai.voiceId': 'Ses kimliği (voice ID)',
+  'ai.elevenLabs.stt':
+    'ElevenLabs için adres https://api.elevenlabs.io/v1, model scribe_v2; anahtar ElevenLabs’taki Developers → API Keys’ten.',
+  'ai.elevenLabs.tts':
+    'ElevenLabs için adres https://api.elevenlabs.io/v1, model eleven_multilingual_v2 (daha hızlısı eleven_flash_v2_5); Ses alanına ElevenLabs’ta seçtiğin sesin kimliğini (voice ID) yaz.',
   'ai.baseUrl': 'Adres',
   'ai.model': 'Model',
   'ai.key': 'API anahtarı (isteğe bağlı)',
