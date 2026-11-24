@@ -53,7 +53,7 @@ import { atLeast, managesServer } from './services/access';
 import { enforceRule, ruleFor } from './access-rules';
 import { setContentKey } from './db/sealed';
 import { AcpEngine, refusingEngine } from './engine/acp';
-import { ClaudeEngine, FALLBACK_MODELS } from './engine/claude';
+import { ClaudeEngine, engineEnv, FALLBACK_MODELS } from './engine/claude';
 import { FakeEngine } from './engine/fake';
 import { PiEngine } from './engine/pi';
 import type { AccountStatus, Engine, ModelTest } from './engine/types';
@@ -64,6 +64,7 @@ import { OAUTH_CALLBACK_PATH } from './services/connections';
 import { dropAllClients, OAUTH_CLIENT_PATH, setToolCallTimeout } from './connections/client';
 import { Services } from './services';
 import { BackupService } from './services/backup';
+import { bundledClaude, ClaudeSignInService } from './services/claude-sign-in';
 import { probeShellSandbox } from './shell-sandbox';
 import { isServerKey, translator, type T } from './i18n';
 import { serverLocale } from './services/settings';
@@ -82,6 +83,8 @@ export interface ServerOptions {
    * vault key, sign-ins to apps, queued work) belongs to the data it replaced.
    */
   restart?: () => void;
+  /** The Claude Code program that signs in to Claude (tests); unset uses the one the Agent SDK brings. */
+  claudeExecutable?: string | null;
 }
 
 export interface LeafBotServer {
@@ -298,7 +301,19 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     if (!engine.testModel) return { ok: true };
     return engine.testModel(`${provider}/${model}`, await services.settings.locale());
   };
+  const claudeSignIn = new ClaudeSignInService({
+    executable: () => (opts.claudeExecutable === undefined ? bundledClaude() : opts.claudeExecutable),
+    // What the engine passes the CLI, so the login lands where the bots' Claude looks for it.
+    env: () => engineEnv({ CLAUDE_CONFIG_DIR: process.env.CLAUDE_CONFIG_DIR }),
+    // A saved token or key would come before the new login: the person chose to sign in instead.
+    async onSignedIn() {
+      await services.claudeAuth.clear();
+      models = null;
+      await checkClaude(true);
+    },
+  });
   const claudeAuth = {
+    signIn: claudeSignIn,
     status: () => services.claudeAuth.status(),
     async set(input: ClaudeAuthSet) {
       await services.claudeAuth.set(input);
@@ -851,6 +866,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
       await services.reactions.stop();
       services.push.stop();
       services.subscriptions.stop();
+      claudeSignIn.stop();
       await services.turns.shutdown();
       await services.memoryReview.shutdown();
       await services.memoryTidy.shutdown();

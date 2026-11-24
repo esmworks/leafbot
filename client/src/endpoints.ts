@@ -250,6 +250,12 @@ export function endpoints(send: Transport, base = '') {
     setClaudeAuth: (b: ClaudeAuthSet) => http.put<ServerInfo['claude']>('/api/claude/auth', b),
     clearClaudeAuth: () => http.del<ServerInfo['claude']>('/api/claude/auth'),
     claudeModels: () => http.get<ClaudeModel[]>('/api/claude/models'),
+    /** Starts signing in to Claude with the person's own account; follow it with `claudeSignIn`. */
+    startClaudeSignIn: () => http.post<ProviderSignIn>('/api/claude/sign-in', {}),
+    claudeSignIn: (id: string) => http.get<ProviderSignIn>(`/api/claude/sign-in/${id}`),
+    pasteClaudeSignIn: (id: string, input: string) =>
+      http.post<ProviderSignIn>(`/api/claude/sign-in/${id}/paste`, { input }),
+    cancelClaudeSignIn: (id: string) => http.del<{ ok: true }>(`/api/claude/sign-in/${id}`),
     /** This phone's push token and choices; the server sends notices that pass them. */
     pushDevice: (b: PushDeviceSet) => http.put<{ ok: true }>('/api/push/device', b),
     pushTest: (token: string) => http.post<{ ok: true }>('/api/push/test', { token }),

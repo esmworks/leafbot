@@ -7,6 +7,12 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Sign in with Claude: connecting Claude (first-run setup and Settings → Connection) now starts with a Sign in with
+  Claude button. The server runs the Claude Code program that comes with it, so nobody has to install Claude Code or
+  open a terminal for a subscription token. On the computer the server runs on, the sign-in page opens in the browser
+  and comes back by itself; with the server elsewhere, you open the page from the app and paste the code it shows.
+  Claude Code keeps and renews the login where the bots read it; a saved token or API key is removed, as the login
+  takes its place. The token and the API key stay under "Other ways".
 - A routine's bot step can be done by another bot: pick it under "Done by" on the step, in the list or on the flow, or
   a bot names it with `by_bot`. That bot does the step with its own settings, apps and account, in its conversation
   with the routine's bot, for the routine's person; its answer shows in the run's conversation and goes on to the steps

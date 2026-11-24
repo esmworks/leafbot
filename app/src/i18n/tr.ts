@@ -2540,6 +2540,16 @@ export const tr = {
   'claude.removeHint': 'Kaldırınca sunucunun makinesindeki Claude girişi kullanılır.',
   'claude.oldServer':
     'Bağlı sunucu Claude bağlantısını uygulamadan kurmayı desteklemiyor; sunucuyu güncelleyin.',
+  'claude.signIn': 'Claude ile giriş yap',
+  'claude.signInHint':
+    'Tarayıcıda Claude giriş sayfasını açar. Pro, Max, Team veya Enterprise planı gerekir; hiçbir şey kurmanız gerekmez.',
+  'claude.signInStarting': 'Giriş başlatılıyor…',
+  'claude.signInOpened': 'Tarayıcıda açılan sayfada giriş yapın. Sayfa açılmadıysa buradan açın.',
+  'claude.signInPasteHint': 'Giriş yaptıktan sonra sayfa bir kod gösterirse buraya yapıştırın.',
+  'claude.signInPastePlaceholder': 'Sayfadaki kod',
+  'claude.signInDone': "Claude'a giriş yapıldı",
+  'claude.signInFailed': 'Giriş tamamlanmadı: {detail}',
+  'claude.otherWays': "Diğer yollar: abonelik token'ı ya da API anahtarı",
   'model.title': 'Model ve effort',
   'model.body':
     'Kendine ayrı bir model seçilmeyen botlar bunu kullanır. Sonra Ayarlar → Bağlantı bölümünden değiştirebilirsiniz.',

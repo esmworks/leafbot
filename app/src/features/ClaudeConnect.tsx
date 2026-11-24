@@ -1,7 +1,8 @@
-import type { ServerInfo } from '@leafbot/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Check, Loader2, X } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import type { ProviderSignIn, ServerInfo } from '@leafbot/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Check, ExternalLink, Loader2, LogIn, X } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useT } from '@/i18n';
@@ -28,14 +29,16 @@ export function useClaudeState() {
 }
 
 /**
- * Connects Claude: a subscription token from `claude setup-token` or an Anthropic API key. Saving
- * tries the credential with one real request, so "Connected" means Claude answered.
+ * Connects Claude: signing in with the person's Claude account first, and behind "other ways" a
+ * subscription token from `claude setup-token` or an Anthropic API key. Saving a token or key tries
+ * it with one real request, so "Connected" means Claude answered.
  */
 export function ClaudeConnect({ checking = false }: { checking?: boolean }) {
   const t = useT();
   const qc = useQueryClient();
   const { loading, auth, connected, unknown, claude } = useClaudeState();
   const [open, setOpen] = useState(false);
+  const [other, setOther] = useState(false);
   const [method, setMethod] = useState<Method>('token');
   const [value, setValue] = useState('');
   const [gateway, setGateway] = useState('');
@@ -138,6 +141,25 @@ export function ClaudeConnect({ checking = false }: { checking?: boolean }) {
       </div>
 
       {showForm && (
+        <ClaudeSignIn
+          onDone={() => {
+            setOpen(false);
+            setOther(false);
+            setResult(null);
+            void refresh();
+          }}
+        />
+      )}
+      {showForm && !other && (
+        <button
+          type="button"
+          className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          onClick={() => setOther(true)}
+        >
+          {t('claude.otherWays')}
+        </button>
+      )}
+      {showForm && other && (
         <form onSubmit={submit} className="space-y-4">
           <div className="grid gap-2 sm:grid-cols-2" role="radiogroup">
             {(['token', 'apiKey'] as const).map((m) => (
@@ -216,6 +238,125 @@ export function ClaudeConnect({ checking = false }: { checking?: boolean }) {
       {result?.status === 'ok' && !showForm && (
         <p className="text-sm text-emerald-600 dark:text-emerald-400">{t('claude.connected')}</p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Signing in with the person's own Claude account, run on the server by the Claude Code it brings.
+ * On the computer the server runs on the browser opens by itself and comes back; from elsewhere the
+ * person opens the page here and pastes the code it shows after the sign-in.
+ */
+function ClaudeSignIn({ onDone }: { onDone(): void }) {
+  const t = useT();
+  const [session, setSession] = useState<ProviderSignIn | null>(null);
+  const [pasted, setPasted] = useState('');
+  const doneRef = useRef(onDone);
+  useEffect(() => {
+    doneRef.current = onDone;
+  });
+  const start = useMutation({ mutationFn: api.startClaudeSignIn, onSuccess: setSession });
+  const live = session && (session.status === 'starting' || session.status === 'waiting');
+  const { data: polled } = useQuery({
+    queryKey: ['claude-sign-in', session?.id],
+    queryFn: () => api.claudeSignIn(session!.id),
+    enabled: !!live,
+    refetchInterval: 1500,
+  });
+  const now = polled && polled.id === session?.id ? polled : session;
+  const done = now?.status === 'done';
+  useEffect(() => {
+    if (!done) return;
+    toast.success(t('claude.signInDone'));
+    doneRef.current();
+  }, [done, t]);
+  // Ends a sign-in left half-way when the form closes.
+  useEffect(() => {
+    const id = session?.id;
+    return () => {
+      if (id) void api.cancelClaudeSignIn(id).catch(() => {});
+    };
+  }, [session?.id]);
+  const paste = useMutation({
+    mutationFn: () => api.pasteClaudeSignIn(now!.id, pasted.trim()),
+    onSuccess: (s) => {
+      setSession(s);
+      setPasted('');
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  if (!now || now.status === 'cancelled' || now.status === 'error' || done) {
+    const failed = now?.status === 'error' ? now.error : start.error ? (start.error as Error).message : null;
+    return (
+      <div className="space-y-2">
+        <Button className="h-10 rounded-full" onClick={() => start.mutate()} disabled={start.isPending}>
+          {start.isPending ? <Loader2 className="animate-spin" /> : <LogIn />}
+          {t('claude.signIn')}
+        </Button>
+        <p className="text-xs text-muted-foreground">{t('claude.signInHint')}</p>
+        {failed && <p className="text-sm text-destructive">{t('claude.signInFailed', { detail: failed })}</p>}
+      </div>
+    );
+  }
+  return (
+    <div className="space-y-3 rounded-2xl border p-4">
+      {now.status === 'starting' ? (
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 animate-spin" /> {t('claude.signInStarting')}
+        </p>
+      ) : (
+        <p className="text-sm">{t('claude.signInOpened')}</p>
+      )}
+      {now.url && (
+        <Button asChild variant="outline" className="rounded-full">
+          <a href={now.url} target="_blank" rel="noopener noreferrer">
+            <ExternalLink /> {t('provider.openSignIn')}
+          </a>
+        </Button>
+      )}
+      {now.needsPaste && (
+        <form
+          className="space-y-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (pasted.trim()) paste.mutate();
+          }}
+        >
+          <p className="text-xs text-muted-foreground">{t('claude.signInPasteHint')}</p>
+          <div className="flex flex-wrap gap-2">
+            <Input
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              value={pasted}
+              onChange={(e) => setPasted(e.target.value)}
+              placeholder={t('claude.signInPastePlaceholder')}
+              aria-label={t('claude.signInPastePlaceholder')}
+              className="h-10 min-w-56 flex-1 rounded-full px-4 font-mono"
+            />
+            <Button type="submit" className="h-10 rounded-full" disabled={!pasted.trim() || paste.isPending}>
+              {t('common.save')}
+            </Button>
+          </div>
+        </form>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="size-3 animate-spin" /> {t('provider.signInWaiting')}
+        </p>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="rounded-full"
+          onClick={() => {
+            void api.cancelClaudeSignIn(now.id).catch(() => {});
+            setSession(null);
+          }}
+        >
+          {t('common.cancel')}
+        </Button>
+      </div>
     </div>
   );
 }
