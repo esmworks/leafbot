@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { inTone, lightness, oklch, TINTED } from './tone';
+import { inTone, lightness, oklch, TINTED, TONES } from './tone';
 
 const grays = Object.fromEntries(
   TINTED.map((key, i) => [key, ['#FAFAFA', '#FFFFFF', '#F0F0F0', '#636363', '#070707'][i % 5]!]),
@@ -22,6 +22,16 @@ describe('color tone', () => {
     // Cool: blue above red.
     const bg = slate.mutedForeground;
     expect(parseInt(bg.slice(5, 7), 16)).toBeGreaterThan(parseInt(bg.slice(1, 3), 16));
+  });
+
+  it('keeps every tone readable: each tints the grays without making them lighter or darker', () => {
+    for (const tone of TONES.filter((t) => t !== 'neutral'))
+      for (const dark of [false, true]) {
+        const tinted = inTone(table, tone, dark);
+        expect(tinted.background).not.toBe(table.background);
+        for (const key of TINTED)
+          expect(Math.abs(lightness(tinted[key]) - lightness(table[key]))).toBeLessThan(0.01);
+      }
   });
 
   it('turns a gray into OKLCH and back without a change', () => {

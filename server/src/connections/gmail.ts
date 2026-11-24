@@ -1,6 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import type { MailSender } from '@leafbot/shared';
+import { MAX_UPLOAD_BYTES, type MailSender } from '@leafbot/shared';
 import type { StoredConnectionTool } from '../db/schema';
 import { fetchSignedIn, type ClientTarget } from './client';
 import {
@@ -21,11 +21,11 @@ import {
 } from './gmail-mime';
 
 /**
- * The Gmail tools that change mail, for a Gmail connection whose MCP server does not list them.
- * The sign-in already holds the compose and modify scopes, which let the Gmail API do what these
- * tools do; this server adds each missing tool under the server's own name and input, and runs it
- * through that API. Once the server lists a tool itself, the added one goes and the server's is
- * used.
+ * The Gmail tools a Gmail connection's MCP server does not list: sending and changing mail, and
+ * reading a mail whole with its files. The sign-in already holds the readonly, compose and modify
+ * scopes, which let the Gmail API do what these tools do; this server adds each missing tool
+ * under the server's own name and input where it has one, and runs it through that API. Once the
+ * server lists a tool itself, the added one goes and the server's is used.
  */
 const GMAIL_MCP_HOST = 'gmailmcp.googleapis.com';
 const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -155,6 +155,37 @@ export const GmailUpdateDraftInput = z
 
 const DraftIdInput = z.object({ draftId: gmailId }).strict();
 const LabelIdInput = z.object({ labelId: gmailId }).strict();
+const MessageIdInput = z.object({ messageId: gmailId }).strict();
+const ThreadIdInput = z.object({ threadId: gmailId }).strict();
+
+export const GmailAttachmentInput = z
+  .object({
+    messageId: gmailId,
+    attachmentId: z
+      .string()
+      .trim()
+      .min(1)
+      .max(4096)
+      .regex(/^[A-Za-z0-9_-]+$/, 'an id as Gmail gave it')
+      .optional(),
+    filename: z.string().max(1000).optional(),
+    attachmentIndex: z.number().int().min(0).max(1000).optional(),
+    mimeType: z.string().max(255).optional(),
+  })
+  .strict();
+
+const labelIds = z.array(gmailId).max(100);
+const labelChange = { addLabelIds: labelIds.optional(), removeLabelIds: labelIds.optional() };
+const someChange = (m: { addLabelIds?: string[]; removeLabelIds?: string[] }) =>
+  !!(m.addLabelIds?.length || m.removeLabelIds?.length);
+const MessageLabelsInput = z
+  .object({ messageId: gmailId, ...labelChange })
+  .strict()
+  .refine(someChange, 'give addLabelIds or removeLabelIds');
+const ThreadLabelsInput = z
+  .object({ threadId: gmailId, ...labelChange })
+  .strict()
+  .refine(someChange, 'give addLabelIds or removeLabelIds');
 
 /** Each preset's colors, as Gmail's own label palette has them. */
 const LABEL_COLORS = {
@@ -311,6 +342,7 @@ class Gmail {
 interface GmailMessage {
   id?: string;
   threadId?: string;
+  labelIds?: string[];
   payload?: GmailPart;
 }
 
@@ -385,13 +417,28 @@ const mime = (m: Mail) => mimeMessage(m, boundary());
 // ---------------------------------------------------------------------------------------------
 // The tools
 
-type Run = (gmail: Gmail, args: Record<string, unknown>) => Promise<Record<string, unknown>>;
+/** What a tool may use besides Gmail. */
+export interface GmailToolContext {
+  /**
+   * Keeps a file in the conversation's folder under a free name made from `name`, and gives back
+   * its path; absent where there is no conversation to keep it in.
+   */
+  saveFile?: (name: string, data: Buffer) => Promise<string>;
+}
+
+type Run = (
+  gmail: Gmail,
+  args: Record<string, unknown>,
+  ctx: GmailToolContext,
+) => Promise<Record<string, unknown>>;
 
 interface LocalTool {
   name: string;
   title: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  /** Whether it only reads the account, or sends or changes something in it. */
+  kind: 'read' | 'write';
   run: Run;
 }
 
@@ -639,6 +686,157 @@ const deleteLabel: Run = async (gmail, args) => {
   return { deleted: true, labelId: m.labelId };
 };
 
+/** The files of a mail as the bot sees them: numbered by their place, for `download_attachment`. */
+function fileList(files: ReturnType<typeof readParts>['files']) {
+  return files.map((f, i) => ({
+    attachmentIndex: i,
+    filename: f.filename ?? null,
+    mimeType: f.mimeType,
+    size: f.size,
+    ...(f.attachmentId && { attachmentId: f.attachmentId }),
+    // A picture the mail's HTML shows in its text, such as a signature's logo.
+    ...(f.contentId && { inline: true }),
+  }));
+}
+
+/** A mail as the bot reads it: who and when, its text, and its files. */
+function mailView(msg: GmailMessage) {
+  const p = msg.payload;
+  const read = readParts(p);
+  const header = (name: string) => oneLineOf(headerOf(p, name)) || undefined;
+  return {
+    id: msg.id ?? null,
+    threadId: msg.threadId ?? null,
+    labelIds: msg.labelIds ?? [],
+    from: header('From'),
+    to: header('To'),
+    cc: header('Cc'),
+    bcc: header('Bcc'),
+    replyTo: header('Reply-To'),
+    date: header('Date'),
+    subject: header('Subject'),
+    body: read.text ?? (read.html !== undefined ? textFromHtml(read.html) : ''),
+    attachments: fileList(read.files),
+  };
+}
+
+const getMessage: Run = async (gmail, args) => {
+  const m = parse(MessageIdInput, args);
+  return mailView(await step('reading the mail', () => gmail.message(m.messageId, 'full')));
+};
+
+const getDraft: Run = async (gmail, args) => {
+  const m = parse(DraftIdInput, args);
+  const draft = await step('reading the draft', () =>
+    gmail.get<{ id?: string; message?: GmailMessage }>(`/drafts/${m.draftId}?format=full`),
+  );
+  return { draftId: draft.id ?? m.draftId, ...mailView(draft.message ?? {}) };
+};
+
+/** A name for a file the mail gives none, from its media type: `attachment-2.png`. */
+function nameFor(f: { filename?: string; mimeType: string }, index: number) {
+  if (f.filename) return f.filename;
+  const sub = f.mimeType.split('/')[1] ?? '';
+  return `attachment-${index}${/^[a-z0-9]{1,10}$/.test(sub) ? `.${sub}` : ''}`;
+}
+
+const downloadAttachment: Run = async (gmail, args, ctx) => {
+  const m = parse(GmailAttachmentInput, args);
+  const save = ctx.saveFile;
+  if (!save) throw new InputError('there is no conversation folder here to keep the file in');
+  const msg = await step('reading the mail', () => gmail.message(m.messageId, 'full'));
+  const files = readParts(msg.payload).files;
+  if (!files.length) throw new InputError('the mail has no files');
+  const indexed = files.map((f, i) => ({ f, i }));
+  let chosen: { f: (typeof files)[number]; i: number }[];
+  if (m.attachmentIndex !== undefined) {
+    chosen = indexed.filter((x) => x.i === m.attachmentIndex);
+  } else if (m.attachmentId || m.filename) {
+    // Gmail may give a file another id each time the mail is read: the name is the surer match.
+    chosen = indexed.filter((x) => m.attachmentId && x.f.attachmentId === m.attachmentId);
+    if (!chosen.length) chosen = indexed.filter((x) => m.filename && x.f.filename === m.filename);
+  } else {
+    // Every file it names; nameless pictures in the text are mostly logos.
+    chosen = indexed.filter((x) => x.f.filename);
+    if (!chosen.length) chosen = indexed;
+  }
+  if (!chosen.length) {
+    throw new InputError(
+      `no file of the mail matches; call again with attachmentIndex from this list: ${JSON.stringify(fileList(files))}`,
+    );
+  }
+  // Too large by what Gmail says of the files: none is fetched.
+  const said = chosen.reduce((n, x) => n + x.f.size, 0);
+  if (said > MAX_UPLOAD_BYTES * 1.4) {
+    throw new InputError(`the files come to ${Math.ceil(said / 1024 / 1024)} MB; ask for one at a time`);
+  }
+  const saved: Record<string, unknown>[] = [];
+  for (const { f, i } of chosen) {
+    const file = await step(`reading the file ${f.filename ?? 'with no name'}`, () =>
+      gmail.file(m.messageId, f),
+    );
+    const entry = {
+      attachmentIndex: i,
+      filename: f.filename ?? null,
+      mimeType: f.mimeType,
+      size: file.data.length,
+    };
+    if (!file.data.length) saved.push({ ...entry, error: 'the file is empty' });
+    else if (file.data.length > MAX_UPLOAD_BYTES) {
+      saved.push({ ...entry, error: `larger than ${MAX_UPLOAD_BYTES / 1024 / 1024} MB, not kept` });
+    } else saved.push({ ...entry, path: await save(nameFor(f, i), file.data) });
+  }
+  return {
+    messageId: m.messageId,
+    saved,
+    note: 'Each file is in the conversation folder at its path: read it from there with the file tools.',
+  };
+};
+
+/** A call that changes one mail or conversation by its id and gives back what Gmail returns. */
+const change =
+  (
+    input: typeof MessageIdInput | typeof ThreadIdInput,
+    what: string,
+    path: (id: string) => string,
+    json?: unknown,
+  ): Run =>
+  async (gmail, args) => {
+    const m = parse(input, args) as { messageId?: string; threadId?: string };
+    const id = (m.messageId ?? m.threadId)!;
+    const r = await step(what, () =>
+      gmail.request<{ id?: string; threadId?: string; labelIds?: string[] }>(
+        'POST',
+        `${API}${path(id)}`,
+        json === undefined ? undefined : { json },
+      ),
+    );
+    return { done: true, ...m, ...(r.labelIds && { labelIds: r.labelIds }) };
+  };
+
+const SPAM = { addLabelIds: ['SPAM'], removeLabelIds: ['INBOX'] };
+const NOT_SPAM = { addLabelIds: ['INBOX'], removeLabelIds: ['SPAM'] };
+
+const updateMessageLabels: Run = async (gmail, args) => {
+  const m = parse(MessageLabelsInput, args);
+  const r = await step('changing the labels', () =>
+    gmail.request<{ labelIds?: string[] }>('POST', `${API}/messages/${m.messageId}/modify`, {
+      json: { addLabelIds: m.addLabelIds ?? [], removeLabelIds: m.removeLabelIds ?? [] },
+    }),
+  );
+  return { done: true, messageId: m.messageId, labelIds: r.labelIds ?? [] };
+};
+
+const updateThreadLabels: Run = async (gmail, args) => {
+  const m = parse(ThreadLabelsInput, args);
+  await step('changing the labels', () =>
+    gmail.request('POST', `${API}/threads/${m.threadId}/modify`, {
+      json: { addLabelIds: m.addLabelIds ?? [], removeLabelIds: m.removeLabelIds ?? [] },
+    }),
+  );
+  return { done: true, threadId: m.threadId };
+};
+
 // ---------------------------------------------------------------------------------------------
 // The tools' descriptions, as the bot reads them
 
@@ -703,6 +901,7 @@ const TOOLS: LocalTool[] = [
       replyToMessageId: { type: 'string', description: 'The mail this one answers, in its conversation.' },
       draftId: { type: 'string', description: 'A draft to send as it is; give nothing else with it.' },
     }),
+    kind: 'write',
     run: sendMessage,
   },
   {
@@ -724,6 +923,7 @@ const TOOLS: LocalTool[] = [
       },
       ['messageId'],
     ),
+    kind: 'write',
     run: reply,
   },
   {
@@ -747,6 +947,7 @@ const TOOLS: LocalTool[] = [
       },
       ['messageId'],
     ),
+    kind: 'write',
     run: forward,
   },
   {
@@ -767,6 +968,7 @@ const TOOLS: LocalTool[] = [
       },
       ['draftId'],
     ),
+    kind: 'write',
     run: updateDraft,
   },
   {
@@ -774,6 +976,7 @@ const TOOLS: LocalTool[] = [
     title: 'Delete draft',
     description: 'Deletes a draft in the signed-in Gmail account for good. Give its `draftId`.',
     inputSchema: object({ draftId: { type: 'string', description: 'The draft to delete.' } }, ['draftId']),
+    kind: 'write',
     run: deleteDraft,
   },
   {
@@ -799,6 +1002,7 @@ const TOOLS: LocalTool[] = [
       },
       ['labelId'],
     ),
+    kind: 'write',
     run: updateLabel,
   },
   {
@@ -807,7 +1011,169 @@ const TOOLS: LocalTool[] = [
     description:
       'Deletes a label in the signed-in Gmail account. Its mails stay; they lose the label. Give its `labelId`.',
     inputSchema: object({ labelId: { type: 'string', description: 'The label to delete.' } }, ['labelId']),
+    kind: 'write',
     run: deleteLabel,
+  },
+  {
+    name: 'get_message',
+    title: 'Get email',
+    description:
+      'Reads one email in the signed-in Gmail account: its sender, recipients, date, subject, labels, text, and the list of its files (name, type, size and attachmentIndex). Give its `messageId`, as search_threads or get_thread gave it. To read a file, call download_attachment.',
+    inputSchema: object({ messageId: { type: 'string', description: 'The mail to read.' } }, ['messageId']),
+    kind: 'read',
+    run: getMessage,
+  },
+  {
+    name: 'get_draft',
+    title: 'Get draft',
+    description:
+      'Reads one draft in the signed-in Gmail account: its recipients, subject, text and files. Give its `draftId`, as list_drafts gave it.',
+    inputSchema: object({ draftId: { type: 'string', description: 'The draft to read.' } }, ['draftId']),
+    kind: 'read',
+    run: getDraft,
+  },
+  {
+    name: 'download_attachment',
+    title: 'Download attachment',
+    description:
+      "Saves the files of an email (PDF, Excel, Word, pictures and the like) into this conversation's folder so they can be opened and read with the file tools. Give the mail's `messageId`, and to pick one file its `attachmentIndex` (from get_message), or its `filename` or `attachmentId` as get_message or get_thread listed it. Left out, every named file of the mail is saved. Returns each saved file's path, name, type and size. If no file matches, the reply lists the mail's files with their attachmentIndex.",
+    inputSchema: object(
+      {
+        messageId: { type: 'string', description: 'The mail the file belongs to.' },
+        attachmentIndex: {
+          type: 'integer',
+          minimum: 0,
+          description: "The file's place among the mail's files, as get_message listed it.",
+        },
+        filename: { type: 'string', description: "The file's name, as the mail lists it." },
+        attachmentId: {
+          type: 'string',
+          description: "The file's id, as get_message or get_thread listed it.",
+        },
+        mimeType: { type: 'string', description: "The file's media type, as listed; not needed." },
+      },
+      ['messageId'],
+    ),
+    kind: 'read',
+    run: downloadAttachment,
+  },
+  {
+    name: 'trash_message',
+    title: 'Move email to trash',
+    description:
+      'Moves one email of the signed-in Gmail account to the trash, where Gmail keeps it for 30 days; untrash_message brings it back. Give its `messageId`.',
+    inputSchema: object({ messageId: { type: 'string', description: 'The mail to trash.' } }, ['messageId']),
+    kind: 'write',
+    run: change(MessageIdInput, 'moving the mail to the trash', (id) => `/messages/${id}/trash`),
+  },
+  {
+    name: 'untrash_message',
+    title: 'Restore email from trash',
+    description: 'Takes one email of the signed-in Gmail account out of the trash. Give its `messageId`.',
+    inputSchema: object({ messageId: { type: 'string', description: 'The mail to restore.' } }, [
+      'messageId',
+    ]),
+    kind: 'write',
+    run: change(MessageIdInput, 'taking the mail out of the trash', (id) => `/messages/${id}/untrash`),
+  },
+  {
+    name: 'trash_thread',
+    title: 'Move conversation to trash',
+    description:
+      'Moves every email of a conversation in the signed-in Gmail account to the trash, where Gmail keeps them for 30 days; untrash_thread brings them back. Give its `threadId`.',
+    inputSchema: object({ threadId: { type: 'string', description: 'The conversation to trash.' } }, [
+      'threadId',
+    ]),
+    kind: 'write',
+    run: change(ThreadIdInput, 'moving the conversation to the trash', (id) => `/threads/${id}/trash`),
+  },
+  {
+    name: 'untrash_thread',
+    title: 'Restore conversation from trash',
+    description:
+      'Takes every email of a conversation in the signed-in Gmail account out of the trash. Give its `threadId`.',
+    inputSchema: object({ threadId: { type: 'string', description: 'The conversation to restore.' } }, [
+      'threadId',
+    ]),
+    kind: 'write',
+    run: change(ThreadIdInput, 'taking the conversation out of the trash', (id) => `/threads/${id}/untrash`),
+  },
+  {
+    name: 'mark_message_spam',
+    title: 'Mark email as spam',
+    description:
+      'Moves one email of the signed-in Gmail account to Spam and out of the inbox. Give its `messageId`.',
+    inputSchema: object({ messageId: { type: 'string', description: 'The mail to mark.' } }, ['messageId']),
+    kind: 'write',
+    run: change(MessageIdInput, 'marking the mail as spam', (id) => `/messages/${id}/modify`, SPAM),
+  },
+  {
+    name: 'unmark_message_spam',
+    title: 'Mark email as not spam',
+    description:
+      'Takes one email of the signed-in Gmail account out of Spam and back into the inbox. Give its `messageId`.',
+    inputSchema: object({ messageId: { type: 'string', description: 'The mail to unmark.' } }, ['messageId']),
+    kind: 'write',
+    run: change(MessageIdInput, 'marking the mail as not spam', (id) => `/messages/${id}/modify`, NOT_SPAM),
+  },
+  {
+    name: 'mark_thread_spam',
+    title: 'Mark conversation as spam',
+    description:
+      'Moves every email of a conversation in the signed-in Gmail account to Spam and out of the inbox. Give its `threadId`.',
+    inputSchema: object({ threadId: { type: 'string', description: 'The conversation to mark.' } }, [
+      'threadId',
+    ]),
+    kind: 'write',
+    run: change(ThreadIdInput, 'marking the conversation as spam', (id) => `/threads/${id}/modify`, SPAM),
+  },
+  {
+    name: 'unmark_thread_spam',
+    title: 'Mark conversation as not spam',
+    description:
+      'Takes every email of a conversation in the signed-in Gmail account out of Spam and back into the inbox. Give its `threadId`.',
+    inputSchema: object({ threadId: { type: 'string', description: 'The conversation to unmark.' } }, [
+      'threadId',
+    ]),
+    kind: 'write',
+    run: change(
+      ThreadIdInput,
+      'marking the conversation as not spam',
+      (id) => `/threads/${id}/modify`,
+      NOT_SPAM,
+    ),
+  },
+  {
+    name: 'update_message_labels',
+    title: 'Change email labels',
+    description:
+      "Adds and removes labels on one email of the signed-in Gmail account in one call. Label ids come from list_labels; Gmail's own are UNREAD, STARRED, IMPORTANT, INBOX and the like, so removing UNREAD marks the mail read and removing INBOX archives it. Give its `messageId`, and `addLabelIds` and/or `removeLabelIds`. Returns the labels the mail has now.",
+    inputSchema: object(
+      {
+        messageId: { type: 'string', description: 'The mail to change.' },
+        addLabelIds: { type: 'array', items: { type: 'string' }, description: 'Label ids to add.' },
+        removeLabelIds: { type: 'array', items: { type: 'string' }, description: 'Label ids to remove.' },
+      },
+      ['messageId'],
+    ),
+    kind: 'write',
+    run: updateMessageLabels,
+  },
+  {
+    name: 'update_thread_labels',
+    title: 'Change conversation labels',
+    description:
+      "Adds and removes labels on every email of a conversation in the signed-in Gmail account in one call. Label ids come from list_labels; Gmail's own are UNREAD, STARRED, IMPORTANT, INBOX and the like, so removing UNREAD marks the conversation read and removing INBOX archives it. Give its `threadId`, and `addLabelIds` and/or `removeLabelIds`.",
+    inputSchema: object(
+      {
+        threadId: { type: 'string', description: 'The conversation to change.' },
+        addLabelIds: { type: 'array', items: { type: 'string' }, description: 'Label ids to add.' },
+        removeLabelIds: { type: 'array', items: { type: 'string' }, description: 'Label ids to remove.' },
+      },
+      ['threadId'],
+    ),
+    kind: 'write',
+    run: updateThreadLabels,
   },
 ];
 
@@ -840,12 +1206,24 @@ export function withGmailTools(
     title: t.title,
     description: t.description,
     inputSchema: t.inputSchema,
-    hinted: 'write',
+    hinted: t.kind,
     kind: null,
     enabled: kept.find((k) => k.name === t.name && k.local)?.enabled ?? true,
     local: 'gmail',
   }));
   return [...listed, ...added];
+}
+
+/**
+ * Whether a connection's tool reads or changes, as the bot's turn treats it. A tool this server
+ * adds that sends or changes mail is always a change, whatever the person set it to: only its
+ * card stands between the bot and the account.
+ */
+export function toolKind(
+  t: Pick<StoredConnectionTool, 'name' | 'kind' | 'hinted' | 'local'>,
+): 'read' | 'write' {
+  if (t.local && BY_NAME.get(t.name)?.kind !== 'read') return 'write';
+  return t.kind ?? t.hinted;
 }
 
 /** Who the account sends as, for the mail card: its default address and that address's signature. */
@@ -866,19 +1244,19 @@ export async function runGmailTool(
   name: string,
   args: Record<string, unknown>,
   signal?: AbortSignal,
+  ctx: GmailToolContext = {},
 ): Promise<CallToolResult> {
   const tool = BY_NAME.get(name);
   if (!tool) return fail(`No such Gmail tool: ${name}`);
   try {
-    const out = await tool.run(new Gmail(target, signal), args);
+    const out = await tool.run(new Gmail(target, signal), args, ctx);
     return { content: [{ type: 'text', text: JSON.stringify(out) }] };
   } catch (err) {
     if (err instanceof InputError) return fail(`Nothing was done: ${err.message}`);
     if (err instanceof StepError) {
       const g = err.refusal;
-      return fail(
-        `Gmail refused ${err.step} (HTTP ${g.status}), so nothing was sent or changed: ${g.body.slice(0, 2000)}`,
-      );
+      const outcome = tool.kind === 'read' ? '' : ', so nothing was sent or changed';
+      return fail(`Gmail refused ${err.step} (HTTP ${g.status})${outcome}: ${g.body.slice(0, 2000)}`);
     }
     throw err;
   }

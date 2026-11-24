@@ -1941,6 +1941,10 @@ export const en: Catalog<MessageKey> = {
   'general.tone.neutral': 'Neutral',
   'general.tone.slate': 'Slate',
   'general.tone.leaf': 'Leaf',
+  'general.tone.rose': 'Rose',
+  'general.tone.lavender': 'Lavender',
+  'general.tone.peach': 'Peach',
+  'general.tone.sand': 'Sand',
   'general.wallpaper': 'Background',
   'general.wallpaperHint': 'A picture of your own behind the sidebar and the chat. Kept on this device.',
   'general.wallpaper.choose': 'Choose picture',
@@ -1950,6 +1954,14 @@ export const en: Catalog<MessageKey> = {
   'general.wallpaper.unreadable': 'This file could not be opened as a picture.',
   'general.wallpaperDim': 'Background dimming',
   'general.wallpaperDimHint': 'More dimming keeps the text easier to read.',
+  'general.wallpaperBlur': 'Background blur',
+  'general.wallpaperBlurHint':
+    'Off shows the picture sharp behind the panels and messages; raise the dimming if text gets hard to read.',
+  'general.wallpaperOwnBubble': 'Your messages',
+  'general.wallpaperOwnBubbleHint':
+    'Solid keeps your messages in their full colour, readable over any picture.',
+  'general.wallpaperOwnBubble.glass': 'Glass',
+  'general.wallpaperOwnBubble.solid': 'Solid',
   'general.languageHint':
     "The interface, the bots' prompt and the system messages in conversations use this language.",
   'general.bots': 'Bots',
