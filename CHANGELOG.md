@@ -49,6 +49,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
   written there leave the chat with no bot, and the front door reads them (to suggest another bot, or answer you).
   And on a manager bot's card asking to change another bot, words written instead of Approve or Decline reach the
   manager with the refusal.
+- A message you write in the chat while the bot waits on a card of several questions, or one asking for a secret, now
+  reaches the bot at once: the card closes as skipped and the bot reads your words in the same turn. Before, the
+  message waited until the card was answered. A card of one question still takes what you write as its answer.
 - WhatsApp no longer wipes its link when the server's secret key changes; it says the saved keys cannot be read and
   asks you to link again. Telegram, Slack, Discord and Teams show as not connected, with a reason, when their saved
   tokens can no longer be read, instead of showing as connected while doing nothing.
