@@ -799,8 +799,12 @@ describe.skipIf(!BROWSER)('botun tarayıcısı', () => {
     await t.send(thread.id, `[araç:browser_open {"url":"${base}/"}]`);
     await t.services.turns.idle();
     const browser = t.services.ctx.browser;
-    // Chromium's own page for crashing a tab, as an out-of-memory page would.
-    await browser.use(bot.id, (page) => page.goto('chrome://crash').catch(() => {}));
+    // Chromium's own page for crashing a tab, as an out-of-memory page would. The navigation is
+    // not awaited: should it not settle when the tab dies, it would wait for Playwright's 30 s
+    // navigation timeout while the browser's step queue holds the snapshots below behind it.
+    await browser.use(bot.id, async (page) => {
+      void page.goto('chrome://crash').catch(() => {});
+    });
     await waitFor(async () => (await text('browser_snapshot', {})).includes('heading "Giriş"'));
   });
 
