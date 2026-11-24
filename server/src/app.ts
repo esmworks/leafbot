@@ -61,6 +61,7 @@ import { registerMcpServer } from './mcp-server';
 import { TEAMS_PATH } from './channels/teams';
 import { EMAIL_INBOUND_PATH, registerRoutes, WEBHOOK_PATH } from './routes';
 import { OAUTH_CALLBACK_PATH } from './services/connections';
+import { githubAuthorLookup, type GitAuthorLookup } from './services/github-author';
 import { dropAllClients, OAUTH_CLIENT_PATH, setToolCallTimeout } from './connections/client';
 import { Services } from './services';
 import { BackupService } from './services/backup';
@@ -82,6 +83,8 @@ export interface ServerOptions {
    * vault key, sign-ins to apps, queued work) belongs to the data it replaced.
    */
   restart?: () => void;
+  /** Replace the lookup of a GitHub key's account (tests: no call reaches GitHub). */
+  gitAuthor?: GitAuthorLookup;
 }
 
 export interface LeafBotServer {
@@ -167,6 +170,8 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
             ? ((await services.apiCredentials.gitToken(botId, owner)) ??
               (await services.connections.gitToken(botId, owner)))
             : null,
+        // The commits a command pushes are written by the account of the key it pushes with.
+        gitAuthor: opts.gitAuthor ?? githubAuthorLookup(),
       })
     : null;
   // The person's own computer as the bots' way out to the web, when this server runs elsewhere.

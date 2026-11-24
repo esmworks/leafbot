@@ -166,6 +166,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- A bot that committed on its computer made up its own author, as git there had none, and GitHub credited those commits
+  to whichever stranger's account owned the made-up address. A command's commits are now written by the account of the
+  GitHub key the command uses (the person's own, or the team's), with GitHub's private address for it, so they reach
+  the right profile and show no real email; a name or email the bot gives git itself does not win over it. The server
+  asks GitHub once which account a key is and keeps the answer for a few hours.
 - A command a bot ran on its computer for more than five minutes ended with "The computer service cannot be reached"
   while it was still running: the server stopped waiting for the answer after five minutes. It now waits as long as
   the command may take, and a command that outlasts that is reported as not answering, with a note that it may still

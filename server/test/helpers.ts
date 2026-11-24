@@ -8,6 +8,7 @@ import { schema } from '../src/db';
 import { loadConfig, type Config } from '../src/config';
 import { FakeEngine } from '../src/engine/fake';
 import type { Engine } from '../src/engine/types';
+import type { GitAuthorLookup } from '../src/services/github-author';
 import postgres from 'postgres';
 
 /** Set to run the suite on PostgreSQL instead of in-memory PGlite; each server gets its own database. */
@@ -55,9 +56,19 @@ export interface Person {
 }
 
 /** `engine`: what runs the bots' turns instead of the fake engine, which `t.engine` still is. */
+/**
+ * The account of a GitHub key in tests, named after the word before its digits
+ * (`github_pat_benim_0123…` is `acct-benim`), so a test can tell which key a command's commits were
+ * written as; no test reaches GitHub.
+ */
+export const testGitAuthor: GitAuthorLookup = async (token) => {
+  const name = `acct-${token.split('_').at(-2) ?? 'x'}`;
+  return { name, email: `1+${name}@users.noreply.github.com` };
+};
+
 export async function testServer(
   overrides: Partial<Config> = {},
-  opts: { engine?: Engine } = {},
+  opts: { engine?: Engine; gitAuthor?: GitAuthorLookup } = {},
 ): Promise<TestServer> {
   const dataDir = mkdtempSync(join(tmpdir(), 'leafbot-test-'));
   const pg = await freshDatabase();
@@ -84,7 +95,11 @@ export async function testServer(
   );
   const engine = new FakeEngine();
   const now = { value: new Date('2026-11-16T05:00:00.000Z') };
-  const server = await createServer(config, { engine: opts.engine ?? engine, clock: () => now.value });
+  const server = await createServer(config, {
+    engine: opts.engine ?? engine,
+    clock: () => now.value,
+    gitAuthor: opts.gitAuthor ?? testGitAuthor,
+  });
   // A model-written title would replace the first message's words that many tests read back; the
   // naming's own tests turn it on.
   await server.services.settings.update({ modelTitles: false });
