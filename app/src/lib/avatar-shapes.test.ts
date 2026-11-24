@@ -1,6 +1,6 @@
 import { Avatar, DEFAULT_AVATAR, OBJECT_AVATARS, OLD_AVATAR_SHAPES } from '@leafbot/shared';
 import { validateAvatar } from 'open-bot-avatar';
-import { objectDefinition } from './object-avatars';
+import { FLUFFY_EYE_SCALE, objectDefinition } from './object-avatars';
 import { describe, expect, it } from 'vitest';
 
 describe('old shape avatars', () => {
@@ -27,6 +27,20 @@ describe('object avatars', () => {
       const definition = objectDefinition(o);
       expect(definition, o).toBeDefined();
       const result = validateAvatar(definition);
+      expect(result.ok, `${o}: ${JSON.stringify(result)}`).toBe(true);
+    }
+  });
+
+  it('gives a fluffy body larger eyes that still fit, and leaves the flat drawing as it was', () => {
+    for (const o of OBJECT_AVATARS) {
+      const flat = objectDefinition(o)!;
+      const fluffy = objectDefinition(o, 'fluffy')!;
+      expect(objectDefinition(o, 'flat'), o).toBe(flat);
+      expect(fluffy.eyes.scale, o).toBeCloseTo((flat.eyes.scale ?? 1) * FLUFFY_EYE_SCALE);
+      expect(fluffy.body, o).toBe(flat.body);
+      // The same drawing each time, so a mounted avatar is not mounted again.
+      expect(objectDefinition(o, 'fluffy'), o).toBe(fluffy);
+      const result = validateAvatar(fluffy);
       expect(result.ok, `${o}: ${JSON.stringify(result)}`).toBe(true);
     }
   });
