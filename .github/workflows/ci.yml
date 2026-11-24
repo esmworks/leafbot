@@ -1,14 +1,24 @@
 name: CI
 
-# Runs on every push to main, on every pull request, and by hand from the Actions tab.
+# Runs on every push to main, on every pull request, by hand from the Actions tab, and from the
+# release workflow, which builds installers for a tag only after this passes on that tag.
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      ref:
+        description: Commit, branch or tag to check; empty checks the ref that started the run
+        type: string
+        required: false
+        default: ''
 
 # A newer push to the same pull request cancels its older run. Every other run gets a group of its
 # own, so no run on main waits behind or is dropped for another, and every commit on main gets a result.
+# Called from the release workflow, github.run_id is the release run's, so a release check is never
+# cancelled either.
 concurrency:
   group: ci-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -26,6 +36,8 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          # Set only when the release workflow calls this for a tag; empty checks the usual ref.
+          ref: ${{ inputs.ref }}
           # Install and test scripts have no use for the token, so it is not stored in the checkout.
           persist-credentials: false
       # The pnpm version is read from the packageManager field in package.json.
@@ -54,6 +66,8 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
+          # Set only when the release workflow calls this for a tag; empty checks the usual ref.
+          ref: ${{ inputs.ref }}
           persist-credentials: false
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
