@@ -1958,6 +1958,10 @@ export class WhatsAppChannel {
         status: schema.approvals.status,
         answer: schema.approvals.answer,
         input: schema.approvals.input,
+        options: schema.approvals.options,
+        threadId: schema.approvals.threadId,
+        botId: schema.approvals.botId,
+        by: schema.approvals.decidedByUserId,
       })
       .from(schema.approvals)
       .where(
@@ -1990,6 +1994,23 @@ export class WhatsAppChannel {
     });
     this.loadRoutes(((await this.row())?.settings ?? {}) as Settings);
     this.changed();
+    // Words written on the card in place of a button are meant for the front door: it reads them
+    // and goes on (another bot, a question), as with any card answered in words.
+    const t = await this.services.settings.translator();
+    for (const a of fresh) {
+      const words =
+        a.status === 'allowed' && a.answer?.trim() && !a.options.includes(a.answer) ? a.answer.trim() : '';
+      if (!words || !a.threadId || !a.botId) continue;
+      await this.services.turns
+        .enqueue({
+          threadId: a.threadId,
+          botId: a.botId,
+          source: 'user',
+          prompt: t('whatsapp.routeAnsweredPrompt', { answer: words }),
+          ...(a.by && { userId: a.by }),
+        })
+        .catch((err: unknown) => console.warn('whatsapp route answer', errorText(err)));
+    }
   }
 
   // Chats routines read: people who write to the account, and followed groups

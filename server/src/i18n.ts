@@ -1833,6 +1833,8 @@ const tr = {
   'whatsapp.routeWho': '{number} (kendine “{name}” diyor)',
   'whatsapp.routeYes': 'Bu bota ver',
   'whatsapp.routeNo': 'Verme',
+  'whatsapp.routeAnsweredPrompt':
+    'WhatsApp numarasının sahibi, bu sohbeti bir bota verme önerinin kartında iki seçenekten birini seçmedi; kendi sözleriyle şunu yazdı, bu yüzden sohbet hiçbir bota verilmedi:\n<<<\n{answer}\n>>>\n\nYazdığına göre devam et: başka bir bot istiyorsa onu öner; bir soruysa sahibine cevap ver. Bu cevabın burada, sahibine kalır; WhatsApp’taki kişiye gitmez.',
   'whatsapp.routeCard':
     'Karşılama botu bu WhatsApp sohbetini bir bota vermeyi öneriyor.\n\nKişi: {who}\nBot: {bot}\nGerekçe (karşılama botu, karşıdakinin sözlerinden yazdı): {reason}\n\nVerirsen bu kişinin mesajlarına artık {bot} cevap verir; cevapları önce senin onayına gelir.',
   'whatsapp.hidden':
@@ -3839,6 +3841,8 @@ const en: Catalog<ServerKey> = {
   'whatsapp.routeWho': '{number} (calls themselves “{name}”)',
   'whatsapp.routeYes': 'Give it to this bot',
   'whatsapp.routeNo': 'Don’t',
+  'whatsapp.routeAnsweredPrompt':
+    'On the card of your suggestion to give this chat to a bot, the owner of the WhatsApp number picked neither option; they wrote this in their own words instead, so the chat was not given to any bot:\n<<<\n{answer}\n>>>\n\nGo on from what they wrote: if they want another bot, suggest that one; if it is a question, answer the owner. This reply stays here, for the owner; it does not go to the person on WhatsApp.',
   'whatsapp.routeCard':
     'The front door suggests giving this WhatsApp chat to a bot.\n\nPerson: {who}\nBot: {bot}\nReason (written by the front door from what they said): {reason}\n\nIf you do, {bot} answers this person’s messages from now on; its answers come to you for approval first.',
   'whatsapp.hidden':
