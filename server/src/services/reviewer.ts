@@ -72,7 +72,8 @@ export function parseReview(text: string): string | null {
   const json = text.match(/\{[\s\S]*\}/)?.[0];
   if (!json) return null;
   try {
-    const v = JSON.parse(json) as { concern?: unknown; note?: unknown };
+    // A model may break a long note over lines inside the string, which JSON does not allow.
+    const v = JSON.parse(json.replace(/[\r\n]+/g, ' ')) as { concern?: unknown; note?: unknown };
     if (v.concern !== true || typeof v.note !== 'string') return null;
     // Plain text on the card: no line breaks or markup carried over.
     const note = v.note.replace(/\s+/g, ' ').trim();
