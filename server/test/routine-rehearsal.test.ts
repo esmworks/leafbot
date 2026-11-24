@@ -284,6 +284,12 @@ describe('rehearsing a routine', () => {
       .innerJoin(schema.routineRehearsals, eq(schema.routineRehearsals.turnId, schema.turns.id))
       .where(eq(schema.routineRehearsals.batchId, started.body.batchId!));
     expect(turns.map((x) => x.model).sort()).toEqual(['haiku', 'haiku', 'sonnet', 'sonnet']);
+    // Each in a conversation of its own: one model never reads the other's answer.
+    const threads = await t.db.db
+      .select({ threadId: schema.routineRehearsals.threadId })
+      .from(schema.routineRehearsals)
+      .where(eq(schema.routineRehearsals.batchId, started.body.batchId!));
+    expect(new Set(threads.map((x) => x.threadId)).size).toBe(4);
     // No run is recorded, so the routine's history and its versions' cost stay as they were.
     expect(turns.every((x) => x.routineRunId === null)).toBe(true);
     expect((await t.api<RoutineRun[]>('GET', `/api/routines/${routine.id}/runs`)).body).toHaveLength(2);
