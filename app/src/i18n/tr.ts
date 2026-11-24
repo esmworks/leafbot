@@ -2114,6 +2114,60 @@ export const tr = {
 
   'routines.empty': 'Rutin yok. Bir botun sağ panelinden ekleyebilirsiniz.',
   'routines.lastRun': 'son {when}',
+  'routines.filterAll': 'Tüm rutinler',
+  'routines.filterAttention': 'İlgi bekleyenler',
+  'routines.filterNone': 'İlgi bekleyen rutin yok.',
+
+  'health.title': 'Sağlık',
+  'health.status.problem': 'Sorunlu',
+  'health.status.improvable': 'İyileştirilebilir',
+  'health.status.unused': 'Kullanılmıyor',
+  'health.status.good': 'İyi',
+  'health.status.unknown': 'Henüz az veri',
+  'health.window': 'Son 30 gün',
+  'health.runs': 'Çalışma: {total} · tamam {ok} · sessiz {quiet} · başarısız {failed}',
+  'health.cost': 'Harcanan {cost}',
+  'health.unpriced': 'fiyatı bilinmeyen {count} çalışma hariç',
+  'health.avg': 'çalışma başına ortalama {time}',
+  'health.since': 'Ölçüm başlangıcı: {when}',
+  'health.notMeasured':
+    'Bu rutinin çalışmaları henüz ölçülmedi. Sağlık, bu güncellemeden sonraki çalışmalardan çıkar.',
+  'health.hidden': '{count} bulgu gizli',
+  'health.seconds': '{seconds} sn',
+  'health.minutes': '{minutes} dk {seconds} sn',
+  'health.hours': '{hours} sa {minutes} dk',
+  'health.days': '{days} gün',
+  'health.finding.failing': 'Son {of} çalışmanın {count} tanesi başarısız oldu.',
+  'health.finding.failingStreak': 'Üst üste {count} çalışma başarısız oldu.',
+  'health.finding.pausedByFailures':
+    'Üst üste başarısız olduğu için kendini kapattı. Nedeni düzelince yeniden açabilirsin.',
+  'health.finding.signInWait':
+    'Bir bağlantıda oturum kapalı. Yeniden girene kadar zamanlanmış çalışmaları atlanıyor.',
+  'health.finding.stepFails': '{step}. adım {count} çalışmada hatayla bitti.',
+  'health.finding.waitTimeouts': '{step}. adımdaki bekleme {count} kez cevapsız kaldı ve çalışmayı bitirdi.',
+  'health.finding.mostlyQuiet':
+    'Son {of} çalışmanın {count} tanesinde anlatacak bir şey bulmadı. Bot çalışmadan önce AI kullanmadan bakılan bir koşul, gereksiz çalışmaları önleyebilir.',
+  'health.finding.mostlyQuietCost': 'Bu çalışmalar {cost} tuttu.',
+  'health.finding.idleOn': '30 gündür hiç çalışmadı: koşulu hiç tutmadı ya da izlediği şey değişmedi.',
+  'health.finding.idleOff': '30 gündür kapalı. Artık gerekmiyorsa silebilirsin.',
+  'health.apply': 'Uygula',
+  'health.ask': 'Bota sor',
+  'health.dismiss': 'Gizle',
+  'health.applyConfirm': '{step}. adım {from} gün yerine {to} gün bekleyecek. Uygulansın mı?',
+  'health.applied': 'Rutin değiştirildi.',
+  'health.undo': 'Geri al',
+  'health.undone': 'Değişiklik geri alındı.',
+  'health.saveFirst': 'Önce bu sayfadaki değişiklikleri kaydet.',
+  'health.ask.failing':
+    '“{name}” rutinim son çalışmalarında başarısız oluyor. Rutini ve son çalışmalarını oku, neden başarısız olduğunu anlat ve bir düzeltme öner. Rutini değiştirmeden önce bana sor.',
+  'health.ask.pausedByFailures':
+    '“{name}” rutinim üst üste başarısız olduğu için kendini kapattı. Rutini ve son çalışmalarını oku, nedenini anlat ve bir düzeltme öner. Rutini değiştirmeden ya da açmadan önce bana sor.',
+  'health.ask.stepFails':
+    '“{name}” rutinimin {step}. adımı sık sık hatayla bitiyor. Rutini ve son çalışmalarını oku, o adımın neden hata verdiğini anlat ve bir düzeltme öner. Rutini değiştirmeden önce bana sor.',
+  'health.ask.mostlyQuiet':
+    '“{name}” rutinim çoğu çalışmasında anlatacak bir şey bulmuyor. Rutini oku ve sen çalışmadan önce AI kullanmadan bakılabilecek bir koşul öner (bir dosyanın gelmesi, bir mailin gelmesi, izlenecek bir sayfa gibi). Rutini değiştirmeden önce bana sor.',
+  'health.ask.idle':
+    '“{name}” rutinim 30 gündür hiç çalışmadı. Rutini oku, koşulunun ya da izlediği şeyin neden hiç tutmadığını bul ve ne yapalım öner. Rutini değiştirmeden önce bana sor.',
 
   'groups.hint':
     'Gruplar kenar çubuğunu düzenler ve gruptaki botlara ortak bir klasör verir. Bütün botlar birbirine yazabilir.',
@@ -2886,6 +2940,8 @@ export const tr = {
   'today.pendingMemoryReview': 'Gözden geçir',
   'today.pendingSkills': 'Seni bekleyen {count} beceri önerisi',
   'today.openFlags': 'Botların bulamadığı {count} bilgi',
+  'today.routineHealth': 'İlgi bekleyen {count} rutin',
+  'today.routineHealthOpen': 'Bak',
   'quick.title': 'Bekleyenler',
   'quick.empty': 'Sizi bekleyen bir şey yok.',
   'quick.login': 'Giriş yapmanız gerekiyor: {summary}',

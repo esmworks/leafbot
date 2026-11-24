@@ -70,6 +70,7 @@ import {
   useMemory,
   useRooms,
   useStaleMemory,
+  useRoutineHealth,
   useRoutines,
   useRules,
   usePeople,
@@ -131,6 +132,7 @@ import { ModelDefaults } from './ModelDefaults';
 import { ApnsCard } from './PhoneSettings';
 import { TailscaleCard } from './TailscaleSettings';
 import { DoctorCard } from './DoctorCard';
+import { HealthStatus, needsAttention } from './RoutineHealth';
 import { Chip } from './onboarding/Chip';
 import {
   AddProviderForm,
@@ -1997,8 +1999,11 @@ function RoutinesTab() {
   const locale = useLocale((s) => s.locale);
   const { dayLabel } = useFormat();
   const { data: routines = [] } = useRoutines();
+  const { data: health = [] } = useRoutineHealth();
   const { data: bots = [] } = useBots();
   const qc = useQueryClient();
+  // Only those that want a look, for someone with many routines.
+  const [attention, setAttention] = useState(false);
   const toggle = useMutation({
     mutationFn: (r: { id: string; enabled: boolean }) => api.updateRoutine(r.id, { enabled: !r.enabled }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['routines'] }),
@@ -2006,33 +2011,66 @@ function RoutinesTab() {
   if (!routines.length) {
     return <p className="text-sm text-muted-foreground">{t('routines.empty')}</p>;
   }
+  const healthOf = new Map(health.map((h) => [h.routineId, h]));
+  const shown = attention ? routines.filter((r) => needsAttention(healthOf.get(r.id))) : routines;
   return (
-    <Card>
-      {routines.map((r) => {
-        const bot = bots.find((b) => b.id === r.botId);
-        return (
-          <div key={r.id} className="flex items-center gap-3 px-4 py-3">
-            {bot && (
-              <BotAvatar
-                avatar={bot.avatar}
-                material={bot.material}
-                color={bot.color}
-                seed={bot.id}
-                size={28}
-              />
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="truncate text-sm font-medium">{r.name}</div>
-              <div className="truncate text-xs text-muted-foreground">
-                {bot?.name} · {describeSchedule(r.schedule, locale)}
-                {r.lastRunAt ? ` · ${t('routines.lastRun', { when: dayLabel(r.lastRunAt) })}` : ''}
+    <>
+      <div className="mb-3 flex justify-end">
+        <Select
+          value={attention ? 'attention' : 'all'}
+          onValueChange={(v) => setAttention(v === 'attention')}
+        >
+          <SelectTrigger className="w-auto rounded-full" aria-label={t('health.title')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">{t('routines.filterAll')}</SelectItem>
+            <SelectItem value="attention">{t('routines.filterAttention')}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {!shown.length ? (
+        <p className="text-sm text-muted-foreground">{t('routines.filterNone')}</p>
+      ) : (
+        <Card>
+          {shown.map((r) => {
+            const bot = bots.find((b) => b.id === r.botId);
+            const h = healthOf.get(r.id);
+            return (
+              <div key={r.id} className="flex items-center gap-3 px-4 py-3">
+                {bot && (
+                  <BotAvatar
+                    avatar={bot.avatar}
+                    material={bot.material}
+                    color={bot.color}
+                    seed={bot.id}
+                    size={28}
+                  />
+                )}
+                {/* Opening it shows its health and what can be done about it. */}
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 text-start"
+                  onClick={() => {
+                    const ui = useUi.getState();
+                    ui.openSettings(null);
+                    ui.openRoutine({ botId: r.botId, routineId: r.id });
+                  }}
+                >
+                  <div className="truncate text-sm font-medium">{r.name}</div>
+                  <div className="truncate text-xs text-muted-foreground">
+                    {bot?.name} · {describeSchedule(r.schedule, locale)}
+                    {r.lastRunAt ? ` · ${t('routines.lastRun', { when: dayLabel(r.lastRunAt) })}` : ''}
+                  </div>
+                  {h && <HealthStatus status={h.status} className="mt-0.5" />}
+                </button>
+                <Switch checked={r.enabled} onCheckedChange={() => toggle.mutate(r)} />
               </div>
-            </div>
-            <Switch checked={r.enabled} onCheckedChange={() => toggle.mutate(r)} />
-          </div>
-        );
-      })}
-    </Card>
+            );
+          })}
+        </Card>
+      )}
+    </>
   );
 }
 

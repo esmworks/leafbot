@@ -94,6 +94,8 @@ export const useRoutineSuggestions = (enabled = true) =>
 export const useSkillSuggestions = (enabled = true) =>
   useQuery({ queryKey: ['skill-suggestions'], queryFn: api.skillSuggestions, enabled });
 export const useRoutines = () => useQuery({ queryKey: ['routines'], queryFn: api.routines });
+export const useRoutineHealth = (enabled = true) =>
+  useQuery({ queryKey: ['routine-health'], queryFn: api.routineHealth, enabled });
 export const useSkills = () => useQuery({ queryKey: ['skills'], queryFn: api.skills });
 export const useUsage = (days: UsageRange, botId?: string) =>
   useQuery({ queryKey: ['usage', days, botId], queryFn: () => api.usage(days, botId), staleTime: 30_000 });

@@ -6,8 +6,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { useBots, useSummaries } from '@/lib/queries';
+import { useBots, useRoutineHealth, useSummaries } from '@/lib/queries';
 import { useUi } from '@/lib/store';
+import { needsAttention } from './RoutineHealth';
 import { RoutineSuggestionsSection } from './RoutineSuggestions';
 import { SkillSuggestionsSection } from './SkillSuggestions';
 import { SecondYesSection } from './SecondYes';
@@ -38,6 +39,8 @@ export function TodayDialog() {
   const { data: bots = [] } = useBots();
   const byId = new Map(bots.map((b) => [b.id, b]));
   const waiting = summaries.filter((s) => s.waiting);
+  const { data: health = [] } = useRoutineHealth(open);
+  const attention = health.filter(needsAttention).length;
   const go = (botId: string, threadId?: string | null) => {
     const ui = useUi.getState();
     ui.openChat(botId);
@@ -136,6 +139,23 @@ export function TodayDialog() {
                       </span>
                       <span className="shrink-0 text-xs font-medium text-amber-600 dark:text-amber-400">
                         {t('memory.flagAnswer')}
+                      </span>
+                    </Item>
+                  ) : null}
+                  {/* Routines whose runs point to something wrong, worth changing, or not used. */}
+                  {attention ? (
+                    <Item
+                      onClick={() => {
+                        useUi.getState().openSettings('routines');
+                        setOpen(false);
+                      }}
+                    >
+                      <Clock className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate">
+                        {t('today.routineHealth', { count: attention })}
+                      </span>
+                      <span className="shrink-0 text-xs font-medium text-amber-600 dark:text-amber-400">
+                        {t('today.routineHealthOpen')}
                       </span>
                     </Item>
                   ) : null}

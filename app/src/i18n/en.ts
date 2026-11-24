@@ -2145,6 +2145,70 @@ export const en: Catalog<MessageKey> = {
 
   'routines.empty': "No routines. You can add one from a bot's right panel.",
   'routines.lastRun': 'last {when}',
+  'routines.filterAll': 'All routines',
+  'routines.filterAttention': 'Needing attention',
+  'routines.filterNone': 'No routine needs attention.',
+
+  'health.title': 'Health',
+  'health.status.problem': 'Has problems',
+  'health.status.improvable': 'Could be better',
+  'health.status.unused': 'Not in use',
+  'health.status.good': 'Healthy',
+  'health.status.unknown': 'Too early to say',
+  'health.window': 'Last 30 days',
+  'health.runs': 'Runs: {total} · done {ok} · nothing to report {quiet} · failed {failed}',
+  'health.cost': 'Spent {cost}',
+  'health.unpriced': {
+    one: 'leaving out {count} run of unknown price',
+    other: 'leaving out {count} runs of unknown price',
+  },
+  'health.avg': 'about {time} a run',
+  'health.since': 'Measured since {when}',
+  'health.notMeasured':
+    "None of this routine's runs are measured yet. Its health comes from runs after this update.",
+  'health.hidden': { one: '{count} finding hidden', other: '{count} findings hidden' },
+  'health.seconds': '{seconds} s',
+  'health.minutes': '{minutes} min {seconds} s',
+  'health.hours': '{hours} h {minutes} min',
+  'health.days': { one: '{days} day', other: '{days} days' },
+  'health.finding.failing': '{count} of the last {of} runs failed.',
+  'health.finding.failingStreak': '{count} runs in a row failed.',
+  'health.finding.pausedByFailures':
+    'It switched itself off after failing too many times in a row. Turn it back on once the cause is fixed.',
+  'health.finding.signInWait':
+    'A connection is signed out. Its scheduled runs are skipped until you sign in again.',
+  'health.finding.stepFails': {
+    one: 'Step {step} ended in an error in {count} run.',
+    other: 'Step {step} ended in an error in {count} runs.',
+  },
+  'health.finding.waitTimeouts': {
+    one: 'The wait in step {step} ran out {count} time and ended the run.',
+    other: 'The wait in step {step} ran out {count} times and ended the run.',
+  },
+  'health.finding.mostlyQuiet':
+    'In {count} of the last {of} runs it found nothing to report. A condition checked without AI before the bot runs could keep it from running for nothing.',
+  'health.finding.mostlyQuietCost': 'Those runs cost {cost}.',
+  'health.finding.idleOn':
+    'It has not run in 30 days: its condition never held, or what it watches never changed.',
+  'health.finding.idleOff': 'It has been off for 30 days. If you no longer need it, you can delete it.',
+  'health.apply': 'Apply',
+  'health.ask': 'Ask the bot',
+  'health.dismiss': 'Hide',
+  'health.applyConfirm': 'Step {step} will wait {to} days instead of {from}. Apply?',
+  'health.applied': 'The routine was changed.',
+  'health.undo': 'Undo',
+  'health.undone': 'The change was undone.',
+  'health.saveFirst': 'Save the changes on this page first.',
+  'health.ask.failing':
+    'My routine “{name}” keeps failing in its recent runs. Read the routine and its recent runs, tell me why it fails and suggest a fix. Ask me before you change the routine.',
+  'health.ask.pausedByFailures':
+    'My routine “{name}” switched itself off after failing too many times in a row. Read the routine and its recent runs, tell me why and suggest a fix. Ask me before you change the routine or turn it on.',
+  'health.ask.stepFails':
+    'Step {step} of my routine “{name}” keeps ending in an error. Read the routine and its recent runs, tell me why that step fails and suggest a fix. Ask me before you change the routine.',
+  'health.ask.mostlyQuiet':
+    'My routine “{name}” finds nothing to report in most of its runs. Read the routine and suggest a condition that can be checked without AI before you run (a file arriving, a mail arriving, a page to watch). Ask me before you change the routine.',
+  'health.ask.idle':
+    'My routine “{name}” has not run in 30 days. Read the routine, find out why its condition or what it watches never held, and suggest what to do. Ask me before you change the routine.',
 
   'groups.hint':
     'Groups arrange the sidebar and give their bots a shared folder. All bots can write to each other.',
@@ -2918,6 +2982,11 @@ export const en: Catalog<MessageKey> = {
     one: '{count} thing bots could not find',
     other: '{count} things bots could not find',
   },
+  'today.routineHealth': {
+    one: '{count} routine needing attention',
+    other: '{count} routines needing attention',
+  },
+  'today.routineHealthOpen': 'Look',
   'today.pendingSkills': {
     one: '{count} suggested skill change waiting for you',
     other: '{count} suggested skill changes waiting for you',

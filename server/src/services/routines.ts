@@ -1743,6 +1743,14 @@ export class RoutineService {
   }
 
   /**
+   * How a run ended for the routine's health: it did its work, it found nothing to report, or it
+   * really failed. A later step's ending replaces an earlier one's, so a run reads as its last step.
+   */
+  private async setOutcome(runId: string, outcome: 'ok' | 'quiet' | 'failed' | null) {
+    await this.ctx.db.update(schema.routineRuns).set({ outcome }).where(eq(schema.routineRuns.id, runId));
+  }
+
+  /**
    * Keeps count of runs that really failed, and switches the routine off when too many came in a
    * row, so a broken instruction, a removed tool or a changed page does not go on spending money
    * on every slot. `ok` is a run that did its work and resets the count; anything that is not a
@@ -1751,6 +1759,9 @@ export class RoutineService {
    * routine.
    */
   private async countRun(routineId: string, ended: 'ok' | 'failed', runId?: string) {
+    // Kept on the run too: its status alone cannot tell a failure from a usage limit or a restart,
+    // and its reason is text in the person's language, so the routine's health reads this instead.
+    if (runId) await this.setOutcome(runId, ended);
     if (ended === 'ok') {
       await this.ctx.db
         .update(schema.routines)
@@ -2658,7 +2669,9 @@ export class RoutineService {
     const now = this.clock();
     const [ended] = await this.ctx.db
       .update(schema.routineRuns)
-      .set({ status, reason, stepModel: null, finishedAt: now })
+      // A held step that ended the run (no answer, no event, a no): the run is neither done nor a
+      // failure of its own, so the bot step before it no longer says how it went.
+      .set({ status, reason, stepModel: null, finishedAt: now, outcome: null })
       .where(and(eq(schema.routineRuns.id, r.run.id), eq(schema.routineRuns.status, 'paused')))
       .returning({ id: schema.routineRuns.id });
     if (!ended) return;
@@ -2963,14 +2976,17 @@ export class RoutineService {
       const status = run.failedByBot ? 'error' : stopped ? 'stopped' : 'error';
       const reason = run.failedByBot ? run.reason : outcome.ok ? null : outcome.message;
       if (run.failedByBot || realFailure(outcome)) await this.countRun(run.routineId, 'failed', runId);
+      // A later step stopped by the person or a usage limit: an earlier step's ending no longer says how it went.
+      else await this.setOutcome(runId, null);
       await endStep({ status, reason, output: outcome.text.trim() || null });
       // A run the bot marked as failed keeps the bot's reason.
       await endRun(run.failedByBot ? {} : { status, reason });
       return true;
     }
     await endStep({ status: 'done', output: outcome.text.trim() || null });
-    await this.countRun(run.routineId, 'ok');
+    await this.countRun(run.routineId, 'ok', runId);
     if (isSilentReply(outcome.text) || (outcome.ok && outcome.quiet)) {
+      await this.setOutcome(runId, 'quiet');
       await this.settleQuietRun(
         runId,
         run.routineId,
@@ -3326,7 +3342,11 @@ export class RoutineService {
     if (run) {
       if (run.failedByBot || realFailure(outcome))
         await this.countRun(run.routineId, 'failed', turn.routineRunId);
-      else if (outcome.ok) await this.countRun(run.routineId, 'ok');
+      else if (outcome.ok) {
+        await this.countRun(run.routineId, 'ok', turn.routineRunId);
+        if (!run.failedByBot && (outcome.quiet || !outcome.text.trim() || isSilentReply(outcome.text)))
+          await this.setOutcome(turn.routineRunId, 'quiet');
+      }
     }
     // The account was out of usage: the routine tries again once it resets, unless it is due sooner.
     if (run && !outcome.ok && outcome.kind === 'limit' && outcome.resetsAt) {

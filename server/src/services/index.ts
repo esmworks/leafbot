@@ -50,6 +50,7 @@ import { CallService } from './calls';
 import { PushService } from './push';
 import { RoutineService } from './routines';
 import { RehearsalService } from './rehearsals';
+import { RoutineHealthService } from './routine-health';
 import { SubscriptionService } from './subscriptions';
 import { ProviderKeyService } from './keys';
 import { ModelCatalogService } from './model-catalog';
@@ -103,6 +104,7 @@ export class Services {
   readonly jobs: JobService;
   readonly routines: RoutineService;
   readonly rehearsals: RehearsalService;
+  readonly routineHealth: RoutineHealthService;
   readonly subscriptions: SubscriptionService;
   readonly tools: ToolFactory;
   readonly turns: TurnManager;
@@ -176,6 +178,7 @@ export class Services {
     this.turns.onFinished((t, o) => this.routines.onTurnFinished(t, o));
     this.rehearsals = new RehearsalService(ctx, this, clock);
     this.turns.onRehearsalFinished((t, o) => this.rehearsals.onTurnFinished(t, o));
+    this.routineHealth = new RoutineHealthService(ctx, this, clock);
     this.turns.onFinished((t, o) => this.rooms.onTurnFinished(t, o));
     this.reactions = new ReactionNotifier(ctx, this);
     this.usage = new UsageService(ctx, this.settings, clock);
