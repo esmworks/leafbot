@@ -688,6 +688,32 @@ describe('sohbet', () => {
     expect(t.engine.requests.filter((r) => r.prompt.includes('İzmir olsun'))).toHaveLength(0);
   });
 
+  it('bot çok soruluk kartta beklerken yazılan mesaj kartı kapatır; bot o sözleri okur', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    const call = {
+      questions: [
+        { question: 'Hangi şehir?', options: ['İstanbul', 'Ankara'] },
+        { question: 'Hangi gün?', options: ['Pazartesi', 'Salı'] },
+      ],
+    };
+    await t.send(thread.id, `[araç:ask_user ${JSON.stringify(call)}]`);
+    const card = await waitFor(
+      async () => (await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body[0],
+    );
+    const typed = await t.send(thread.id, 'Önce fiyatı söyle, sonra karar veririm');
+    await t.services.turns.idle();
+    const kept = (await t.api<Approval>('GET', `/api/approvals/${card.id}`)).body;
+    expect(kept.status).toBe('denied');
+    expect(kept.answer).toBeNull();
+    const msgs = await t.messages(thread.id);
+    // The bot was told the card was set aside, and read the words in the same turn.
+    expect(msgs.at(-1)!.text).toContain('sohbete yazdı');
+    expect(msgs.at(-1)!.text).toContain('Önce fiyatı söyle, sonra karar veririm');
+    expect(msgs.find((m) => m.id === typed.id)!.turnId).toBe(msgs.at(-1)!.turnId);
+    expect(t.engine.requests).toHaveLength(1);
+  });
+
   it('gizli cevap yalnızca bota gider; kart ve kayıt onu boş tutar', async () => {
     const bot = await t.bot({ name: 'Kurucu' });
     const thread = await main(bot.id);

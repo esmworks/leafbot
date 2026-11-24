@@ -620,6 +620,7 @@ export class ToolFactory {
           const r = await askPerson(s, { bot, thread, turn, signal, timeoutMs: unattended, title, items });
           if (r.timedOut) return t('tool.questionTimedOut');
           if (r.status === 'expired') return t('tool.questionExpired');
+          if (r.typed) return t('tool.questionTyped');
           if (r.status === 'denied') return t('tool.questionSkipped');
           const answers = r.answers;
           const lines = items.map((q, i) => {

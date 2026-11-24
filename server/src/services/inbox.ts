@@ -179,12 +179,16 @@ export class Inbox {
       await s.jobs.stopFrom(threadId);
       return { message, created: true };
     }
-    // Typed while the bot waits on its one-question card: the words are the answer to it. In a
-    // team conversation only from whoever may answer it; anyone else's words wait their turn.
-    const typedCard = bare ? await s.approvals.typedAnswerable(threadId) : null;
+    // Typed while the bot waits on its question card. In a team conversation only from whoever may
+    // answer it; anyone else's words wait their turn.
+    const typedCard = bare ? await s.approvals.waitingQuestion(threadId) : null;
     const card =
       typedCard && (await s.approvals.mayAnswer(typedCard, input.userId ?? null)) ? typedCard : null;
-    if (card) {
+    // A card of several questions, or one asking for a secret, cannot take the words as its answer:
+    // it steps aside once the message is handed to the bot, which reads it at its next step.
+    const aside = card && !s.approvals.typedAnswerable(card) ? card : null;
+    // One question: the words are the answer to it.
+    if (card && !aside) {
       const { message } = await s.threads.addMessage({ ...plain, props: extra });
       await s.approvals.answer(
         card.id,
@@ -253,6 +257,7 @@ export class Inbox {
     if (queued && !forwarded && !chatAnswer && !input.guest && input.answers !== false) {
       await s.turns.steer(threadId, turn.id, message.id, true);
     }
+    if (aside) await s.approvals.stepAside(aside.id, input.userId ?? null);
     return { message: { ...message, turnId: turn.id }, created };
   }
 }
