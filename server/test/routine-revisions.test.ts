@@ -157,6 +157,42 @@ describe('rutin talimat geçmişi', () => {
     expect(v.versions[list[0]!.id]).toMatchObject({ total: 1, ok: 1 });
   });
 
+  it('kaydetmeden önce okunmuş kopyayla başlayan çalışma eski sürümde sayılır; en yeni sürüm kaydedilen kalır', async () => {
+    const bot = await t.bot();
+    const made = (
+      await t.api<Routine>('POST', '/api/routines', {
+        botId: bot.id,
+        name: 'Kontrol',
+        prompt: 'tamam',
+        schedule: { type: 'interval', minutes: 30 },
+        inMain: false,
+      })
+    ).body;
+    // As a pass reads it before a slow page read; the person saves meanwhile.
+    const before = await t.services.routines.get(made.id);
+    later();
+    await t.api('PATCH', `/api/routines/${made.id}`, { prompt: 'yeni talimat' });
+    later();
+    await t.services.routines['fire'](before, 'eski-kopya');
+    await t.services.turns.idle();
+    const list = (await t.api<RoutineRevision[]>('GET', `/api/routines/${made.id}/revisions`)).body;
+    expect(list.map((x) => x.prompt)).toEqual(['yeni talimat', 'tamam']);
+    expect((await versions(made.id)).versions[list[1]!.id]).toMatchObject({ total: 1 });
+  });
+
+  it('eski sürümlü rutinde aynı anda başlayan iki çalışma tek sürüm yazar', async () => {
+    const r = await make();
+    await t.db.db.update(schema.routineRevisions).set({ full: false, steps: null, model: null });
+    later();
+    const routine = await t.services.routines.get(r.id);
+    const ids = await Promise.all([
+      t.services.routines['revisionFor'](routine),
+      t.services.routines['revisionFor'](routine),
+    ]);
+    expect(ids[0]).toBe(ids[1]);
+    expect((await t.api<RoutineRevision[]>('GET', `/api/routines/${r.id}/revisions`)).body).toHaveLength(2);
+  });
+
   it('başkasının botunun rutin sürümlerini göstermez', async () => {
     const r = await make();
     const ayse = await t.person('ayse');

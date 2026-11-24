@@ -103,15 +103,31 @@ export function Composer({
   };
   const [error, setError] = useState<string | null>(null);
   const [seeded, setSeeded] = useState(false);
+  // The draft as this box last wrote or read it, to tell another screen's write from its own.
+  const own = useRef<string | null>(null);
   if (loaded && !seeded) {
     setSeeded(true);
     if (stored && !text) write(stored);
   }
   const latest = useRef(text);
+  // Another screen may put a message here for the person to send (a routine's health asks the bot
+  // from its page) while this conversation stays open below it: the box takes it up, or the
+  // draft this box keeps would write over it.
+  useEffect(() => {
+    if (!seeded || stored === own.current) return;
+    // The first look only notes what the box was seeded with.
+    const first = own.current === null;
+    own.current = stored;
+    if (first) return;
+    if (stored && stored !== latest.current) write(stored, true);
+  }, [stored, seeded]);
   useEffect(() => {
     latest.current = text;
     if (!seeded) return;
-    const timer = setTimeout(() => writeStored(storeKey, text.trim() ? text : undefined), DRAFT_PAUSE_MS);
+    const timer = setTimeout(() => {
+      own.current = text.trim() ? text : '';
+      writeStored(storeKey, text.trim() ? text : undefined);
+    }, DRAFT_PAUSE_MS);
     return () => clearTimeout(timer);
   }, [text, seeded, storeKey]);
   const wasSeeded = useRef(false);
