@@ -1677,7 +1677,7 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'bot.claudeLoggedOut': 'Claude 未登录；请在“设置 → 连接”中连接。',
   'bot.imageType': '请选择 PNG、JPEG 或 WebP 图片',
   'bot.imageUnreadable': '无法读取图片',
-  'bot.object': '形状',
+  'bot.object': '头像',
   'bot.object.circle': '圆形',
   'bot.object.square': '方形',
   'bot.object.triangle': '三角形',

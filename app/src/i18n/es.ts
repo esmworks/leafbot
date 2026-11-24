@@ -1837,7 +1837,7 @@ export const es: Partial<Catalog<MessageKey>> = {
   'bot.claudeLoggedOut': 'Claude no ha iniciado sesión; conéctalo en Ajustes → Conexión.',
   'bot.imageType': 'Elige una imagen PNG, JPEG o WebP',
   'bot.imageUnreadable': 'No se pudo leer la imagen',
-  'bot.object': 'Objeto',
+  'bot.object': 'Avatar',
   'bot.object.circle': 'Círculo',
   'bot.object.square': 'Cuadrado',
   'bot.object.triangle': 'Triángulo',

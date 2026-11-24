@@ -1762,7 +1762,7 @@ export const tr = {
   'bot.claudeLoggedOut': "Claude'a giriş yapılmamış; Ayarlar → Bağlantı bölümünden bağlayın.",
   'bot.imageType': 'PNG, JPEG ya da WebP seçin',
   'bot.imageUnreadable': 'Görsel okunamadı',
-  'bot.object': 'Nesne',
+  'bot.object': 'Avatar',
   'bot.object.circle': 'Yuvarlak',
   'bot.object.square': 'Kare',
   'bot.object.triangle': 'Üçgen',

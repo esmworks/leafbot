@@ -1891,7 +1891,7 @@ export const uk: Partial<Catalog<MessageKey>> = {
   'bot.claudeLoggedOut': 'Claude не ввійдено; підключіть його в Налаштування → Підключення.',
   'bot.imageType': 'Виберіть зображення PNG, JPEG або WebP',
   'bot.imageUnreadable': 'Не вдалося прочитати зображення',
-  'bot.object': 'Фігура',
+  'bot.object': 'Аватар',
   'bot.object.circle': 'Коло',
   'bot.object.square': 'Квадрат',
   'bot.object.triangle': 'Трикутник',

@@ -1760,7 +1760,7 @@ export const id: Partial<Catalog<MessageKey>> = {
   'bot.claudeLoggedOut': 'Claude belum masuk; hubungkan di Pengaturan → Koneksi.',
   'bot.imageType': 'Pilih gambar PNG, JPEG, atau WebP',
   'bot.imageUnreadable': 'Gambar tidak bisa dibaca',
-  'bot.object': 'Objek',
+  'bot.object': 'Avatar',
   'bot.object.circle': 'Lingkaran',
   'bot.object.square': 'Persegi',
   'bot.object.triangle': 'Segitiga',
