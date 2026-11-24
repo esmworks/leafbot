@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lstat, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, basename } from 'node:path';
-import type { TurnChangeItem, TurnChanges, TurnChangeOutcome, TurnChangeKind } from '@leafbot/shared';
+import type { Ticket, TurnChangeItem, TurnChanges, TurnChangeOutcome, TurnChangeKind } from '@leafbot/shared';
 import { and, asc, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
@@ -445,6 +445,10 @@ export class TurnChangeService {
       }
       case 'ticket': {
         const current = await s.tickets.find(row.targetId);
+        if (row.op === 'delete') {
+          if (current || !before?.ticket) return 'later';
+          return (await s.tickets.reinsert(before.ticket as Ticket)) ? 'restored' : 'later';
+        }
         if (!current || sig(ticketShape(current)) !== after?.sig) return 'later';
         if (row.op === 'create') await s.tickets.remove(row.targetId);
         else await s.tickets.update(row.targetId, before!.patch as never, false);

@@ -222,6 +222,46 @@ describe('taking back what one turn changed', () => {
     expect(await t.services.skills.list()).toHaveLength(0);
   });
 
+  it('deletes only finished tickets, and puts a deleted one back with its comments', async () => {
+    const { thread } = await setup();
+    const done = await t.services.tickets.create({ title: 'Shipped', description: 'all of it' });
+    await t.services.tickets.comment(done.id, 'went out on Monday');
+    await t.services.tickets.update(done.id, { status: 'done' });
+    const open = await t.services.tickets.create({ title: 'Still going' });
+
+    await say(thread.id, `[araç:ticket_delete ${JSON.stringify({ tickets: [done.number, open.number] })}]`);
+    const reply = (await t.messages(thread.id)).at(-1)!.text;
+    expect(reply).toContain(`#${done.number}`);
+    expect(reply).toContain(`#${open.number} silinmedi`);
+    expect((await t.services.tickets.list()).map((k) => k.title)).toEqual(['Still going']);
+
+    const turn = await lastTurn(thread.id);
+    expect((await preview(turn)).items).toEqual([
+      expect.objectContaining({ kind: 'ticket', op: 'delete', label: `#${done.number} Shipped` }),
+    ]);
+    expect((await undo(turn)).body.items[0]!.outcome).toBe('restored');
+    const back = await t.services.tickets.get(done.id);
+    expect(back).toMatchObject({
+      number: done.number,
+      title: 'Shipped',
+      status: 'done',
+      description: 'all of it',
+    });
+    expect(back.comments.map((c) => c.text)).toEqual(['went out on Monday']);
+  });
+
+  it('leaves a deleted ticket gone when its number was given to another since', async () => {
+    const { thread } = await setup();
+    const done = await t.services.tickets.create({ title: 'Last one' });
+    await t.services.tickets.update(done.id, { status: 'wont_do' });
+    await say(thread.id, `[araç:ticket_delete ${JSON.stringify({ tickets: [done.number] })}]`);
+    const turn = await lastTurn(thread.id);
+    const next = await t.services.tickets.create({ title: 'New one' });
+    expect(next.number).toBe(done.number);
+    expect((await undo(turn)).body.items[0]!.outcome).toBe('later');
+    expect((await t.services.tickets.list()).map((k) => k.title)).toEqual(['New one']);
+  });
+
   it('puts a memory note back: written, changed and forgotten', async () => {
     const { thread } = await setup();
     await say(thread.id, '[araç:memory_write {"content":"Likes tea"}]');

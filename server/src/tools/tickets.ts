@@ -1,4 +1,10 @@
-import { TICKET_PRIORITIES, TICKET_STATUSES, type Bot, type Ticket } from '@leafbot/shared';
+import {
+  TICKET_PRIORITIES,
+  TICKET_STATUSES,
+  type Bot,
+  type Ticket,
+  type TicketStatus,
+} from '@leafbot/shared';
 import { z } from 'zod';
 import type { AppTool } from '../engine/types';
 import type { T } from '../i18n';
@@ -8,9 +14,12 @@ import { truncate } from '../util';
 import { pickFields, sig, ticketShape, type ChangeNote } from '../services/turn-changes';
 import type { Define } from './index';
 
+/** Tickets whose work is over; only these may a bot delete. */
+const CLOSED: TicketStatus[] = ['done', 'wont_do'];
+
 /**
  * The board, for bots: list tickets, open new ones (for itself, another bot or the person) and
- * update them with a status and a comment. A ticket a bot opens while working on a ticket waits
+ * update them with a status and a comment, and delete finished ones. A ticket a bot opens while working on a ticket waits
  * for the person instead of starting its assignee, so tickets cannot keep starting each other.
  * The prompt says when to use them (`prompt.boardHow`).
  */
@@ -141,6 +150,48 @@ export function ticketTools(opts: {
         return t('tool.ticketUpdated', { number: k.number });
       },
       'internal',
+    ),
+    def(
+      'ticket_delete',
+      {
+        tickets: z
+          .array(z.union([z.string(), z.number()]))
+          .min(1)
+          .max(50),
+      },
+      async (a) => {
+        const out: string[] = [];
+        const deleted: string[] = [];
+        for (const ref of a.tickets) {
+          const k = await s.tickets.find(ref);
+          if (!k) {
+            out.push(t('tool.ticketMissing', { ticket: String(ref) }));
+            continue;
+          }
+          // Open work may still be going on; the bot drops it by setting it to wont_do first.
+          if (!CLOSED.includes(k.status)) {
+            out.push(t('tool.ticketNotClosed', { number: k.number, status: t(`ticket.status.${k.status}`) }));
+            continue;
+          }
+          if (k.threadId && k.threadId === turn.threadId) {
+            out.push(t('tool.ticketDeleteSelf', { number: k.number }));
+            continue;
+          }
+          await s.tickets.remove(k.id);
+          // The whole ticket is kept, so taking the turn back puts it back with its comments.
+          await note({
+            kind: 'ticket',
+            op: 'delete',
+            targetId: k.id,
+            label: `#${k.number} ${k.title}`,
+            before: { ticket: k as unknown as Record<string, unknown> },
+          });
+          deleted.push(`#${k.number}`);
+        }
+        if (deleted.length) out.unshift(t('tool.ticketsDeleted', { list: deleted.join(', ') }));
+        return out.join('\n');
+      },
+      // Deleting goes by the bot's level, as deleting a routine does; the turn can be taken back.
     ),
   ];
   // Among a hundred tools the model would see the board's only by name behind a tool search, and

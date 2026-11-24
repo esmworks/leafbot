@@ -161,6 +161,7 @@ describe('görev panosu', () => {
     const board = req.tools.filter((x) => x.name.startsWith('ticket'));
     expect(board.map((x) => x.name).sort()).toEqual([
       'ticket_create',
+      'ticket_delete',
       'ticket_read',
       'ticket_update',
       'tickets_list',
@@ -171,7 +172,7 @@ describe('görev panosu', () => {
     const client = new Client({ name: 'test', version: '1' });
     await client.connect(clientSide);
     const { tools } = await client.listTools();
-    expect(tools.map((x) => x._meta?.['anthropic/alwaysLoad'])).toEqual([true, true, true, true]);
+    expect(tools.map((x) => x._meta?.['anthropic/alwaysLoad'])).toEqual([true, true, true, true, true]);
     await client.close();
 
     // With a bot to write to, work to follow goes to it through the board, not by message.

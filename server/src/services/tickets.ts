@@ -8,7 +8,7 @@ import {
   type TicketUpdate as UpdateInput,
   type TurnState,
 } from '@leafbot/shared';
-import { asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { asc, desc, eq, inArray, or, sql } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import type { TurnOutcome } from '../engine/types';
 import { schema } from '../db';
@@ -179,6 +179,57 @@ export class TicketService {
     await this.row(id);
     await this.ctx.db.delete(schema.tickets).where(eq(schema.tickets.id, id));
     this.changed();
+  }
+
+  /**
+   * Puts a deleted ticket back as it was, with its number, place and comments. False when its
+   * number was given to a ticket opened since: two tickets cannot both be #12.
+   */
+  async reinsert(k: Ticket): Promise<boolean> {
+    const [taken] = await this.ctx.db
+      .select({ id: schema.tickets.id })
+      .from(schema.tickets)
+      .where(or(eq(schema.tickets.number, k.number), eq(schema.tickets.id, k.id)))
+      .limit(1);
+    if (taken) return false;
+    // What it pointed to may have gone since; the ticket comes back without it.
+    const exists = async (
+      table: typeof schema.bots | typeof schema.threads | typeof schema.users,
+      id: string | null | undefined,
+    ) =>
+      id
+        ? (await this.ctx.db.select({ id: table.id }).from(table).where(eq(table.id, id)).limit(1)).length > 0
+        : false;
+    await this.ctx.db.transaction(async (tx) => {
+      await tx.insert(schema.tickets).values({
+        id: k.id,
+        number: k.number,
+        title: k.title,
+        description: k.description,
+        status: k.status,
+        priority: k.priority,
+        assigneeBotId: (await exists(schema.bots, k.assigneeBotId)) ? k.assigneeBotId : null,
+        createdBy: k.createdBy,
+        createdByUserId: (await exists(schema.users, k.createdByUserId)) ? k.createdByUserId! : null,
+        threadId: (await exists(schema.threads, k.threadId)) ? k.threadId : null,
+        position: k.position,
+        createdAt: new Date(k.createdAt),
+        updatedAt: new Date(k.updatedAt),
+      });
+      if (k.comments.length) {
+        await tx.insert(schema.ticketComments).values(
+          k.comments.map((c) => ({
+            id: c.id,
+            ticketId: k.id,
+            author: c.author,
+            text: c.text,
+            createdAt: new Date(c.createdAt),
+          })),
+        );
+      }
+    });
+    this.changed();
+    return true;
   }
 
   /** A comment on a ticket; the person's comment on an assigned, unfinished one sends its bot back. */

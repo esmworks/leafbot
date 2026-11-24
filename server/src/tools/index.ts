@@ -336,6 +336,7 @@ const GUEST_OFF = new Set<string>([
   'memory_flag',
   'ticket_create',
   'ticket_update',
+  'ticket_delete',
   'skill_save',
   'browser_card',
   'promise_track',
@@ -416,6 +417,7 @@ export type ToolName =
   | 'ticket_read'
   | 'ticket_create'
   | 'ticket_update'
+  | 'ticket_delete'
   | 'tables_list'
   | 'table_define'
   | 'table_rows'
