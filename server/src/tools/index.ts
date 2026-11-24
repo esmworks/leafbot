@@ -2123,9 +2123,16 @@ export class ToolFactory {
         t,
         computer: this.ctx.computer,
         cwd,
-        // A person's own GitHub only for work their own message started in their own conversation:
-        // a routine, a mail, a follow-up or work another bot handed on uses the team's.
-        own: !guest && turn.source === 'user' && turn.userId === own ? own : null,
+        // A person's own GitHub only for work their own message started in their own conversation,
+        // or that another bot handed on from such a message with no outside text read on the way
+        // (asked at each command, so a page read before it counts): a routine, a mail, a
+        // follow-up or any other handed-on work uses the team's.
+        own: async () => {
+          if (guest || !own || turn.userId !== own) return null;
+          if (turn.source === 'user') return own;
+          if (turn.source !== 'bot' || !turn.jobId || turn.outside || reads()) return null;
+          return (await s.jobs.startedByPerson(turn.jobId, own)) ? own : null;
+        },
       });
       // A bot with its own project folder runs commands in this server's sandbox, where that
       // folder is; the desktop does not see it.

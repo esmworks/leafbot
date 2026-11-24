@@ -34,6 +34,42 @@ export class JobService {
     return row;
   }
 
+  /**
+   * Whether the request chain `jobId` belongs to began with `userId`'s own message in their own
+   * conversation, with no turn along it having read outside text (a mail, a page, a webhook, a
+   * forwarded message). Work handed on that way is the person's as much as a command they typed,
+   * so it may use what only their own work uses, such as their own GitHub. A routine, a ticket, a
+   * WhatsApp chat answered for them or a team conversation at the start breaks the chain, as does
+   * outside text read before the request left: its words could be someone else's.
+   */
+  async startedByPerson(jobId: string, userId: string): Promise<boolean> {
+    let id: string | null = jobId;
+    for (let hop = 0; id && hop <= this.ctx.config.maxJobDepth; hop++) {
+      const at: string = id;
+      const [row] = await this.ctx.db
+        .select({ turn: schema.turns, thread: schema.threads })
+        .from(schema.jobs)
+        .innerJoin(schema.turns, eq(schema.turns.id, schema.jobs.fromTurnId))
+        .innerJoin(schema.threads, eq(schema.threads.id, schema.turns.threadId))
+        .where(eq(schema.jobs.id, at))
+        .limit(1);
+      if (!row) return false;
+      const { turn, thread } = row;
+      if (turn.outside || turn.guest || turn.userId !== userId) return false;
+      if (turn.source === 'user') {
+        return (
+          thread.kind === 'user' &&
+          thread.userId === userId &&
+          !(await this.services.whatsapp.contactOf(thread.id))
+        );
+      }
+      if (turn.source !== 'bot') return false;
+      const next: string | null = turn.jobId;
+      id = next;
+    }
+    return false;
+  }
+
   async send(opts: {
     from: Bot;
     fromThreadId: string;
