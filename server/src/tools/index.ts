@@ -12,6 +12,9 @@ import {
   ROUTINE_VAR_MAX,
   ROUTINE_VAR_NAME,
   ROUTINE_VARS_MAX,
+  ROUTINE_STEP_MAX,
+  RoutineStep as StepSchema,
+  type RoutineStep,
   type RoutineCheck,
   type RoutineUpdate,
   searchCatalog,
@@ -85,6 +88,91 @@ const Choice = z.union([
   z.object({ label: z.string().min(1).max(200), description: z.string().max(500).optional() }),
 ]);
 const choiceLabel = (c: z.infer<typeof Choice>) => (typeof c === 'string' ? c : c.label);
+
+/**
+ * A routine step as a bot writes it: one flat shape for every kind, with only the fields its kind
+ * reads, so a model fills it in without picking among schemas. `id` keeps an existing step (its
+ * place in the flow view and its runs' history); a step without one is new.
+ */
+const StepInput = z.object({
+  id: z.string().max(40).optional(),
+  kind: z.enum(['agent', 'approval', 'notify', 'wait']),
+  prompt: z.string().max(20_000).optional(),
+  model: z.string().trim().max(200).optional(),
+  question: z.string().max(2000).optional(),
+  timeout_days: z.number().int().optional(),
+  text: z.string().max(4000).optional(),
+  with_before: z.boolean().optional(),
+  on: z.enum(['time', 'webhook', 'email']).optional(),
+  minutes: z.number().int().optional(),
+  filter: z.string().max(2000).optional(),
+});
+const StepsInput = z.array(StepInput).max(ROUTINE_STEP_MAX);
+
+/** A new step's id: short, unique within the routine, and of the letters the server takes. */
+const newStepId = () => `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+/**
+ * The steps a bot wrote, as the routine keeps them, or why they cannot be: each step is checked
+ * against the same schema the routine's window saves through.
+ */
+export function stepsFrom(input: z.infer<typeof StepsInput>, t: T): RoutineStep[] | string {
+  const out: RoutineStep[] = [];
+  const ids = new Set<string>();
+  for (const [i, s] of input.entries()) {
+    let id = s.id?.trim() || newStepId();
+    while (ids.has(id) && !s.id) id = newStepId();
+    if (ids.has(id)) return t('tool.routineStepSameId', { n: i + 1, id });
+    ids.add(id);
+    const raw =
+      s.kind === 'agent'
+        ? { id, kind: s.kind, prompt: s.prompt ?? '', model: s.model ?? '' }
+        : s.kind === 'approval'
+          ? { id, kind: s.kind, question: s.question ?? '', timeoutDays: s.timeout_days }
+          : s.kind === 'notify'
+            ? { id, kind: s.kind, text: s.text ?? '', withBefore: s.with_before }
+            : {
+                id,
+                kind: s.kind,
+                on: s.on ?? 'time',
+                minutes: s.minutes,
+                filter: s.filter ?? '',
+                timeoutDays: s.timeout_days,
+              };
+    const parsed = StepSchema.safeParse(raw);
+    if (!parsed.success) {
+      const issues = parsed.error.issues.map(
+        (x) => `${x.path.join('.') || s.kind}: ${isServerKey(x.message) ? t(x.message) : x.message}`,
+      );
+      return t('tool.routineBadStep', { n: i + 1, issues: issues.join('; ') });
+    }
+    out.push(parsed.data);
+  }
+  return out;
+}
+
+/** Whether a step of the routine waits for its webhook to be called. */
+const waitsOnHook = (steps: readonly RoutineStep[]) =>
+  steps.some((x) => x.kind === 'wait' && x.on === 'webhook');
+
+/** A routine's steps in the shape `steps` takes, so a bot can read them and send them back changed. */
+export function stepsOut(steps: readonly RoutineStep[]): Record<string, unknown>[] {
+  return steps.map((s) =>
+    s.kind === 'agent'
+      ? { id: s.id, kind: s.kind, prompt: s.prompt, ...(s.model && { model: s.model }) }
+      : s.kind === 'approval'
+        ? { id: s.id, kind: s.kind, question: s.question, timeout_days: s.timeoutDays }
+        : s.kind === 'notify'
+          ? { id: s.id, kind: s.kind, text: s.text, with_before: s.withBefore }
+          : {
+              id: s.id,
+              kind: s.kind,
+              on: s.on,
+              ...(s.on === 'time' ? { minutes: s.minutes } : { filter: s.filter }),
+              timeout_days: s.timeoutDays,
+            },
+  );
+}
 
 /** Query parameters that carry a sign-in or a signature rather than say which page it is. */
 const SECRET_PARAM =
@@ -581,6 +669,40 @@ export class ToolFactory {
         all.filter((b) => b.id === bot.id || (!b.isManager && editable.has(b.id))).map((b) => [b.id, b.name]),
       );
     };
+    /**
+     * Asks the person on a card in this conversation, at every permission level; true when they
+     * approve, else what they wrote on the card instead of a button.
+     */
+    const askOnCard = async (summary: string, input: Record<string, unknown>, toolName: string) => {
+      const approve = t('tool.approve');
+      const r = await s.approvals.ask({
+        threadId: thread.id,
+        botId: bot.id,
+        turnId: turn.id,
+        kind: 'question',
+        toolName,
+        input,
+        summary,
+        options: [approve, t('tool.reject')],
+        signal,
+        timeoutMs: unattended,
+        onCreated: async (ap) => {
+          await s.threads.addMessage({
+            threadId: thread.id,
+            role: 'approval',
+            author: `bot:${bot.id}`,
+            text: ap.summary,
+            props: { approvalId: ap.id },
+            turnId: turn.id,
+          });
+        },
+      });
+      if (r.status === 'allowed' && (!r.answer || r.answer === approve)) return true;
+      const words = r.status === 'allowed' && r.answer !== t('tool.reject') ? (r.answer?.trim() ?? '') : '';
+      return { words };
+    };
+    const refusedOnCard = (message: string, r: { words: string }) =>
+      r.words ? `${message}\n\n${t('tool.changeAnswered', { answer: r.words })}` : message;
     const tools: AppTool[] = [
       def(
         'ask_user',
@@ -797,6 +919,12 @@ export class ToolFactory {
           check_args: z.record(z.string(), z.unknown()).optional(),
           /** Also give it a secret address another service can call to start it. */
           webhook: z.boolean().default(false),
+          /** Conditions a webhook call's JSON body must meet to start it, one per line. */
+          webhook_filter: z.string().max(2000).optional(),
+          /** A webhook call only posts what it carries, with no AI turn. */
+          webhook_post: z.boolean().optional(),
+          /** What it does after its instruction, in order, each once the one before it ended well. */
+          steps: StepsInput.optional(),
           /** Also run when mail arrives at the bot's address, when the mail meets `email_filter`. */
           on_email: z.boolean().default(false),
           email_filter: z.string().max(2000).optional(),
@@ -816,14 +944,16 @@ export class ToolFactory {
           if (a.check_tool && !check) return t('tool.routineBadCheck', { tool: a.check_tool });
           const watched = a.on_table ? await tableNamed(bot.id, a.on_table) : null;
           if (typeof watched === 'string') return watched;
+          const steps = stepsFrom(a.steps ?? [], t);
+          if (typeof steps === 'string') return steps;
           const settings = await s.settings.all();
           const r = await s.routines.create(
             {
               botId: bot.id,
               name: a.name.trim(),
               prompt: a.prompt.trim(),
-              // Steps after the instruction are set in the routine's window, where the person sees them.
-              steps: [],
+              // The person sees each step on the card before the routine is made.
+              steps,
               slackReaction: '',
               schedule: a.schedule,
               timezone: settings.timezone,
@@ -836,8 +966,8 @@ export class ToolFactory {
               onStartup: a.on_startup,
               watchUrl: a.watch_url ?? null,
               check: check && { ...check, args: a.check_args ?? {} },
-              webhookFilter: '',
-              webhookPost: false,
+              webhookFilter: a.webhook_filter ?? '',
+              webhookPost: a.webhook_post ?? false,
               model: a.model ?? '',
               emailTrigger: a.on_email,
               emailFilter: a.email_filter ?? '',
@@ -865,7 +995,8 @@ export class ToolFactory {
             when: describeSchedule(r.schedule, await s.settings.locale()),
             timezone: r.timezone,
           });
-          if (!a.webhook) return made;
+          // A step that waits for the routine's webhook needs its address to be called at.
+          if (!a.webhook && !waitsOnHook(steps)) return made;
           const hooked = await s.routines.setWebhook(r.id, true);
           return `${made}\n${t('tool.routineWebhook', { path: `/api/hooks/routines/${r.id}/${hooked.webhookToken}` })}`;
         },
@@ -883,19 +1014,42 @@ export class ToolFactory {
           const found = await pickRoutine(a.routine, a.bot);
           if (typeof found === 'string') return found;
           const r = found.routine;
-          const [last] = await s.routines.runs(r.id, 1);
-          const steps = (r.steps ?? []).map((st, i) =>
-            t('tool.routineReadStep', {
-              n: i + 1,
-              kind: st.kind,
-              text: (st.kind === 'agent'
-                ? st.prompt
-                : st.kind === 'approval'
-                  ? st.question
-                  : st.kind === 'notify'
-                    ? st.text
-                    : `${st.on} ${st.filter}`.trim()
-              ).slice(0, 300),
+          const runs = await s.routines.runs(r.id, 3);
+          const last = runs[0];
+          // The fields as routine_update takes them, so the bot can send one back as it found it.
+          const table = r.tableTrigger
+            ? (await s.tables.list(r.botId).catch(() => [])).find((x) => x.id === r.tableTrigger)?.name
+            : undefined;
+          const settings = {
+            ...(r.model && { model: r.model }),
+            in_main: r.inMain,
+            on_startup: r.onStartup,
+            ...(r.watchUrl && { watch_url: r.watchUrl }),
+            ...(r.check && { check_tool: r.check.tool, check_args: r.check.args }),
+            webhook: !!r.webhookToken,
+            ...(r.webhookFilter && { webhook_filter: r.webhookFilter }),
+            ...(r.webhookPost && { webhook_post: true }),
+            on_email: r.emailTrigger,
+            ...(r.emailFilter && { email_filter: r.emailFilter }),
+            ...(r.tableTrigger && { on_table: table ?? r.tableTrigger }),
+            ...(r.tableFilter && { table_filter: r.tableFilter }),
+            ...(r.whatsappGroup && { whatsapp_group: r.whatsappGroup }),
+            ...(r.whatsappPeople && { whatsapp_people: true }),
+            ...(r.slackChannel && { slack_channel: r.slackChannel }),
+            ...(r.pausedReason && { paused_reason: r.pausedReason }),
+            ...(r.signInWait && { waits_for_sign_in: true }),
+          };
+          const steps = r.steps ?? [];
+          // How each step of the latest runs went: the bot sees where a routine it built stops.
+          const runLines = runs.map((run) =>
+            t('tool.routineReadRun', {
+              status: run.status,
+              at: run.startedAt,
+              reason: run.reason ?? '-',
+              steps:
+                run.steps
+                  ?.map((x) => `${x.position}:${x.kind}=${x.status}${x.reason ? ` (${x.reason})` : ''}`)
+                  .join(', ') ?? '-',
             }),
           );
           return t('tool.routineRead', {
@@ -915,7 +1069,15 @@ export class ToolFactory {
                 })
               : t('tool.routineReadNoRun'),
             prompt: r.prompt,
-            steps: steps.length ? `\n${t('tool.routineReadSteps')}\n${steps.join('\n')}` : '',
+            steps: [
+              `\n${t('tool.routineReadSettings')}\n${JSON.stringify(settings)}`,
+              steps.length
+                ? `\n${t('tool.routineReadSteps')}\n${JSON.stringify(stepsOut(steps), null, 1)}`
+                : '',
+              runLines.length > 1 || (runLines.length && steps.length)
+                ? `\n${t('tool.routineReadRuns')}\n${runLines.join('\n')}`
+                : '',
+            ].join(''),
           });
         },
         'read',
@@ -954,6 +1116,12 @@ export class ToolFactory {
           /** An empty string stops starting on the table's new rows. */
           on_table: z.string().max(200).optional(),
           table_filter: z.string().max(2000).optional(),
+          /** true gives it a webhook address when it has none; false takes the address away. */
+          webhook: z.boolean().optional(),
+          webhook_filter: z.string().max(2000).optional(),
+          webhook_post: z.boolean().optional(),
+          /** Every step after the instruction, in order: the list replaces the routine's steps. */
+          steps: StepsInput.optional(),
         },
         async (a) => {
           // The bot changes itself only for someone who may change it.
@@ -975,6 +1143,33 @@ export class ToolFactory {
           // The table is the routine's own bot's, which may be another one for a manager.
           const watched = a.on_table ? await tableNamed(r.botId, a.on_table) : null;
           if (typeof watched === 'string') return watched;
+          const steps = a.steps ? stepsFrom(a.steps, t) : undefined;
+          if (typeof steps === 'string') return steps;
+          if (steps && a.webhook === false && waitsOnHook(steps)) return t('tool.routineHookNeeded');
+          // A step that asks the person is their hold on what the routine does: one taken away or
+          // put elsewhere is asked about on a card, whatever the bot may do by itself.
+          const held = (r.steps ?? []).filter((x) => x.kind === 'approval');
+          const before = r.steps ?? [];
+          const at = (id: string) => steps?.findIndex((y) => y.id === id) ?? -1;
+          // Taken away, or with a step that came after it (and so waited for the person) now before it.
+          const loosened =
+            steps &&
+            held.some((x) => {
+              const now = steps.findIndex((y) => y.id === x.id && y.kind === 'approval');
+              if (now < 0) return true;
+              return before.slice(before.indexOf(x) + 1).some((y) => {
+                const there = at(y.id);
+                return there >= 0 && there < now;
+              });
+            });
+          if (loosened) {
+            const ok = await askOnCard(
+              t('tool.routineApprovalDropped', { name: r.name }),
+              { routine: r.name, steps: a.steps },
+              'routine_update',
+            );
+            if (ok !== true) return refusedOnCard(t('tool.routineApprovalKept', { name: r.name }), ok);
+          }
           const patch: z.infer<typeof RoutineUpdate> = {
             ...(a.enabled !== undefined && { enabled: a.enabled }),
             ...(a.name !== undefined && { name: a.name.trim() }),
@@ -992,14 +1187,21 @@ export class ToolFactory {
             ...(a.email_filter !== undefined && { emailFilter: a.email_filter }),
             ...(a.on_table !== undefined && { tableTrigger: watched?.id ?? null }),
             ...(a.table_filter !== undefined && { tableFilter: a.table_filter }),
+            ...(a.webhook_filter !== undefined && { webhookFilter: a.webhook_filter }),
+            ...(a.webhook_post !== undefined && { webhookPost: a.webhook_post }),
+            ...(steps !== undefined && { steps }),
           };
-          if (!Object.keys(patch).length) return t('tool.routineNoChange');
+          // The address is kept apart from the routine's fields: a routine that has one keeps it.
+          const hookOn = (a.webhook === true || (steps && waitsOnHook(steps))) && !r.webhookToken;
+          const hookOff = a.webhook === false && !!r.webhookToken;
+          if (!Object.keys(patch).length && !hookOn && !hookOff) return t('tool.routineNoChange');
           const rename = patch.name?.toLowerCase();
           const taken =
             rename &&
             routines.find((x) => x.id !== r.id && x.botId === r.botId && x.name.toLowerCase() === rename);
           if (taken) return t('tool.routineExists', { name: taken.name });
-          const updated = await s.routines.update(r.id, patch, person);
+          let updated = Object.keys(patch).length ? await s.routines.update(r.id, patch, person) : r;
+          if (hookOn || hookOff) updated = await s.routines.setWebhook(r.id, !!hookOn);
           s.promises.routineTouched(turn.id);
           await journal({
             kind: 'routine',
@@ -1010,12 +1212,15 @@ export class ToolFactory {
             before: { patch: pickFields(r, Object.keys(patch)) },
             after: { sig: sig(routineShape(updated)) },
           });
-          return t('tool.routineUpdated', {
+          const done = t('tool.routineUpdated', {
             name: updated.name,
             when: describeSchedule(updated.schedule, await s.settings.locale()),
             timezone: updated.timezone,
             state: t(updated.enabled ? 'tool.routineOn' : 'tool.routineOff'),
           });
+          return hookOn && updated.webhookToken
+            ? `${done}\n${t('tool.routineWebhook', { path: `/api/hooks/routines/${r.id}/${updated.webhookToken}` })}`
+            : done;
         },
         // The person sees which routine changes, and how, on a card first.
       ),

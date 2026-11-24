@@ -25,6 +25,40 @@ function checkText(raw: unknown, locale: Locale): string | null {
 }
 
 /**
+ * A routine's steps as the card shows them, one line each, so the person sees every step the
+ * routine will take, which model each runs on and where it waits for them. An empty list removes them.
+ */
+function stepsText(raw: unknown, locale: Locale): string | null {
+  if (!Array.isArray(raw)) return null;
+  const tr = locale === 'tr';
+  if (!raw.length) return tr ? 'adımlar kaldırılır' : 'the steps are removed';
+  const line = (x: Record<string, unknown>, i: number) => {
+    const n = `${i + 1}.`;
+    const model = str(x.model) ? ` [${str(x.model)}]` : '';
+    switch (x.kind) {
+      case 'agent':
+        return `${n} bot${model}: ${cut(str(x.prompt) ?? '')}`;
+      case 'approval':
+        return `${n} ${tr ? 'sana sorar' : 'asks you'}: ${cut(str(x.question) ?? '')}`;
+      case 'notify':
+        return `${n} ${tr ? 'bildirir' : 'tells'}: ${cut(str(x.text) ?? '')}`;
+      case 'wait':
+        return x.on === 'webhook' || x.on === 'email'
+          ? `${n} ${tr ? 'bekler' : 'waits for'} ${x.on}${str(x.filter) ? ` (${cut(str(x.filter)!)})` : ''}`
+          : `${n} ${tr ? 'bekler' : 'waits'} ${typeof x.minutes === 'number' ? x.minutes : 60} ${tr ? 'dk' : 'min'}`;
+      default:
+        return `${n} ${String(x.kind)}`;
+    }
+  };
+  const head = tr ? 'Adımlar:' : 'Steps:';
+  return [
+    head,
+    ...raw.map((x, i) => line(x && typeof x === 'object' ? (x as Record<string, unknown>) : {}, i)),
+  ].join('\n');
+}
+const cut = (v: string) => (v.length > 200 ? `${v.slice(0, 199)}…` : v);
+
+/**
  * Plain-language wording for a tool a bot wants to use, for approval cards and the one-line
  * note left after the answer. No tool names or arguments: those stay behind the detail toggle.
  * Every field is a whole sentence naming the bot, because word order differs by language.
@@ -452,8 +486,9 @@ function detailFor(name: string, input: Record<string, unknown>, locale: Locale)
       const when = scheduleText(input.schedule, locale);
       const model = str(input.model) && modelText(input.model, locale);
       return (
-        [when, model, checkText(input.check_tool, locale), str(input.prompt)].filter(Boolean).join('\n') ||
-        null
+        [when, model, checkText(input.check_tool, locale), str(input.prompt), stepsText(input.steps, locale)]
+          .filter(Boolean)
+          .join('\n') || null
       );
     }
     case 'routine_update': {
@@ -462,7 +497,9 @@ function detailFor(name: string, input: Record<string, unknown>, locale: Locale)
       const model = modelText(input.model, locale);
       const check = checkText(input.check_tool, locale);
       return (
-        [rename && `→ ${rename}`, when, model, check, str(input.prompt)].filter(Boolean).join('\n') || null
+        [rename && `→ ${rename}`, when, model, check, str(input.prompt), stepsText(input.steps, locale)]
+          .filter(Boolean)
+          .join('\n') || null
       );
     }
     default:

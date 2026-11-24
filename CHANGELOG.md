@@ -7,6 +7,12 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Bots can set up everything a routine's window does when you ask them in the chat: steps after the instruction, each
+  agent step on a model of its own (a cheap check first, the real work on a stronger model), approval steps that ask
+  you, notices with no AI, steps that wait for a time, a webhook or a mail, and a webhook's filter. The approval card
+  lists every step. A bot reads a routine in full before it changes it, with each step's id and model and how the
+  steps of the latest runs went, and keeps the steps it leaves as they were. Taking an approval step out of a
+  routine, or putting a step before it, is always asked about on a card, whatever the bot may do by itself.
 - A bot's object avatar can wear a coat of fur: pick "Fluffy" under Surface in the bot's window, beside the shapes
   and colours. The choice is kept per bot and shows wherever the bot appears in the app. The phone, and a browser
   without WebGL2, keep drawing the body smooth. The server migrates its database on start.
