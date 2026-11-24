@@ -1,13 +1,17 @@
 name: CI
 
-# Automatic runs are off for now; run it by hand from the Actions tab.
-# To turn them back on, add the push (branches: [main]) and pull_request triggers here again.
+# Runs on every push to main, on every pull request, and by hand from the Actions tab.
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 
+# A newer push to the same pull request cancels its older run. Every other run gets a group of its
+# own, so no run on main waits behind or is dropped for another, and every commit on main gets a result.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -18,24 +22,83 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # Install and test scripts have no use for the token, so it is not stored in the checkout.
           persist-credentials: false
-      # pnpm sürümü package.json'daki packageManager alanından okunur.
+      # The pnpm version is read from the packageManager field in package.json.
       - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # poppler-utils: the PDF reading test runs the real pdfinfo, pdftotext and pdftoppm.
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
-      # Derleme testlerden önce: masaüstü testleri derlenmiş sunucuyu başlatır.
       - run: pnpm build
-      - run: pnpm test
+
+  # The suite has about 2,200 tests; most server tests start a server and the browser tests start
+  # Chrome. On one runner the tests took over 18 minutes and the job hit its time limit, so the test
+  # files are split over three runners that run side by side.
+  test:
+    name: test (${{ matrix.shard }}/3)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Build before the tests: the desktop tests start the built server.
+      - run: pnpm build
+      # Ubuntu 24.04 lets AppArmor block unprivileged user namespaces, so Chrome's sandbox cannot
+      # start as the runner user and every browser test failed with "Target page, context or browser
+      # has been closed". The tests keep the sandbox on, as the app does, and the runner allows it.
+      - name: Let Chrome start its sandbox
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      # The Claude CLI refuses to run a sandboxed command without bubblewrap and socat
+      # ("Sandbox required but unavailable"), so the test that drives the real CLI failed. The shell
+      # the Pi engine runs commands in uses the same sandbox, which also wants ripgrep ("Sandbox
+      # dependencies not available: ripgrep (rg) not found"). poppler-utils: the PDF reading test runs
+      # the real pdfinfo, pdftotext and pdftoppm.
+      - name: Install the command sandbox tools and the PDF tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends bubblewrap socat ripgrep poppler-utils
+      # With the sysctl above the sandbox's seccomp helper, which opens a user namespace inside
+      # bubblewrap's, still failed every command with "nested userns is capability-restricted".
+      # Ubuntu's AppArmor can give /usr/bin/bwrap a profile of its own that strips capabilities from
+      # what it starts, which the sysctl does not reach; that profile is replaced by one that leaves
+      # bubblewrap unconfined. The step prints the profile it found and whether a nested namespace
+      # opens afterwards, so a run that still fails shows which of the two it was.
+      - name: Let bubblewrap open nested user namespaces
+        run: |
+          sudo aa-status 2>/dev/null | grep -i bwrap || echo "no bwrap profile loaded"
+          sudo tee /etc/apparmor.d/bwrap-userns-restrict > /dev/null <<'EOF'
+          abi <abi/4.0>,
+          include <tunables/global>
+          profile bwrap /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          EOF
+          sudo apparmor_parser -r /etc/apparmor.d/bwrap-userns-restrict
+          # What the seccomp helper does: a user namespace of its own, opened inside bubblewrap's.
+          bwrap --unshare-user --unshare-pid --ro-bind / / --dev /dev --proc /proc -- \
+            unshare --user --map-root-user true \
+            && echo "a nested user namespace opens" || echo "a nested user namespace is still refused"
+      # The hanging-process reporter names whatever keeps a test worker from exiting, should one hang.
+      - run: pnpm exec vitest run --shard=${{ matrix.shard }}/3 --reporter=default --reporter=hanging-process
+        env:
+          # Name the runner's Chrome, so a missing browser fails the browser tests instead of
+          # skipping them without a word.
+          LEAFBOT_TEST_BROWSER: /usr/bin/google-chrome

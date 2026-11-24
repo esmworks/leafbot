@@ -799,8 +799,23 @@ describe.skipIf(!BROWSER)('botun tarayıcısı', () => {
     await t.send(thread.id, `[araç:browser_open {"url":"${base}/"}]`);
     await t.services.turns.idle();
     const browser = t.services.ctx.browser;
-    // Chromium's own page for crashing a tab, as an out-of-memory page would.
-    await browser.use(bot.id, (page) => page.goto('chrome://crash').catch(() => {}));
+    // The page's renderer process is killed, as the system kills one that runs out of memory. Chrome's
+    // own ways of crashing a tab did not do it on the CI runner's Chrome: `chrome://crash` is turned
+    // off in its builds, and `Page.crash` left the tab running, so no crash was ever reported.
+    const crashed = await browser.use(bot.id, async (page) => page);
+    const owner = crashed.context().browser();
+    if (!owner) throw new Error('the bot browser has no browser to ask for its processes');
+    const devtools = await owner.newBrowserCDPSession();
+    const { processInfo } = (await devtools.send('SystemInfo.getProcessInfo')) as {
+      processInfo: { type: string; id: number }[];
+    };
+    await devtools.detach();
+    const renderers = processInfo.filter((p) => p.type === 'renderer').map((p) => p.id);
+    expect(renderers.length).toBeGreaterThan(0);
+    for (const pid of renderers) process.kill(pid, 'SIGKILL');
+    // The page the bot was on is not merely still there: a fresh tab took its place.
+    await waitFor(() => browser.use(bot.id, async (page) => page !== crashed));
+    await waitFor(async () => crashed.isClosed());
     await waitFor(async () => (await text('browser_snapshot', {})).includes('heading "Giriş"'));
   });
 
