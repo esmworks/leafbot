@@ -1,8 +1,19 @@
 import { describeAction, type Message, type Routine, type RoutineRun, type Thread } from '@leafbot/shared';
 import { eq } from 'drizzle-orm';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { schema } from '../src/db';
+import type * as SkillLink from '../src/services/skill-link';
 import { testServer, type TestServer } from './helpers';
+
+/** A stand-in for the address a fetch step reads. */
+vi.mock('../src/services/skill-link', async (original) => ({
+  ...(await original<typeof SkillLink>()),
+  fetchPublic: async (url: URL) => ({
+    body: Buffer.from('{"haber":"yeni"}'),
+    contentType: 'application/json',
+    url,
+  }),
+}));
 
 describe('a routine step another bot does', () => {
   let t: TestServer;
@@ -104,6 +115,86 @@ describe('a routine step another bot does', () => {
     expect(run.steps?.map((s) => s.status)).toEqual(['done', 'error', 'skipped', 'done']);
     expect(t.engine.requests.some((q) => q.botId === other.id)).toBe(false);
     expect((await reports(own.id)).at(-1)?.text).toContain('Araştıran bot yok');
+  });
+
+  it("goes on in the person's own conversation, where the other bot's answers show and the run reports", async () => {
+    const own = await t.bot();
+    const other = await t.bot();
+    const made = await make(
+      own.id,
+      [
+        { id: 'arastir', kind: 'agent', prompt: 'konuyu araştır', bot: other.id },
+        { id: 'denetle', kind: 'agent', prompt: 'kontrol et' },
+        { id: 'son', kind: 'agent', prompt: 'son sözü yaz', bot: other.id },
+      ],
+      { inMain: true },
+    );
+    const run = await runOnce(made.body);
+    expect(run.status).toBe('done');
+    const main = (await t.api<Thread>('GET', `/api/bots/${own.id}/main-thread`)).body;
+    expect(await runThread(run.id)).toBe(main.id);
+    const said = (await t.messages(main.id)).filter((m) => m.author === `bot:${other.id}`);
+    expect(said.map((m) => m.text)).toEqual([
+      expect.stringContaining('konuyu araştır'),
+      expect.stringContaining('son sözü yaz'),
+    ]);
+    // The step between them was the routine's own bot's, in that same conversation.
+    const checked = t.engine.requests.find((q) => q.prompt.includes('kontrol et'))!;
+    expect([checked.botId, checked.threadId]).toEqual([own.id, main.id]);
+  });
+
+  it('hands what came from outside on to the other bot, marked as such', async () => {
+    const own = await t.bot();
+    const other = await t.bot();
+    const made = await make(own.id, [
+      { id: 'oku', kind: 'fetch', url: 'https://ornek.com/haber.json' },
+      { id: 'yorumla', kind: 'agent', prompt: 'haberi yorumla', bot: other.id },
+    ]);
+    expect(made.status).toBe(200);
+    const run = await runOnce(made.body);
+    expect(run.status).toBe('done');
+    const [turn] = await t.services.ctx.db
+      .select({ botId: schema.turns.botId, outside: schema.turns.outside })
+      .from(schema.turns)
+      .where(eq(schema.turns.botId, other.id));
+    expect(turn).toEqual({ botId: other.id, outside: 'web' });
+  });
+
+  it('is set up by a bot with the other bot by name, read back and sent back unchanged', async () => {
+    const own = await t.bot({ name: 'Paşa', permissionMode: 'auto' });
+    const other = await t.bot({ name: 'Ayşe' });
+    const thread = (await t.api<Thread>('GET', `/api/bots/${own.id}/main-thread`)).body;
+    const ask = async (tool: string, input: Record<string, unknown>) => {
+      await t.send(thread.id, `[araç:${tool} ${JSON.stringify(input)}]`);
+      await t.services.turns.idle();
+      return (await t.messages(thread.id)).at(-1)!.text;
+    };
+    await ask('routine_create', {
+      name: 'Araştırma',
+      prompt: 'konuyu seç',
+      schedule: { type: 'daily', time: '09:00' },
+      steps: [
+        { id: 'arastir', kind: 'agent', prompt: 'konuyu araştır', by_bot: 'Ayşe' },
+        { id: 'yaz', kind: 'agent', prompt: 'yaz', by_bot: 'Paşa' },
+      ],
+    });
+    const [r] = await t.services.routines.list(own.id);
+    // The other bot is kept by its id; naming the routine's own bot is its own step.
+    expect(r!.steps).toEqual([
+      expect.objectContaining({ id: 'arastir', bot: other.id }),
+      expect.not.objectContaining({ bot: expect.anything() }),
+    ]);
+    const read = await ask('routine_read', { routine: 'Araştırma' });
+    expect(read).toContain('"by_bot": "Ayşe"');
+    await ask('routine_update', {
+      routine: 'Araştırma',
+      steps: [
+        { id: 'arastir', kind: 'agent', prompt: 'konuyu derinlemesine araştır', by_bot: 'Ayşe' },
+        { id: 'yaz', kind: 'agent', prompt: 'yaz' },
+      ],
+    });
+    const [changed] = await t.services.routines.list(own.id);
+    expect(changed!.steps?.[0]).toMatchObject({ prompt: 'konuyu derinlemesine araştır', bot: other.id });
   });
 
   it('is not saved with a bot that is not there or is archived', async () => {

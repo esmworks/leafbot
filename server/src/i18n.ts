@@ -306,6 +306,8 @@ const tr = {
     'Rutinin denetimi, bu bota açık bir uygulamanın açık ve yalnız okuyan bir aracı olmalı',
   'error.routineLimit': 'Bir botun en çok {max} rutini olabilir',
   'error.stepBot': '{n}. adımı yapacak bot bulunamadı ya da onunla konuşamıyorsun',
+  'error.routineFixNotYours':
+    'Bir rutine düzeltmeyi yalnızca onu kuran kişi önerebilir; öneri onun çalışmalarından yazılır',
   'error.routineFixNoRuns': 'Rutin henüz hiç çalışmadı; önerinin bakacağı bir çalışma yok',
   'error.routineFixUnavailable': 'Bu botun motoru öneri yazamıyor',
   'error.routineFixLimit': 'Botun kullanım sınırı doldu; öneri yazılmadı',
@@ -2451,6 +2453,8 @@ const en: Catalog<ServerKey> = {
     "A routine's check must be a tool that only reads, switched on, of an app open to this bot",
   'error.routineLimit': 'A bot can have at most {max} routines',
   'error.stepBot': 'The bot for step {n} was not found, or you may not talk with it',
+  'error.routineFixNotYours':
+    "Only the person who set a routine up can ask for a fix to it; it is written from that person's runs",
   'error.routineFixNoRuns': 'The routine has not run yet; there is no run to propose a fix from',
   'error.routineFixUnavailable': "This bot's engine cannot write a proposal",
   'error.routineFixLimit': "The bot's usage limit is spent; no proposal was written",

@@ -66,7 +66,8 @@ export class FakeEngine implements Engine {
   public gates: GateRequest[] = [];
   /** The requests of `complete`, and what answers them (the memory review); a test sets `completer`. */
   public completions: CompleteRequest[] = [];
-  public completer: (req: CompleteRequest) => string | Promise<string> = () => '{"operations":[]}';
+  public completer: (req: CompleteRequest) => string | Promise<string> = (req) =>
+    req.system.includes('You look after a routine') ? fakeFix(req.user) : '{"operations":[]}';
 
   async complete(req: CompleteRequest): Promise<Completion> {
     this.completions.push(req);
@@ -471,5 +472,15 @@ function sleep(ms: number, signal: AbortSignal) {
       clearTimeout(t);
       resolve();
     });
+  });
+}
+
+/** A fix proposed for a routine, so the app can be tried offline: its instruction, asked to be short. */
+function fakeFix(user: string): string {
+  const prompt = user.match(/<instruction>\n([\s\S]*?)\n<\/instruction>/)?.[1] ?? '';
+  return JSON.stringify({
+    why: 'The last runs wrote long reports; the instruction now asks for a short one.',
+    prompt: prompt ? `${prompt}\n\nKeep the report to five lines.` : null,
+    steps: [],
   });
 }

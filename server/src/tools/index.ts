@@ -266,10 +266,17 @@ const stepModels = (steps: readonly RoutineStep[]) =>
 const waitsOnHook = (steps: readonly RoutineStep[]) =>
   steps.some((x) => x.kind === 'wait' && x.on === 'webhook');
 
-/** A routine's steps in the shape `steps` takes, so a bot can read them and send them back changed. */
-export function stepsOut(steps: readonly RoutineStep[]): Record<string, unknown>[] {
+/**
+ * A routine's steps in the shape `steps` takes, so a bot can read them and send them back changed.
+ * A step another bot does names it as `names` has it, or by its id; both find it again.
+ */
+export function stepsOut(
+  steps: readonly RoutineStep[],
+  names: ReadonlyMap<string, string> = new Map(),
+): Record<string, unknown>[] {
   return steps.map((s) => ({
     ...stepOut(s),
+    ...(s.kind === 'agent' && s.bot && { by_bot: names.get(s.bot) ?? s.bot }),
     ...(s.when && {
       when: {
         ...(s.when.contains && { contains: s.when.contains }),
@@ -292,7 +299,6 @@ function stepOut(s: RoutineStep): Record<string, unknown> {
         kind: s.kind,
         prompt: s.prompt,
         ...(s.model && { model: s.model }),
-        ...(s.bot && { by_bot: s.bot }),
       }
     : s.kind === 'approval'
       ? { id: s.id, kind: s.kind, question: s.question, timeout_days: s.timeoutDays }
@@ -1430,7 +1436,11 @@ export class ToolFactory {
               `\n${t('tool.routineReadSettings')}\n${JSON.stringify(settings)}`,
               conditionLine,
               steps.length
-                ? `\n${t('tool.routineReadSteps')}\n${JSON.stringify(stepsOut(steps), null, 1)}`
+                ? `\n${t('tool.routineReadSteps')}\n${JSON.stringify(
+                    stepsOut(steps, new Map((await s.bots.list()).map((b) => [b.id, b.name]))),
+                    null,
+                    1,
+                  )}`
                 : '',
               runLines.length > 1 || (runLines.length && steps.length)
                 ? `\n${t('tool.routineReadRuns')}\n${runLines.join('\n')}`

@@ -516,8 +516,12 @@ export class RoutineService {
    * and applies it, as the runs it was made from may carry outside text (a mail, a page) that must
    * not change the routine by itself.
    */
-  async proposeFix(id: string): Promise<RoutineFix> {
+  async proposeFix(id: string, userId: string): Promise<RoutineFix> {
     const routine = await this.get(id);
+    // It is written from what the runs read and wrote, which are the routine's person's, as a
+    // rehearsal of a past run is; a Slack routine's runs are its team's.
+    if ((await this.personOf(routine)) !== userId && !routine.slackChannel)
+      throw new HttpError(403, 'error.routineFixNotYours');
     const bot = await this.services.bots.get(routine.botId);
     const rows = await this.ctx.db
       .select()
@@ -552,6 +556,8 @@ export class RoutineService {
     // What looks like a secret never leaves in what the runs wrote. The instruction goes as it is:
     // the bot reads it on every run, and a fix written from a cut one would lose what was cut.
     const clean = (x: string | null) => (x ? redactSecrets(x, t('memory.redacted')).text : null);
+    const steps = routine.steps ?? [];
+    const now = JSON.stringify([routine.prompt, steps]);
     const runs: FixRun[] = rows.reverse().map((r) => {
       const own = parts.filter((p) => p.runId === r.id);
       const answer = answers.filter((a) => a.runId === r.id).at(-1)?.text ?? null;
@@ -560,6 +566,7 @@ export class RoutineService {
         status: r.status,
         outcome: r.outcome,
         reason: r.reason,
+        older: JSON.stringify([r.promptSnapshot, snapshotSteps(r.stepsSnapshot) ?? []]) !== now,
         parts: own.length
           ? own.map((p) => ({
               position: p.position,
@@ -571,7 +578,6 @@ export class RoutineService {
           : [{ position: 0, kind: 'prompt', status: r.status, reason: null, output: clean(answer) }],
       };
     });
-    const steps = routine.steps ?? [];
     const { system, user } = fixPrompt({
       prompt: routine.prompt,
       steps,
@@ -3572,6 +3578,7 @@ export class RoutineService {
       userId: run.userId,
     };
     if (handed && at.threadId !== turn.threadId && outcome.text.trim() && !isSilentReply(outcome.text)) {
+      const home = await this.services.threads.row(at.threadId).catch(() => null);
       await this.services.threads.addMessage({
         threadId: at.threadId,
         role: 'user',
@@ -3584,6 +3591,15 @@ export class RoutineService {
           ...(run.outside && { outside: run.outside }),
         },
       });
+      // In the person's own conversation the person hears of it, as of a step the routine's bot
+      // answered there; a routine's own conversation reports at its end instead.
+      if (home?.kind === 'user')
+        this.ctx.bus.notice({
+          kind: 'reply',
+          botId: run.botId,
+          threadId: at.threadId,
+          text: truncate(outcome.text.trim(), 200),
+        });
     }
     if (run.failedByBot || !outcome.ok) {
       const stopped = !outcome.ok && outcome.kind === 'interrupted' && outcome.byPerson === true;

@@ -7,6 +7,15 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A routine's bot step can be done by another bot: pick it under "Done by" on the step, in the list or on the flow, or
+  a bot names it with `by_bot`. That bot does the step with its own settings, apps and account, in its conversation
+  with the routine's bot, for the routine's person; its answer shows in the run's conversation and goes on to the steps
+  after it, which are the routine's own bot's again. A bot that is archived, or that the routine's person may not talk
+  with, is refused when the routine is saved, and fails the step along its failure way when it starts.
+- Suggest a fix, in a routine's health: its bot's model reads the routine's last ten runs and proposes a corrected
+  instruction and bot step instructions, with why, next to what it has now. Nothing changes until you press Apply;
+  Undo, or an earlier version of the instruction, takes it back. Only the person who set the routine up can ask, what
+  looks like a secret in what the runs wrote is cut before it is sent, and the call counts toward the bot's usage.
 - The phone app shows a routine's health too: Settings → Routines names the routines that want a look, and a
   routine's page has the same numbers and findings as on the web, with Apply (and undo), Ask the bot (the message waits
   in the bot's chat for you to send) and Hide.
