@@ -65,6 +65,99 @@ export const RoutineCheck = z.object({
 });
 export type RoutineCheck = z.infer<typeof RoutineCheck>;
 
+/** The most checks a routine's condition may have; all of them must hold. */
+export const ROUTINE_CONDITION_MAX = 5;
+
+/** How far back a check of mail or WhatsApp looks, in hours; 0 is since midnight in the routine's time zone. */
+const withinHours = z
+  .number()
+  .int()
+  .min(0)
+  .max(24 * 30);
+/** A path under a bot's or its group's folder, with `*`, `**` and `?`; never leaving the folder. */
+const filePattern = z
+  .string()
+  .trim()
+  .min(1)
+  .max(300)
+  .refine((p) => !p.startsWith('/') && !p.split('/').includes('..'), 'validation.conditionPath');
+
+/**
+ * One thing a routine's condition looks at with no AI, holding when what it looks for is there
+ * (or, with `absent`, when it is not). `files`: at least `min` files of the bot's (or its group's)
+ * folder match `pattern`, changed within `withinHours` when given. `email`: a mail that came to the
+ * bot meets `filter` (on from, to, subject, text). `whatsapp`: a message of a chat a routine follows
+ * meets `filter` (on chat, writer, text). `table`: a row of the bot's table meets `filter`.
+ * `tool`: a connected app's read-only tool answers so that its JSON meets `filter`, or its text
+ * contains `contains`, or (with neither) it answers anything but an empty list or object. `page`:
+ * an https page's text contains `contains`.
+ */
+export const RoutineConditionCheck = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('files'),
+    folder: z.enum(['bot', 'group']).default('bot'),
+    pattern: filePattern,
+    min: z.number().int().min(1).max(1000).default(1),
+    withinHours: withinHours.nullable().default(null),
+    absent: z.boolean().default(false),
+  }),
+  z.object({
+    kind: z.literal('email'),
+    filter: z.string().max(2000).default(''),
+    withinHours: withinHours.default(0),
+    absent: z.boolean().default(false),
+  }),
+  z.object({
+    kind: z.literal('whatsapp'),
+    filter: z.string().max(2000).default(''),
+    withinHours: withinHours.default(0),
+    absent: z.boolean().default(false),
+  }),
+  z.object({
+    kind: z.literal('table'),
+    tableId: z.string().min(1).max(64),
+    filter: z.string().max(2000).default(''),
+    absent: z.boolean().default(false),
+  }),
+  z.object({
+    kind: z.literal('tool'),
+    connectionId: z.string().min(1).max(64),
+    tool: z.string().min(1).max(200),
+    args: z.record(z.string(), z.unknown()).default({}),
+    filter: z.string().max(2000).default(''),
+    contains: z.string().max(500).default(''),
+    absent: z.boolean().default(false),
+  }),
+  z.object({
+    kind: z.literal('page'),
+    url: z
+      .string()
+      .trim()
+      .max(2000)
+      .regex(/^https:\/\/\S+$/, 'validation.watchUrl'),
+    contains: z.string().trim().min(1).max(500),
+    absent: z.boolean().default(false),
+  }),
+]);
+export type RoutineConditionCheck = z.infer<typeof RoutineConditionCheck>;
+
+/**
+ * What must hold, looked at with no AI, before a scheduled run starts: every check. When it does
+ * not, the run does not start and nothing is spent; it is looked at again every `recheckMinutes`
+ * until `recheckUntil` (the same day, in the routine's time zone) when both are set, and at the
+ * end `otherwise`, when written, goes where the routine reports, again with no AI. A run started
+ * by hand or by an event (a mail, a webhook, a row) does not look at it.
+ */
+export const RoutineCondition = z
+  .object({
+    checks: z.array(RoutineConditionCheck).min(1).max(ROUTINE_CONDITION_MAX),
+    recheckMinutes: z.number().int().min(0).max(180).default(0),
+    recheckUntil: z.union([time, z.literal('')]).default(''),
+    otherwise: z.string().trim().max(2000).default(''),
+  })
+  .refine((c) => !c.recheckMinutes === !c.recheckUntil, 'validation.conditionRecheck');
+export type RoutineCondition = z.infer<typeof RoutineCondition>;
+
 /** The most steps a routine may have after its own instruction. */
 export const ROUTINE_STEP_MAX = 10;
 
@@ -196,6 +289,8 @@ export const Routine = z.object({
   watchUrl: z.string().nullable(),
   /** A connected app's tool checked before each scheduled run; the bot runs only when its answer changed. */
   check: RoutineCheck.nullable(),
+  /** What must hold, with no AI, before a scheduled run starts; null for nothing. Missing on older servers. */
+  condition: RoutineCondition.nullable().optional(),
   /** Conditions a webhook call's JSON body must meet to start the routine, one per line. */
   webhookFilter: z.string(),
   /** A webhook call only posts what it carries, as the bot's message, with no AI turn. */
@@ -307,6 +402,7 @@ export const RoutineCreate = z.object({
     .nullable()
     .default(null),
   check: RoutineCheck.nullable().default(null),
+  condition: RoutineCondition.nullable().default(null),
   /** `field=value`, `field!=value` or `field` lines; a webhook call must meet all of them. */
   webhookFilter: z.string().max(2000).default(''),
   webhookPost: z.boolean().default(false),

@@ -539,6 +539,8 @@ export const routines = pgTable('routines', {
   steps: jsonb('steps').notNull().default([]),
   /** Where the flow view's boxes sit (`FlowLayout`); null places them in order. */
   flowLayout: jsonb('flow_layout'),
+  /** What must hold, with no AI, before a scheduled run starts (`RoutineCondition`); null for nothing. */
+  condition: jsonb('condition'),
   schedule: jsonb('schedule').notNull(),
   timezone: text('timezone').notNull(),
   enabled: boolean('enabled').notNull().default(true),

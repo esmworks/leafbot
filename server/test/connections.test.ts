@@ -606,6 +606,44 @@ describe('bağlantılar', () => {
     expect((await t.messages(thread.id)).at(-1)!.text).toContain('zaten "Notlarım"');
   });
 
+  it('an app already there but closed to the bot is opened to it only on a yes on a card', async () => {
+    const f = await fixture();
+    const first = await t.bot({ permissionMode: 'auto' });
+    const second = await t.bot({ name: 'İkinci', permissionMode: 'auto' });
+    const c = (
+      await t.api<Connection>('POST', '/api/connections', {
+        name: 'Notlar',
+        url: f.url,
+        auth: 'none',
+        allBots: false,
+        botIds: [first.id],
+      })
+    ).body;
+    const thread = await main(second.id);
+    const pending = async () =>
+      (await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body.find(
+        (a) => a.kind === 'question',
+      );
+    const ask = async (answer: string) => {
+      await t.send(thread.id, `[araç:app_add {"name":"Notlar","url":"${f.url}"}]`);
+      const card = await waitFor(pending);
+      expect(card.summary).toContain('İkinci botuna açık değil');
+      await t.api('POST', `/api/approvals/${card.id}`, { decision: 'allow', answer });
+      await t.services.turns.idle();
+      return (await t.messages(thread.id)).at(-1)!.text;
+    };
+    expect(await ask('Reddet')).toContain('bu bota açılmadı');
+    expect((await t.api<Connection>('GET', `/api/connections/${c.id}`)).body.botIds).toEqual([first.id]);
+    expect(await ask('Onayla')).toContain('artık sana da açık');
+    expect((await t.api<Connection>('GET', `/api/connections/${c.id}`)).body.botIds.sort()).toEqual(
+      [first.id, second.id].sort(),
+    );
+    // Open now: asked again, it is only known.
+    await t.send(thread.id, `[araç:app_add {"name":"Notlar","url":"${f.url}"}]`);
+    await t.services.turns.idle();
+    expect((await t.messages(thread.id)).at(-1)!.text).toContain('zaten "Notlar"');
+  });
+
   it('kapatılan araç bota verilmez; okuma sınıfı değiştirilebilir', async () => {
     const f = await fixture();
     const bot = await t.bot();

@@ -11,6 +11,7 @@ import {
   SHORT_DAY_NAMES,
   type FlowLayout,
   type Routine,
+  type RoutineCondition,
   type Schedule,
 } from '@leafbot/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -42,6 +43,7 @@ import {
 import { askBeforeLeavingPage, useUi } from '@/lib/store';
 import { keepLayout } from '@/lib/routineFlow';
 import { cn } from '@/lib/utils';
+import { ConditionFields } from './RoutineCondition';
 import { MissingApps } from './MissingApps';
 import { PromptHistory } from './PromptHistory';
 import { RoutineFlow } from './RoutineFlow';
@@ -120,6 +122,8 @@ const Form = z.object({
   /** The id of the bot's table whose rows start it; empty for none. */
   tableTrigger: z.string(),
   tableFilter: z.string().max(2000),
+  /** What must hold before a scheduled run, as the routine has it; null for nothing. */
+  condition: z.custom<RoutineCondition | null>(),
   model: z.string().max(200),
   slackChannel: z
     .string()
@@ -217,6 +221,7 @@ function fromRoutine(r?: Routine): Form {
     whatsappPeople: r?.whatsappPeople ?? false,
     tableTrigger: r?.tableTrigger ?? '',
     tableFilter: r?.tableFilter ?? '',
+    condition: r?.condition ?? null,
     model: r?.model ?? '',
   };
 }
@@ -322,6 +327,7 @@ export function RoutinePage({
         whatsappPeople: f.whatsappPeople,
         tableTrigger: f.tableTrigger || null,
         tableFilter: f.tableFilter.trim(),
+        condition: f.condition?.checks.length ? f.condition : null,
         model: f.model.trim(),
         flowLayout: layout && keepLayout(layout, ['start', 'prompt', ...f.steps.map((x) => x.id)]),
       };
@@ -357,6 +363,7 @@ export function RoutinePage({
     ...(values.tableTrigger ? [t('flow.table')] : []),
     ...(values.slackReaction?.trim() ? [t('flow.slackReaction')] : []),
     ...(values.watchUrl?.trim() ? [t('flow.watch')] : []),
+    ...(values.condition ? [t('flow.condition')] : []),
   ];
   /** When it runs next: worked out from the schedule as it is in the form. */
   const when = (() => {
@@ -519,6 +526,11 @@ export function RoutinePage({
         people={values.whatsappPeople}
         onGroup={(v) => form.setValue('whatsappGroup', v, { shouldDirty: true })}
         onPeople={(v) => form.setValue('whatsappPeople', v, { shouldDirty: true })}
+      />
+      <ConditionFields
+        botId={botId}
+        value={values.condition ?? null}
+        onChange={(v) => form.setValue('condition', v, { shouldDirty: true })}
       />
       {routine && <Check routine={routine} />}
       {routine && <Webhook routine={routine} />}

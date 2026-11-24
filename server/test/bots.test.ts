@@ -304,6 +304,32 @@ describe('yönetici bot', () => {
 
   const main = async (botId: string) => (await t.api<Thread>('GET', `/api/bots/${botId}/main-thread`)).body;
 
+  it("sets a bot's effort, memory and object avatar without a card, but not an uploaded picture", async () => {
+    const m = await t.bot({ name: 'Müdür', isManager: true });
+    const tm = await main(m.id);
+    await t.send(
+      tm.id,
+      '[araç:bot_create {"name":"Kâtip","effort":"high","avatar":"object:mug","material":"fluffy"}]',
+    );
+    await t.services.turns.idle();
+    const made = (await t.api<Bot[]>('GET', '/api/bots')).body.find((b) => b.name === 'Kâtip')!;
+    expect(made).toMatchObject({ effort: 'high', avatar: 'object:mug', material: 'fluffy' });
+    await t.send(tm.id, '[araç:bot_update {"bot":"Kâtip","memory":false,"effort":"","material":"flat"}]');
+    await t.services.turns.idle();
+    expect((await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body).toHaveLength(0);
+    expect((await t.api<Bot>('GET', `/api/bots/${made.id}`)).body).toMatchObject({
+      memory: false,
+      effort: '',
+      material: 'flat',
+    });
+    await t.send(tm.id, '[araç:bot_update {"bot":"Kâtip","avatar":"data:image/png;base64,AAAA"}]');
+    await t.services.turns.idle();
+    expect((await t.messages(tm.id)).at(-1)!.text).toContain('Geçersiz girdi');
+    await t.send(tm.id, '[araç:bot_profile {"bot":"Kâtip"}]');
+    await t.services.turns.idle();
+    expect((await t.messages(tm.id)).at(-1)!.text).toContain('hafıza: false; avatar: object:mug (flat)');
+  });
+
   it('bot oluşturur (kart sormadan), gevşetme için kullanıcı onayı ister, değişiklikler denetim kaydına yazılır', async () => {
     const m = await t.bot({ name: 'Müdür', isManager: true });
     const tm = await main(m.id);

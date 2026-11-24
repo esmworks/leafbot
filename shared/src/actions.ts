@@ -25,6 +25,75 @@ function checkText(raw: unknown, locale: Locale): string | null {
 }
 
 /**
+ * A routine's steps as the card shows them, one line each, so the person sees every step the
+ * routine will take, which model each runs on and where it waits for them. An empty list removes them.
+ */
+function stepsText(raw: unknown, locale: Locale): string | null {
+  if (!Array.isArray(raw)) return null;
+  const tr = locale === 'tr';
+  if (!raw.length) return tr ? 'adımlar kaldırılır' : 'the steps are removed';
+  const line = (x: Record<string, unknown>, i: number) => {
+    const n = `${i + 1}.`;
+    const model = str(x.model) ? ` [${str(x.model)}]` : '';
+    switch (x.kind) {
+      case 'agent':
+        return `${n} bot${model}: ${cut(str(x.prompt) ?? '')}`;
+      case 'approval':
+        return `${n} ${tr ? 'sana sorar' : 'asks you'}: ${cut(str(x.question) ?? '')}`;
+      case 'notify':
+        return `${n} ${tr ? 'bildirir' : 'tells'}: ${cut(str(x.text) ?? '')}`;
+      case 'wait':
+        return x.on === 'webhook' || x.on === 'email'
+          ? `${n} ${tr ? 'bekler' : 'waits for'} ${x.on}${str(x.filter) ? ` (${cut(str(x.filter)!)})` : ''}`
+          : `${n} ${tr ? 'bekler' : 'waits'} ${typeof x.minutes === 'number' ? x.minutes : 60} ${tr ? 'dk' : 'min'}`;
+      default:
+        return `${n} ${String(x.kind)}`;
+    }
+  };
+  const head = tr ? 'Adımlar:' : 'Steps:';
+  return [
+    head,
+    ...raw.map((x, i) => line(x && typeof x === 'object' ? (x as Record<string, unknown>) : {}, i)),
+  ].join('\n');
+}
+/**
+ * A routine's condition as the card shows it: what is looked at with no AI before each scheduled
+ * run, when it is looked at again, and the note sent when it is not met.
+ */
+function conditionText(raw: unknown, locale: Locale): string | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const c = raw as Record<string, unknown>;
+  const tr = locale === 'tr';
+  const checks = Array.isArray(c.checks) ? (c.checks as Record<string, unknown>[]) : [];
+  if (!checks.length) return tr ? 'koşul kaldırılır' : 'the condition is removed';
+  const one = (x: Record<string, unknown>) => {
+    const no = x.absent === true ? (tr ? 'yok: ' : 'none: ') : '';
+    const what =
+      x.kind === 'files'
+        ? `${str(x.pattern) ?? ''}${typeof x.min === 'number' && x.min > 1 ? ` ×${x.min}` : ''}`
+        : x.kind === 'page'
+          ? `${str(x.url) ?? ''} "${str(x.contains) ?? ''}"`
+          : x.kind === 'tool'
+            ? `${str(x.tool) ?? ''} ${str(x.filter) ?? str(x.contains) ?? ''}`.trim()
+            : x.kind === 'table'
+              ? `${str(x.table) ?? ''} ${str(x.filter) ?? ''}`.trim()
+              : (str(x.filter) ?? '*');
+    return `${no}${String(x.kind)} ${cut(what.replace(/\n/g, ', '))}`;
+  };
+  const lines = [`${tr ? 'Koşul (yapay zekâsız)' : 'Condition (no AI)'}: ${checks.map(one).join(' + ')}`];
+  if (typeof c.recheck_minutes === 'number' && c.recheck_minutes > 0 && str(c.recheck_until))
+    lines.push(
+      tr
+        ? `tutmazsa ${c.recheck_minutes} dk'da bir ${str(c.recheck_until)}'e kadar yeniden bakar`
+        : `if not met, looks again every ${c.recheck_minutes} min until ${str(c.recheck_until)}`,
+    );
+  if (str(c.otherwise))
+    lines.push(`${tr ? 'tutmazsa yazar' : 'if not met, writes'}: ${cut(str(c.otherwise)!)}`);
+  return lines.join('\n');
+}
+const cut = (v: string) => (v.length > 200 ? `${v.slice(0, 199)}…` : v);
+
+/**
  * Plain-language wording for a tool a bot wants to use, for approval cards and the one-line
  * note left after the answer. No tool names or arguments: those stay behind the detail toggle.
  * Every field is a whole sentence naming the bot, because word order differs by language.
@@ -314,7 +383,8 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
           : ['set up a routine', 'set up this routine', 'set up routines'],
       };
     case 'routine_update':
-    case 'routine_delete': {
+    case 'routine_delete':
+    case 'routine_run': {
       const routine = str(input.routine);
       const owner = str(input.bot);
       // Turning a routine on or off reads as that; any other change as a change.
@@ -327,11 +397,13 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
       const [verb, en, enAll]: [Verb, string, string] =
         name === 'routine_delete'
           ? [DELETE, 'delete', 'delete routines']
-          : onOff === false
-            ? [TURN_OFF, 'turn off', 'turn off routines']
-            : onOff === true
-              ? [OPEN, 'turn on', 'turn on routines']
-              : [CHANGE, 'change', 'change routines'];
+          : name === 'routine_run'
+            ? [RUN, 'run', 'run routines']
+            : onOff === false
+              ? [TURN_OFF, 'turn off', 'turn off routines']
+              : onOff === true
+                ? [OPEN, 'turn on', 'turn on routines']
+                : [CHANGE, 'change', 'change routines'];
       const trOwner = owner ? `"${owner}" botunun ` : '';
       const enOwner = owner ? ` of "${owner}"` : '';
       return {
@@ -452,8 +524,16 @@ function detailFor(name: string, input: Record<string, unknown>, locale: Locale)
       const when = scheduleText(input.schedule, locale);
       const model = str(input.model) && modelText(input.model, locale);
       return (
-        [when, model, checkText(input.check_tool, locale), str(input.prompt)].filter(Boolean).join('\n') ||
-        null
+        [
+          when,
+          model,
+          checkText(input.check_tool, locale),
+          str(input.prompt),
+          conditionText(input.condition, locale),
+          stepsText(input.steps, locale),
+        ]
+          .filter(Boolean)
+          .join('\n') || null
       );
     }
     case 'routine_update': {
@@ -462,7 +542,17 @@ function detailFor(name: string, input: Record<string, unknown>, locale: Locale)
       const model = modelText(input.model, locale);
       const check = checkText(input.check_tool, locale);
       return (
-        [rename && `→ ${rename}`, when, model, check, str(input.prompt)].filter(Boolean).join('\n') || null
+        [
+          rename && `→ ${rename}`,
+          when,
+          model,
+          check,
+          str(input.prompt),
+          conditionText(input.condition, locale),
+          stepsText(input.steps, locale),
+        ]
+          .filter(Boolean)
+          .join('\n') || null
       );
     }
     default:

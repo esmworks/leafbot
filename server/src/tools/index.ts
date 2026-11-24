@@ -1,6 +1,9 @@
 import {
   BRAND_COLOR,
+  BotCreate,
+  BotMaterial,
   DEFAULT_AVATAR,
+  OBJECT_AVATARS,
   ALL_TOOLS,
   catalogEntry,
   CONNECTION_CATALOG,
@@ -12,7 +15,14 @@ import {
   ROUTINE_VAR_MAX,
   ROUTINE_VAR_NAME,
   ROUTINE_VARS_MAX,
+  ROUTINE_STEP_MAX,
+  ROUTINE_CONDITION_MAX,
+  RoutineCondition as ConditionSchema,
+  type RoutineCondition,
+  RoutineStep as StepSchema,
+  type RoutineStep,
   type RoutineCheck,
+  RoutineCreate,
   type RoutineUpdate,
   searchCatalog,
   skillSlug,
@@ -85,6 +95,140 @@ const Choice = z.union([
   z.object({ label: z.string().min(1).max(200), description: z.string().max(500).optional() }),
 ]);
 const choiceLabel = (c: z.infer<typeof Choice>) => (typeof c === 'string' ? c : c.label);
+
+/**
+ * A routine step as a bot writes it: one flat shape for every kind, with only the fields its kind
+ * reads, so a model fills it in without picking among schemas. `id` keeps an existing step (its
+ * place in the flow view and its runs' history); a step without one is new.
+ */
+const StepInput = z.object({
+  id: z.string().max(40).optional(),
+  kind: z.enum(['agent', 'approval', 'notify', 'wait']),
+  prompt: z.string().max(20_000).optional(),
+  model: z.string().trim().max(200).optional(),
+  question: z.string().max(2000).optional(),
+  timeout_days: z.number().int().optional(),
+  text: z.string().max(4000).optional(),
+  with_before: z.boolean().optional(),
+  on: z.enum(['time', 'webhook', 'email']).optional(),
+  minutes: z.number().int().optional(),
+  filter: z.string().max(2000).optional(),
+});
+const StepsInput = z.array(StepInput).max(ROUTINE_STEP_MAX);
+
+/**
+ * A routine's condition as a bot writes it: each check in one flat shape, with a table by its name
+ * and an app's tool by the name the bot sees it under. An empty `checks` removes the condition.
+ */
+const ConditionInput = z.object({
+  checks: z
+    .array(
+      z.object({
+        kind: z.enum(['files', 'email', 'whatsapp', 'table', 'tool', 'page']),
+        folder: z.enum(['bot', 'group']).optional(),
+        pattern: z.string().max(300).optional(),
+        min: z.number().int().optional(),
+        within_hours: z.number().int().optional(),
+        filter: z.string().max(2000).optional(),
+        table: z.string().max(200).optional(),
+        tool: z.string().max(300).optional(),
+        args: z.record(z.string(), z.unknown()).optional(),
+        contains: z.string().max(500).optional(),
+        url: z.string().max(2000).optional(),
+        absent: z.boolean().optional(),
+      }),
+    )
+    .max(ROUTINE_CONDITION_MAX),
+  recheck_minutes: z.number().int().optional(),
+  recheck_until: z.string().max(5).optional(),
+  otherwise: z.string().max(2000).optional(),
+});
+
+/** A new step's id: short, unique within the routine, and of the letters the server takes. */
+const newStepId = () => `s${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+/**
+ * The steps a bot wrote, as the routine keeps them, or why they cannot be: each step is checked
+ * against the same schema the routine's window saves through.
+ */
+export function stepsFrom(input: z.infer<typeof StepsInput>, t: T): RoutineStep[] | string {
+  const out: RoutineStep[] = [];
+  const ids = new Set<string>();
+  for (const [i, s] of input.entries()) {
+    let id = s.id?.trim() || newStepId();
+    while (ids.has(id) && !s.id) id = newStepId();
+    if (ids.has(id)) return t('tool.routineStepSameId', { n: i + 1, id });
+    ids.add(id);
+    const raw =
+      s.kind === 'agent'
+        ? { id, kind: s.kind, prompt: s.prompt ?? '', model: s.model ?? '' }
+        : s.kind === 'approval'
+          ? { id, kind: s.kind, question: s.question ?? '', timeoutDays: s.timeout_days }
+          : s.kind === 'notify'
+            ? { id, kind: s.kind, text: s.text ?? '', withBefore: s.with_before }
+            : {
+                id,
+                kind: s.kind,
+                on: s.on ?? 'time',
+                minutes: s.minutes,
+                filter: s.filter ?? '',
+                timeoutDays: s.timeout_days,
+              };
+    const parsed = StepSchema.safeParse(raw);
+    if (!parsed.success) {
+      const issues = parsed.error.issues.map(
+        (x) => `${x.path.join('.') || s.kind}: ${isServerKey(x.message) ? t(x.message) : x.message}`,
+      );
+      return t('tool.routineBadStep', { n: i + 1, issues: issues.join('; ') });
+    }
+    out.push(parsed.data);
+  }
+  return out;
+}
+
+/** A Slack reaction as the routine keeps it (`:eyes:` becomes `eyes`); null when it is no emoji's name. */
+const slackReaction = (raw: string): string | null => {
+  const parsed = RoutineCreate.shape.slackReaction.safeParse(raw);
+  return parsed.success ? parsed.data : null;
+};
+
+/** Whether a step of the routine waits for its webhook to be called. */
+/** The short model names the Claude engine takes. */
+const CLAUDE_NAMES = new Set(['default', 'best', 'opus', 'sonnet', 'haiku', 'fable', 'opusplan']);
+/**
+ * Whether the Claude engine may take this model. A single word must be one of its names, which
+ * catches a misspelt one; a longer id (a full model id, a cloud provider's) is left to the engine,
+ * since a list here would turn away a new release. A `provider/model` is Pi's, not Claude's.
+ */
+const claudeModelOk = (model: string) => {
+  if (model.includes('/')) return false;
+  const bare = model.replace(/\[1m\]$/i, '');
+  return !/^[a-z]+$/i.test(bare) || CLAUDE_NAMES.has(bare.toLowerCase());
+};
+/** The models a routine's agent steps name. */
+const stepModels = (steps: readonly RoutineStep[]) =>
+  steps.flatMap((x) => (x.kind === 'agent' && x.model ? [x.model] : []));
+const waitsOnHook = (steps: readonly RoutineStep[]) =>
+  steps.some((x) => x.kind === 'wait' && x.on === 'webhook');
+
+/** A routine's steps in the shape `steps` takes, so a bot can read them and send them back changed. */
+export function stepsOut(steps: readonly RoutineStep[]): Record<string, unknown>[] {
+  return steps.map((s) =>
+    s.kind === 'agent'
+      ? { id: s.id, kind: s.kind, prompt: s.prompt, ...(s.model && { model: s.model }) }
+      : s.kind === 'approval'
+        ? { id: s.id, kind: s.kind, question: s.question, timeout_days: s.timeoutDays }
+        : s.kind === 'notify'
+          ? { id: s.id, kind: s.kind, text: s.text, with_before: s.withBefore }
+          : {
+              id: s.id,
+              kind: s.kind,
+              on: s.on,
+              ...(s.on === 'time' ? { minutes: s.minutes } : { filter: s.filter }),
+              timeout_days: s.timeoutDays,
+            },
+  );
+}
 
 /** Query parameters that carry a sign-in or a signature rather than say which page it is. */
 const SECRET_PARAM =
@@ -166,6 +310,7 @@ const TEAM_OFF = new Set<string>([
   'routine_read',
   'routine_update',
   'routine_delete',
+  'routine_run',
   // The person's own promises to others: a team or a chat app's stranger has none to keep here.
   'promise_track',
   // A follow-up comes up in a person's own conversation: a team conversation has no one to tell.
@@ -319,6 +464,7 @@ export type ToolName =
   | 'routine_read'
   | 'routine_update'
   | 'routine_delete'
+  | 'routine_run'
   | 'promise_track'
   | 'followup_add'
   | 'followup_list'
@@ -581,6 +727,171 @@ export class ToolFactory {
         all.filter((b) => b.id === bot.id || (!b.isManager && editable.has(b.id))).map((b) => [b.id, b.name]),
       );
     };
+    /**
+     * Asks the person on a card in this conversation, at every permission level; true when they
+     * approve, else what they wrote on the card instead of a button.
+     */
+    const askOnCard = async (summary: string, input: Record<string, unknown>, toolName: string) => {
+      const approve = t('tool.approve');
+      const r = await s.approvals.ask({
+        threadId: thread.id,
+        botId: bot.id,
+        turnId: turn.id,
+        kind: 'question',
+        toolName,
+        input,
+        summary,
+        options: [approve, t('tool.reject')],
+        signal,
+        timeoutMs: unattended,
+        onCreated: async (ap) => {
+          await s.threads.addMessage({
+            threadId: thread.id,
+            role: 'approval',
+            author: `bot:${bot.id}`,
+            text: ap.summary,
+            props: { approvalId: ap.id },
+            turnId: turn.id,
+          });
+        },
+      });
+      if (r.status === 'allowed' && (!r.answer || r.answer === approve)) return true;
+      const words = r.status === 'allowed' && r.answer !== t('tool.reject') ? (r.answer?.trim() ?? '') : '';
+      return { words };
+    };
+    const refusedOnCard = (message: string, r: { words: string }) =>
+      r.words ? `${message}\n\n${t('tool.changeAnswered', { answer: r.words })}` : message;
+    /**
+     * Why the routine's or a step's models will not run on the routine's bot, or null when they
+     * will. A misspelt model is caught here: at run time it would only fail, with nobody there.
+     */
+    const routineModelProblem = async (botId: string, models: string[]): Promise<string | null> => {
+      const named = [...new Set(models.map((m) => m.trim()).filter(Boolean))];
+      if (!named.length) return null;
+      const owner = await s.bots.get(botId);
+      // A coding agent of the computer names its own models.
+      if (owner.engine === 'acp') return null;
+      for (const model of named) {
+        if (owner.engine === 'claude') {
+          if (!claudeModelOk(model)) return t('tool.unknownModel', { model });
+          continue;
+        }
+        const cut = model.indexOf('/');
+        const [provider, id] = [model.slice(0, Math.max(cut, 0)), model.slice(cut + 1)];
+        const known: string[] = provider ? await s.keys.models(provider).catch(() => []) : [];
+        if (!provider || !id || !known.includes(id)) return t('tool.unknownModel', { model });
+        if (!(await s.keys.credential(provider))) return t('tool.noModelKey', { provider });
+      }
+      return null;
+    };
+    /**
+     * A condition as a bot wrote it, as the routine keeps it: a table by its id, an app's tool by
+     * its connection; why not, when a part names nothing it can reach or breaks the schema.
+     */
+    const conditionFrom = async (
+      c: z.infer<typeof ConditionInput>,
+      botId: string,
+      name: string,
+      before: RoutineCondition | null = null,
+    ): Promise<RoutineCondition | null | string> => {
+      if (!c.checks.length) return null;
+      const checks: Record<string, unknown>[] = [];
+      for (const x of c.checks) {
+        const common = { kind: x.kind, absent: x.absent };
+        if (x.kind === 'files')
+          checks.push({
+            ...common,
+            folder: x.folder,
+            pattern: x.pattern ?? '',
+            min: x.min,
+            withinHours: x.within_hours ?? null,
+          });
+        else if (x.kind === 'email' || x.kind === 'whatsapp')
+          checks.push({ ...common, filter: x.filter, withinHours: x.within_hours });
+        else if (x.kind === 'table') {
+          const found = await tableNamed(botId, x.table ?? '');
+          if (typeof found === 'string') return found;
+          checks.push({ ...common, tableId: found.id, filter: x.filter });
+        } else if (x.kind === 'tool') {
+          const named = x.tool ? await s.connections.checkFromName(botId, x.tool, person) : null;
+          if (!named) return t('tool.routineBadCheck', { tool: x.tool ?? '-' });
+          checks.push({ ...common, ...named, args: x.args, filter: x.filter, contains: x.contains });
+        } else checks.push({ ...common, url: x.url ?? '', contains: x.contains ?? '' });
+      }
+      const parsed = ConditionSchema.safeParse({
+        checks,
+        recheckMinutes: c.recheck_minutes,
+        recheckUntil: c.recheck_until,
+        otherwise: c.otherwise,
+      });
+      if (parsed.success) {
+        // WhatsApp messages are read only with the person's yes on a card, as whatsapp_follow
+        // asks it; a check that reads them anew is asked about whatever the bot may do alone.
+        const read = (x: RoutineCondition | null) =>
+          (x?.checks ?? []).flatMap((k) => (k.kind === 'whatsapp' ? [`${k.filter}\n${k.withinHours}`] : []));
+        const had = new Set(read(before));
+        const fresh = parsed.data.checks.filter(
+          (k) => k.kind === 'whatsapp' && !had.has(`${k.filter}\n${k.withinHours}`),
+        );
+        if (fresh.length) {
+          const filters = fresh.map(
+            (k) => (k.kind === 'whatsapp' && k.filter.trim().replace(/\n/g, ', ')) || '*',
+          );
+          const ok = await askOnCard(
+            t('tool.routineConditionWhatsappAsk', { name, filter: filters.join('; ') }),
+            { routine: name, condition: c },
+            'routine_update',
+          );
+          if (ok !== true) return refusedOnCard(t('tool.routineConditionWhatsappNo'), ok);
+        }
+        return parsed.data;
+      }
+      const issues = parsed.error.issues.map(
+        (i) => `${i.path.join('.')}: ${isServerKey(i.message) ? t(i.message) : i.message}`,
+      );
+      return t('tool.routineBadCondition', { issues: issues.join('; ') });
+    };
+    /** A routine's condition in the shape `condition` takes, so a bot can send it back changed. */
+    const conditionOut = async (c: RoutineCondition, botId: string) => {
+      const tables = c.checks.some((x) => x.kind === 'table')
+        ? await s.tables.list(botId).catch(() => [])
+        : [];
+      return {
+        checks: c.checks.map((x) => {
+          const absent = x.absent ? { absent: true } : {};
+          if (x.kind === 'files')
+            return {
+              kind: x.kind,
+              folder: x.folder,
+              pattern: x.pattern,
+              min: x.min,
+              ...(x.withinHours !== null && { within_hours: x.withinHours }),
+              ...absent,
+            };
+          if (x.kind === 'email' || x.kind === 'whatsapp')
+            return { kind: x.kind, filter: x.filter, within_hours: x.withinHours, ...absent };
+          if (x.kind === 'table')
+            return {
+              kind: x.kind,
+              table: tables.find((tb) => tb.id === x.tableId)?.name ?? x.tableId,
+              filter: x.filter,
+              ...absent,
+            };
+          if (x.kind === 'tool')
+            return {
+              kind: x.kind,
+              tool: x.tool,
+              args: x.args,
+              ...(x.filter && { filter: x.filter }),
+              ...(x.contains && { contains: x.contains }),
+              ...absent,
+            };
+          return { kind: x.kind, url: x.url, contains: x.contains, ...absent };
+        }),
+        ...(c.recheckMinutes && { recheck_minutes: c.recheckMinutes, recheck_until: c.recheckUntil }),
+        ...(c.otherwise && { otherwise: c.otherwise }),
+      };
+    };
     const tools: AppTool[] = [
       def(
         'ask_user',
@@ -681,13 +992,16 @@ export class ToolFactory {
             CONNECTION_CATALOG.find((e) => e.name.toLowerCase() === wanted) ??
             searchCatalog(wanted, (c) => c)[0];
           if (!entry) return t('tool.appUnknown', { app });
-          const connected = (await s.connections.list(own)).find(
-            (c) =>
-              c.catalogId === entry.id &&
-              c.status === 'connected' &&
-              (c.allBots || c.botIds.includes(bot.id)),
+          const there = (await s.connections.list(own)).filter(
+            (c) => c.catalogId === entry.id && c.status === 'connected',
           );
-          if (connected) return t('tool.appConnected', { app: entry.name });
+          if (there.some((c) => c.allBots || c.botIds.includes(bot.id)))
+            return t('tool.appConnected', { app: entry.name });
+          // Connected already but closed to this bot: a second sign-in would only duplicate it.
+          // Pointed to app_add only when app_add may open it, as it would otherwise just say so.
+          const manages = managesServer((await s.access.viewerOf(person)).role);
+          const closed = !team && there.find((c) => c.url && (c.userId ? c.userId === person : manages));
+          if (closed) return t('tool.appClosed', { app: entry.name, url: closed.url });
           await s.threads.addMessage({
             threadId: thread.id,
             role: 'system',
@@ -740,14 +1054,31 @@ export class ToolFactory {
           if (!(await mayChange())) return t('tool.changeNotAllowed');
           const input = ConnectionCreate.safeParse({ name, url, auth: 'none' });
           if (!input.success) return t('tool.appBadUrl', { url });
+          const manages = managesServer((await s.access.viewerOf(person)).role);
           // Only those who look after the server point the server at itself or its network.
-          if (
-            !managesServer((await s.access.viewerOf(person)).role) &&
-            (await privateHost(new URL(input.data.url).hostname))
-          )
+          if (!manages && (await privateHost(new URL(input.data.url).hostname)))
             return t('error.connectionPrivate');
           const known = (await s.connections.list(person)).find((c) => c.url === input.data.url);
-          if (known) return t('tool.appKnown', { name: known.name });
+          if (known) {
+            // Already there but closed to this bot: the person may open it to the bot, since it
+            // acts with their sign-in, which they are asked about whatever the bot may do alone.
+            // A team connection is opened only by those who look after the server, as in the app.
+            const open = known.allBots || known.botIds.includes(bot.id);
+            const mayOpen = known.userId ? known.userId === person : manages;
+            if (open || !mayOpen) return t('tool.appKnown', { name: known.name });
+            const ok = await askOnCard(
+              t('tool.appOpenAsk', { name: known.name, bot: bot.name }),
+              { name, url },
+              'app_add',
+            );
+            if (ok !== true) return refusedOnCard(t('tool.appNotOpened', { name: known.name }), ok);
+            const c = await s.connections.setBots(known.id, {
+              allBots: false,
+              botIds: [...known.botIds, bot.id],
+            });
+            const tools = c.tools.map((x) => x.name).join(', ') || '-';
+            return t('tool.appOpened', { name: c.name, tools });
+          }
           // The person's own, open to this bot only; they can open it to others in the apps window.
           let c = await s.connections.create({ ...input.data, allBots: false, botIds: [bot.id] }, person);
           if (c.status === 'signed-out') {
@@ -797,6 +1128,18 @@ export class ToolFactory {
           check_args: z.record(z.string(), z.unknown()).optional(),
           /** Also give it a secret address another service can call to start it. */
           webhook: z.boolean().default(false),
+          /** Conditions a webhook call's JSON body must meet to start it, one per line. */
+          webhook_filter: z.string().max(2000).optional(),
+          /** A webhook call only posts what it carries, with no AI turn. */
+          webhook_post: z.boolean().optional(),
+          /** What it does after its instruction, in order, each once the one before it ended well. */
+          steps: StepsInput.optional(),
+          /** What must hold, looked at with no AI, before a scheduled run starts. */
+          condition: ConditionInput.optional(),
+          /** The Slack channel (`C…`) its reports go to; it then runs as that team's conversation. */
+          slack_channel: RoutineCreate.shape.slackChannel.unwrap().unwrap().optional(),
+          /** An emoji's name: the person's reaction with it in Slack runs it on that message. */
+          slack_reaction: z.string().max(82).optional(),
           /** Also run when mail arrives at the bot's address, when the mail meets `email_filter`. */
           on_email: z.boolean().default(false),
           email_filter: z.string().max(2000).optional(),
@@ -816,15 +1159,23 @@ export class ToolFactory {
           if (a.check_tool && !check) return t('tool.routineBadCheck', { tool: a.check_tool });
           const watched = a.on_table ? await tableNamed(bot.id, a.on_table) : null;
           if (typeof watched === 'string') return watched;
+          const steps = stepsFrom(a.steps ?? [], t);
+          if (typeof steps === 'string') return steps;
+          const wrongModel = await routineModelProblem(bot.id, [a.model ?? '', ...stepModels(steps)]);
+          if (wrongModel) return wrongModel;
+          const reaction = slackReaction(a.slack_reaction ?? '');
+          if (reaction === null) return t('tool.routineBadReaction', { reaction: a.slack_reaction ?? '' });
+          const condition = a.condition ? await conditionFrom(a.condition, bot.id, a.name.trim()) : null;
+          if (typeof condition === 'string') return condition;
           const settings = await s.settings.all();
           const r = await s.routines.create(
             {
               botId: bot.id,
               name: a.name.trim(),
               prompt: a.prompt.trim(),
-              // Steps after the instruction are set in the routine's window, where the person sees them.
-              steps: [],
-              slackReaction: '',
+              // The person sees each step on the card before the routine is made.
+              steps,
+              slackReaction: reaction,
               schedule: a.schedule,
               timezone: settings.timezone,
               enabled: true,
@@ -832,12 +1183,13 @@ export class ToolFactory {
               carryReport: a.carry_report,
               inMain: a.in_main,
               reportOnly: a.report_only,
-              slackChannel: null,
+              slackChannel: a.slack_channel ?? null,
               onStartup: a.on_startup,
               watchUrl: a.watch_url ?? null,
               check: check && { ...check, args: a.check_args ?? {} },
-              webhookFilter: '',
-              webhookPost: false,
+              condition,
+              webhookFilter: a.webhook_filter ?? '',
+              webhookPost: a.webhook_post ?? false,
               model: a.model ?? '',
               emailTrigger: a.on_email,
               emailFilter: a.email_filter ?? '',
@@ -865,7 +1217,8 @@ export class ToolFactory {
             when: describeSchedule(r.schedule, await s.settings.locale()),
             timezone: r.timezone,
           });
-          if (!a.webhook) return made;
+          // A step that waits for the routine's webhook needs its address to be called at.
+          if (!a.webhook && !waitsOnHook(steps)) return made;
           const hooked = await s.routines.setWebhook(r.id, true);
           return `${made}\n${t('tool.routineWebhook', { path: `/api/hooks/routines/${r.id}/${hooked.webhookToken}` })}`;
         },
@@ -883,19 +1236,51 @@ export class ToolFactory {
           const found = await pickRoutine(a.routine, a.bot);
           if (typeof found === 'string') return found;
           const r = found.routine;
-          const [last] = await s.routines.runs(r.id, 1);
-          const steps = (r.steps ?? []).map((st, i) =>
-            t('tool.routineReadStep', {
-              n: i + 1,
-              kind: st.kind,
-              text: (st.kind === 'agent'
-                ? st.prompt
-                : st.kind === 'approval'
-                  ? st.question
-                  : st.kind === 'notify'
-                    ? st.text
-                    : `${st.on} ${st.filter}`.trim()
-              ).slice(0, 300),
+          const runs = await s.routines.runs(r.id, 3);
+          const last = runs[0];
+          // The fields as routine_update takes them, so the bot can send one back as it found it.
+          const table = r.tableTrigger
+            ? (await s.tables.list(r.botId).catch(() => [])).find((x) => x.id === r.tableTrigger)?.name
+            : undefined;
+          const settings = {
+            ...(r.model && { model: r.model }),
+            in_main: r.inMain,
+            on_startup: r.onStartup,
+            ...(r.watchUrl && { watch_url: r.watchUrl }),
+            ...(r.check && { check_tool: r.check.tool, check_args: r.check.args }),
+            ...(r.condition && { condition: await conditionOut(r.condition, r.botId) }),
+            webhook: !!r.webhookToken,
+            ...(r.webhookFilter && { webhook_filter: r.webhookFilter }),
+            ...(r.webhookPost && { webhook_post: true }),
+            on_email: r.emailTrigger,
+            ...(r.emailFilter && { email_filter: r.emailFilter }),
+            ...(r.tableTrigger && { on_table: table ?? r.tableTrigger }),
+            ...(r.tableFilter && { table_filter: r.tableFilter }),
+            ...(r.whatsappGroup && { whatsapp_group: r.whatsappGroup }),
+            ...(r.whatsappPeople && { whatsapp_people: true }),
+            ...(r.slackChannel && { slack_channel: r.slackChannel }),
+            ...(r.pausedReason && { paused_reason: r.pausedReason }),
+            ...(r.signInWait && { waits_for_sign_in: true }),
+          };
+          const steps = r.steps ?? [];
+          // What the condition says now, read with no AI, so the bot sees whether what it built holds.
+          const now = r.condition ? await s.routines.conditionNow(r.id).catch(() => null) : null;
+          const conditionLine = now
+            ? `\n${t('tool.routineReadCondition', {
+                outcome: t(`tool.routineCondition_${now.outcome}`),
+                lines: now.lines.join('; ') || '-',
+              })}`
+            : '';
+          // How each step of the latest runs went: the bot sees where a routine it built stops.
+          const runLines = runs.map((run) =>
+            t('tool.routineReadRun', {
+              status: run.status,
+              at: run.startedAt,
+              reason: run.reason ?? '-',
+              steps:
+                run.steps
+                  ?.map((x) => `${x.position}:${x.kind}=${x.status}${x.reason ? ` (${x.reason})` : ''}`)
+                  .join(', ') ?? '-',
             }),
           );
           return t('tool.routineRead', {
@@ -915,7 +1300,16 @@ export class ToolFactory {
                 })
               : t('tool.routineReadNoRun'),
             prompt: r.prompt,
-            steps: steps.length ? `\n${t('tool.routineReadSteps')}\n${steps.join('\n')}` : '',
+            steps: [
+              `\n${t('tool.routineReadSettings')}\n${JSON.stringify(settings)}`,
+              conditionLine,
+              steps.length
+                ? `\n${t('tool.routineReadSteps')}\n${JSON.stringify(stepsOut(steps), null, 1)}`
+                : '',
+              runLines.length > 1 || (runLines.length && steps.length)
+                ? `\n${t('tool.routineReadRuns')}\n${runLines.join('\n')}`
+                : '',
+            ].join(''),
           });
         },
         'read',
@@ -954,6 +1348,20 @@ export class ToolFactory {
           /** An empty string stops starting on the table's new rows. */
           on_table: z.string().max(200).optional(),
           table_filter: z.string().max(2000).optional(),
+          /** true gives it a webhook address when it has none; false takes the address away. */
+          webhook: z.boolean().optional(),
+          webhook_filter: z.string().max(2000).optional(),
+          webhook_post: z.boolean().optional(),
+          /** Every step after the instruction, in order: the list replaces the routine's steps. */
+          steps: StepsInput.optional(),
+          /** The whole condition, replacing the one it has; an empty `checks` removes it. */
+          condition: ConditionInput.optional(),
+          /** An empty string stops posting to Slack. */
+          slack_channel: z
+            .union([RoutineCreate.shape.slackChannel.unwrap().unwrap(), z.literal('')])
+            .optional(),
+          /** An empty string stops starting on a reaction. */
+          slack_reaction: z.string().max(82).optional(),
         },
         async (a) => {
           // The bot changes itself only for someone who may change it.
@@ -975,6 +1383,48 @@ export class ToolFactory {
           // The table is the routine's own bot's, which may be another one for a manager.
           const watched = a.on_table ? await tableNamed(r.botId, a.on_table) : null;
           if (typeof watched === 'string') return watched;
+          const steps = a.steps ? stepsFrom(a.steps, t) : undefined;
+          if (typeof steps === 'string') return steps;
+          // Only a model the routine does not have yet is looked at: one it runs on already stays
+          // usable, so a step kept as it was never blocks a change to another one.
+          const had = new Set([r.model, ...stepModels(r.steps ?? [])]);
+          const wrongModel = await routineModelProblem(
+            r.botId,
+            [a.model ?? '', ...stepModels(steps ?? [])].filter((m) => !had.has(m)),
+          );
+          if (wrongModel) return wrongModel;
+          const reaction = a.slack_reaction === undefined ? undefined : slackReaction(a.slack_reaction);
+          if (reaction === null) return t('tool.routineBadReaction', { reaction: a.slack_reaction ?? '' });
+          // The condition reads the routine's own bot's tables and apps, which may be another one for a manager.
+          const condition = a.condition
+            ? await conditionFrom(a.condition, r.botId, r.name, r.condition ?? null)
+            : undefined;
+          if (typeof condition === 'string') return condition;
+          if (a.webhook === false && waitsOnHook(steps ?? r.steps ?? [])) return t('tool.routineHookNeeded');
+          // A step that asks the person is their hold on what the routine does: one taken away or
+          // put elsewhere is asked about on a card, whatever the bot may do by itself.
+          const held = (r.steps ?? []).filter((x) => x.kind === 'approval');
+          const before = r.steps ?? [];
+          const at = (id: string) => steps?.findIndex((y) => y.id === id) ?? -1;
+          // Taken away, or with a step that came after it (and so waited for the person) now before it.
+          const loosened =
+            steps &&
+            held.some((x) => {
+              const now = steps.findIndex((y) => y.id === x.id && y.kind === 'approval');
+              if (now < 0) return true;
+              return before.slice(before.indexOf(x) + 1).some((y) => {
+                const there = at(y.id);
+                return there >= 0 && there < now;
+              });
+            });
+          if (loosened) {
+            const ok = await askOnCard(
+              t('tool.routineApprovalDropped', { name: r.name }),
+              { routine: r.name, steps: a.steps },
+              'routine_update',
+            );
+            if (ok !== true) return refusedOnCard(t('tool.routineApprovalKept', { name: r.name }), ok);
+          }
           const patch: z.infer<typeof RoutineUpdate> = {
             ...(a.enabled !== undefined && { enabled: a.enabled }),
             ...(a.name !== undefined && { name: a.name.trim() }),
@@ -992,14 +1442,24 @@ export class ToolFactory {
             ...(a.email_filter !== undefined && { emailFilter: a.email_filter }),
             ...(a.on_table !== undefined && { tableTrigger: watched?.id ?? null }),
             ...(a.table_filter !== undefined && { tableFilter: a.table_filter }),
+            ...(a.webhook_filter !== undefined && { webhookFilter: a.webhook_filter }),
+            ...(a.webhook_post !== undefined && { webhookPost: a.webhook_post }),
+            ...(steps !== undefined && { steps }),
+            ...(condition !== undefined && { condition }),
+            ...(a.slack_channel !== undefined && { slackChannel: a.slack_channel || null }),
+            ...(reaction !== undefined && { slackReaction: reaction }),
           };
-          if (!Object.keys(patch).length) return t('tool.routineNoChange');
+          // The address is kept apart from the routine's fields: a routine that has one keeps it.
+          const hookOn = (a.webhook === true || (steps && waitsOnHook(steps))) && !r.webhookToken;
+          const hookOff = a.webhook === false && !!r.webhookToken;
+          if (!Object.keys(patch).length && !hookOn && !hookOff) return t('tool.routineNoChange');
           const rename = patch.name?.toLowerCase();
           const taken =
             rename &&
             routines.find((x) => x.id !== r.id && x.botId === r.botId && x.name.toLowerCase() === rename);
           if (taken) return t('tool.routineExists', { name: taken.name });
-          const updated = await s.routines.update(r.id, patch, person);
+          let updated = Object.keys(patch).length ? await s.routines.update(r.id, patch, person) : r;
+          if (hookOn || hookOff) updated = await s.routines.setWebhook(r.id, !!hookOn);
           s.promises.routineTouched(turn.id);
           await journal({
             kind: 'routine',
@@ -1010,12 +1470,15 @@ export class ToolFactory {
             before: { patch: pickFields(r, Object.keys(patch)) },
             after: { sig: sig(routineShape(updated)) },
           });
-          return t('tool.routineUpdated', {
+          const done = t('tool.routineUpdated', {
             name: updated.name,
             when: describeSchedule(updated.schedule, await s.settings.locale()),
             timezone: updated.timezone,
             state: t(updated.enabled ? 'tool.routineOn' : 'tool.routineOff'),
           });
+          return hookOn && updated.webhookToken
+            ? `${done}\n${t('tool.routineWebhook', { path: `/api/hooks/routines/${r.id}/${updated.webhookToken}` })}`
+            : done;
         },
         // The person sees which routine changes, and how, on a card first.
       ),
@@ -1130,6 +1593,39 @@ export class ToolFactory {
           return t('tool.followUpDropped');
         },
         'internal',
+      ),
+      def(
+        'routine_run',
+        {
+          routine: z.string().min(1).max(200),
+          bot: z.string().min(1).max(200).optional(),
+          /** Try it once without doing anything: steps that would change something are only described. */
+          rehearse: z.boolean().default(false),
+        },
+        async (a) => {
+          // Running it spends and acts as its person: only for someone who may change the bot.
+          if (!(await mayChange())) return t('tool.changeNotAllowed');
+          const found = await pickRoutine(a.routine, a.bot);
+          if (typeof found === 'string') return found;
+          const r = found.routine;
+          if (a.rehearse) {
+            await s.rehearsals.start(r.id, person, {});
+            return t('tool.routineRehearsing', { name: r.name });
+          }
+          // A run of the routine this turn is part of would wait for this very turn to end.
+          if (turn.routineRunId) {
+            const [own] = await this.ctx.db
+              .select({ routineId: schema.routineRuns.routineId })
+              .from(schema.routineRuns)
+              .where(eq(schema.routineRuns.id, turn.routineRunId));
+            if (own?.routineId === r.id) return t('tool.routineRunSelf');
+          }
+          const run = await s.routines.runNow(r.id);
+          if (!run || run.status === 'skipped' || run.status === 'error')
+            return [t('tool.routineRunNot', { name: r.name }), run?.reason].filter(Boolean).join(' ');
+          return t('tool.routineRunStarted', { name: r.name });
+        },
+        // Run now does what the routine does, so it goes by the bot's level like any step that acts.
       ),
       def(
         'routine_delete',
@@ -2328,6 +2824,9 @@ export class ToolFactory {
             .optional(),
           engine: z.enum(['claude', 'pi']).optional(),
           model: z.string().max(200).optional(),
+          effort: BotCreate.shape.effort.unwrap().optional(),
+          avatar: z.enum(OBJECT_AVATARS.map((x) => `object:${x}`) as [string, ...string[]]).optional(),
+          material: BotMaterial.optional(),
         },
         async (a) => {
           // Without a choice the bot starts as the person set new bots to start.
@@ -2347,8 +2846,8 @@ export class ToolFactory {
               // Without a group named, the new bot joins the manager's own section.
               groupId: a.group !== undefined ? ((await groupId(a.group)) ?? null) : manager.groupId,
               color: a.color ?? BRAND_COLOR,
-              avatar: DEFAULT_AVATAR,
-              material: 'flat',
+              avatar: a.avatar ?? DEFAULT_AVATAR,
+              material: a.material ?? 'flat',
               // The level a bot the person creates starts at, as one made in the app.
               permissionMode: 'auto',
               internet: false,
@@ -2356,7 +2855,7 @@ export class ToolFactory {
               personComputer: false,
               projectDir: null,
               memory: true,
-              effort: '',
+              effort: a.effort ?? '',
               toolSelection: ALL_TOOLS,
               instructionsUrl: null,
               // A bot's spending limits are the person's to set, never another bot's.
@@ -2406,6 +2905,13 @@ export class ToolFactory {
           internet: z.boolean().optional(),
           engine: z.enum(['claude', 'pi']).optional(),
           model: z.string().max(200).optional(),
+          /** How hard a Claude bot thinks; empty for the setting all bots share. */
+          effort: BotCreate.shape.effort.unwrap().optional(),
+          /** Whether the bot reads and keeps notes; off, it sees none. */
+          memory: z.boolean().optional(),
+          /** One of the object avatars, `object:<id>`; an uploaded picture is the person's to choose. */
+          avatar: z.enum(OBJECT_AVATARS.map((x) => `object:${x}`) as [string, ...string[]]).optional(),
+          material: BotMaterial.optional(),
         },
         async (a) => {
           const target = await reach(a.bot);
@@ -2475,6 +2981,10 @@ export class ToolFactory {
             ...(a.permission_mode !== undefined && { permissionMode: a.permission_mode }),
             ...(a.internet !== undefined && { internet: a.internet }),
             ...(a.group !== undefined && { groupId: (await groupId(a.group)) ?? null }),
+            ...(a.effort !== undefined && { effort: a.effort }),
+            ...(a.memory !== undefined && { memory: a.memory }),
+            ...(a.avatar !== undefined && { avatar: a.avatar }),
+            ...(a.material !== undefined && { material: a.material }),
             ...modelPatch,
           };
           const updated = await s.bots.update(target.id, patch);
@@ -2514,6 +3024,12 @@ export class ToolFactory {
               model: target.model || t('tool.profileDefaultModel'),
             }),
             t('tool.profileMode', { mode: target.permissionMode }),
+            t('tool.profileLook', {
+              effort: target.effort || '-',
+              memory: String(target.memory),
+              avatar: target.avatar.startsWith('data:') ? '-' : target.avatar,
+              material: target.material,
+            }),
             t(target.internet ? 'tool.profileInternetOn' : 'tool.profileInternetOff'),
             t('tool.profileGroup', { group: groups.find((g) => g.id === target.groupId)?.name ?? '-' }),
             t('tool.profileSkills', { skills: skills.join(', ') || '-' }),
