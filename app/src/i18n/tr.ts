@@ -1652,7 +1652,7 @@ export const tr = {
   'flow.addStep': 'Buraya adım ekle',
   'flow.drag': 'Kutuyu taşımak için sürükle',
   'flow.pickHint':
-    'Kutuyu başlığından sürükleyerek ya da ok tuşlarıyla yerleştir. Adımlar çizgiler boyunca sırayla çalışır; etiketli kesikli çizgiler bir adımın ileriye atladığı yollardır. Sıralarını kutunun menüsünden ya da Alt ile ok tuşundan değiştir.',
+    'Kutuyu başlığından sürükleyerek ya da ok tuşlarıyla yerleştir. Adımlar çizgiler boyunca sırayla çalışır; etiketli kesikli çizgiler bir adımın ileriye atladığı ya da geri döndüğü yollardır; ok, yolun gittiği adımı gösterir. Sıralarını kutunun menüsünden ya da Alt ile ok tuşundan değiştir.',
   'flow.alsoStarts': 'Ayrıca {what} başlar.',
   'flow.nextRun': 'Sıradaki çalışma {when}',
   'flow.noNextRun': 'Yeniden çalışması ayarlı değil',
