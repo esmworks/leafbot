@@ -7,6 +7,8 @@ name: Release
 # files and the zip (macOS) or installer (Windows) they name, so those are attached too; a draft
 # reaches no one until it is published.
 #
+# No release is created and nothing is built until the CI workflow (ci.yml) passes on the tag.
+#
 # The token that may write to the repository only ever reaches the two steps that create the release
 # and attach the files, in jobs that run no code from the repository or its dependencies. The build
 # installs and runs thousands of packages; with a read-only token and no stored credentials, none of
@@ -32,8 +34,20 @@ env:
   TAG: ${{ inputs.tag || github.ref_name }}
 
 jobs:
+  # The whole CI check (format, lint, types, build and tests) on the tag itself. Nothing below starts
+  # unless it passes, so a tag whose code fails its checks gets no release and no installers. It gets
+  # a read-only token and none of the signing secrets.
+  test:
+    name: Test the tag
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ inputs.tag || github.ref_name }}
+
   release:
     name: Prepare the release
+    needs: test
     runs-on: ubuntu-latest
     permissions:
       contents: write
