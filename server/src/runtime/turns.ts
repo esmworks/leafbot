@@ -323,7 +323,15 @@ export class TurnManager {
     private ctx: Ctx,
     private services: Services,
     private engineFor: (bot: Bot) => Engine,
-  ) {}
+  ) {
+    // A card no turn waits on (a WhatsApp draft) is asked and answered with no turn event: its
+    // conversation kept showing "waiting for your approval" after the person answered it, until a
+    // run happened to start there.
+    ctx.bus.on('refresh', (e) => {
+      if (e.scope === 'approvals' && !this.stopped)
+        void this.restateCards().catch((err: unknown) => console.warn('turn state', err));
+    });
+  }
 
   onRehearsalFinished(hook: TurnFinishedHook) {
     this.rehearsalHooks.push(hook);
@@ -2734,6 +2742,25 @@ export class TurnManager {
   /** The last state told of each conversation, still being worked out; see `emitState`. */
   private stateChains = new Map<string, Promise<void>>();
 
+  /** The conversations last told they wait on a card, and their bots. */
+  private shownWaiting = new Map<string, string>();
+
+  /**
+   * Tells its state again to each conversation whose waiting changed with the cards: one shown as
+   * waiting whose cards were all answered, and one with a card it was not told of.
+   */
+  private async restateCards() {
+    const pending = await this.ctx.db
+      .selectDistinct({ threadId: schema.approvals.threadId, botId: schema.approvals.botId })
+      .from(schema.approvals)
+      .where(eq(schema.approvals.status, 'pending'));
+    const waiting = new Map(pending.map((p) => [p.threadId, p.botId]));
+    for (const [threadId, botId] of waiting)
+      if (!this.shownWaiting.has(threadId)) this.emitState(threadId, botId);
+    for (const [threadId, botId] of this.shownWaiting)
+      if (!waiting.has(threadId)) this.emitState(threadId, botId);
+  }
+
   /**
    * Tells the clients what the conversation's bot is doing now, and which turn runs. One
    * conversation's states are worked out one after another: each is read from the database, and a
@@ -2747,6 +2774,8 @@ export class TurnManager {
         const running = [...this.running.values()].find((r) => r.turn.threadId === threadId);
         // A running entry may not be persisted as visible state yet.
         const live = (running || this.folding.has(threadId)) && state === 'idle' ? 'running' : state;
+        if (live === 'waiting') this.shownWaiting.set(threadId, botId);
+        else this.shownWaiting.delete(threadId);
         this.ctx.bus.turn({ threadId, botId, state: live, turnId: running?.turn.id ?? null });
       })
       .catch((err) => {

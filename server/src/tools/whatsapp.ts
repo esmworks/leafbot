@@ -17,6 +17,9 @@ import type { Define } from './index';
  * on a card and nothing is sent until they answer "send"; the card is kept, so it works whenever
  * they answer, and the bot does not wait for it.
  */
+/** Why a bot's WhatsApp message went on a card instead of going at once. */
+type CardWhy = 'level' | 'setting' | 'woken' | 'outside' | 'file' | 'fresh' | 'limit';
+
 export function whatsappTools(opts: {
   def: Define;
   services: Services;
@@ -40,6 +43,12 @@ export function whatsappTools(opts: {
    * someone also wrote in it by hand.
    */
   woken: () => Promise<{ chat: string; typed: boolean }[]>;
+  /**
+   * Whether nobody is watching this turn (a routine, a mail, a chat started it). Its new draft to a
+   * chat takes the place of its bot's older one there: a reminder run again finds what the earlier
+   * one asked out of date. One the person asks for is a message of its own and keeps the others.
+   */
+  unattended: boolean;
   /** Whether the turn read outside text with nobody there to see what it does. */
   unwatched: () => boolean;
   /** Asks the person on a card whether the bots may read every chat. */
@@ -76,16 +85,20 @@ export function whatsappTools(opts: {
     return every;
   };
 
-  /** Whether a message to `chat` goes at once, without a card. */
-  const sendsAtOnce = async (chat: string) => {
-    if (bot.permissionMode !== 'auto' && bot.permissionMode !== 'review') return false;
-    if (!(await wa.autoSendOn())) return false;
+  /**
+   * Why a message to `chat` goes on a card, or null when it goes at once. The bot is told the
+   * reason: without it, it guessed one and sent the person after a setting or a button that does
+   * not exist.
+   */
+  const cardWhy = async (chat: string): Promise<CardWhy | null> => {
+    if (bot.permissionMode !== 'auto' && bot.permissionMode !== 'review') return 'level';
+    if (!(await wa.autoSendOn())) return 'setting';
     // A reply's turn answers only that chat, and not over someone who answered it by hand.
     const woke = await opts.woken();
-    if (woke.length) return woke.some((w) => w.chat === chat && !w.typed);
+    if (woke.length) return woke.some((w) => w.chat === chat && !w.typed) ? null : 'woken';
     // Outside text read on the way (a mail, a page, a chat) with nobody watching: on a card.
-    if (opts.unwatched()) return false;
-    return opts.asked();
+    if (opts.unwatched()) return 'outside';
+    return (await opts.asked()) ? null : 'outside';
   };
 
   /**
@@ -110,18 +123,28 @@ export function whatsappTools(opts: {
   };
 
   /** Puts a draft on a card in the bot's conversation with the person, and keeps it. */
-  const draft = async (d: {
-    kind: 'message' | 'status';
-    chat: string | null;
-    text: string;
-    file: string | null;
-    summary: string;
-    approve: string;
-    reject: string;
-  }) => {
+  const draft = async (
+    d: {
+      kind: 'message' | 'status';
+      chat: string | null;
+      text: string;
+      file: string | null;
+      summary: string;
+      approve: string;
+      reject: string;
+    },
+    why?: CardWhy,
+  ) => {
     const thread = await s.threads.main(bot.id, person);
-    await wa.putOnCard({ ...d, botId: bot.id, threadId: thread.id });
-    return t('tool.whatsappDrafted');
+    await wa.putOnCard({
+      ...d,
+      botId: bot.id,
+      threadId: thread.id,
+      replace: d.kind === 'message' && opts.unattended,
+    });
+    return why
+      ? t('tool.whatsappDraftedWhy', { why: t(`tool.whatsappCardWhy.${why}`) })
+      : t('tool.whatsappDrafted');
   };
 
   const reads: AppTool[] = [
@@ -206,25 +229,30 @@ export function whatsappTools(opts: {
         // Without a card only when the person let the bots send so, the bot is at full access, no
         // file goes along, and it is the person's own work or the answer to the chat that woke it.
         // A first message to a number goes on a card: many at once is how a linked number gets barred.
-        if (!path && !fresh && (await sendsAtOnce(chat))) {
+        let why: CardWhy | null = path ? 'file' : fresh ? 'fresh' : await cardWhy(chat);
+        if (!why) {
           const thread = await s.threads.main(bot.id, person);
           const sent = await wa.sendNow({ botId: bot.id, threadId: thread.id, chat, text: text.trim() });
           if (sent === 'sent') return t('tool.whatsappSentNow', { to });
           if (sent !== 'card') return t('whatsapp.draftFailed', { message: sent.failed });
+          why = 'limit';
         }
         const summary = [
           t('whatsapp.draftCard', { to, text: text.trim() }),
           ...(path ? ['', t('whatsapp.draftCardFile', { name: basename(path) })] : []),
         ].join('\n');
-        return draft({
-          kind: 'message',
-          chat,
-          text: text.trim(),
-          file: path,
-          summary,
-          approve: t('whatsapp.send'),
-          reject: t('whatsapp.dontSend'),
-        });
+        return draft(
+          {
+            kind: 'message',
+            chat,
+            text: text.trim(),
+            file: path,
+            summary,
+            approve: t('whatsapp.send'),
+            reject: t('whatsapp.dontSend'),
+          },
+          why,
+        );
       },
       'internal',
     ),
