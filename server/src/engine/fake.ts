@@ -55,6 +55,8 @@ export class FakeEngine implements Engine {
   readonly kind = 'fake';
   private sessions = new Map<string, number>();
   private lost = new Set<string>();
+  /** Sessions that hold an out-of-date definition of these tools, as a resumed CLI session can. */
+  private stale = new Map<string, string[]>();
   private fresh = new Map<string, number>();
   private totals = new Map<string, number>();
   /** Turns whose reply `[kesik]` has cut off once already. */
@@ -81,6 +83,11 @@ export class FakeEngine implements Engine {
     if (req.input.includes('önemsiz'))
       return { decision: 'skip', reason: 'Sahte ön kontrol: yeni bir şey yok.', costUsd: 0.001 };
     return { decision: 'run', reason: 'Sahte ön kontrol: bakmaya değer.', costUsd: 0.001 };
+  }
+
+  /** The session holds these tools as they were before the server changed them. */
+  outdate(sessionId: string, tools: string[]) {
+    this.stale.set(sessionId, tools);
   }
 
   forget(sessionId: string) {
@@ -113,6 +120,9 @@ export class FakeEngine implements Engine {
     if (req.sessionId && this.lost.has(req.sessionId)) {
       return { ok: false, kind: 'lostSession', message: 'No conversation found', text: '', sessionId: null };
     }
+    const stale = req.sessionId ? this.stale.get(req.sessionId) : undefined;
+    if (stale)
+      return { ok: false, kind: 'lostSession', message: '', text: '', sessionId: null, staleTools: stale };
     const sessionId = req.sessionId ?? this.newSession(req.threadId);
     const n = (this.sessions.get(sessionId) ?? 0) + 1;
     this.sessions.set(sessionId, n);
