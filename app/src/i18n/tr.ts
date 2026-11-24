@@ -2141,7 +2141,7 @@ export const tr = {
   'health.window': 'Son 30 gün',
   'health.runs': 'Çalışma: {total} · tamam {ok} · sessiz {quiet} · başarısız {failed}',
   'health.skipped': 'koşul tutmadığı için atlanan {count}',
-  'health.open': 'sonu henüz belli olmayan {count}',
+  'health.open': 'sonucu ölçülmeyen {count}',
   'health.cost': 'Harcanan {cost}',
   'health.unpriced': 'fiyatı bilinmeyen {count} çalışma hariç',
   'health.avg': 'çalışma başına ortalama {time}',

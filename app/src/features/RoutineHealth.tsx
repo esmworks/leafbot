@@ -141,6 +141,8 @@ function Finding({
       if (!before) return;
       refresh();
       toast.success(t('health.applied'), {
+        // Long enough to see what changed on the page and take it back.
+        duration: 10_000,
         action: {
           label: t('health.undo'),
           onClick: () =>
@@ -218,7 +220,7 @@ export function RoutineHealthBlock({ routine, locked }: { routine: Routine; lock
   const open = h.runs.total - h.runs.ok - h.runs.quiet - h.runs.failed;
   const facts = [
     t('health.runs', { total: h.runs.total, ok: h.runs.ok, quiet: h.runs.quiet, failed: h.runs.failed }),
-    // Runs still going or held, and those a usage limit stopped, have no ending to count yet.
+    // Runs still going or held, stopped by a usage limit or the person, or from before outcomes were kept.
     ...(open > 0 ? [t('health.open', { count: open })] : []),
     ...(h.runs.skipped > 0 ? [t('health.skipped', { count: h.runs.skipped })] : []),
     t('health.cost', { cost: usd(h.costUsd) }) +

@@ -2176,8 +2176,8 @@ export const en: Catalog<MessageKey> = {
     other: '{count} passed over as their condition did not hold',
   },
   'health.open': {
-    one: '{count} with no known ending yet',
-    other: '{count} with no known ending yet',
+    one: '{count} not measured',
+    other: '{count} not measured',
   },
   'health.cost': 'Spent {cost}',
   'health.unpriced': {
