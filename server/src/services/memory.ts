@@ -57,12 +57,14 @@ export interface MemoryReach {
   managesServer?: boolean;
 }
 
-/** The SQL condition for the notes of `reach`. */
 /** The most notes the memory map links; and how near two must be in meaning, and to how many each is linked. */
-const GRAPH_NOTES = 500;
+export const GRAPH_NOTES = 500;
 const GRAPH_NEAR = 0.6;
 const GRAPH_NEIGHBOURS = 3;
+/** Rows of the meaning comparison done before the server turns to other work for a moment. */
+const GRAPH_ROWS_AT_ONCE = 25;
 
+/** The SQL condition for the notes of `reach`. */
 const reachable = (reach: MemoryReach) =>
   or(
     and(eq(schema.memories.scope, 'user'), eq(schema.memories.userId, reach.userId)),
@@ -182,7 +184,10 @@ export class MemoryService {
       .from(schema.memories)
       .where(reach ? reachable(reach) : undefined)
       .orderBy(asc(schema.memories.createdAt))
-      .limit(GRAPH_NOTES);
+      // One more than are linked, to tell whether some were left out.
+      .limit(GRAPH_NOTES + 1);
+    const truncated = rows.length > GRAPH_NOTES;
+    if (truncated) rows.length = GRAPH_NOTES;
     const edges: MemoryGraph['edges'] = [];
     const seen = new Set<string>();
     const link = (a: string, b: string, kind: MemoryGraph['edges'][number]['kind'], score?: number) => {
@@ -206,18 +211,30 @@ export class MemoryService {
     }
     const vectors = this.embeddings ? await this.embeddings.vectors(rows) : null;
     if (vectors) {
+      // Each pair is compared once; every note keeps its few nearest. The work is cut into parts
+      // so a large memory does not hold up the server's other requests meanwhile.
       const ids = [...vectors.keys()];
-      for (const a of ids) {
-        const near = ids
-          .filter((b) => b !== a)
-          .map((b) => ({ b, score: similarity(vectors.get(a)!, vectors.get(b)!) }))
-          .filter((x) => x.score >= GRAPH_NEAR)
-          .sort((x, y) => y.score - x.score)
-          .slice(0, GRAPH_NEIGHBOURS);
-        for (const { b, score } of near) link(a, b, 'similar', score);
+      const list = ids.map((id) => vectors.get(id)!);
+      const nearest: { b: number; score: number }[][] = ids.map(() => []);
+      const keep = (i: number, b: number, score: number) => {
+        const n = nearest[i]!;
+        if (n.length === GRAPH_NEIGHBOURS && n[n.length - 1]!.score >= score) return;
+        n.push({ b, score });
+        n.sort((x, y) => y.score - x.score);
+        if (n.length > GRAPH_NEIGHBOURS) n.pop();
+      };
+      for (let i = 0; i < ids.length; i++) {
+        for (let j = i + 1; j < ids.length; j++) {
+          const score = similarity(list[i]!, list[j]!);
+          if (score < GRAPH_NEAR) continue;
+          keep(i, j, score);
+          keep(j, i, score);
+        }
+        if (i % GRAPH_ROWS_AT_ONCE === GRAPH_ROWS_AT_ONCE - 1) await new Promise((r) => setImmediate(r));
       }
+      nearest.forEach((n, i) => n.forEach(({ b, score }) => link(ids[i]!, ids[b]!, 'similar', score)));
     }
-    return { edges, meaning: !!vectors, truncated: rows.length >= GRAPH_NOTES };
+    return { edges, meaning: !!vectors, truncated };
   }
 
   /** The notes a bot has about the site of `host`: its own, those of the person it works for, and the place's. */

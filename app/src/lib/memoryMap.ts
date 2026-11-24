@@ -19,7 +19,8 @@ export interface MapLink {
 
 export type Placed = Map<string, { x: number; y: number }>;
 
-const ROUNDS = 300;
+/** Rounds of the layout: fewer for many notes, whose every round costs more. */
+const roundsFor = (n: number) => (n > 150 ? 150 : 300);
 
 /** Places `nodes` in a `width` × `height` box, `pad` from its edges. */
 export function placeNotes(
@@ -59,7 +60,8 @@ export function placeNotes(
   const area = (width - 2 * pad) * (height - 2 * pad);
   const k = Math.sqrt(area / nodes.length) * 0.6;
   let step = Math.min(width, height) / 10;
-  for (let round = 0; round < ROUNDS; round++) {
+  const rounds = roundsFor(nodes.length);
+  for (let round = 0; round < rounds; round++) {
     const dx = new Float64Array(nodes.length);
     const dy = new Float64Array(nodes.length);
     for (let i = 0; i < nodes.length; i++) {

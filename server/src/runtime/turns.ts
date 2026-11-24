@@ -3,7 +3,6 @@ import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import {
   describeAction,
-  emailPreview,
   INTL_LOCALE,
   LOCALES,
   selectsTools,
@@ -53,7 +52,8 @@ import type { PlanItem } from '../engine/types';
 import { isUniqueViolation, newId, readableError, truncate } from '../util';
 import { submitsOnMac } from '../computer/person';
 import { refusingEngine } from '../engine/acp';
-import { markedOutside, outsideRead, outsideSource, reachesOut, resembledSite } from './outside';
+import { markedOutside, outsideRead, outsideSource, resembledSite } from './outside';
+import { worthReview } from '../services/reviewer';
 import { MAX_SOURCES } from '../services/canary';
 import { ownerWords, requestedBy } from './owner-words';
 import { elicitContent, elicitQuestions } from '../connections/elicit';
@@ -1989,12 +1989,7 @@ export class TurnManager {
           this.emitState(thread.id, bot.id);
           // A mail going out or data leaving gets a second model's look while the card waits; it
           // never holds the step up, and writes a line on the card only when something looks wrong.
-          const mail = emailPreview(ask.toolName, ask.input);
-          if (
-            bot.reviewer &&
-            !turn.rehearsalId &&
-            ((mail && mail.kind !== 'draft') || reachesOut(ask.toolName, ask.input, appTool))
-          ) {
+          if (bot.reviewer && !turn.rehearsalId && worthReview(ask.toolName, ask.input, appTool)) {
             this.services.reviewer.review({
               bot,
               messageId: card.id,

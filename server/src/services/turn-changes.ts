@@ -334,23 +334,47 @@ export class TurnChangeService {
    */
   async log(threadId: string, userId: string): Promise<TurnLogEntry[]> {
     const since = new Date(Date.now() - CHANGE_KEEP_DAYS * 86_400_000);
+    // The turns that changed or sent something are found first, so a long run of turns that only
+    // talked does not push an older one that can still be taken back out of the list.
+    const changed = await this.ctx.db
+      .selectDistinct({ turnId: schema.turnChanges.turnId })
+      .from(schema.turnChanges)
+      .where(
+        and(
+          eq(schema.turnChanges.threadId, threadId),
+          eq(schema.turnChanges.userId, userId),
+          gt(schema.turnChanges.createdAt, since),
+        ),
+      );
+    const steps = await this.ctx.db
+      .select({ turnId: schema.botActions.turnId, toolName: schema.botActions.toolName })
+      .from(schema.botActions)
+      .where(and(eq(schema.botActions.threadId, threadId), gt(schema.botActions.createdAt, since)));
+    const candidates = new Set([
+      ...changed.map((c) => c.turnId),
+      ...steps.filter((a) => a.turnId && !NOT_OUTSIDE.has(stepName(a.toolName))).map((a) => a.turnId!),
+    ]);
+    if (!candidates.size) return [];
     const turns = await this.ctx.db
       .select({
         id: schema.turns.id,
         status: schema.turns.status,
         prompt: schema.turns.prompt,
         createdAt: schema.turns.createdAt,
+        routine: schema.routines.name,
       })
       .from(schema.turns)
+      .leftJoin(schema.routineRuns, eq(schema.routineRuns.id, schema.turns.routineRunId))
+      .leftJoin(schema.routines, eq(schema.routines.id, schema.routineRuns.routineId))
       .where(
         and(
+          inArray(schema.turns.id, [...candidates]),
           eq(schema.turns.threadId, threadId),
           eq(schema.turns.userId, userId),
-          gt(schema.turns.createdAt, since),
         ),
       )
       .orderBy(desc(schema.turns.createdAt))
-      .limit(LOG_TURNS * 4);
+      .limit(LOG_TURNS);
     if (!turns.length) return [];
     const ids = turns.map((t) => t.id);
     const changes = await this.ctx.db
@@ -363,6 +387,15 @@ export class TurnChangeService {
       .from(schema.botActions)
       .where(inArray(schema.botActions.turnId, ids))
       .orderBy(asc(schema.botActions.createdAt));
+    // What the person wrote to start each turn; the turn's own prompt carries text added for the
+    // bot (a routine's instruction and what started it, a note that it resumes).
+    const said = await this.ctx.db
+      .select({ turnId: schema.messages.turnId, text: schema.messages.text })
+      .from(schema.messages)
+      .where(and(inArray(schema.messages.turnId, ids), eq(schema.messages.role, 'user')))
+      .orderBy(asc(schema.messages.createdAt));
+    const asked = new Map<string, string>();
+    for (const m of said) if (m.turnId && !asked.has(m.turnId) && m.text.trim()) asked.set(m.turnId, m.text);
     const entries: TurnLogEntry[] = [];
     for (const turn of turns) {
       const rows = changes.filter((c) => c.turnId === turn.id);
@@ -373,13 +406,12 @@ export class TurnChangeService {
       entries.push({
         turnId: turn.id,
         at: turn.createdAt.toISOString(),
-        request: truncate(turn.prompt.trim(), LOG_REQUEST),
+        request: truncate((turn.routine ?? asked.get(turn.id) ?? turn.prompt).trim(), LOG_REQUEST),
         running: turn.status === 'queued' || turn.status === 'running',
         undone: rows.length > 0 && rows.every((r) => r.undoneAt),
         items: await Promise.all(rows.map((r) => this.item(r, userId))),
         outside,
       });
-      if (entries.length >= LOG_TURNS) break;
     }
     return entries;
   }

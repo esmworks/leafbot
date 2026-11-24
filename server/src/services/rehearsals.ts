@@ -78,7 +78,10 @@ export class RehearsalService {
    * saved ones; `replayRunId` hands the bot what started one of the routine's last runs.
    */
   async start(routineId: string, userId: string, input: RehearsalStart): Promise<Rehearsal> {
-    if (this.starting.has(routineId)) throw new HttpError(409, 'error.rehearsalRunning');
+    // A batch on the last inputs counts as running between one of its rehearsals and the next.
+    if (this.starting.has(routineId) || this.batches.has(routineId)) {
+      throw new HttpError(409, 'error.rehearsalRunning');
+    }
     this.starting.add(routineId);
     try {
       if (!input.replayLast) return await this.begin(routineId, userId, input);
@@ -344,7 +347,11 @@ export class RehearsalService {
     await this.next(id, outcome);
   }
 
-  /** Starts the next rehearsal of a batch on the routine's last inputs; a stopped one ends the batch. */
+  /**
+   * Starts the next rehearsal of a batch on the routine's last inputs. One the person stopped ends
+   * the batch; one that cannot start ends it too, and the inputs left are listed as not tried, with
+   * why, so the batch does not look complete.
+   */
   private async next(id: string, outcome: TurnOutcome): Promise<void> {
     const [row] = await this.ctx.db
       .select({ routineId: schema.routineRehearsals.routineId, batchId: schema.routineRehearsals.batchId })
@@ -353,21 +360,59 @@ export class RehearsalService {
       .limit(1);
     const batch = row && this.batches.get(row.routineId);
     if (!row?.batchId || !batch || batch.batchId !== row.batchId) return;
-    const runId = batch.runIds.shift();
-    if (!runId || (!outcome.ok && outcome.kind === 'interrupted')) {
-      this.batches.delete(row.routineId);
+    const { routineId } = row;
+    const stopped = !outcome.ok && outcome.kind === 'interrupted';
+    if (stopped || !batch.runIds.length) {
+      this.batches.delete(routineId);
+      if (stopped) await this.notTried(routineId, batch, batch.runIds, 'error.rehearsalBatchStopped');
       return;
     }
-    if (!batch.runIds.length) this.batches.delete(row.routineId);
-    await this.begin(
-      row.routineId,
-      batch.userId,
-      { prompt: batch.prompt, replayRunId: runId },
-      batch.batchId,
-    ).catch((err: unknown) => {
-      this.batches.delete(row.routineId);
-      console.warn(`Could not start the next rehearsal of routine ${row.routineId}: ${String(err)}`);
-    });
+    const runId = batch.runIds.shift()!;
+    this.starting.add(routineId);
+    try {
+      await this.begin(routineId, batch.userId, { prompt: batch.prompt, replayRunId: runId }, batch.batchId);
+      if (!batch.runIds.length) this.batches.delete(routineId);
+    } catch (err) {
+      this.batches.delete(routineId);
+      console.warn(`Could not start the next rehearsal of routine ${routineId}: ${String(err)}`);
+      await this.notTried(routineId, batch, [runId, ...batch.runIds], 'error.rehearsalBatchCut');
+    } finally {
+      this.starting.delete(routineId);
+    }
+  }
+
+  /** Lists the inputs of a batch that were not rehearsed, each as a rehearsal that did not run, with why. */
+  private async notTried(
+    routineId: string,
+    batch: { batchId: string; userId: string; prompt?: string },
+    runIds: string[],
+    why: 'error.rehearsalBatchStopped' | 'error.rehearsalBatchCut',
+  ): Promise<void> {
+    if (!runIds.length) return;
+    const t = await this.services.settings.translator();
+    const routine = await this.services.routines.get(routineId).catch(() => null);
+    if (!routine) return;
+    const prompt = batch.prompt?.trim() || routine.prompt;
+    const now = this.clock();
+    await this.ctx.db
+      .insert(schema.routineRehearsals)
+      .values(
+        runIds.map((runId) => ({
+          id: newId(),
+          routineId,
+          userId: batch.userId,
+          draft: prompt !== routine.prompt,
+          replayRunId: runId,
+          batchId: batch.batchId,
+          prompt,
+          status: 'stopped' as const,
+          error: t(why),
+          startedAt: now,
+          finishedAt: now,
+        })),
+      )
+      .catch((err: unknown) => console.warn(`Could not list a batch's untried inputs: ${String(err)}`));
+    this.ctx.bus.refresh({ scope: 'routines' });
   }
 
   /** Whether a batch of rehearsals is still to go on for the routine (tests). */

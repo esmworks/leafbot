@@ -391,7 +391,7 @@ export const en: Catalog<MessageKey> = {
   'bot.memory': 'Memory',
   'bot.reviewer': 'Reviewer',
   'bot.reviewerHint':
-    "Another model reads a mail about to go out, or data about to leave, while its card waits, and adds a line to the card when something looks wrong. It never decides and never holds the bot up. A model of another family than the bot's own catches more. Each look is billed like a short message.",
+    "Another model reads a mail about to go out, or a step about to send data out, while its card waits, and adds a line to the card when something looks wrong. It never decides and never holds the bot up. The step, with the mail's text, goes to the reviewer's provider too. A model of another family than the bot's own catches more. Each look is billed like a short message. The line shows in the app and on the phone; a chat app (Telegram, Slack…) shows it only if it came before the card was posted there.",
   'bot.reviewerOff': 'None',
   'bot.reviewerClaude': 'Claude (small model)',
   'bot.memoryHint':
@@ -3181,6 +3181,8 @@ export const en: Catalog<MessageKey> = {
   'memory.mapNoMeaning':
     'Turn on search by meaning (Settings → AI services) to link notes that are near in meaning, not only those about one site or from one conversation.',
   'memory.mapTruncated': 'There are more notes than the map links: the newest are left unlinked.',
+  'memory.mapCapped':
+    'Showing {shown} of {total} notes: linked ones first, then those used most. Search to narrow it down.',
   'memory.pinHint': 'Pinned notes are always given to the bot in every conversation.',
   'memory.rooms': 'Notes for channels and rooms',
   'memory.roomsHint': 'Notes kept in a channel or a room are read only there.',

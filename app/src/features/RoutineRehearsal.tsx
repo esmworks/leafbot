@@ -234,9 +234,12 @@ function Batch({
                   <span className="text-muted-foreground">
                     {r.status === 'running'
                       ? t('rehearsal.status.running')
-                      : t('rehearsal.batchWould', { count: steps.length })}
+                      : r.error
+                        ? t(`rehearsal.status.${r.status}` as MessageKey)
+                        : t('rehearsal.batchWould', { count: steps.length })}
                   </span>
                 </div>
+                {r.error && <p className="mt-0.5 text-xs break-words text-muted-foreground">{r.error}</p>}
                 {steps.length > 0 && (
                   <ul className="mt-0.5 space-y-0.5 text-sm">
                     {steps.slice(0, 3).map((s, i) => (

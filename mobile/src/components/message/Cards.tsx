@@ -86,6 +86,7 @@ export function ApprovalCard({
   outside,
   noAlways,
   reviewReason,
+  reviewNote,
   resembles,
   onAnswerLate,
 }: {
@@ -102,6 +103,8 @@ export function ApprovalCard({
   noAlways?: boolean;
   /** Why the automatic review left this step to the person. */
   reviewReason?: string;
+  /** What the bot's reviewer, a second model, found worth a look before the person answers. */
+  reviewNote?: string;
   /** The site the page address imitates: the card warns, and offers no "always allow". */
   resembles?: string;
   /** Answers a question that went unanswered, as a reply quoting it. */
@@ -158,6 +161,11 @@ export function ApprovalCard({
           {resembles ? (
             <Text style={[styles.small, styles.medium, { color: c.destructive }]}>
               {t('approval.resembles', { site: resembles })}
+            </Text>
+          ) : null}
+          {reviewNote ? (
+            <Text style={[styles.small, { color: c.amber }]}>
+              {t('approval.reviewNote', { note: reviewNote })}
             </Text>
           ) : null}
           {heldBy ? (

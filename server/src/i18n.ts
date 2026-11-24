@@ -310,6 +310,8 @@ const tr = {
   'error.rehearsalNotYours':
     'Bir rutini yalnızca onu kuran kişi prova edebilir. Botu değiştirebilen başka biri yalnızca kendi yazdığı talimatı prova edebilir.',
   'error.rehearsalRunning': 'Bu rutinin bir provası zaten sürüyor',
+  'error.rehearsalBatchStopped': 'Denenmedi: provalar bu girdiden önce durduruldu.',
+  'error.rehearsalBatchCut': 'Denenmedi: sıradaki prova başlayamadı. Başka prova sürmüyorken yeniden dene.',
   'error.rehearsalNoInput':
     'Bu çalıştırmayı tetikleyen girdi saklanmamış; yalnızca sonradan başlayan çalıştırmalar yeniden oynatılabilir',
   'error.rehearsalBotMissing': 'Rutinin botu yok ya da arşivde',
@@ -2130,6 +2132,7 @@ const tr = {
   'channel.noticeSecond': '🔔 {text}\n_İkinci onayın bekleniyor; Leaf Bot uygulamasında._',
   'channel.waitingSecond': 'İlk onay alındı; ikinci kişinin onayı bekleniyor',
   'channel.needsSecond': 'Bu adım iki kişinin onayını istiyor; ikinci onay başka birinden gelecek.',
+  'channel.reviewNote': 'Denetçi: {note}',
   'channel.noticeError': '⚠️ **{title}**: {text}',
   'channel.switched': 'Artık **{bot}** ile konuşuyorsun.',
   'channel.current':
@@ -2446,6 +2449,9 @@ const en: Catalog<ServerKey> = {
   'error.rehearsalNotYours':
     'Only the person who set a routine up can rehearse it. Anyone else who may change the bot can only rehearse instructions they typed themselves.',
   'error.rehearsalRunning': 'A rehearsal of this routine is already going',
+  'error.rehearsalBatchStopped': 'Not tried: the rehearsals were stopped before this input.',
+  'error.rehearsalBatchCut':
+    'Not tried: the next rehearsal could not start. Try again once nothing else is rehearsing.',
   'error.rehearsalNoInput':
     'What started this run was not kept; only runs that started after this was added can be replayed',
   'error.rehearsalBotMissing': "The routine's bot is gone or archived",
@@ -4272,6 +4278,7 @@ const en: Catalog<ServerKey> = {
   'channel.noticeSecond': '🔔 {text}\n_Your second yes is wanted, in the Leaf Bot app._',
   'channel.waitingSecond': 'First yes taken; waiting for a second person',
   'channel.needsSecond': 'This step needs two people’s yes; the second will come from someone else.',
+  'channel.reviewNote': 'Reviewer: {note}',
   'channel.noticeError': '⚠️ **{title}**: {text}',
   'channel.switched': 'You are now talking to **{bot}**.',
   'channel.current': 'You are talking to **{bot}**. To switch to another bot: /bot <name>\nBots: {bots}',
