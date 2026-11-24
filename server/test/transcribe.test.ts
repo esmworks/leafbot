@@ -51,4 +51,35 @@ describe('sesle yazdırma', () => {
     ]);
     expect((await t.api('GET', '/api/transcribe')).body).toEqual({ available: true });
   });
+
+  it('servise ulaşılamazsa genel sunucu hatası yerine nedenini söyler', async () => {
+    await t.services.keys.set('openai', 'sk-test-transcribe-1234');
+    const refused = (async () => {
+      throw new TypeError('fetch failed', {
+        cause: Object.assign(new Error('connect'), { code: 'ECONNREFUSED' }),
+      });
+    }) as typeof fetch;
+    Object.assign(t.services.transcribe, { fetcher: refused });
+    const res = await t.app.inject({
+      method: 'POST',
+      url: '/api/transcribe?lang=tr',
+      headers: { ...AUTH, 'content-type': 'audio/webm;codecs=opus' },
+      payload: Buffer.from('ses'),
+    });
+    expect(res.statusCode).toBe(502);
+    expect(res.json().error).toBe('Ses yazıya çevirme servisine ulaşılamadı: ECONNREFUSED');
+  });
+
+  it('servis zamanında yanıt vermezse bunu söyler', async () => {
+    await t.services.keys.set('openai', 'sk-test-transcribe-1234');
+    const slow = (async () => {
+      throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+    }) as typeof fetch;
+    const service = new TranscribeService(t.services.keys, undefined, slow);
+    await expect(service.transcribe(Buffer.from('ses'), 'audio/webm', 'tr')).rejects.toMatchObject({
+      status: 504,
+      key: 'error.transcribeTimeout',
+      params: { seconds: 120 },
+    });
+  });
 });

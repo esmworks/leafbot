@@ -9,6 +9,8 @@ import {
 import { eq } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
+import type { ServerKey } from '../i18n';
+import { HttpError } from '../util';
 import type { VaultService } from './vault';
 
 /** A service as the server calls it, key included. Never leaves the server. */
@@ -125,3 +127,27 @@ export class AiEndpointService {
 /** Headers for a call to an OpenAI-compatible service; a local server without a key gets none. */
 export const authHeaders = (s: AiService): Record<string, string> =>
   s.apiKey ? { authorization: `Bearer ${s.apiKey}` } : {};
+
+/**
+ * A request to a speech service that got no answer at all. Without this the network's error reached
+ * the person only as a bare server error; now they read whether the service was out of reach (with
+ * the network's own reason: refused, not found, a certificate) or too slow, and the server log keeps
+ * the full error.
+ */
+export async function askService(
+  fetcher: typeof fetch,
+  url: string,
+  init: RequestInit,
+  keys: { unreachable: ServerKey; timeout: ServerKey },
+  timeoutMs: number,
+): Promise<Response> {
+  try {
+    return await fetcher(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+  } catch (err) {
+    console.error(`${url}:`, err);
+    const e = err as { name?: string; message?: string; cause?: { code?: string; message?: string } };
+    if (e?.name === 'TimeoutError') throw new HttpError(504, keys.timeout, { seconds: timeoutMs / 1000 });
+    const reason = e?.cause?.code ?? e?.cause?.message ?? e?.message ?? String(err);
+    throw new HttpError(502, keys.unreachable, { reason });
+  }
+}

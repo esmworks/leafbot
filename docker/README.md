@@ -270,10 +270,40 @@ WEB_SEARCH_URL=http://searxng:8080
 - `leafbot` kapsayıcısı SearXNG'ye bir Docker ağı üzerinden ulaşmalı; adres o ağdaki kapsayıcı adıdır. Bu
   ağ panelin bütün uygulamaları bağlayan ortak ağı (Dokploy'da `dokploy-network`) olmamalı: sunucu o ağa
   girince güvenlik duvarının dışında kalır (bkz. "Dokploy ve benzeri paneller"). Yalnızca SearXNG'nin
-  bulunduğu ayrı bir ağ kullanın. Adres sunucunun kendi ayarı olduğu için özel ağda olabilir; botların
+  bulunduğu ayrı bir ağ kullanın; bkz. "Kendi model servisleriniz". Adres sunucunun kendi ayarı olduğu için özel ağda olabilir; botların
   okuduğu sayfalar ise yalnızca internetteki herkese açık adreslerden okunur.
 - Arama ve sayfa okuma yalnızca interneti açık botlarda vardır ve Claude botlarının aynı adımlarıyla aynı
   izin kurallarına bağlıdır.
+
+## Kendi model servisleriniz
+
+Konuşmayı yazıya çevirme (Whisper), seslendirme (Kokoro, speaches), anlama göre hafıza araması (Ollama) ve
+web araması (SearXNG) bu kurulumun dışında, aynı sunucuda çalışan servislerde olabilir. Ayarlar → Yapay zekâ
+servisleri'ndeki adres (ör. `http://whisper:8000/v1`) o servisin bir Docker ağındaki adıdır, ve sunucu
+kapsayıcısı ona ancak aynı ağdaysa ulaşır. Ulaşamazsa ses "servise ulaşılamadı: EAI_AGAIN" der, hafıza
+dizinlenmez.
+
+Panelin ortak ağı (Dokploy'da `dokploy-network`) bunun için kullanılmaz: sunucu o ağa girince güvenlik
+duvarının dışında kalır ve paneldeki bütün uygulamalara ulaşır. Elle `docker network connect` ile
+bağlamak da kalıcı olmaz; bir sonraki yayın bağlantıyı düşürür. Bunun yerine yalnızca bu servislerin
+bulunduğu ayrı bir ağ açın ve kurulumun ortam değişkenlerinde adını verin:
+
+```bash
+docker network create --driver overlay --attachable leafbot-services
+```
+
+```bash
+LEAFBOT_SERVICES_NETWORK=leafbot-services
+```
+
+- Ağ, paneldeki servisler Swarm servisiyse (Dokploy'un "Application" ve veritabanı servisleri) `overlay`
+  ve `--attachable` olmalı; yalnızca compose ile çalışan bir sunucuda düz bir köprü ağı da olur.
+- Servisler de bu ağa girer. Swarm servisi için `docker service update --network-add leafbot-services
+<servis>`; compose ile çalışan bir servis (ör. SearXNG) kendi compose dosyasında ağı `external: true`
+  olarak tanımlar ve servisin `networks` listesine ekler. Servisin öteki ağları yerinde kalır.
+- Aynı sunucudaki birden çok kurulum aynı ağı paylaşabilir.
+- Değişken verilmezse compose kuruluma ait boş ve internete kapalı bir ağ açar; hiçbir şey değişmez.
+  `docker compose down` dışarıdan verilen ağı silmez.
 
 ## Bash yalıtımı
 
