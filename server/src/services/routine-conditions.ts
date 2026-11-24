@@ -7,6 +7,7 @@ import {
   type Routine,
   type RoutineCondition,
   type RoutineConditionCheck,
+  type RoutineStepWhen,
 } from '@leafbot/shared';
 import { and, desc, eq, gte } from 'drizzle-orm';
 import type { Ctx } from '../context';
@@ -276,4 +277,18 @@ export function describeCheck(c: RoutineConditionCheck, t: T): string {
     case 'page':
       return t('routine.conditionPage', { url: c.url, contains: c.contains, not });
   }
+}
+
+/** Whether a step's condition holds for what reached it, read with no AI. */
+export function stepWhenHolds(when: RoutineStepWhen, before: string | null): boolean {
+  return toolAnswerHolds(before ?? '', when.filter, when.contains) !== when.absent;
+}
+
+/** A step's condition in a few words, for the step's line in the run. */
+export function describeWhen(when: RoutineStepWhen, t: T): string {
+  const not = when.absent ? t('routine.conditionAbsent') : '';
+  if (when.filter.trim())
+    return t('routine.stepWhenFilter', { filter: when.filter.trim().replace(/\n/g, ', '), not });
+  if (when.contains.trim()) return t('routine.stepWhenContains', { text: when.contains.trim(), not });
+  return t(when.absent ? 'routine.stepWhenNothing' : 'routine.stepWhenSomething');
 }

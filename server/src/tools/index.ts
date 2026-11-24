@@ -113,6 +113,15 @@ const StepInput = z.object({
   on: z.enum(['time', 'webhook', 'email']).optional(),
   minutes: z.number().int().optional(),
   filter: z.string().max(2000).optional(),
+  /** Read with no AI in what reaches the step; the step runs only when it holds. */
+  when: z
+    .object({
+      contains: z.string().max(500).optional(),
+      filter: z.string().max(2000).optional(),
+      absent: z.boolean().optional(),
+      otherwise: z.enum(['skip', 'end']).optional(),
+    })
+    .optional(),
 });
 const StepsInput = z.array(StepInput).max(ROUTINE_STEP_MAX);
 
@@ -159,8 +168,14 @@ export function stepsFrom(input: z.infer<typeof StepsInput>, t: T): RoutineStep[
     while (ids.has(id) && !s.id) id = newStepId();
     if (ids.has(id)) return t('tool.routineStepSameId', { n: i + 1, id });
     ids.add(id);
-    const raw =
-      s.kind === 'agent'
+    const when = s.when && {
+      contains: s.when.contains ?? '',
+      filter: s.when.filter ?? '',
+      absent: s.when.absent ?? false,
+      otherwise: s.when.otherwise ?? 'skip',
+    };
+    const raw = {
+      ...(s.kind === 'agent'
         ? { id, kind: s.kind, prompt: s.prompt ?? '', model: s.model ?? '' }
         : s.kind === 'approval'
           ? { id, kind: s.kind, question: s.question ?? '', timeoutDays: s.timeout_days }
@@ -173,7 +188,9 @@ export function stepsFrom(input: z.infer<typeof StepsInput>, t: T): RoutineStep[
                 minutes: s.minutes,
                 filter: s.filter ?? '',
                 timeoutDays: s.timeout_days,
-              };
+              }),
+      ...(when && { when }),
+    };
     const parsed = StepSchema.safeParse(raw);
     if (!parsed.success) {
       const issues = parsed.error.issues.map(
@@ -192,7 +209,6 @@ const slackReaction = (raw: string): string | null => {
   return parsed.success ? parsed.data : null;
 };
 
-/** Whether a step of the routine waits for its webhook to be called. */
 /** The short model names the Claude engine takes. */
 const CLAUDE_NAMES = new Set(['default', 'best', 'opus', 'sonnet', 'haiku', 'fable', 'opusplan']);
 /**
@@ -208,26 +224,39 @@ const claudeModelOk = (model: string) => {
 /** The models a routine's agent steps name. */
 const stepModels = (steps: readonly RoutineStep[]) =>
   steps.flatMap((x) => (x.kind === 'agent' && x.model ? [x.model] : []));
+/** Whether a step of the routine waits for its webhook to be called. */
 const waitsOnHook = (steps: readonly RoutineStep[]) =>
   steps.some((x) => x.kind === 'wait' && x.on === 'webhook');
 
 /** A routine's steps in the shape `steps` takes, so a bot can read them and send them back changed. */
 export function stepsOut(steps: readonly RoutineStep[]): Record<string, unknown>[] {
-  return steps.map((s) =>
-    s.kind === 'agent'
-      ? { id: s.id, kind: s.kind, prompt: s.prompt, ...(s.model && { model: s.model }) }
-      : s.kind === 'approval'
-        ? { id: s.id, kind: s.kind, question: s.question, timeout_days: s.timeoutDays }
-        : s.kind === 'notify'
-          ? { id: s.id, kind: s.kind, text: s.text, with_before: s.withBefore }
-          : {
-              id: s.id,
-              kind: s.kind,
-              on: s.on,
-              ...(s.on === 'time' ? { minutes: s.minutes } : { filter: s.filter }),
-              timeout_days: s.timeoutDays,
-            },
-  );
+  return steps.map((s) => ({
+    ...stepOut(s),
+    ...(s.when && {
+      when: {
+        ...(s.when.contains && { contains: s.when.contains }),
+        ...(s.when.filter && { filter: s.when.filter }),
+        ...(s.when.absent && { absent: true }),
+        otherwise: s.when.otherwise,
+      },
+    }),
+  }));
+}
+
+function stepOut(s: RoutineStep): Record<string, unknown> {
+  return s.kind === 'agent'
+    ? { id: s.id, kind: s.kind, prompt: s.prompt, ...(s.model && { model: s.model }) }
+    : s.kind === 'approval'
+      ? { id: s.id, kind: s.kind, question: s.question, timeout_days: s.timeoutDays }
+      : s.kind === 'notify'
+        ? { id: s.id, kind: s.kind, text: s.text, with_before: s.withBefore }
+        : {
+            id: s.id,
+            kind: s.kind,
+            on: s.on,
+            ...(s.on === 'time' ? { minutes: s.minutes } : { filter: s.filter }),
+            timeout_days: s.timeoutDays,
+          };
 }
 
 /** Query parameters that carry a sign-in or a signature rather than say which page it is. */

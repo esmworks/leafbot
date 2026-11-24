@@ -45,7 +45,10 @@ export function handedOn(
 ): string | null {
   const parts: string[] = [];
   for (let p = position - 1; p >= 0; p--) {
-    const output = rows.find((r) => r.position === p)?.output?.trim() || null;
+    const row = rows.find((r) => r.position === p);
+    // A step its condition passed over hands on what reached it, as if it were not there.
+    if (row?.status === 'skipped') continue;
+    const output = row?.output?.trim() || null;
     if (isBotStep(steps, p)) {
       if (output) parts.unshift(output);
       break;

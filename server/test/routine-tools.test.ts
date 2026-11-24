@@ -73,6 +73,32 @@ describe('routine tools with steps', () => {
     expect(await pending()).toHaveLength(0);
   });
 
+  it('sets a step to run only when the step before found something, and reads it back the same', async () => {
+    const bot = await t.bot({ name: 'Paşa', permissionMode: 'auto' });
+    const thread = await main(bot.id);
+    const steps = [
+      { kind: 'agent', prompt: 'Siparişleri say.' },
+      { kind: 'notify', text: 'Gecikmiş sipariş var', when: { filter: 'late!=0', otherwise: 'end' } },
+    ];
+    expect(await ask(thread.id, 'routine_create', { ...briefing, steps })).toContain('rutini kuruldu');
+    const r = await mine(bot.id);
+    expect(r.steps![0]!.when).toBeUndefined();
+    expect(r.steps![1]!.when).toEqual({ contains: '', filter: 'late!=0', absent: false, otherwise: 'end' });
+    const read = await ask(thread.id, 'routine_read', { routine: 'Brifing' });
+    expect(read).toContain('"filter": "late!=0"');
+    expect(read).toContain('"otherwise": "end"');
+    // A step sent back without its condition runs every time again.
+    const ids = r.steps!.map((s) => s.id);
+    await ask(thread.id, 'routine_update', {
+      routine: 'Brifing',
+      steps: [
+        { id: ids[0], kind: 'agent', prompt: 'Siparişleri say.' },
+        { id: ids[1], kind: 'notify', text: 'Gecikmiş sipariş var' },
+      ],
+    });
+    expect((await mine(bot.id)).steps![1]!.when).toBeFalsy();
+  });
+
   it('refuses a step it cannot keep, and more steps than a routine takes', async () => {
     const bot = await t.bot({ permissionMode: 'auto' });
     const thread = await main(bot.id);
@@ -239,5 +265,18 @@ describe('routine tools with steps', () => {
     expect(detail).toContain('1. bot [opus]: Brifingi derle');
     expect(detail).toContain('2. sana sorar: Gönderilsin mi?');
     expect(detail).toContain('3. bildirir: Brifing hazır');
+    const gated = describeAction(
+      'mcp__leafbot__routine_create',
+      {
+        ...briefing,
+        steps: [
+          { kind: 'agent', prompt: 'Gönder', when: { contains: '[1]', otherwise: 'end' } },
+          { kind: 'notify', text: 'Boş', when: { absent: true } },
+        ],
+      },
+      { bot: 'Paşa', locale: 'tr' },
+    ).detail;
+    expect(gated).toContain('(yalnız varsa: "[1]"; yoksa çalışma biter)');
+    expect(gated).toContain('(yalnız önceki adımdan bir şey gelmezse)');
   });
 });
