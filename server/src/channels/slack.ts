@@ -24,6 +24,7 @@ import { saveUpload, stagingDir } from '../uploads';
 import { OWNER_ID } from '../users';
 import { HttpError, newId, truncate } from '../util';
 import {
+  canOpen,
   cardView,
   dropRequest,
   heldRequests,
@@ -280,8 +281,9 @@ export class SlackChannel {
       .from(schema.slackPeople)
       .innerJoin(schema.users, eq(schema.users.id, schema.slackPeople.userId))
       .orderBy(schema.slackPeople.createdAt);
+    const unreadable = !!row?.secret && !canOpen(this.vault, row.secret);
     return {
-      connected: !!row?.secret,
+      connected: !!row?.secret && !unreadable,
       workspace: account?.teamId ? { id: account.teamId, name: account.team ?? '' } : null,
       botUser: account?.botName ?? null,
       botId: row?.botId ?? null,
@@ -290,7 +292,9 @@ export class SlackChannel {
         name: p.displayName || p.username || '',
         slackName: p.slackName,
       })),
-      error: row?.error ?? this.scopeNote,
+      error: unreadable
+        ? (await this.services.settings.translator())('channel.secretUnreadable')
+        : (row?.error ?? this.scopeNote),
       optionalMissing: row?.secret ? this.optionalMissing : [],
     };
   }
@@ -403,6 +407,8 @@ export class SlackChannel {
     if (this.stopped) return;
     const row = await this.row();
     if (!row?.secret) return;
+    // Tokens that cannot be opened will not open on a retry; the status says why.
+    if (!canOpen(this.vault, row.secret)) return console.warn('slack tokens cannot be read');
     const tokens = this.tokens(row);
     const app = this.api(tokens.app);
     this.socket = new SlackSocket(

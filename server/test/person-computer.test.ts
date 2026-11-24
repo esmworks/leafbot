@@ -136,6 +136,17 @@ describe('kişinin Mac’i: kullanım', () => {
     await expect(mac.use('a', async () => 2, now + 1000)).resolves.toBe(2);
     await expect(mac.use('b', async () => 3, Date.now() + 3 * 60_000)).resolves.toBe(3);
   });
+
+  it('says how long ago a bot last used the computer, for the desktop app to keep the screen on', async () => {
+    const { mac } = fakeMac(new FakeHelper());
+    expect(mac.idleMs()).toBeNull();
+    let inside: number | null = null;
+    await mac.use('a', async () => {
+      inside = mac.idleMs();
+    });
+    expect(inside).toBe(0);
+    expect(mac.idleMs(Date.now() + 5000)).toBeGreaterThanOrEqual(4990);
+  });
 });
 
 /** The helper the desktop build makes on a Mac with Swift; these look only, never post input. */

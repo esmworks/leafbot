@@ -2,7 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { homedir, tmpdir } from 'node:os';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { Agent, type AgentMessage, type AgentTool, type StreamFn } from '@earendil-works/pi-agent-core';
+import {
+  Agent,
+  type AgentMessage,
+  type AgentTool,
+  type BeforeToolCallContext,
+  type BeforeToolCallResult,
+  type StreamFn,
+} from '@earendil-works/pi-agent-core';
 import type { AssistantMessage, Model, ModelAuth } from '@earendil-works/pi-ai';
 import { completeSimple, getModel, streamSimple } from '@earendil-works/pi-ai/compat';
 import { clampThinkingLevel } from '@earendil-works/pi-ai/models';
@@ -38,6 +45,7 @@ import { fileTools, PathError, type FileTool } from './pi-files';
 import { gatePrompt, parseGate } from './gate';
 import { webTools, type WebToolOptions } from './pi-web';
 import { shellRun, type ShellRun } from './pi-shell';
+import { limiter, SUBAGENT_TOOL, SUBAGENTS_AT_ONCE, subagentTool, type HelperRun } from './pi-subagent';
 import { asOutsideData } from '../runtime/outside';
 import {
   providerTrouble,
@@ -45,6 +53,10 @@ import {
   withContext,
   resultImages,
   resultText,
+  announcesAction,
+  ENCRYPTED_REASONING,
+  GO_ON,
+  MAX_NUDGES,
   toolPermName,
   type AppTool,
   type CompleteRequest,
@@ -205,27 +217,6 @@ export function findTools(
     .join('\n');
 }
 
-/** How many times one turn tells the model to do what it announced. */
-const MAX_NUDGES = 2;
-const GO_ON =
-  'You said what you would do next but made no tool call. Do it now with your tools, or say why you cannot.';
-
-/**
- * A reply that only announces the next step and stops: short, no question, and ending on a colon,
- * a dash or an ellipsis, or opening with "Let me", "I'll", "Şimdi bakıyorum" and the like.
- */
-export function announcesAction(text: string): boolean {
-  const reply = text.trim();
-  if (!reply || reply.length > 400 || /[?\uff1f]/.test(reply)) return false;
-  return (
-    /(?:[:\uff1a\u2014\u2013]|\.\.\.|\u2026)$/.test(reply) ||
-    /^(?:checking|let me|i'll|i will|i'm going to|i am going to|opening|looking|searching|reading|fetching|now (?:i'll|let me))\b/i.test(
-      reply,
-    ) ||
-    /^(?:şimdi|hemen|önce)\s+(?:\S+\s+)?\S+(?:yorum|acağım|eceğim|ayım|eyim)\b/i.test(reply)
-  );
-}
-
 function textOf(m: AssistantMessage) {
   return m.content.flatMap((c) => (c.type === 'text' ? [c.text] : [])).join('');
 }
@@ -255,7 +246,7 @@ const fail = (
   costUsd?: number,
 ): TurnOutcome => ({ ok: false, kind, message, text, sessionId, costUsd: costUsd || null });
 
-export { providerTrouble };
+export { announcesAction, providerTrouble };
 
 /**
  * API-key models through pi-agent-core. File tools are limited to the bot's folders; shell commands
@@ -326,6 +317,7 @@ export class PiEngine implements Engine {
     previous: string | null,
     messages: AgentMessage[],
     signal: AbortSignal | undefined,
+    onActivity?: () => void,
   ): Promise<{ summary: string | null; costUsd: number; partial?: boolean }> {
     const window = model.contextWindow || 32_000;
     // Each step's input stays well inside the window, with room for the summary it builds on.
@@ -349,6 +341,7 @@ export class PiEngine implements Engine {
             ...(signal && { signal }),
           },
         );
+        onActivity?.();
         costUsd += reply.usage?.cost?.total ?? 0;
         const text = textOf(reply).trim();
         if (reply.stopReason === 'error' || reply.stopReason === 'aborted' || !text) {
@@ -537,6 +530,20 @@ export class PiEngine implements Engine {
         this.agentTool(t, cap, f.name, f.description, f.input, (args, signal) => f.run(args, signal)),
       );
     }
+    // A helper takes a self-contained part of the work in a conversation of its own, with the bot's
+    // tools but no helpers of its own; several started together work side by side.
+    if (!toolless && (req.pickTool?.(SUBAGENT_TOOL) ?? true)) {
+      byName.set(SUBAGENT_TOOL, { perm: SUBAGENT_TOOL });
+      tools.push(
+        subagentTool({
+          t,
+          cap,
+          slots: limiter(SUBAGENTS_AT_ONCE),
+          run: (task, signal, onStep) => runHelper(task, signal, onStep),
+          ...(req.onSubagent && { onSubagent: req.onSubagent }),
+        }),
+      );
+    }
     // Providers refuse a request listing more than MAX_TOOLS tools. The bot's own tools go first;
     // connected apps follow whole, smallest first, so a small app is never cut for a big one. What
     // does not fit stays in reach through find_tool and use_tool.
@@ -544,7 +551,7 @@ export class PiEngine implements Engine {
     const own = offered.filter((x) => !x.server);
     const apps = new Map<string, AppTool[]>();
     for (const x of offered.filter((x) => x.server)) apps.set(x.server!, [...(apps.get(x.server!) ?? []), x]);
-    const room = Math.max(0, MAX_TOOLS - files.length);
+    const room = Math.max(0, MAX_TOOLS - tools.length);
     const listed = [...own];
     const left: AppTool[] = [];
     const total = own.length + [...apps.values()].reduce((n, l) => n + l.length, 0);
@@ -603,12 +610,16 @@ export class PiEngine implements Engine {
       );
     }
 
-    // The same call failing the same way: the bot is told after a few, and the turn ends after more.
-    const failures = failureStreak((tool, count) => req.onRepeatedFailure?.(tool, count));
-    for (const tool of tools) {
-      const execute = tool.execute;
-      tool.execute = async (...args) => {
-        const r = await execute(...args);
+    /**
+     * A tool that counts its failures in `failures`: the same call failing the same way is pointed out
+     * after a few. Each conversation (the bot's, each helper's) keeps a count of its own. Calls take
+     * turns unless the tool says it may run beside others, as helpers do.
+     */
+    const counted = (tool: AgentTool, failures: ReturnType<typeof failureStreak>): AgentTool => ({
+      ...tool,
+      executionMode: tool.executionMode ?? 'sequential',
+      execute: async (...args) => {
+        const r = await tool.execute(...args);
         if (!r.isError) {
           failures.reset();
           return r;
@@ -616,8 +627,12 @@ export class PiEngine implements Engine {
         const error = r.content.map((c) => (c.type === 'text' ? c.text : '')).join('\n');
         const hint = failures.note(byName.get(tool.name)?.perm ?? tool.name, args[1], error);
         return hint ? { ...r, content: [...r.content, { type: 'text' as const, text: hint }] } : r;
-      };
-    }
+      },
+    });
+    const plain = tools.slice();
+    // For the bot's own calls the turn ends after more of the same failure.
+    const failures = failureStreak((tool, count) => req.onRepeatedFailure?.(tool, count));
+    tools.splice(0, tools.length, ...plain.map((tool) => counted(tool, failures)));
 
     const systemPrompt = left.length
       ? `${req.systemPrompt}\n\n${t('engine.toolsSearch', { count: left.length, apps: [...new Set(left.map((x) => x.server))].join(', ') })}`
@@ -663,6 +678,9 @@ export class PiEngine implements Engine {
       if (tokensOf(light.slice(fold.folded)) + introTokens(intro(fold)) > budget * COMPACT_AT) {
         const cut = cutPoint(light, fold.folded, budget * KEEP_AFTER_COMPACT);
         if (cut > fold.folded) {
+          // The summary call is silent until it ends; the turn must not be taken for stalled meanwhile.
+          req.onCompacting?.(true);
+          req.onActivity?.();
           const made = await this.summarize(
             model,
             apiKey,
@@ -670,7 +688,11 @@ export class PiEngine implements Engine {
             fold.summary,
             rest.slice(fold.folded, cut),
             signal ?? req.signal,
-          );
+            () => req.onActivity?.(),
+          ).finally(() => {
+            req.onCompacting?.(false);
+            req.onActivity?.();
+          });
           costUsd += made.costUsd;
           // Without a summary the older part is still left out, since a request that does not fit
           // fails; its newest messages stay word for word in place of the summary.
@@ -695,50 +717,142 @@ export class PiEngine implements Engine {
       return [...system, ...shown];
     };
 
-    const agent = new Agent({
-      initialState: {
-        systemPrompt,
-        model,
-        tools,
-        messages: history,
-        // A model that reasons thinks as hard as the bot asks; others ignore it.
-        ...(req.effort && model.reasoning && { thinkingLevel: clampThinkingLevel(model, req.effort) }),
-      },
-      streamFn: this.opts.streamFn ?? (streamSimple as unknown as StreamFn),
-      getApiKey: (provider) => (provider === target.provider ? apiKey : undefined),
-      sessionId,
-      toolExecution: 'sequential',
-      transformContext: fitted,
-      beforeToolCall: async ({ toolCall, args }) => {
-        // Looking tools up only reads the list.
-        if (toolCall.name === FIND_TOOL) return undefined;
-        // A tool reached through use_tool asks as that tool, with its own arguments: same card, rules.
-        const via =
-          toolCall.name === USE_TOOL
-            ? (args as { name?: unknown; arguments?: unknown } | undefined)
-            : undefined;
-        const reached = via ? unlisted.get(String(via.name)) : undefined;
-        if (via && !reached)
-          return { block: true, reason: t('engine.unknownTool', { name: String(via.name) }) };
-        const entry = reached ? { perm: toolPermName(reached) } : byName.get(toolCall.name);
-        if (!entry) return { block: true, reason: t('engine.unknownTool', { name: toolCall.name }) };
-        const input = ((reached ? via!.arguments : args) ?? {}) as Record<string, unknown>;
-        // Looked at as the model wrote it, before a file tool's card shortens it.
-        const refused = await req.screen?.({ toolName: entry.perm, input });
-        if (refused) return { block: true, reason: refused };
-        let cardInput = input;
-        if (entry.file) {
-          try {
-            await entry.file.check?.(input);
-            cardInput = entry.file.cardInput(input, entry.file.target(input));
-          } catch (err) {
-            return { block: true, reason: (err as Error).message };
-          }
+    /** Looks at every call before it runs, the bot's and its helpers' alike: trip-wires, then approval. */
+    const gate = async ({
+      toolCall,
+      args,
+    }: Pick<BeforeToolCallContext, 'toolCall' | 'args'>): Promise<BeforeToolCallResult | undefined> => {
+      // Looking tools up only reads the list.
+      if (toolCall.name === FIND_TOOL) return undefined;
+      // Starting a helper changes nothing by itself: each of its own calls is looked at and asked for.
+      if (toolCall.name === SUBAGENT_TOOL) {
+        const refused = await req.screen?.({
+          toolName: SUBAGENT_TOOL,
+          input: (args ?? {}) as Record<string, unknown>,
+        });
+        return refused ? { block: true, reason: refused } : undefined;
+      }
+      // A tool reached through use_tool asks as that tool, with its own arguments: same card, rules.
+      const via =
+        toolCall.name === USE_TOOL
+          ? (args as { name?: unknown; arguments?: unknown } | undefined)
+          : undefined;
+      const reached = via ? unlisted.get(String(via.name)) : undefined;
+      if (via && !reached)
+        return { block: true, reason: t('engine.unknownTool', { name: String(via.name) }) };
+      const entry = reached ? { perm: toolPermName(reached) } : byName.get(toolCall.name);
+      if (!entry) return { block: true, reason: t('engine.unknownTool', { name: toolCall.name }) };
+      const input = ((reached ? via!.arguments : args) ?? {}) as Record<string, unknown>;
+      // Looked at as the model wrote it, before a file tool's card shortens it.
+      const refused = await req.screen?.({ toolName: entry.perm, input });
+      if (refused) return { block: true, reason: refused };
+      let cardInput = input;
+      if (entry.file) {
+        try {
+          await entry.file.check?.(input);
+          cardInput = entry.file.cardInput(input, entry.file.target(input));
+        } catch (err) {
+          return { block: true, reason: (err as Error).message };
         }
-        if (req.signal.aborted) return { block: true, reason: t('engine.stopped') };
-        const answer = await req.canUseTool({ toolName: entry.perm, input: cardInput });
-        return answer.behavior === 'allow' ? undefined : { block: true, reason: answer.message };
-      },
+      }
+      if (req.signal.aborted) return { block: true, reason: t('engine.stopped') };
+      const answer = await req.canUseTool({ toolName: entry.perm, input: cardInput });
+      return answer.behavior === 'allow' ? undefined : { block: true, reason: answer.message };
+    };
+    const streamFn = this.opts.streamFn ?? (streamSimple as unknown as StreamFn);
+    const getApiKey = (provider: string) => (provider === target.provider ? apiKey : undefined);
+    // A model that reasons thinks as hard as the bot asks; others ignore it.
+    const thinking = req.effort &&
+      model.reasoning && { thinkingLevel: clampThinkingLevel(model, req.effort) };
+    /** A helper's own conversation, cut to the same room; it is short-lived, so it gets no summary. */
+    const helperContext = async (messages: AgentMessage[]): Promise<AgentMessage[]> => {
+      if (!budget) return dropOldImages(trimHistory(messages), t('engine.imageDropped'));
+      const system = messages.filter((m) => m.role === 'system');
+      const rest = dropOldImages(withoutSystem(messages), t('engine.imageDropped'));
+      return [...system, ...elideResults(rest, budget, t('engine.resultLeftOut'))];
+    };
+    /**
+     * One helper's task, in a conversation of its own: the bot's tools without the helper tool, the
+     * same checks before each call, a step limit and a failure count of its own. Its words stay out of
+     * the chat; what it spends counts toward the turn.
+     */
+    const runHelper: HelperRun = async (task, signal, onStep) => {
+      let keptFailing = false;
+      const failures = failureStreak(() => {
+        keptFailing = true;
+        helper.abort();
+      });
+      const helper = new Agent({
+        initialState: {
+          systemPrompt: `${systemPrompt}\n\n${t('engine.subagentSystem')}`,
+          model,
+          tools: plain.filter((tool) => tool.name !== SUBAGENT_TOOL).map((tool) => counted(tool, failures)),
+          messages: [],
+          ...thinking,
+        },
+        // Its requests end with the turn, even one sent before its own run could hear the stop.
+        streamFn: (m, context, options) =>
+          streamFn(m, context, {
+            ...options,
+            signal: options?.signal ? AbortSignal.any([options.signal, signal]) : signal,
+          }),
+        getApiKey,
+        sessionId: randomUUID(),
+        toolExecution: 'sequential',
+        transformContext: helperContext,
+        beforeToolCall: gate,
+      });
+      let steps = 0;
+      let capped = false;
+      helper.subscribe((event) => {
+        if (signal.aborted) helper.abort();
+        if (event.type === 'tool_execution_start' || event.type === 'tool_execution_end') {
+          const name = byName.get(event.toolName)?.perm ?? event.toolName;
+          const running = event.type === 'tool_execution_start';
+          req.onActivity?.({ id: event.toolCallId, name, running });
+          if (running) onStep(name);
+        } else req.onActivity?.();
+        if (event.type === 'turn_end' && ++steps >= MAX_STEPS && !capped) {
+          capped = true;
+          helper.abort();
+        } else if (event.type === 'message_end' && event.message.role === 'assistant') {
+          costUsd += (event.message as AssistantMessage).usage?.cost?.total ?? 0;
+        }
+      });
+      // A stop that came before this listener is not heard by it.
+      if (signal.aborted) return { text: '', stopped: true };
+      const onAbort = () => helper.abort();
+      signal.addEventListener('abort', onAbort, { once: true });
+      try {
+        await helper.prompt(task);
+        await helper.waitForIdle();
+      } catch (err) {
+        return { text: '', failed: (err as Error).message };
+      } finally {
+        signal.removeEventListener('abort', onAbort);
+      }
+      const last = [...helper.state.messages]
+        .reverse()
+        .find((m): m is AssistantMessage => m.role === 'assistant');
+      const text = last ? textOf(last) : '';
+      if (capped) return { text, failed: t('engine.stepLimit', { max: MAX_STEPS }) };
+      if (keptFailing) return { text, failed: t('engine.subagentKeptFailing') };
+      if (signal.aborted || last?.stopReason === 'aborted') return { text, stopped: true };
+      if (!last || last.stopReason === 'error') {
+        return { text, failed: last?.errorMessage ?? t('engine.modelError') };
+      }
+      return { text };
+    };
+
+    const agent = new Agent({
+      initialState: { systemPrompt, model, tools, messages: history, ...thinking },
+      streamFn,
+      getApiKey,
+      sessionId,
+      // Each tool says whether its calls may run side by side; only helpers do.
+      toolExecution: 'parallel',
+      transformContext: fitted,
+      beforeToolCall: gate,
     });
 
     let steps = 0;
@@ -780,7 +894,8 @@ export class PiEngine implements Engine {
         const said = [...agent.state.messages]
           .reverse()
           .find((m): m is AssistantMessage => m.role === 'assistant');
-        if (said?.stopReason !== 'stop' || !announcesAction(textOf(said))) break;
+        if (said?.stopReason !== 'stop' || !announcesAction(textOf(said)) || (await req.awaitsAnswers?.()))
+          break;
         await agent.prompt(GO_ON);
         await agent.waitForIdle();
       }
@@ -824,6 +939,11 @@ export class PiEngine implements Engine {
     if (error || !last) {
       await keepHistory(!resumed);
       if (!error) return fail('engine', t('engine.noResponse'), text, sessionId, costUsd);
+      // A replayed reasoning item the provider cannot verify fails every later turn the same way:
+      // a new session carries on with the recent exchange instead.
+      if (resumed && ENCRYPTED_REASONING.test(error)) {
+        return { ok: false, kind: 'lostSession', message: '', text: '', sessionId: null };
+      }
       const why = providerTrouble(error, target.provider, t);
       return {
         ok: false,
@@ -836,6 +956,7 @@ export class PiEngine implements Engine {
         ...(why.cut && { cut: true }),
         ...(why.billing && { billing: true }),
         ...(why.modelGone && { modelGone: true }),
+        ...(why.refused && { refused: true }),
         // Only this run's own failed reply tells: an earlier one, or a reply that went through, does not.
         // With the summary of what came before, which the new session that carries on is handed.
         ...(failed &&

@@ -275,6 +275,36 @@ describe('ACP motoru', () => {
     expect(out).toMatchObject({ ok: false, kind: 'interrupted' });
   });
 
+  it('hiç cevap vermeyen ajanı başlatma süresi dolunca kapatır', async () => {
+    const app = acpAgent({ name: 'silent' }).onRequest('initialize', () => new Promise<never>(() => {}));
+    let closed = 0;
+    const engine = new AcpEngine({
+      version: 't',
+      startTimeoutMs: 30,
+      start: () => ({ target: app, exited: new Promise<never>(() => {}), close: () => closed++ }),
+    });
+    const out = await engine.run(request().req);
+    expect(closed).toBeGreaterThan(0);
+    expect(out).toMatchObject({ ok: false, kind: 'engine' });
+    expect((out as { message: string }).message).toContain('başlamadı');
+  });
+
+  it('başlarken durdurulursa oturum açılmasını beklemeden turu bitirir', async () => {
+    const stop = new AbortController();
+    const app = acpAgent({ name: 'silent' }).onRequest('initialize', () => {
+      stop.abort();
+      return new Promise<never>(() => {});
+    });
+    let closed = 0;
+    const engine = new AcpEngine({
+      version: 't',
+      start: () => ({ target: app, exited: new Promise<never>(() => {}), close: () => closed++ }),
+    });
+    const out = await engine.run(request({ signal: stop.signal }).req);
+    expect(closed).toBeGreaterThan(0);
+    expect(out).toMatchObject({ ok: false, kind: 'interrupted' });
+  });
+
   it('uygulamanın kendi aracı için sorulan soruyu ayrıca kartla sormaz', () => {
     const exposed = new Set(['memory_write', 'notion__search']);
     expect(appToolCall({ toolCallId: 'x', title: 'memory_write (leafbot MCP Server)' }, exposed)).toBe(true);

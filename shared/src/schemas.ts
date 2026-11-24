@@ -1432,7 +1432,8 @@ export interface ModelInfo {
 /** A subagent's card in the chat: what it was asked to do, how it stands and the steps it took. */
 export interface SubagentCard {
   description: string;
-  state: 'running' | 'done' | 'failed' | 'stopped';
+  /** `waiting` until a free place lets it start, when the bot started more than run at once. */
+  state: 'waiting' | 'running' | 'done' | 'failed' | 'stopped';
   steps: number;
   /** The tool it called last, by its engine name (`Bash`, `mcp__notion__search`). */
   tool: string | null;
@@ -1443,11 +1444,35 @@ export interface SubagentCard {
   endedAt: string | null;
 }
 
+const SUBAGENT_STATES = ['waiting', 'running', 'done', 'failed', 'stopped'] as const;
+
 /** The subagent a message is the card of, or null. */
 export function subagentOf(props: Record<string, unknown>): SubagentCard | null {
-  const s = props.subagent as Partial<SubagentCard> | undefined;
+  return subagentCardOf(props.subagent);
+}
+
+/**
+ * The subagents a bot started together, in the order they started, when a message is their group's
+ * card; null otherwise. Such a message also carries `subagent`, one card that sums the group up, for
+ * apps that show only that.
+ */
+export function subagentsOf(props: Record<string, unknown>): SubagentCard[] | null {
+  if (!Array.isArray(props.subagents)) return null;
+  const list = props.subagents.map(subagentCardOf).filter((s): s is SubagentCard => s !== null);
+  return list.length ? list : null;
+}
+
+/** How many of a group stand at each state. */
+export function subagentCounts(list: SubagentCard[]): Record<SubagentCard['state'], number> {
+  const counts = { waiting: 0, running: 0, done: 0, failed: 0, stopped: 0 };
+  for (const s of list) counts[s.state] += 1;
+  return counts;
+}
+
+function subagentCardOf(raw: unknown): SubagentCard | null {
+  const s = raw as Partial<SubagentCard> | undefined;
   if (!s || typeof s !== 'object') return null;
-  const state = (['running', 'done', 'failed', 'stopped'] as const).find((x) => x === s.state) ?? 'running';
+  const state = SUBAGENT_STATES.find((x) => x === s.state) ?? 'running';
   return {
     description: typeof s.description === 'string' ? s.description : '',
     state,

@@ -1,11 +1,34 @@
 /** How often a running app looks for a new release after the check at start. */
 export const CHECK_EVERY_MS = 6 * 60 * 60 * 1000;
 
+/** What a check answers, as far as it is used here. */
+export interface UpdateCheck {
+  isUpdateAvailable?: boolean;
+  updateInfo?: { version?: string };
+}
+
+/** What a check the person asked for found. */
+export type CheckResult =
+  | { status: 'current' }
+  /** A newer version exists; it is downloading and the person is asked when it is ready. */
+  | { status: 'downloading'; version: string }
+  /** A version is already downloaded and waits for a restart. */
+  | { status: 'ready'; version: string }
+  | { status: 'failed'; offline: boolean; message: string };
+
+const OFFLINE =
+  /ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED|ERR_NAME_NOT_RESOLVED|ERR_CONNECTION|ERR_TIMED_OUT|ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENETUNREACH|EHOSTUNREACH|ENETDOWN/;
+
+/** Whether a failed check says the network, or GitHub itself, could not be reached. */
+export function isOfflineError(message: string): boolean {
+  return OFFLINE.test(message);
+}
+
 /** The part of electron-updater's `autoUpdater` used here, so a test can stand in for it. */
 export interface Updater {
   autoDownload: boolean;
   autoInstallOnAppQuit: boolean;
-  checkForUpdates(): Promise<unknown>;
+  checkForUpdates(): Promise<UpdateCheck | null | undefined>;
   quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean): void;
   on(event: 'update-downloaded', listener: (info: { version: string }) => void): unknown;
   on(event: 'error', listener: (error: Error) => void): unknown;
@@ -31,6 +54,8 @@ export interface UpdateOptions {
 export interface Updates {
   /** Stops the server and restarts into the downloaded version. */
   install(): Promise<void>;
+  /** Looks for a new version now, for a person who asked; the answer says what to tell them. */
+  checkNow(): Promise<CheckResult>;
   stop(): void;
 }
 
@@ -81,5 +106,17 @@ export function startUpdates(options: UpdateOptions): Updates {
   const timer = setInterval(check, everyMs);
   timer.unref?.();
 
-  return { install, stop: () => clearInterval(timer) };
+  const checkNow = async (): Promise<CheckResult> => {
+    if (ready) return { status: 'ready', version: ready };
+    try {
+      const found = await updater.checkForUpdates();
+      const version = found?.updateInfo?.version;
+      return found?.isUpdateAvailable && version ? { status: 'downloading', version } : { status: 'current' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { status: 'failed', offline: isOfflineError(message), message };
+    }
+  };
+
+  return { install, checkNow, stop: () => clearInterval(timer) };
 }

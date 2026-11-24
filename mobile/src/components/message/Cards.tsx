@@ -3,8 +3,11 @@ import {
   catalogEntry,
   connectionToolParts,
   describeAction,
+  joinPicks,
   parseAnswers,
+  splitPicks,
   questionItems,
+  subagentCounts,
   subagentTime,
   type Approval,
   type Bot,
@@ -340,8 +343,22 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
   const many = items.length > 1;
   const last = page === items.length - 1;
 
+  // On a question that takes several picks, the answer holds all of them (see `joinPicks`).
+  const picks = item.multi ? splitPicks(shown[page] ?? '') : [];
+  const toggle = (value: string) => {
+    if (answered || decide.isPending) return;
+    const next = picks.includes(value) ? picks.filter((p) => p !== value) : [...picks, value];
+    setAnswers(answers.map((x, i) => (i === page ? joinPicks(next) : x)));
+  };
   const choose = (value: string) => {
     if (answered || decide.isPending) return;
+    if (item.multi) {
+      // Words written beside the ticked options join them instead of replacing them.
+      if (!picks.includes(value)) toggle(value);
+      setWriting(false);
+      setDraft('');
+      return;
+    }
     setAnswers(answers.map((x, i) => (i === page ? value : x)));
     setWriting(false);
     setDraft('');
@@ -361,9 +378,18 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
     ? answered || current
       ? [{ label: t('question.secretGiven'), index: -1 }]
       : []
-    : answered
-      ? [{ label: current || t('question.empty'), index: optionIndex }]
-      : item.options.map((o, i) => ({ label: o, index: i }));
+    : item.multi
+      ? [
+          ...(answered ? [] : item.options).map((o, i) => ({ label: o, index: i })),
+          // Picks written in the person's own words, shown as ticked rows that can be unticked.
+          ...picks
+            .filter((p) => !item.options.includes(p) || answered)
+            .map((p) => ({ label: p, index: item.options.indexOf(p) })),
+        ]
+      : answered
+        ? [{ label: current || t('question.empty'), index: optionIndex }]
+        : item.options.map((o, i) => ({ label: o, index: i }));
+  if (item.multi && answered && !rows.length) rows.push({ label: t('question.empty'), index: -1 });
   const palette = bubblePalette(c);
 
   return (
@@ -390,18 +416,23 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
         <View style={styles.gap4}>
           {rows.map((r) => {
             const refusal = r.index >= 0 && isRefusal(r.label);
-            const picked = !answered && (item.secret || current === r.label);
+            const picked = item.multi
+              ? !answered && picks.includes(r.label)
+              : !answered && (item.secret || current === r.label);
             return (
               <Pressable
                 key={r.label}
-                accessibilityRole="button"
+                accessibilityRole={item.multi && !answered ? 'checkbox' : 'button'}
+                accessibilityState={item.multi && !answered ? { checked: picked } : undefined}
                 disabled={answered || item.secret || decide.isPending}
-                onPress={() => choose(r.label)}
+                onPress={() => (item.multi ? toggle(r.label) : choose(r.label))}
                 style={[styles.option, picked && { backgroundColor: c.accent }]}
               >
                 {/* A choice that declines (No, Cancel) reads quieter than the ones that go ahead. */}
                 <View style={[styles.badge, { backgroundColor: refusal ? c.muted : color }]}>
-                  {r.index >= 0 ? (
+                  {item.multi && !answered && picked ? (
+                    <Feather name="check" size={16} color="#FFFFFF" />
+                  ) : r.index >= 0 ? (
                     <Text style={[styles.badgeText, { color: refusal ? c.mutedForeground : '#FFFFFF' }]}>
                       {String.fromCharCode(65 + r.index)}
                     </Text>
@@ -474,6 +505,14 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
                   variant="ghost"
                   disabled={decide.isPending}
                   onPress={() => decide.mutate({ decision: 'deny' })}
+                />
+              ) : null}
+              {!many && item.multi && !answered ? (
+                <PillButton
+                  label={t('question.send')}
+                  variant="primary"
+                  disabled={!answers[0] || decide.isPending}
+                  onPress={() => decide.mutate({ decision: 'allow', answer: answers[0] })}
                 />
               ) : null}
               {many ? (
@@ -689,18 +728,13 @@ export function SubagentCard({ sub }: { sub: SubagentCardProps }) {
       </View>
       {sub.description ? (
         <View style={styles.planItem}>
-          <Feather
-            name={sub.state === 'running' ? 'loader' : sub.state === 'done' ? 'check-circle' : 'alert-circle'}
-            size={20}
-            color={sub.state === 'done' ? c.success : sub.state === 'running' ? c.brand : c.mutedForeground}
-            style={styles.planIcon}
-          />
+          <SubagentIcon state={sub.state} />
           <Text style={[styles.small, styles.sizeSm, styles.flex, { color: c.foreground }]}>
             {sub.description}
           </Text>
         </View>
       ) : null}
-      {sub.result && sub.state !== 'running' ? (
+      {sub.result && sub.state !== 'running' && sub.state !== 'waiting' ? (
         <View>
           <Pressable
             accessibilityRole="button"
@@ -712,6 +746,102 @@ export function SubagentCard({ sub }: { sub: SubagentCardProps }) {
             <Feather name={open ? 'chevron-up' : 'chevron-down'} size={16} color={c.mutedForeground} />
           </Pressable>
           {open ? (
+            <Text selectable style={[styles.small, { color: c.foreground }]}>
+              {sub.result}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** How a subagent stands, as an icon. */
+function SubagentIcon({ state }: { state: SubagentCardProps['state'] }) {
+  const c = useColors();
+  const name =
+    state === 'running'
+      ? 'loader'
+      : state === 'waiting'
+        ? 'clock'
+        : state === 'done'
+          ? 'check-circle'
+          : 'alert-circle';
+  const color = state === 'done' ? c.success : state === 'running' ? c.brand : c.mutedForeground;
+  return <Feather name={name} size={20} color={color} style={styles.planIcon} />;
+}
+
+const SUBAGENT_COUNT_ORDER = ['running', 'waiting', 'done', 'failed', 'stopped'] as const;
+
+/**
+ * Subagents the bot started together, on one card: how many are working, waiting and done, and a
+ * line for each that opens to what it handed back.
+ */
+export function SubagentGroupCard({ list }: { list: SubagentCardProps[] }) {
+  const c = useColors();
+  const [open, setOpen] = useState(true);
+  const counts = subagentCounts(list);
+  const working = counts.running + counts.waiting > 0;
+  const summary = SUBAGENT_COUNT_ORDER.filter((s) => counts[s] > 0)
+    .map((s) => t(`message.subagentCount.${s}`, { count: counts[s] }))
+    .join(' · ');
+  return (
+    <View
+      accessibilityLabel={t('message.subagentGroup')}
+      style={[styles.service, styles.plan, { borderColor: c.border, backgroundColor: c.card }]}
+    >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen((o) => !o)}
+        style={styles.planItem}
+      >
+        <SubagentIcon state={working ? 'running' : counts.failed || counts.stopped ? 'failed' : 'done'} />
+        <View style={styles.flex}>
+          <Text style={[styles.sizeSm, styles.medium, { color: c.foreground }]}>
+            {t(working ? 'message.subagentGroupWorking' : 'message.subagentGroupWorked', {
+              count: list.length,
+            })}
+          </Text>
+          <Text style={[styles.small, { color: c.mutedForeground }]}>{summary}</Text>
+        </View>
+        <Feather name={open ? 'chevron-up' : 'chevron-down'} size={16} color={c.mutedForeground} />
+      </Pressable>
+      {open ? list.map((sub, i) => <SubagentLine key={i} sub={sub} />) : null}
+    </View>
+  );
+}
+
+function SubagentLine({ sub }: { sub: SubagentCardProps }) {
+  const c = useColors();
+  const [open, setOpen] = useState(false);
+  const ended = sub.state !== 'running' && sub.state !== 'waiting';
+  const time = subagentTime(sub, t);
+  return (
+    <View style={[styles.subagentLine, { borderTopColor: c.border }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen((o) => !o)}
+        style={styles.planItem}
+      >
+        <SubagentIcon state={sub.state} />
+        <Text
+          numberOfLines={open ? undefined : 1}
+          style={[styles.small, styles.flex, { color: c.foreground }]}
+        >
+          {sub.description || t('message.subagent')}
+        </Text>
+        <Text style={[styles.small, { color: c.mutedForeground }]}>
+          {[t(`message.subagentState.${sub.state}`), time].filter(Boolean).join(' · ')}
+        </Text>
+      </Pressable>
+      {open ? (
+        <View style={styles.subagentDetails}>
+          <Text style={[styles.small, { color: c.mutedForeground }]}>
+            {t('message.subagentSteps', { count: sub.steps })}
+          </Text>
+          {sub.result && ended ? (
             <Text selectable style={[styles.small, { color: c.foreground }]}>
               {sub.result}
             </Text>
@@ -835,6 +965,8 @@ const styles = StyleSheet.create({
   planHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 16 },
   planItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
   planIcon: { marginTop: 2 },
+  subagentLine: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8, gap: 4 },
+  subagentDetails: { paddingStart: 28, gap: 4 },
   centerRow: { alignItems: 'center', gap: 8, paddingVertical: 4 },
   note: { fontSize: 16, lineHeight: 22, textAlign: 'center', paddingHorizontal: 24 },
   openedFrom: { flexDirection: 'row', alignItems: 'center', gap: 4 },

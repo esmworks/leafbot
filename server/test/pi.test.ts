@@ -52,7 +52,14 @@ import { translator } from '../src/i18n';
 import { CONTEXT_FULL } from '../src/runtime/turns';
 import { endpointApi, endpointUrl, keySafeAt, unlistedModel } from '../src/services/keys';
 import { getModels } from '@earendil-works/pi-ai/compat';
-import type { AppTool, PermissionAsk, PermissionAnswer, TurnRequest } from '../src/engine/types';
+import type {
+  AppTool,
+  PermissionAsk,
+  PermissionAnswer,
+  SubagentState,
+  TurnRequest,
+} from '../src/engine/types';
+import { limiter, SUBAGENTS_AT_ONCE } from '../src/engine/pi-subagent';
 import { testServer, type TestServer } from './helpers';
 
 let faux: FauxProviderRegistration;
@@ -777,6 +784,229 @@ describe('Pi motoru', () => {
     expect(out).toMatchObject({ ok: false, kind: 'interrupted' });
   });
 
+  describe('alt ajanlar', () => {
+    // Words of the helper's own system prompt, which tell its requests from the bot's.
+    const HELPER = 'yardımcı bir ajansın';
+    // A request carries its system prompt and the tools it offers as system messages.
+    type Ctx = { messages: { role: string; content: unknown; toolsAdded?: { name: string }[] }[] };
+    const system = (ctx: Ctx) => ctx.messages.filter((m) => m.role === 'system');
+    const isHelper = (ctx: Ctx) => system(ctx).some((m) => String(m.content).includes(HELPER));
+    const toolsOf = (ctx: Ctx) => system(ctx).flatMap((m) => (m.toolsAdded ?? []).map((x) => x.name));
+    const helpers = (n: number) =>
+      fauxAssistantMessage(
+        Array.from({ length: n }, (_, i) =>
+          fauxToolCall(
+            'Agent',
+            { description: `Görev ${i + 1}`, prompt: `görev-${i + 1}` },
+            { id: `g${i + 1}` },
+          ),
+        ),
+        { stopReason: 'toolUse' },
+      );
+    /** Each subagent's states in the order its card heard them. */
+    const track = () => {
+      const states = new Map<string, string[]>();
+      const last = new Map<string, SubagentState>();
+      let peak = 0;
+      const onSubagent = (s: SubagentState) => {
+        states.set(s.id, [...(states.get(s.id) ?? []), s.state]);
+        last.set(s.id, s);
+        peak = Math.max(peak, [...last.values()].filter((x) => x.state === 'running').length);
+      };
+      return { states, last, onSubagent, peak: () => peak };
+    };
+
+    it('aynı mesajdaki alt ajanlar birlikte çalışır; kartları izlenir, cevapları bota döner', async () => {
+      // The first helper's request waits for the second: only helpers that run together both get through.
+      let arrived = 0;
+      let firstHeld = false;
+      let together = false;
+      let bothIn!: () => void;
+      const second = new Promise<void>((r) => (bothIn = r));
+      const parallel = new PiEngine({
+        sessionsDir: join(dir, 'sessions'),
+        apiKey: async (p) => keys[p] ?? null,
+        resolveModel: (p, id) => (p === 'deneme' ? faux.getModel(id) : undefined),
+        streamFn: (async (model, context, options) => {
+          if (isHelper(context as unknown as Ctx) && ++arrived <= 2) {
+            if (arrived === 2) {
+              // Together only if the first is still held when the second comes.
+              together = firstHeld;
+              bothIn();
+            } else {
+              firstHeld = true;
+              await Promise.race([second, new Promise((r) => setTimeout(r, 2000))]);
+              firstHeld = false;
+            }
+          }
+          return streamSimple(model, context, options);
+        }) as StreamFn,
+      });
+      const results: string[] = [];
+      const reply = (ctx: Ctx) => {
+        if (isHelper(ctx)) {
+          return fauxAssistantMessage(
+            JSON.stringify(ctx.messages).includes('görev-1') ? 'Kira 900.' : 'Kedi olur.',
+          );
+        }
+        const done = ctx.messages.filter((m) => m.role === 'toolResult');
+        if (!done.length) return helpers(2);
+        results.push(...done.map((m) => JSON.stringify(m.content)));
+        return fauxAssistantMessage('İkisi de tamam.');
+      };
+      faux.setResponses(Array.from({ length: 6 }, () => reply));
+      const seen = track();
+      const out = await parallel.run(request({ onSubagent: seen.onSubagent }).req);
+      expect(out).toMatchObject({ ok: true, text: 'İkisi de tamam.' });
+      expect(together).toBe(true);
+      expect(seen.states.get('g1')).toEqual(['waiting', 'running', 'done']);
+      expect(seen.last.get('g1')).toMatchObject({
+        description: 'Görev 1',
+        state: 'done',
+        result: 'Kira 900.',
+      });
+      expect(seen.last.get('g2')).toMatchObject({ state: 'done', result: 'Kedi olur.' });
+      expect(results.join(' ')).toContain('Kira 900.');
+      expect(results.join(' ')).toContain('Kedi olur.');
+      // Starting a helper asks no one; its own steps would.
+      expect(asks.map((a) => a.toolName)).not.toContain('Agent');
+    });
+
+    it('aynı anda çalışan alt ajan sayısı sınırlıdır; fazlası bekler, sonra çalışır', async () => {
+      const n = SUBAGENTS_AT_ONCE + 1;
+      const reply = (ctx: Ctx) => {
+        if (isHelper(ctx)) return fauxAssistantMessage('Tamam.');
+        return ctx.messages.some((m) => m.role === 'toolResult')
+          ? fauxAssistantMessage('Bitti.')
+          : helpers(n);
+      };
+      faux.setResponses(Array.from({ length: n + 3 }, () => reply));
+      const seen = track();
+      const out = await engine().run(request({ onSubagent: seen.onSubagent }).req);
+      expect(out).toMatchObject({ ok: true, text: 'Bitti.' });
+      expect(seen.peak()).toBe(SUBAGENTS_AT_ONCE);
+      expect([...seen.last.values()].map((s) => s.state)).toEqual(Array.from({ length: n }, () => 'done'));
+      // The last one waited while the others held every place.
+      const order = [...seen.states.entries()];
+      expect(order).toHaveLength(n);
+      expect(seen.states.get(`g${n}`)).toEqual(['waiting', 'running', 'done']);
+    });
+
+    it('durdurulan tur çalışan ve sırada bekleyen alt ajanları durdurur', async () => {
+      // Helpers' requests hang until they are aborted; one that never is gives up after a while.
+      let sent = 0;
+      let aborted = 0;
+      const held = new PiEngine({
+        sessionsDir: join(dir, 'sessions'),
+        apiKey: async (p) => keys[p] ?? null,
+        resolveModel: (p, id) => (p === 'deneme' ? faux.getModel(id) : undefined),
+        streamFn: (async (model, context, options) => {
+          if (isHelper(context as unknown as Ctx)) {
+            sent++;
+            await new Promise<void>((resolve) => {
+              const end = () => {
+                aborted++;
+                clearTimeout(timer);
+                resolve();
+              };
+              const timer = setTimeout(resolve, 5000);
+              if (options?.signal?.aborted) end();
+              else options?.signal?.addEventListener('abort', end);
+            });
+          }
+          return streamSimple(model, context, options);
+        }) as StreamFn,
+      });
+      const n = SUBAGENTS_AT_ONCE + 2;
+      faux.setResponses([helpers(n), ...Array.from({ length: n + 2 }, () => fauxAssistantMessage('Yarım.'))]);
+      const seen = track();
+      const { req, ctrl } = request({
+        onSubagent: (s) => {
+          seen.onSubagent(s);
+          if (seen.peak() === SUBAGENTS_AT_ONCE) ctrl.abort();
+        },
+      });
+      const began = Date.now();
+      const out = await held.run(req);
+      expect(out).toMatchObject({ ok: false, kind: 'interrupted' });
+      expect(Date.now() - began).toBeLessThan(4000);
+      // Every request a helper got out ended with the stop; how many got out depends on timing.
+      expect(sent).toBeLessThanOrEqual(SUBAGENTS_AT_ONCE);
+      expect(aborted).toBe(sent);
+      expect([...seen.last.values()].map((s) => s.state)).toEqual(Array.from({ length: n }, () => 'stopped'));
+      // The ones still in line never started.
+      expect(seen.states.get(`g${n}`)).toEqual(['waiting', 'stopped']);
+    });
+
+    it('alt ajanın kendi adımları sorulur; ona alt ajan aracı verilmez', async () => {
+      const offered: { helper: boolean; tools: string[] }[] = [];
+      const reply = (ctx: Ctx) => {
+        offered.push({ helper: isHelper(ctx), tools: toolsOf(ctx) });
+        if (isHelper(ctx)) {
+          return ctx.messages.some((m) => m.role === 'toolResult')
+            ? fauxAssistantMessage('Yazdım.')
+            : fauxAssistantMessage([fauxToolCall('write_file', { path: 'yardim.txt', content: 'x' })], {
+                stopReason: 'toolUse',
+              });
+        }
+        return ctx.messages.some((m) => m.role === 'toolResult')
+          ? fauxAssistantMessage('Bitti.')
+          : helpers(1);
+      };
+      faux.setResponses(Array.from({ length: 6 }, () => reply));
+      const seen = track();
+      expect(await engine().run(request({ onSubagent: seen.onSubagent }).req)).toMatchObject({ ok: true });
+      expect(asks.map((a) => a.toolName)).toEqual(['Write']);
+      expect(readFileSync(join(cwd, 'yardim.txt'), 'utf8')).toBe('x');
+      expect(seen.last.get('g1')).toMatchObject({
+        state: 'done',
+        steps: 1,
+        tool: 'Write',
+        result: 'Yazdım.',
+      });
+      expect(offered.find((o) => !o.helper)!.tools).toContain('Agent');
+      expect(offered.find((o) => o.helper)!.tools).not.toContain('Agent');
+    });
+
+    it('araç seçiminden çıkarılan alt ajan aracı modele hiç sunulmaz', async () => {
+      const offered: string[][] = [];
+      faux.setResponses([
+        (ctx: Ctx) => {
+          offered.push(toolsOf(ctx));
+          return fauxAssistantMessage('Selam.');
+        },
+      ]);
+      await engine().run(request({ pickTool: (name) => name !== 'Agent' }).req);
+      expect(offered[0]).not.toContain('Agent');
+      expect(offered[0]).toContain('read_file');
+    });
+
+    it('sınırlayıcı sırayla yer verir; iptal edilen bekleyen sıradan çıkar', async () => {
+      const slots = limiter(1);
+      const free = (await slots.acquire(new AbortController().signal))!;
+      const gone = new AbortController();
+      const waiting = slots.acquire(gone.signal);
+      const next = slots.acquire(new AbortController().signal);
+      gone.abort();
+      expect(await waiting).toBeNull();
+      free();
+      const got = await next;
+      expect(got).toBeTypeOf('function');
+      // Freeing twice gives back one place only.
+      got!();
+      got!();
+      const a = await slots.acquire(new AbortController().signal);
+      let b: unknown = 'bekliyor';
+      void slots.acquire(new AbortController().signal).then((x) => (b = x));
+      await new Promise((r) => setTimeout(r, 10));
+      expect(a).toBeTypeOf('function');
+      expect(b).toBe('bekliyor');
+      const stopped = new AbortController();
+      stopped.abort();
+      expect(await slots.acquire(stopped.signal)).toBeNull();
+    });
+  });
+
   describe('bağlam', () => {
     /** A model of a small window, and summaries written by `complete`. */
     const small = (complete?: typeof completeSimple, window = 20_000) =>
@@ -1054,6 +1284,40 @@ describe('Pi motoru', () => {
       ]);
       const out = await small(complete).run(request({ sessionId: id, prompt: 'devam' }).req);
       expect(out).toMatchObject({ ok: false, contextFull: true, summary: 'ÖZET: devredilen' });
+    });
+
+    it('özet yazılırken turun sessiz sayılmaması için başlangıcı ve bitişi bildirir', async () => {
+      const id = oldSession(20);
+      const events: string[] = [];
+      const complete = (async () => {
+        events.push('özet');
+        return fauxAssistantMessage('ÖZET: kısa');
+      }) as typeof completeSimple;
+      faux.setResponses([fauxAssistantMessage('tamam')]);
+      const out = await small(complete).run(
+        request({
+          sessionId: id,
+          prompt: 'devam',
+          onCompacting: (on) => events.push(on ? 'başladı' : 'bitti'),
+        }).req,
+      );
+      expect(out.ok).toBe(true);
+      expect(events[0]).toBe('başladı');
+      expect(events.at(-1)).toBe('bitti');
+      expect(events).toContain('özet');
+    });
+
+    it('OpenAI doğrulayamadığı şifreli akıl yürütmeyi reddederse yeni oturumla devam edilsin diye oturum kayıp sayılır', async () => {
+      const id = oldSession(2);
+      faux.setResponses([
+        fauxAssistantMessage([fauxText('')], {
+          stopReason: 'error',
+          errorMessage:
+            '400 {"error":{"code":"invalid_encrypted_content","message":"The encrypted content gAAA could not be verified."}}',
+        }),
+      ]);
+      const out = await engine().run(request({ sessionId: id, prompt: 'devam' }).req);
+      expect(out).toMatchObject({ ok: false, kind: 'lostSession', sessionId: null });
     });
 
     it('özete sığmayan en eski kısmı kayıp sayar ve bota söyler', () => {
@@ -1615,6 +1879,20 @@ describe('sağlayıcı hataları', () => {
       message: expect.stringContaining('çok büyük'),
     });
     expect(CONTEXT_FULL.test(providerTrouble('413 Payload Too Large', 'openai', t).message)).toBe(true);
+    for (const raw of [
+      'The model refused to complete the request',
+      'Provider finish_reason: content_filter',
+      'Provider stopped with: SAFETY',
+      'Provider stopped with: PROHIBITED_CONTENT',
+      'Provider stopped with: sensitive',
+    ]) {
+      expect(providerTrouble(raw, 'openai', t), raw).toMatchObject({
+        kind: 'engine',
+        refused: true,
+        message: expect.stringContaining('reddetti'),
+      });
+    }
+    expect(providerTrouble('Provider stopped with: MAX_TOKENS', 'google', t).refused).toBeUndefined();
     expect(providerTrouble('429 Too Many Requests', 'groq', t)).toMatchObject({ kind: 'limit' });
     expect(providerTrouble('503 Service Unavailable', 'groq', t)).toMatchObject({ transient: true });
     expect(providerTrouble('fetch failed: ECONNREFUSED', 'custom-ev', t).message).toContain('ulaşılamadı');

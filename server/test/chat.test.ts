@@ -1267,6 +1267,28 @@ describe('sohbet', () => {
     expect(msgs.some((m) => m.role === 'error')).toBe(false);
   });
 
+  it('sağlayıcı isteği reddederse yedek model işi sürdürür ve aynı model yeniden denenmez', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    await t.api('PATCH', '/api/settings', { backupModel: 'openrouter/yedek' });
+    await t.send(thread.id, '[reddedildi] bak');
+    await t.services.turns.idle();
+    expect(t.engine.requests.map((r) => r.model)).toEqual([bot.model, 'openrouter/yedek']);
+    const msgs = await t.messages(thread.id);
+    expect(msgs.find((m) => m.props.kind === 'backupModel')!.text).toContain('reddetti');
+    expect(msgs.some((m) => m.role === 'error')).toBe(false);
+  });
+
+  it('sağlayıcı isteği reddedip yedek model yoksa tur hatayla biter', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    await t.send(thread.id, '[reddedildi] bak');
+    await t.services.turns.idle();
+    expect(t.engine.requests).toHaveLength(1);
+    const msgs = await t.messages(thread.id);
+    expect(msgs.at(-1)!.role).toBe('error');
+  });
+
   it('bakiye bitince yedek model yoksa tur hatayla biter', async () => {
     const bot = await t.bot();
     const thread = await main(bot.id);
@@ -1329,6 +1351,30 @@ describe('sohbet', () => {
     });
     // It says how long the helper worked.
     expect(Date.parse(sub.endedAt as string)).toBeGreaterThanOrEqual(Date.parse(sub.startedAt as string));
+  });
+
+  it('birlikte başlayan alt ajanlar tek bir grup kartında izlenir', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    await t.send(thread.id, '[alt-ajanlar] daireleri incele');
+    await t.services.turns.idle();
+    const group = await waitFor(async () => {
+      const cards = (await t.messages(thread.id)).filter((m) => m.props.subagents);
+      const list = cards[0]?.props.subagents as { state: string }[] | undefined;
+      return list?.every((s) => s.state !== 'running' && s.state !== 'waiting') ? cards : null;
+    });
+    expect(group).toHaveLength(1);
+    const list = group[0]!.props.subagents as Record<string, unknown>[];
+    expect(list.map((s) => [s.description, s.state, s.result])).toEqual([
+      ['Birinci daireyi incele', 'done', 'Kira uygun.'],
+      ['İkinci daireyi incele', 'done', 'Evcil hayvan yasak.'],
+      ['Üçüncü daireyi incele', 'failed', 'Sayfa açılmadı.'],
+    ]);
+    // Apps that show one card see the group summed up.
+    expect(group[0]!.props.subagent).toMatchObject({ state: 'failed' });
+    expect(String((group[0]!.props.subagent as { description: string }).description)).toContain(
+      '3 alt görev',
+    );
   });
 
   it('aynı hatayı tekrar tekrar alan tur durdurulur ve nedeni yazılır', async () => {

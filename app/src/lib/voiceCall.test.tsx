@@ -158,6 +158,35 @@ describe('sesli görüşme kancası', () => {
     expect(rec.listening).toBe(true);
   });
 
+  it('dinlerken botun kendiliğinden başlattığı cevabı okur; öncekileri ve hataları okumaz', async () => {
+    const { hook, send } = setup(false);
+    let read!: () => void;
+    vi.mocked(speakAndWait).mockReturnValue(new Promise<void>((r) => (read = r)));
+    await waitFor(() => expect(hook.result.current.supported).toBe(true));
+    act(() => hook.result.current.start());
+    expect(speakAndWait).not.toHaveBeenCalled();
+
+    // An error and a reply still being worked on are not read.
+    hook.rerender({ messages: [msg('a0', 'assistant'), msg('e1', 'error')], busy: false });
+    hook.rerender({ messages: [msg('a0', 'assistant'), msg('e1', 'error')], busy: true });
+    expect(speakAndWait).not.toHaveBeenCalled();
+
+    // A routine's reply arrives with nobody having spoken.
+    hook.rerender({
+      messages: [msg('a0', 'assistant'), msg('e1', 'error'), msg('a2', 'assistant', 'Sabah özeti hazır.')],
+      busy: false,
+    });
+    expect(hook.result.current.state).toBe('speaking');
+    expect(vi.mocked(speakAndWait).mock.calls[0]?.slice(0, 2)).toEqual(['a2', 'Sabah özeti hazır.']);
+    expect(FakeRecognition.last!.listening).toBe(false);
+    expect(send).not.toHaveBeenCalled();
+
+    await act(async () => read());
+    expect(hook.result.current.state).toBe('listening');
+    // Once read, it is not read again.
+    expect(speakAndWait).toHaveBeenCalledTimes(1);
+  });
+
   it('kapatınca dinlemeyi bırakır; sonradan gelen söz gönderilmez', async () => {
     const { hook, send } = setup(false);
     await waitFor(() => expect(hook.result.current.supported).toBe(true));

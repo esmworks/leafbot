@@ -1,15 +1,16 @@
 import { EventEmitter } from 'node:events';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { startUpdates, type Updater, type Updates } from './updates';
+import { isOfflineError, startUpdates, type Updater, type Updates } from './updates';
 
 class FakeUpdater extends EventEmitter implements Updater {
   autoDownload = false;
   autoInstallOnAppQuit = false;
   checks = 0;
   installs: [boolean | undefined, boolean | undefined][] = [];
+  found: { isUpdateAvailable: boolean; updateInfo: { version: string } } | Error | null = null;
   checkForUpdates() {
     this.checks++;
-    return Promise.resolve(null);
+    return this.found instanceof Error ? Promise.reject(this.found) : Promise.resolve(this.found);
   }
   quitAndInstall(isSilent?: boolean, isForceRunAfter?: boolean) {
     this.installs.push([isSilent, isForceRunAfter]);
@@ -116,5 +117,32 @@ describe('masaüstü güncellemeleri', () => {
     await updates.install();
     expect(steps).toEqual(['ready 0.2.1', 'confirm', 'confirm', 'server stopped']);
     expect(updater.installs).toEqual([[true, true]]);
+  });
+
+  it('answers a check the person started with what it found, and why it failed', async () => {
+    const { checkNow } = start(false);
+    expect(await checkNow()).toEqual({ status: 'current' });
+
+    updater.found = { isUpdateAvailable: true, updateInfo: { version: '0.3.0' } };
+    expect(await checkNow()).toEqual({ status: 'downloading', version: '0.3.0' });
+
+    updater.found = new Error('net::ERR_INTERNET_DISCONNECTED');
+    expect(await checkNow()).toEqual({
+      status: 'failed',
+      offline: true,
+      message: 'net::ERR_INTERNET_DISCONNECTED',
+    });
+    updater.found = new Error('Cannot parse latest-mac.yml');
+    expect(await checkNow()).toMatchObject({ status: 'failed', offline: false });
+
+    updater.emit('update-downloaded', { version: '0.3.0' });
+    await flush();
+    expect(await checkNow()).toEqual({ status: 'ready', version: '0.3.0' });
+  });
+
+  it('tells a network failure from other errors', () => {
+    expect(isOfflineError('getaddrinfo ENOTFOUND github.com')).toBe(true);
+    expect(isOfflineError('net::ERR_CONNECTION_REFUSED')).toBe(true);
+    expect(isOfflineError('HttpError: 404')).toBe(false);
   });
 });

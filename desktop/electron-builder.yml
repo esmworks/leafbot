@@ -75,6 +75,13 @@ mac:
     LSUIElement: false
     # What macOS shows when the app first asks for the microphone (the message box's mic button).
     NSMicrophoneUsageDescription: Leaf Bot uses the microphone only when you press the microphone button to speak a message.
+    # Commands a bot runs from the app (coding agents on this Mac) may read these; without a
+    # description macOS refuses the request silently instead of asking the person.
+    NSCalendarsUsageDescription: A bot you allowed to use this Mac may read or add calendar events when you ask it to.
+    NSCalendarsFullAccessUsageDescription: A bot you allowed to use this Mac may read or add calendar events when you ask it to.
+    NSRemindersUsageDescription: A bot you allowed to use this Mac may read or add reminders when you ask it to.
+    NSRemindersFullAccessUsageDescription: A bot you allowed to use this Mac may read or add reminders when you ask it to.
+    NSContactsUsageDescription: A bot you allowed to use this Mac may look up your contacts when you ask it to.
   # Signed with the Developer ID in the keychain, or the one in CSC_LINK / CSC_KEY_PASSWORD on CI,
   # and sent to Apple for notarization when APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD and APPLE_TEAM_ID
   # are set, so the downloaded app opens without the "unidentified developer" warning. Without

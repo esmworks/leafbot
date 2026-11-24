@@ -686,7 +686,7 @@ function RoomHeader({ room, members }: { room: Room; members: Bot[] }) {
     onError: (e) => toast.error((e as Error).message),
   });
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-background via-background/80 to-transparent pb-6">
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-10 wallpaper-fade bg-gradient-to-b from-background via-background/80 to-transparent pb-6">
       <div className="window-drag grid grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-2 px-3 pt-3 sm:px-4">
         <div className="flex items-center">
           <Button

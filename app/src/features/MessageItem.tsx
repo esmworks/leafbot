@@ -6,7 +6,9 @@ import {
   describeAction,
   emailPreview,
   outsideTrigger,
+  joinPicks,
   parseAnswers,
+  splitPicks,
   questionItems,
   type Approval,
   type Bot,
@@ -16,7 +18,9 @@ import {
   type OutsideTrigger,
   type ReplyQuote,
   quoteExcerpt,
+  subagentCounts,
   subagentOf,
+  subagentsOf,
   subagentTime,
   type SubagentCard as Subagent,
 } from '@leafbot/shared';
@@ -186,7 +190,11 @@ export function MessageItem({
     case 'assistant':
       return (
         // The actions sit right under the message; the row's own height takes most of the gap to the next one.
-        <div className="group/message -mb-2 flex flex-col" data-message-id={m.id}>
+        <div
+          className="group/message -mb-2 flex flex-col"
+          data-message-id={m.id}
+          data-reply-start={m.turnId ?? m.id}
+        >
           {(m.props.routineReport === true || m.props.routineInMain === true) && <RoutineReportLine m={m} />}
           {page ? (
             <BotPage
@@ -254,6 +262,11 @@ export function MessageItem({
       );
     default:
       if (Array.isArray(m.props.plan)) return <PlanCard items={m.props.plan as PlanItem[]} />;
+      if (m.props.subagents) {
+        const group = subagentsOf(m.props);
+        if (group)
+          return group.length > 1 ? <SubagentGroupCard list={group} /> : <SubagentCard sub={group[0]!} />;
+      }
       if (m.props.subagent) {
         const sub = subagentOf(m.props);
         if (sub) return <SubagentCard sub={sub} />;
@@ -513,6 +526,25 @@ function useNow(live: boolean): number {
   return now;
 }
 
+/** How a subagent stands, as an icon. */
+function SubagentIcon({ state }: { state: Subagent['state'] }) {
+  if (state === 'running') return <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden />;
+  if (state === 'waiting') return <Clock className="size-4 text-muted-foreground" aria-hidden />;
+  if (state === 'done') {
+    return <CircleCheck className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />;
+  }
+  return <AlertCircle className="size-4 text-muted-foreground" aria-hidden />;
+}
+
+/** What a working subagent is doing now, in the words tool cards use; null once it has ended. */
+function useSubagentDoing(sub: Subagent): string | null {
+  const t = useT();
+  const { data: connections = [] } = useConnections();
+  return sub.state === 'running' && sub.tool
+    ? toolLabel(sub.tool, t, new Map(connections.map((c) => [c.slug, c.name])))
+    : null;
+}
+
 /**
  * A helper the bot started for part of the work: what it was asked, how it stands, what it is
  * doing now, how long it took and what it handed back.
@@ -522,10 +554,9 @@ function SubagentCard({ sub }: { sub: Subagent }) {
   const running = sub.state === 'running';
   const now = useNow(running);
   const [open, setOpen] = useState(false);
-  const { data: connections = [] } = useConnections();
-  const doing =
-    running && sub.tool ? toolLabel(sub.tool, t, new Map(connections.map((c) => [c.slug, c.name]))) : null;
+  const doing = useSubagentDoing(sub);
   const time = subagentTime(sub, t, now);
+  const ended = sub.state !== 'running' && sub.state !== 'waiting';
   return (
     <section
       aria-label={t('message.subagent')}
@@ -533,13 +564,7 @@ function SubagentCard({ sub }: { sub: Subagent }) {
     >
       <div className="flex items-start gap-2">
         <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
-          {running ? (
-            <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden />
-          ) : sub.state === 'done' ? (
-            <CircleCheck className="size-4 text-emerald-600 dark:text-emerald-400" aria-hidden />
-          ) : (
-            <AlertCircle className="size-4 text-muted-foreground" aria-hidden />
-          )}
+          <SubagentIcon state={sub.state} />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-4 text-xs text-muted-foreground">
@@ -556,7 +581,7 @@ function SubagentCard({ sub }: { sub: Subagent }) {
           </div>
           {sub.description && <div className="mt-1 break-words">{sub.description}</div>}
           {doing && <div className="mt-1 text-xs text-muted-foreground">{doing}</div>}
-          {sub.result && !running && (
+          {sub.result && ended && (
             <div className="mt-2">
               <button
                 type="button"
@@ -570,16 +595,111 @@ function SubagentCard({ sub }: { sub: Subagent }) {
                 />
                 {t('message.subagentResult')}
               </button>
-              {open && (
-                <div className="mt-1 max-h-64 overflow-y-auto rounded-lg border bg-background/60 px-3 py-2 text-xs whitespace-pre-wrap break-words">
-                  {sub.result}
-                </div>
-              )}
+              {open && <SubagentResult text={sub.result} />}
             </div>
           )}
         </div>
       </div>
     </section>
+  );
+}
+
+function SubagentResult({ text }: { text: string }) {
+  return (
+    <div className="mt-1 max-h-64 overflow-y-auto rounded-lg border bg-background/60 px-3 py-2 text-xs whitespace-pre-wrap break-words">
+      {text}
+    </div>
+  );
+}
+
+const SUBAGENT_COUNT_ORDER = ['running', 'waiting', 'done', 'failed', 'stopped'] as const;
+
+/**
+ * Subagents the bot started together, on one card: how many are working, waiting and done, and a
+ * line for each that opens to what it is doing or what it handed back.
+ */
+function SubagentGroupCard({ list }: { list: Subagent[] }) {
+  const t = useT();
+  const [open, setOpen] = useState(true);
+  const counts = subagentCounts(list);
+  const working = counts.running + counts.waiting > 0;
+  const summary = SUBAGENT_COUNT_ORDER.filter((s) => counts[s] > 0)
+    .map((s) => t(`message.subagentCount.${s}`, { count: counts[s] }))
+    .join(' · ');
+  return (
+    <section
+      aria-label={t('message.subagentGroup')}
+      className="w-full max-w-[80%] min-w-64 self-start rounded-2xl border bg-card/60 px-4 py-3 text-sm"
+    >
+      <button
+        type="button"
+        className="flex w-full items-start gap-2 text-start"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
+          <SubagentIcon state={working ? 'running' : counts.failed || counts.stopped ? 'failed' : 'done'} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium">
+            {t(working ? 'message.subagentGroupWorking' : 'message.subagentGroupWorked', {
+              count: list.length,
+            })}
+          </span>
+          <span className="block text-xs text-muted-foreground tabular-nums">{summary}</span>
+        </span>
+        <ChevronDown
+          className={cn(
+            'mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform',
+            open && 'rotate-180',
+          )}
+          aria-hidden
+        />
+      </button>
+      {open && (
+        <ul className="mt-2 flex flex-col border-t">
+          {list.map((sub, i) => (
+            <SubagentLine key={i} sub={sub} />
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function SubagentLine({ sub }: { sub: Subagent }) {
+  const t = useT();
+  const running = sub.state === 'running';
+  const now = useNow(running);
+  const [open, setOpen] = useState(false);
+  const doing = useSubagentDoing(sub);
+  const time = subagentTime(sub, t, now);
+  const ended = sub.state !== 'running' && sub.state !== 'waiting';
+  return (
+    <li className="border-b last:border-b-0">
+      <button
+        type="button"
+        className="flex w-full items-center gap-2 py-2 text-start"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <span className="flex size-4 shrink-0 items-center justify-center">
+          <SubagentIcon state={sub.state} />
+        </span>
+        <span className="min-w-0 flex-1 truncate">{sub.description || t('message.subagent')}</span>
+        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+          {[t(`message.subagentState.${sub.state}`), time].filter(Boolean).join(' · ')}
+        </span>
+      </button>
+      {open && (
+        <div className="pb-2 ps-6 text-xs text-muted-foreground">
+          {sub.description && <div className="break-words text-foreground">{sub.description}</div>}
+          <div className="mt-1 tabular-nums">{t('message.subagentSteps', { count: sub.steps })}</div>
+          {doing && <div className="mt-1">{doing}</div>}
+          {sub.result && ended && <SubagentResult text={sub.result} />}
+        </div>
+      )}
+    </li>
   );
 }
 
@@ -1057,6 +1177,7 @@ export function AssistantCard({
   partial,
   streaming,
   messageId,
+  replyKey,
 }: {
   text: string;
   turnId?: string | null;
@@ -1064,6 +1185,8 @@ export function AssistantCard({
   streaming?: boolean;
   /** The saved message shown, so its Markdown can be shown as written. */
   messageId?: string;
+  /** Names this reply for the conversation's scrolling, which keeps a long one's start in view. */
+  replyKey?: string;
 }) {
   const t = useT();
   const raw = useRawView((s) => !!messageId && s.ids.has(messageId));
@@ -1073,7 +1196,7 @@ export function AssistantCard({
   const long = !streaming && !whole && typed.length > LONG_MESSAGE;
   const shown = long ? `${typed.slice(0, LONG_MESSAGE)}…` : typed;
   return (
-    <div className="max-w-(--bubble-width) rounded-3xl bg-bubble px-5 py-4">
+    <div className="max-w-(--bubble-width) rounded-3xl bg-bubble px-5 py-4" data-reply-start={replyKey}>
       <div data-message-body>
         {raw ? (
           <pre className="font-mono text-[13px] leading-relaxed break-words whitespace-pre-wrap">{text}</pre>
@@ -1722,8 +1845,22 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
   const many = items.length > 1;
   const last = page === items.length - 1;
 
+  // On a question that takes several picks, the answer holds all of them (see `joinPicks`).
+  const picks = item.multi ? splitPicks(shown[page] ?? '') : [];
+  const toggle = (value: string) => {
+    if (answered || decide.isPending) return;
+    const next = picks.includes(value) ? picks.filter((p) => p !== value) : [...picks, value];
+    setAnswers(answers.map((x, i) => (i === page ? joinPicks(next) : x)));
+  };
   const choose = (value: string) => {
     if (answered || decide.isPending) return;
+    if (item.multi) {
+      // Words written beside the ticked options join them instead of replacing them.
+      if (!picks.includes(value)) toggle(value);
+      setWriting(false);
+      setDraft('');
+      return;
+    }
     const next = answers.map((x, i) => (i === page ? value : x));
     setAnswers(next);
     setWriting(false);
@@ -1744,9 +1881,18 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
     ? answered || current
       ? [{ label: t('question.secretGiven'), index: -1 }]
       : []
-    : answered
-      ? [{ label: current || t('question.empty'), index: optionIndex }]
-      : item.options.map((o, i) => ({ label: o, index: i }));
+    : item.multi
+      ? [
+          ...(answered ? [] : item.options).map((o, i) => ({ label: o, index: i })),
+          // Picks written in the person's own words, shown as ticked rows that can be unticked.
+          ...picks
+            .filter((p) => !item.options.includes(p) || answered)
+            .map((p) => ({ label: p, index: item.options.indexOf(p) })),
+        ]
+      : answered
+        ? [{ label: current || t('question.empty'), index: optionIndex }]
+        : item.options.map((o, i) => ({ label: o, index: i }));
+  if (item.multi && answered && !rows.length) rows.push({ label: t('question.empty'), index: -1 });
 
   return (
     <div className="max-w-(--bubble-width) space-y-2">
@@ -1767,12 +1913,16 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
         )}
         <div className="space-y-1">
           {rows.map((r) => {
-            const picked = !answered && (item.secret || current === r.label);
+            const picked = item.multi
+              ? !answered && picks.includes(r.label)
+              : !answered && (item.secret || current === r.label);
             return (
               <button
                 key={r.label}
+                role={item.multi && !answered ? 'checkbox' : undefined}
+                aria-checked={item.multi && !answered ? picked : undefined}
                 disabled={answered || item.secret || decide.isPending}
-                onClick={() => choose(r.label)}
+                onClick={() => (item.multi ? toggle(r.label) : choose(r.label))}
                 className={cn(
                   'flex w-full items-center gap-3 rounded-2xl px-2 py-1.5 text-start text-[15px]',
                   !answered && 'hover:bg-accent',
@@ -1787,7 +1937,9 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
                   )}
                   style={r.index >= 0 && isRefusal(r.label) ? undefined : { backgroundColor: color }}
                 >
-                  {r.index >= 0 ? (
+                  {item.multi && !answered && picked ? (
+                    <Check className="size-3.5" />
+                  ) : r.index >= 0 ? (
                     String.fromCharCode(65 + r.index)
                   ) : item.secret ? (
                     <KeyRound className="size-3.5" />
@@ -1861,6 +2013,16 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
                   onClick={() => decide.mutate({ decision: 'deny' })}
                 >
                   {t('question.skip')}
+                </Button>
+              )}
+              {!many && item.multi && !answered && (
+                <Button
+                  size="sm"
+                  className="rounded-full"
+                  disabled={!answers[0] || decide.isPending}
+                  onClick={() => decide.mutate({ decision: 'allow', answer: answers[0] })}
+                >
+                  {t('question.send')}
                 </Button>
               )}
               {many && (

@@ -164,6 +164,10 @@ export function useAttachments(threadId: string) {
     const room = MAX_MESSAGE_FILES - filesOf(threadId).length;
     if (files.length > room) toast.error(t('chat.tooManyFiles', { max: MAX_MESSAGE_FILES }));
     for (const file of files.slice(0, Math.max(room, 0))) {
+      if (file.size === 0) {
+        toast.error(t('chat.fileEmpty', { name: file.name }));
+        continue;
+      }
       if (file.size > MAX_UPLOAD_BYTES) {
         toast.error(t('chat.fileTooLarge', { name: file.name, max: MAX_UPLOAD_BYTES / 1024 / 1024 }));
         continue;

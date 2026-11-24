@@ -14,13 +14,14 @@ import { cn } from '@/lib/utils';
 
 const mac = typeof navigator !== 'undefined' && /Mac/.test(navigator.userAgent);
 
-/** How a card can be answered in place; cards that need more (sign-ins, several questions) open the chat. */
+/** How a card can be answered in place; cards that need more (sign-ins, several questions, ticking several options) open the chat. */
 function cardOf(a: Approval): QuickCard {
   if (a.kind === 'tool') return { kind: 'tool' };
   if (a.kind === 'question') {
     const { items } = questionItems(a);
     const only = items.length === 1 ? items[0]! : null;
-    if (only && !only.secret) return { kind: 'question', options: Math.min(only.options.length, 9) };
+    if (only && !only.secret && !only.multi)
+      return { kind: 'question', options: Math.min(only.options.length, 9) };
   }
   return { kind: 'open' };
 }

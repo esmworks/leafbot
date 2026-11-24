@@ -24,6 +24,7 @@ import { saveUpload, stagingDir } from '../uploads';
 import { OWNER_ID } from '../users';
 import { HttpError, isStopRequest, newId, truncate } from '../util';
 import {
+  canOpen,
   cardView,
   dropRequest,
   heldRequests,
@@ -231,14 +232,17 @@ export class DiscordChannel {
   async status(): Promise<DiscordStatus> {
     const row = await this.row();
     const account = row?.account as Partial<Account> | undefined;
+    const unreadable = !!row?.secret && !canOpen(this.vault, row.secret);
     return {
-      connected: !!row?.secret,
+      connected: !!row?.secret && !unreadable,
       botUser: account?.botName ?? null,
       botId: row?.botId ?? null,
       inviteUrl: account?.applicationId ? discordInviteUrl(account.applicationId) : null,
-      servers: row?.secret ? await this.servers(row) : [],
+      servers: row?.secret && !unreadable ? await this.servers(row) : [],
       messageContent: account?.messageContent ?? true,
-      error: row?.error ?? null,
+      error: unreadable
+        ? (await this.services.settings.translator())('channel.secretUnreadable')
+        : (row?.error ?? null),
     };
   }
 
@@ -359,6 +363,8 @@ export class DiscordChannel {
     if (this.stopped) return;
     const row = await this.row();
     if (!row?.secret) return;
+    // A token that cannot be opened will not open on a retry; the status says why.
+    if (!canOpen(this.vault, row.secret)) return console.warn('discord token cannot be read');
     const api = this.api(row);
     this.gateway = new DiscordGateway(
       this.vault.open(row.secret),
@@ -974,8 +980,41 @@ export class DiscordChannel {
         return;
       }
       if (m.author !== `bot:${thread.botId}`) return;
-      await write(discordMessages(m.text));
-      for (const f of messageFiles(m)) {
+      const parts = discordMessages(m.text);
+      const files = messageFiles(m);
+      // A reply of one file and a text that fits one post goes as one post, so the file is not left
+      // alone under the text; any other shape, or a failed upload, falls back to the separate posts.
+      const only = files.length === 1 && parts.length === 1 ? files[0]! : null;
+      let together = false;
+      if (only) {
+        const path = join(this.ctx.config.dataDir, 'workspaces', only.path);
+        const size = await stat(path).then(
+          (s) => s.size,
+          () => -1,
+        );
+        if (size >= 0 && size <= SEND_MAX) {
+          try {
+            const work = this.working.get(m.threadId);
+            // An edit cannot carry a file, so the "Working on it…" post gives way to the answer.
+            if (work?.status) {
+              const status = work.status;
+              work.status = null;
+              await api.remove(place.channel, status).catch(() => {});
+              await this.hold(m.threadId, work);
+            }
+            await api.post(place.channel, parts[0]!, {
+              replyTo: place.root,
+              file: { path, name: only.name },
+            });
+            together = true;
+          } catch (err) {
+            console.warn('discord send file', (err as Error).message);
+          }
+        }
+      }
+      if (together) return;
+      await write(parts);
+      for (const f of files) {
         const path = join(this.ctx.config.dataDir, 'workspaces', f.path);
         const size = await stat(path).then(
           (s) => s.size,

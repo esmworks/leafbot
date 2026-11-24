@@ -14,6 +14,7 @@ import {
   type ModelTest,
   type GateRequest,
   type GateVerdict,
+  type SubagentState,
   type TurnOutcome,
   type TurnRequest,
 } from './types';
@@ -36,6 +37,7 @@ import {
  *   [çöktü]              after the directives before it, the Claude Code process dies on the turn's first run
  *   [çöktü-hep]          after the directives before it, it dies on every run of a Claude model
  *   [bakiye]             fail as if the provider's balance were spent (a backup is not under it)
+ *   [reddedildi]         fail as if the provider refused the request on content grounds (a backup is not under it)
  *   [giriş-yok]          fail as if logged out
  *   [sınır]              fail as if the usage limit were spent until 2026-11-16 09:00 UTC
  *   [sınır-sonra]        after the directives before it, fail as [sınır] does
@@ -169,6 +171,28 @@ export class FakeEngine implements Engine {
       req.onSubagent?.({ ...sub, steps: 2, tool: 'WebSearch' });
       req.onSubagent?.({ ...sub, steps: 2, tool: 'WebSearch', state: 'done', result: 'Üç kaynak bulundu.' });
     }
+    // Three helpers started together, two places to run in: the third waits, then all finish. The slow
+    // variant takes its time between steps, so the card can be watched as it changes.
+    if (req.prompt.includes('[alt-ajanlar]') || req.prompt.includes('[alt-ajanlar-yavaş]')) {
+      const pace = req.prompt.includes('[alt-ajanlar-yavaş]') ? 1500 : 0;
+      const show = async (sub: SubagentState) => {
+        req.onSubagent?.(sub);
+        if (pace) await new Promise((r) => setTimeout(r, pace));
+      };
+      const subs = ['Birinci daireyi incele', 'İkinci daireyi incele', 'Üçüncü daireyi incele'].map(
+        (description, i) => ({ id: `fake-sub-${i + 1}`, description, state: 'waiting' as const, steps: 0 }),
+      );
+      for (const sub of subs) req.onSubagent?.(sub);
+      if (pace) await new Promise((r) => setTimeout(r, pace));
+      const [a, b, c] = subs as [(typeof subs)[number], (typeof subs)[number], (typeof subs)[number]];
+      await show({ ...a, state: 'running' });
+      await show({ ...b, state: 'running' });
+      await show({ ...a, state: 'running', steps: 1, tool: 'WebFetch' });
+      await show({ ...a, state: 'done', steps: 1, tool: 'WebFetch', result: 'Kira uygun.' });
+      await show({ ...c, state: 'running' });
+      await show({ ...b, state: 'done', steps: 0, result: 'Evcil hayvan yasak.' });
+      await show({ ...c, state: 'failed', steps: 0, result: 'Sayfa açılmadı.' });
+    }
     // A call that keeps failing the same way, past the warning: the turn is stopped.
     if (req.prompt.includes('[döngü]')) {
       req.onRepeatedFailure?.('mcp__notion__search', 5);
@@ -197,6 +221,16 @@ export class FakeEngine implements Engine {
         text: '',
         sessionId,
         modelGone: true,
+      };
+    }
+    if (req.prompt.includes('[reddedildi]') && !req.model.includes('/')) {
+      return {
+        ok: false,
+        kind: 'engine',
+        message: 'The model refused to complete the request',
+        text: '',
+        sessionId,
+        refused: true,
       };
     }
     if (req.prompt.includes('[giriş-yok]') && !req.model.includes('/')) {

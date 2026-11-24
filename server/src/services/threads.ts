@@ -73,6 +73,29 @@ const SEARCH_PAGE = 1000;
 const createdAtOf = (id: string) =>
   sql`(select ${schema.messages.createdAt} from ${schema.messages} where ${schema.messages.id} = ${id})`;
 
+/**
+ * The line the sidebar shows for a message. It shows words, not Markdown marks. A message with only
+ * attachments is previewed by its file names, and one that is only a picture by the picture's file
+ * name, so it does not read as an empty row.
+ */
+export function previewOf(markdown: string, files: readonly { name: string }[] = []): string {
+  const words = plainText(markdown);
+  if (words) return words;
+  if (files.length) return files.map((f) => f.name).join(', ');
+  for (const m of markdown.matchAll(/!\[[^\]]*\]\(\s*<?([^)\s>]+)/g)) {
+    const src = m[1]!;
+    if (/^data:/i.test(src)) continue;
+    const last = src.split(/[?#]/)[0]!.split('/').filter(Boolean).at(-1);
+    if (!last) continue;
+    try {
+      return decodeURIComponent(last);
+    } catch {
+      return last;
+    }
+  }
+  return '';
+}
+
 export class ThreadService {
   private mainLocks = new Map<string, Promise<void>>();
   constructor(private ctx: Ctx) {}
@@ -131,11 +154,8 @@ export class ThreadService {
       )
       .orderBy(schema.messages.threadId, desc(schema.messages.createdAt));
     for (const r of rows) {
-      // A message with only attachments is previewed by its file names.
       const files = (r.props as { files?: { name: string }[] }).files ?? [];
-      // The sidebar shows words, not Markdown marks.
-      const text = plainText(r.text) || files.map((f) => f.name).join(', ');
-      map.set(r.threadId, truncate(text, 140));
+      map.set(r.threadId, truncate(previewOf(r.text, files), 140));
     }
     return map;
   }

@@ -64,6 +64,7 @@ describe('ekip konuşması', () => {
     expect(req.prompt).toContain('ayse: Bu haftanın özeti ne?');
     const names = req.tools.map((x) => x.name);
     expect(names).not.toContain('routine_create');
+    expect(names).not.toContain('routine_read');
     expect(names).not.toContain('bot_send');
     expect(names).not.toContain('app_add');
 

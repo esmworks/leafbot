@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { keyPresses, type PersonAction, type PersonComputer, PersonComputerError } from '../computer/person';
+import { screenshotImage } from '../engine/fit-image';
 import type { AppTool, ToolResult } from '../engine/types';
 import type { T } from '../i18n';
 import type { Define } from './index';
@@ -42,7 +43,7 @@ export function personComputerTools(opts: {
     const shot = await computer.screenshot();
     return {
       text: t('personComputer.screen', { width: shot.width, height: shot.height }),
-      images: [{ data: shot.png, mimeType: 'image/png' }],
+      images: [await screenshotImage(shot.png)],
     };
   };
 
