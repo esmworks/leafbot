@@ -1,5 +1,5 @@
 {
-  "id": "742bf7fe-ba83-49a3-9605-1a6f55520103",
+  "id": "bf557d00-0b08-4252-b581-7d124d8e0b9c",
   "prevId": "0f5fb5da-51d4-4366-a037-13954fcd6b53",
   "version": "7",
   "dialect": "postgresql",
@@ -1194,6 +1194,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "reviewer": {
+          "name": "reviewer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "project_dir": {
           "name": "project_dir",
@@ -5204,13 +5210,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
-        },
-        "backs": {
-          "name": "backs",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
         },
         "outcome": {
           "name": "outcome",

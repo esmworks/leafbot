@@ -236,6 +236,7 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'GET /api/threads/:id/live': read(),
   'PUT /api/threads/:id/activity': read(),
   'GET /api/threads/:id/turn-changes': read(),
+  'GET /api/threads/:id/action-log': read(),
   'POST /api/threads/:id/messages': write(),
   'PATCH /api/messages/:id': manage('message'),
   'POST /api/messages/:id/steer': write('message'),
@@ -306,6 +307,7 @@ export const ROUTE_RULES: Record<string, Rule> = {
 
   // Memory: each person's own notes, and those of the bots they may change (checked by the routes).
   'GET /api/memory': 'self',
+  'GET /api/memory/graph': 'self',
   'POST /api/memory': 'self',
   'PATCH /api/memory/:id': 'self',
   'DELETE /api/bots/:id/memory': edit(),

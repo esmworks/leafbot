@@ -131,6 +131,12 @@ export const Bot = z.object({
    * only where the server runs on that Mac. Missing on older servers.
    */
   personComputer: z.boolean().optional(),
+  /**
+   * A second model that reads a mail about to go out, or data about to leave, while its card waits,
+   * and adds a line to the card when something looks wrong: `claude`, or `provider/model` from a
+   * connected provider. Null is none. Missing on older servers.
+   */
+  reviewer: z.string().nullable().optional(),
   projectDir: z.string().nullable(),
   /** Whether the bot reads and keeps memory; off, it sees none and gets no memory tools. */
   memory: z.boolean(),
@@ -262,6 +268,13 @@ export const BotCreate = z.object({
   permissionMode: PermissionMode.default('auto'),
   internet: z.boolean().default(true),
   personComputer: z.boolean().default(false),
+  reviewer: z
+    .string()
+    .trim()
+    .max(200)
+    .regex(/^(?:claude|[^/\s]+\/\S+)$/)
+    .nullable()
+    .default(null),
   projectDir: z.string().max(1000).nullable().default(null),
   memory: z.boolean().default(true),
   effort: z.union([z.enum(['low', 'medium', 'high', 'xhigh', 'max']), z.literal('')]).default(''),
@@ -1080,6 +1093,27 @@ export const Memory = z.object({
 export type Memory = z.infer<typeof Memory>;
 
 /**
+ * How notes hang together, for the memory map: `site`, notes about the same site; `conversation`,
+ * notes a bot wrote in the same conversation; `similar`, notes near each other in meaning, with
+ * how near (0–1). The notes are the ones `GET /api/memory` lists.
+ */
+export const MemoryGraph = z.object({
+  edges: z.array(
+    z.object({
+      a: Id,
+      b: Id,
+      kind: z.enum(['site', 'conversation', 'similar']),
+      score: z.number().optional(),
+    }),
+  ),
+  /** Search by meaning is on, so notes near in meaning are linked. */
+  meaning: z.boolean(),
+  /** There were more notes than the map links. */
+  truncated: z.boolean(),
+});
+export type MemoryGraph = z.infer<typeof MemoryGraph>;
+
+/**
  * A memory change a bot asked for while nobody watched (a routine, another bot's request); it
  * takes effect only once the person accepts it.
  */
@@ -1730,7 +1764,7 @@ export const UsageReport = z.object({
   background: z
     .array(
       z.object({
-        kind: z.enum(['memoryReview', 'title', 'minutes', 'followUps']),
+        kind: z.enum(['memoryReview', 'title', 'minutes', 'followUps', 'review']),
         calls: z.number().int(),
         costUsd: z.number(),
       }),
@@ -1896,6 +1930,14 @@ export const TurnChanges = z.object({
   outside: z.array(TurnOutsideStep),
 });
 export type TurnChanges = z.infer<typeof TurnChanges>;
+
+/** One turn in a conversation's action log: what it changed and reached, and when it was asked. */
+export const TurnLogEntry = TurnChanges.extend({
+  at: z.string(),
+  /** The start of what the turn was asked. */
+  request: z.string(),
+});
+export type TurnLogEntry = z.infer<typeof TurnLogEntry>;
 
 /**
  * A routine proposed because the person keeps asking a bot for the same thing by hand. Only the

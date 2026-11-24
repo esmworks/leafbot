@@ -31,7 +31,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Textarea } from '@/components/ui/textarea';
 import { useLocale, useT, type MessageKey } from '@/i18n';
 import {
   BOX_MAX_H,
@@ -62,6 +61,7 @@ import {
   StepIcon,
   type StepForm,
 } from './RoutineSteps';
+import { LongText } from './LongText';
 
 /** A box's title bar, `h-11`: the fields under it get the rest of the box's height. */
 const TITLE_H = 44;
@@ -657,12 +657,12 @@ export function RoutineFlow({
                 error: !!promptError,
                 children: (
                   <>
-                    <Textarea
+                    <LongText
                       value={prompt}
-                      onChange={(e) => onPrompt(e.target.value)}
+                      onChange={onPrompt}
                       rows={4}
-                      className="scroll-thin max-h-48 overflow-y-auto rounded-xl text-sm"
-                      aria-label={t('routine.prompt')}
+                      label={t('routine.prompt')}
+                      inFlow
                     />
                     {promptError && (
                       <p className="text-xs text-destructive">{t(promptError as MessageKey)}</p>
@@ -694,6 +694,7 @@ export function RoutineFlow({
                         error={errors?.[i]}
                         modelListId={modelListId}
                         modelPlaceholder={modelPlaceholder}
+                        inFlow
                       />
                       {statusBody(st)}
                       {s.kind === 'agent' && tryButton(s.prompt, true)}

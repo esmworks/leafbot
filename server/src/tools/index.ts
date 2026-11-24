@@ -2954,6 +2954,7 @@ export class ToolFactory {
               internet: false,
               // The person's Mac is theirs to open to a bot, never a manager bot's.
               personComputer: false,
+              reviewer: null,
               projectDir: null,
               memory: true,
               effort: a.effort ?? '',

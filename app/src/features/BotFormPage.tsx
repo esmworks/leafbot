@@ -94,6 +94,9 @@ const Form = z
     toolsExclude: z.string().max(80_000),
     internet: z.boolean(),
     personComputer: z.boolean(),
+    /** The reviewer's connection: '' for none, `claude`, or a provider; and its model for a provider. */
+    reviewer: z.string(),
+    reviewerModel: z.string().trim().max(100),
     projectDir: z.string().max(1000),
     instructionsUrl: z
       .string()
@@ -109,6 +112,8 @@ const Form = z
   .superRefine((f, ctx) => {
     if ((f.engine === 'pi' || f.engine === 'acp') && !f.model)
       ctx.addIssue({ code: 'custom', path: ['model'], message: 'bot.modelRequired' });
+    if (f.reviewer && f.reviewer !== REVIEWER_CLAUDE && !f.reviewerModel)
+      ctx.addIssue({ code: 'custom', path: ['reviewerModel'], message: 'bot.modelRequired' });
     for (const field of ['toolsAllow', 'toolsExclude'] as const) {
       if (!ToolSelection.shape.allow.safeParse(selectorLines(f[field])).success)
         ctx.addIssue({ code: 'custom', path: [field], message: 'bot.toolsInvalid' });
@@ -135,6 +140,7 @@ function initial(bot?: Bot, start: BotEngine = { engine: 'claude', model: '' }):
     toolsExclude: bot?.toolSelection.exclude.join('\n') ?? '',
     internet: bot?.internet ?? true,
     personComputer: bot?.personComputer ?? false,
+    ...reviewerFields(bot?.reviewer),
     projectDir: bot?.projectDir ?? '',
     instructionsUrl: bot?.instructionsUrl ?? '',
     engine: bot?.engine ?? start.engine,
@@ -142,6 +148,24 @@ function initial(bot?: Bot, start: BotEngine = { engine: 'claude', model: '' }):
     dailyLimit: bot?.dailyLimitUsd ? String(bot.dailyLimitUsd) : '',
     monthlyLimit: bot?.monthlyLimitUsd ? String(bot.monthlyLimitUsd) : '',
   };
+}
+
+/** The reviewer setting for Claude's own small model. */
+const REVIEWER_CLAUDE = 'claude';
+
+/** A bot's reviewer as the form's two fields: the connection, and the model for a provider. */
+function reviewerFields(reviewer: string | null | undefined): { reviewer: string; reviewerModel: string } {
+  if (!reviewer) return { reviewer: '', reviewerModel: '' };
+  if (reviewer === REVIEWER_CLAUDE) return { reviewer, reviewerModel: '' };
+  const at = reviewer.indexOf('/');
+  return { reviewer: reviewer.slice(0, at), reviewerModel: reviewer.slice(at + 1) };
+}
+
+/** The form's reviewer fields as the bot's setting. */
+function reviewerOf(f: { reviewer: string; reviewerModel: string }): string | null {
+  if (!f.reviewer) return null;
+  if (f.reviewer === REVIEWER_CLAUDE) return REVIEWER_CLAUDE;
+  return f.reviewerModel ? `${f.reviewer}/${f.reviewerModel}` : null;
 }
 
 /** A spending limit as typed: empty for none, else dollars, with a comma or a point. */
@@ -303,6 +327,8 @@ function BotForm({
         },
         internet: f.internet,
         personComputer: f.personComputer,
+        // An older server does not know the field; it goes only when there is something to say.
+        ...((reviewerOf(f) || bot?.reviewer) && { reviewer: reviewerOf(f) }),
         projectDir: f.projectDir.trim() || null,
         engine: f.engine,
         model: f.engine === 'pi' ? `${f.provider}/${f.model}` : f.model,
@@ -582,6 +608,15 @@ function BotForm({
                   onCheckedChange={(c) => form.setValue('memory', c, { shouldDirty: true })}
                 />
               </label>
+              <ReviewerPicker
+                value={v}
+                error={err.reviewerModel?.message}
+                onChange={(patch) => {
+                  for (const [k, val] of Object.entries(patch)) {
+                    form.setValue(k as 'reviewer' | 'reviewerModel', val, { shouldDirty: true });
+                  }
+                }}
+              />
               <div className="space-y-3 rounded-2xl bg-secondary/60 px-4 py-3">
                 <span className="block">
                   <span className="block text-sm font-medium">{t('bot.spendLimits')}</span>
@@ -783,6 +818,71 @@ function ModelPicker({
     </div>
   );
 }
+
+/**
+ * The bot's reviewer: a second model that reads a mail about to go out, or data about to leave,
+ * while its card waits, and adds a line to the card when something looks wrong. It is best a model
+ * of another family than the bot's own, so it does not fall for the same text.
+ */
+function ReviewerPicker({
+  value,
+  error,
+  onChange,
+}: {
+  value: Pick<Form, 'reviewer' | 'reviewerModel'>;
+  error?: string;
+  onChange(patch: Partial<Pick<Form, 'reviewer' | 'reviewerModel'>>): void;
+}) {
+  const t = useT();
+  const { data: providers = [] } = useProviders();
+  const provider = value.reviewer && value.reviewer !== REVIEWER_CLAUDE ? value.reviewer : null;
+  const { data: models = [] } = useProviderModelInfo(provider);
+  // A provider the reviewer is already on stays listed after its key is gone.
+  const connections = providers.filter((p) => p.configured || p.id === provider);
+  return (
+    <div className="space-y-3 rounded-2xl bg-secondary/60 px-4 py-3">
+      <span className="block">
+        <span className="block text-sm font-medium">{t('bot.reviewer')}</span>
+        <span className="block text-xs text-muted-foreground">{t('bot.reviewerHint')}</span>
+      </span>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label={t('bot.connection')}>
+          <Select
+            value={value.reviewer || REVIEWER_OFF}
+            onValueChange={(c) => onChange({ reviewer: c === REVIEWER_OFF ? '' : c, reviewerModel: '' })}
+          >
+            <SelectTrigger className="w-full rounded-xl">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="max-h-72">
+              <SelectItem value={REVIEWER_OFF}>{t('bot.reviewerOff')}</SelectItem>
+              <SelectItem value={REVIEWER_CLAUDE}>{t('bot.reviewerClaude')}</SelectItem>
+              {connections.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {connectionName(p)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        {provider && (
+          <Field label={t('bot.model')} error={error}>
+            <ModelSearch
+              value={value.reviewerModel}
+              models={models.map((m) => ({ value: m.id, name: m.name }))}
+              onChange={(m) => onChange({ reviewerModel: m })}
+              placeholder={t('bot.modelPlaceholder.pi')}
+              className="rounded-xl"
+            />
+          </Field>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The reviewer select's value for none; a Select item cannot have an empty value. */
+const REVIEWER_OFF = 'off';
 
 function AvatarEditor({
   avatar,

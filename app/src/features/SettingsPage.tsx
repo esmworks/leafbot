@@ -82,6 +82,8 @@ import { desktop, useDesktopServer } from '@/lib/desktop';
 import { useUi, type SettingsTab } from '@/lib/store';
 import { NoteSource } from './NoteSource';
 import { LearnSetting, MemoryHistory, NoteRow } from './MemoryNote';
+import { MemoryMap } from './MemoryMap';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   allowNotifications,
   chime,
@@ -1682,6 +1684,8 @@ function MemoryTab() {
   const { data: rooms = [] } = useRooms();
   const [text, setText] = useState('');
   const [query, setQuery] = useState('');
+  // The notes as lists, or as a map of how they hang together.
+  const [view, setView] = useState<'list' | 'map'>('list');
   const refresh = () => qc.invalidateQueries({ queryKey: ['memory'] });
   // The server refuses a save over a note that changed meanwhile; the list is fetched again then.
   const save = useMutation({
@@ -1810,6 +1814,12 @@ function MemoryTab() {
         />
       </div>
       <p className="mb-6 px-1 text-xs text-muted-foreground">{t('memory.pinHint')}</p>
+      <Tabs value={view} onValueChange={(v) => setView(v === 'map' ? 'map' : 'list')} className="mb-4">
+        <TabsList>
+          <TabsTrigger value="list">{t('memory.viewList')}</TabsTrigger>
+          <TabsTrigger value="map">{t('memory.viewMap')}</TabsTrigger>
+        </TabsList>
+      </Tabs>
       <PendingMemory bots={[...bots, ...archived]} />
       <MemoryFlags bots={[...bots, ...archived]} />
       {expiredHits.length > 0 && (
@@ -1881,112 +1891,125 @@ function MemoryTab() {
           ))}
         </Card>
       )}
-      <Card title={t('memory.user')}>
-        {user.length === 0 && (
-          <div className="px-4 py-3 text-sm text-muted-foreground">
-            {t(searching ? 'memory.searchEmpty' : 'memory.empty')}
-          </div>
-        )}
-        {user.map((m) => (
-          <NoteRow key={m.id} m={m} {...noteProps} />
-        ))}
-      </Card>
-      <Card title={t('memory.bots')}>
-        {groups.length === 0 && (
-          <div className="px-4 py-3 text-sm text-muted-foreground">
-            {t(searching ? 'memory.searchEmpty' : 'memory.empty')}
-          </div>
-        )}
-        {groups.map((g) => {
-          // A search opens the bots with hits, so the notes found are in sight.
-          const isOpen = searching || open.has(g.botId);
-          return (
-            <div key={g.botId}>
-              <div className="flex min-h-14 items-center gap-2 px-4 py-2">
-                <button
-                  type="button"
-                  aria-expanded={isOpen}
-                  onClick={() => toggle(g.botId)}
-                  className="flex min-w-0 flex-1 items-center gap-3 text-start"
-                >
-                  <ChevronRight
-                    className={cn(
-                      'size-4 shrink-0 text-muted-foreground transition-transform',
-                      isOpen && 'rotate-90',
-                    )}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
-                      {g.archived ? t('memory.archivedBot', { name: name(g) }) : name(g)}
-                    </span>
-                    <span className="block text-xs text-muted-foreground">
-                      {t('memory.noteCount', { count: g.notes.length })}
-                    </span>
-                  </span>
-                </button>
-                {isOpen && !searching && g.notes.length > 1 && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="rounded-full"
-                    disabled={clearBot.isPending}
-                    onClick={() =>
-                      confirm(t('memory.deleteAllConfirm', { name: name(g), count: g.notes.length })) &&
-                      clearBot.mutate(g.botId)
-                    }
-                  >
-                    {t('memory.deleteAll')}
-                  </Button>
-                )}
+      {view === 'map' ? (
+        <MemoryMap
+          notes={current.filter(hit)}
+          bots={[...bots, ...archived]}
+          rooms={rooms}
+          noteProps={noteProps}
+        />
+      ) : (
+        <>
+          <Card title={t('memory.user')}>
+            {user.length === 0 && (
+              <div className="px-4 py-3 text-sm text-muted-foreground">
+                {t(searching ? 'memory.searchEmpty' : 'memory.empty')}
               </div>
-              {isOpen && (
-                <div className="divide-y border-t">
-                  {g.notes.map((m) => (
-                    <NoteRow key={m.id} m={m} {...noteProps} />
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </Card>
-      {roomGroups.length > 0 && (
-        <Card title={t('memory.rooms')}>
-          {!searching && <p className="px-4 py-3 text-xs text-muted-foreground">{t('memory.roomsHint')}</p>}
-          {roomGroups.map((g) => {
-            const isOpen = searching || open.has(g.place);
-            return (
-              <div key={g.place}>
-                <button
-                  type="button"
-                  aria-expanded={isOpen}
-                  onClick={() => toggle(g.place)}
-                  className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-start"
-                >
-                  <ChevronRight
-                    className={cn(
-                      'size-4 shrink-0 text-muted-foreground transition-transform',
-                      isOpen && 'rotate-90',
+            )}
+            {user.map((m) => (
+              <NoteRow key={m.id} m={m} {...noteProps} />
+            ))}
+          </Card>
+          <Card title={t('memory.bots')}>
+            {groups.length === 0 && (
+              <div className="px-4 py-3 text-sm text-muted-foreground">
+                {t(searching ? 'memory.searchEmpty' : 'memory.empty')}
+              </div>
+            )}
+            {groups.map((g) => {
+              // A search opens the bots with hits, so the notes found are in sight.
+              const isOpen = searching || open.has(g.botId);
+              return (
+                <div key={g.botId}>
+                  <div className="flex min-h-14 items-center gap-2 px-4 py-2">
+                    <button
+                      type="button"
+                      aria-expanded={isOpen}
+                      onClick={() => toggle(g.botId)}
+                      className="flex min-w-0 flex-1 items-center gap-3 text-start"
+                    >
+                      <ChevronRight
+                        className={cn(
+                          'size-4 shrink-0 text-muted-foreground transition-transform',
+                          isOpen && 'rotate-90',
+                        )}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">
+                          {g.archived ? t('memory.archivedBot', { name: name(g) }) : name(g)}
+                        </span>
+                        <span className="block text-xs text-muted-foreground">
+                          {t('memory.noteCount', { count: g.notes.length })}
+                        </span>
+                      </span>
+                    </button>
+                    {isOpen && !searching && g.notes.length > 1 && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="rounded-full"
+                        disabled={clearBot.isPending}
+                        onClick={() =>
+                          confirm(t('memory.deleteAllConfirm', { name: name(g), count: g.notes.length })) &&
+                          clearBot.mutate(g.botId)
+                        }
+                      >
+                        {t('memory.deleteAll')}
+                      </Button>
                     )}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{g.label}</span>
-                    <span className="block text-xs text-muted-foreground">
-                      {t('memory.noteCount', { count: g.notes.length })}
-                    </span>
-                  </span>
-                </button>
-                {isOpen && (
-                  <div className="divide-y border-t">
-                    {g.notes.map((m) => (
-                      <NoteRow key={m.id} m={m} {...noteProps} />
-                    ))}
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </Card>
+                  {isOpen && (
+                    <div className="divide-y border-t">
+                      {g.notes.map((m) => (
+                        <NoteRow key={m.id} m={m} {...noteProps} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </Card>
+          {roomGroups.length > 0 && (
+            <Card title={t('memory.rooms')}>
+              {!searching && (
+                <p className="px-4 py-3 text-xs text-muted-foreground">{t('memory.roomsHint')}</p>
+              )}
+              {roomGroups.map((g) => {
+                const isOpen = searching || open.has(g.place);
+                return (
+                  <div key={g.place}>
+                    <button
+                      type="button"
+                      aria-expanded={isOpen}
+                      onClick={() => toggle(g.place)}
+                      className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-start"
+                    >
+                      <ChevronRight
+                        className={cn(
+                          'size-4 shrink-0 text-muted-foreground transition-transform',
+                          isOpen && 'rotate-90',
+                        )}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{g.label}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {t('memory.noteCount', { count: g.notes.length })}
+                        </span>
+                      </span>
+                    </button>
+                    {isOpen && (
+                      <div className="divide-y border-t">
+                        {g.notes.map((m) => (
+                          <NoteRow key={m.id} m={m} {...noteProps} />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </Card>
+          )}
+        </>
       )}
       <LearnSetting />
       <MemoryHistory />
