@@ -7,6 +7,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A routine's history keeps each version whole: its instruction, steps, model and condition, not the instruction
+  alone, and a new version only when one of those really changed. Each version says what changed and how its runs
+  went (done, nothing to report, failed, what they cost, how long they took), marked when it has too few runs to go
+  by; bringing a version back puts all of it in the form. Runs from before versions were kept are counted apart, and
+  versions kept before this with the instruction alone bring back only that.
 - Each routine shows its health: how its runs of the last 30 days ended (done, nothing to report, failed), what they
   cost and how long they took, worked out from the runs with no AI. It points out a routine that keeps failing, that
   switched itself off, that waits for a sign-in, a step that keeps failing, a wait that keeps running out, runs that

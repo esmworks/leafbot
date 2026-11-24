@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   bigint,
   bigserial,
   boolean,
@@ -699,6 +700,10 @@ export const routineRuns = pgTable(
      * changed meanwhile does not change a run under way; null for a routine with none.
      */
     stepsSnapshot: jsonb('steps_snapshot'),
+    /** The routine's version the run was started with; null for runs from before it was kept. */
+    revisionId: text('revision_id').references((): AnyPgColumn => routineRevisions.id, {
+      onDelete: 'set null',
+    }),
     /** The model the step under way names; null for the routine's own. */
     stepModel: text('step_model'),
     /**
@@ -768,6 +773,14 @@ export const routineRevisions = pgTable(
       .notNull()
       .references(() => routines.id, { onDelete: 'cascade' }),
     prompt: text('prompt').notNull(),
+    /**
+     * Steps, model and condition are kept with the instruction from here on; false for a version
+     * from before, whose other parts are unknown rather than empty.
+     */
+    full: boolean('full').notNull().default(false),
+    steps: jsonb('steps'),
+    model: text('model'),
+    condition: jsonb('condition'),
     createdAt: created(),
   },
   (t) => [index('routine_revisions_routine_idx').on(t.routineId, t.createdAt)],

@@ -298,6 +298,7 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'POST /api/routines/:id/runs/:runId/retry': edit('routine'),
   'POST /api/routines/:id/runs/:runId/end-wait': edit('routine'),
   'GET /api/routines/:id/revisions': edit('routine'),
+  'GET /api/routines/:id/versions': edit('routine'),
   // The service keeps each person to the rehearsals they asked for.
   'POST /api/routines/:id/rehearse': edit('routine'),
   'GET /api/routines/:id/rehearsals': edit('routine'),

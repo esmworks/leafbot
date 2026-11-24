@@ -16,6 +16,7 @@ import {
   stepRoutes,
   type FlowLayout,
   type Routine,
+  type RoutineRevision,
   type RoutineCondition,
   type Schedule,
 } from '@leafbot/shared';
@@ -437,6 +438,22 @@ export function RoutinePage({
   const type = values.type;
   const setSteps = (next: StepForm[]) =>
     form.setValue('steps', next, { shouldDirty: true, shouldValidate: form.formState.isSubmitted });
+  /** Puts a version from the history in the form, to be saved as the newest. */
+  const restoreVersion = (rev: RoutineRevision) => {
+    const how = { shouldDirty: true, shouldValidate: true };
+    form.setValue('prompt', rev.prompt, how);
+    // A version kept with the instruction alone leaves the rest as the form has it.
+    if (rev.full === false || !routine) return;
+    const back = fromRoutine({
+      ...routine,
+      steps: rev.steps ?? [],
+      model: rev.model ?? '',
+      condition: rev.condition ?? null,
+    });
+    form.setValue('steps', back.steps, how);
+    form.setValue('model', back.model, how);
+    form.setValue('condition', back.condition, how);
+  };
   /** What else starts the routine, besides its schedule, as the flow's first box says it. */
   const triggers = [
     ...(values.onStartup ? [t('flow.onStartup')] : []),
@@ -782,9 +799,7 @@ export function RoutinePage({
                   <PromptHistory
                     routineId={routine.id}
                     current={values.prompt ?? ''}
-                    onRestore={(prompt) =>
-                      form.setValue('prompt', prompt, { shouldDirty: true, shouldValidate: true })
-                    }
+                    onRestore={restoreVersion}
                   />
                 )}
                 {routine && <RoutineRehearsal routine={routine} prompt={values.prompt ?? ''} />}
@@ -839,9 +854,7 @@ export function RoutinePage({
                       <PromptHistory
                         routineId={routine.id}
                         current={values.prompt ?? ''}
-                        onRestore={(prompt) =>
-                          form.setValue('prompt', prompt, { shouldDirty: true, shouldValidate: true })
-                        }
+                        onRestore={restoreVersion}
                       />
                     )}
                     {settingsFields}

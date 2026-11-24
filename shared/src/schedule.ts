@@ -677,11 +677,19 @@ export const RoutineStepRun = z.object({
 });
 export type RoutineStepRun = z.infer<typeof RoutineStepRun>;
 
-/** An instruction a routine had, with when it was saved; the newest is the one it has now. */
+/**
+ * A version a routine had, with when it was saved; the newest is the one it has now. `full` is
+ * false for one kept before steps, model and condition were kept with the instruction: those are
+ * then unknown, not empty.
+ */
 export const RoutineRevision = z.object({
   id: z.string(),
   prompt: z.string(),
   createdAt: z.string(),
+  full: z.boolean().optional(),
+  steps: z.array(RoutineStep).nullable().optional(),
+  model: z.string().nullable().optional(),
+  condition: RoutineCondition.nullable().optional(),
 });
 export type RoutineRevision = z.infer<typeof RoutineRevision>;
 
