@@ -281,6 +281,8 @@ const tr = {
   'error.gatewayKeyOnly': 'Ağ geçidi adresi yalnızca API anahtarıyla birlikte kullanılabilir',
   'error.appUnavailable': 'Bu uygulama bağlantısı şu an kullanılamıyor ya da bu bota açık değil',
   'error.signInNoPaste': 'Bu oturum açma şu an yapıştırılan bir adres beklemiyor',
+  'error.claudeSignInMissing':
+    "Bu sunucuda Claude girişi için gereken Claude Code programı yok; abonelik token'ı veya API anahtarı kullanın",
   'error.pairingWrong':
     'Eşleştirme kodu yanlış, kullanılmış ya da süresi dolmuş; bağlı bir cihazda yenisini alın',
   'error.transcribeNone': 'Sesi yazıya çevirmek için bir OpenAI ya da Groq API anahtarı kaydedin',
@@ -2473,6 +2475,8 @@ const en: Catalog<ServerKey> = {
   'error.gatewayKeyOnly': 'A gateway address goes only with an API key',
   'error.appUnavailable': 'This app connection cannot be used now, or is not open to this bot',
   'error.signInNoPaste': 'This sign-in is not waiting for a pasted address now',
+  'error.claudeSignInMissing':
+    'The Claude Code program that signs in to Claude is missing on this server; use a subscription token or an API key',
   'error.pairingWrong': 'The pairing code is wrong, used or expired; get a new one on a signed-in device',
   'error.transcribeNone': 'Save an OpenAI or Groq API key to turn speech into text',
   'error.transcribeEmpty': 'The recording holds no sound',

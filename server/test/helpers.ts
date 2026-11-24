@@ -57,7 +57,7 @@ export interface Person {
 /** `engine`: what runs the bots' turns instead of the fake engine, which `t.engine` still is. */
 export async function testServer(
   overrides: Partial<Config> = {},
-  opts: { engine?: Engine } = {},
+  opts: { engine?: Engine; claudeExecutable?: string | null } = {},
 ): Promise<TestServer> {
   const dataDir = mkdtempSync(join(tmpdir(), 'leafbot-test-'));
   const pg = await freshDatabase();
@@ -84,7 +84,12 @@ export async function testServer(
   );
   const engine = new FakeEngine();
   const now = { value: new Date('2026-11-16T05:00:00.000Z') };
-  const server = await createServer(config, { engine: opts.engine ?? engine, clock: () => now.value });
+  const server = await createServer(config, {
+    engine: opts.engine ?? engine,
+    clock: () => now.value,
+    // No test runs the real Claude Code sign-in; its own tests hand it a stand-in.
+    claudeExecutable: opts.claudeExecutable ?? null,
+  });
   // A model-written title would replace the first message's words that many tests read back; the
   // naming's own tests turn it on.
   await server.services.settings.update({ modelTitles: false });

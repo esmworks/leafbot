@@ -2611,6 +2611,16 @@ export const en: Catalog<MessageKey> = {
   'claude.remove': 'Remove',
   'claude.removeHint': "After removing it, the Claude login on the server's machine is used.",
   'claude.oldServer': 'The connected server cannot connect Claude from the app; update the server.',
+  'claude.signIn': 'Sign in with Claude',
+  'claude.signInHint':
+    'Opens the Claude sign-in page in your browser. Needs a Pro, Max, Team or Enterprise plan; nothing to install.',
+  'claude.signInStarting': 'Starting the sign-in…',
+  'claude.signInOpened': 'Sign in on the page that opened in your browser. If no page opened, open it here.',
+  'claude.signInPasteHint': 'If the page shows a code after you sign in, paste it here.',
+  'claude.signInPastePlaceholder': 'Code from the page',
+  'claude.signInDone': 'Signed in to Claude',
+  'claude.signInFailed': 'The sign-in did not finish: {detail}',
+  'claude.otherWays': 'Other ways: a subscription token or an API key',
   'model.title': 'Model and effort',
   'model.body':
     'Bots without a model of their own use this. You can change it later in Settings → Connection.',
