@@ -1600,6 +1600,20 @@ export const tr = {
   'routine.stepWhenOtherwise': 'Tutmazsa',
   'routine.stepWhenSkip': 'Adımı atla',
   'routine.stepWhenEnd': 'Çalışmayı bitir',
+  'routine.stepWhenGoto': 'Sonraki bir adıma geç',
+  'routine.stepWhenGotoStep': 'Şuna geç',
+  'routine.stepNext': 'Sonra',
+  'routine.stepNextFollowing': 'Sıradaki adıma geç',
+  'routine.stepNextEnd': 'Çalışmayı burada bitir',
+  'routine.stepOnError': 'Başarısız olursa',
+  'routine.stepOnErrorStop': 'Çalışmayı durdur',
+  'routine.stepGoTo': 'Şuna geç: {step}',
+  'routine.stepWayLost': 'Bundan sonra gelmeyen bir adım',
+  'routine.stepWaysHint':
+    'Yollar yalnız ileri gider. Çalışmanın geçmediği adımlar "yolda değildi" olarak görünür.',
+  'routine.stepWayInvalid':
+    'Bu adım, kendinden sonra gelmeyen bir adıma gidiyor. Başka bir adım seç ya da o adımı bunun arkasına taşı.',
+  'routine.stepWaitMinutes': '{minutes} dk',
   'routine.slackReaction': 'Slack tepkisiyle çalıştır',
   'routine.slackReactionPlaceholder': 'eyes',
   'routine.slackReactionNoPermission':
@@ -1612,6 +1626,9 @@ export const tr = {
   'routine.view.list': 'Liste',
   'routine.view.flow': 'Akış',
   'flow.start': 'Başlangıç',
+  'flow.wayOtherwise': 'değilse',
+  'flow.wayNext': 'sonra',
+  'flow.wayError': 'olmazsa',
   'flow.addStep': 'Buraya adım ekle',
   'flow.drag': 'Kutuyu taşımak için sürükle',
   'flow.pickHint':

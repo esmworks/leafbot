@@ -1,4 +1,4 @@
-import { INTL_LOCALE, ROUTINE_STEP_MAX, type FlowLayout, type RoutineRun } from '@leafbot/shared';
+import { INTL_LOCALE, ROUTINE_STEP_MAX, stepRoutes, type FlowLayout, type RoutineRun } from '@leafbot/shared';
 import {
   ArrowDown,
   ArrowUp,
@@ -36,6 +36,7 @@ import {
   BOX_W,
   canvasSize,
   insertStep,
+  jumpLink,
   keepLayout,
   link,
   moveStep,
@@ -45,6 +46,7 @@ import {
   runAsStep,
   runPart,
   snap,
+  takenWays,
   type RunPart,
   type Spot,
 } from '@/lib/routineFlow';
@@ -208,6 +210,13 @@ export function RoutineFlow({
   /** How the latest run went at a box; the first box has no part of its own. */
   const partOf = (id: string): RunPart | undefined =>
     id === 'start' ? undefined : runPart(run, id === 'prompt' ? null : id);
+  /** The lines the latest run went along, drawn in the brand's color. */
+  const taken = takenWays(steps, partOf);
+  /** The ways that jump ahead, each with the box it leaves and the one it goes to. */
+  const jumps = stepRoutes(steps).flatMap((r) => {
+    const from = steps[r.from]!.id;
+    return spots[r.to] && r.to !== from ? [{ from, to: r.to, field: r.field }] : [];
+  });
 
   const grabBox = (id: string) => (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
@@ -504,9 +513,15 @@ export function RoutineFlow({
                 {ids.slice(1).map((id, k) => {
                   const from = ids[k]!;
                   const { path } = link(spots[from]!, spots[id]!);
-                  // A line the run has gone along is drawn in the brand's color.
-                  const passed = partOf(from)?.status === 'done';
-                  const going = partOf(id)?.status === 'running';
+                  // A line the run has gone along is drawn in the brand's color; the first box has no
+                  // part, so its line shows the instruction under way.
+                  const on = from === 'start' || taken.has(`${from}>${id}`);
+                  const going = on && partOf(id)?.status === 'running';
+                  const passed = from !== 'start' && on && !going;
+                  // A step that goes elsewhere once it ended well leaves this line to a condition
+                  // passing it over, or to nothing: it is drawn faint.
+                  const step = steps.find((x) => x.id === from);
+                  const faint = !!step?.next && step.when?.otherwise !== 'skip';
                   return (
                     <path
                       key={id}
@@ -514,8 +529,46 @@ export function RoutineFlow({
                       fill="none"
                       strokeWidth={passed || going ? 2 : 1.5}
                       strokeDasharray={going ? '6 5' : undefined}
+                      strokeOpacity={faint && !passed && !going ? 0.4 : undefined}
                       style={{ stroke: passed || going ? 'var(--brand)' : 'var(--border)' }}
                     />
+                  );
+                })}
+                {jumps.map((j, lane) => {
+                  const { path, mid } = jumpLink(spots[j.from]!, spots[j.to]!, lane);
+                  const on = taken.has(`${j.from}>${j.to}`);
+                  const going = on && partOf(j.to)?.status === 'running';
+                  const label =
+                    j.field === 'otherwise'
+                      ? 'flow.wayOtherwise'
+                      : j.field === 'next'
+                        ? 'flow.wayNext'
+                        : 'flow.wayError';
+                  return (
+                    <g key={`${j.from}-${j.field}`}>
+                      <path
+                        d={path}
+                        fill="none"
+                        strokeWidth={on ? 2 : 1.5}
+                        strokeDasharray={going ? '6 5' : '3 4'}
+                        style={{
+                          stroke: on
+                            ? 'var(--brand)'
+                            : j.field === 'onError'
+                              ? 'var(--destructive)'
+                              : 'var(--muted-foreground)',
+                        }}
+                      />
+                      <text
+                        x={mid.x}
+                        y={mid.y - 4}
+                        textAnchor="middle"
+                        fontSize={11}
+                        style={{ fill: 'var(--muted-foreground)' }}
+                      >
+                        {t(label)}
+                      </text>
+                    </g>
                   );
                 })}
               </svg>
@@ -609,6 +662,7 @@ export function RoutineFlow({
                     <>
                       <StepFields
                         step={s}
+                        later={steps.slice(i + 1)}
                         onChange={(next) => onSteps(steps.map((x, j) => (j === i ? next : x)))}
                         error={errors?.[i]}
                         modelListId={modelListId}

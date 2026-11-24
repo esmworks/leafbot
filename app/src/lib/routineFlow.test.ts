@@ -4,6 +4,7 @@ import {
   BOX_W,
   canvasSize,
   insertStep,
+  jumpLink,
   keepLayout,
   link,
   moveStep,
@@ -11,6 +12,8 @@ import {
   removeStep,
   runPart,
   snap,
+  takenWays,
+  type RunPart,
 } from './routineFlow';
 
 describe('routine flow changes', () => {
@@ -108,5 +111,56 @@ describe('routine flow places', () => {
     expect(snap(FLOW_LAYOUT_MAX + 5000)).toBe(FLOW_LAYOUT_MAX);
     const kept = keepLayout({ a: { x: 99_999, y: 25_000 } }, ['a']);
     expect(FlowLayout.safeParse(kept).success).toBe(true);
+  });
+});
+
+describe('routine flow ways', () => {
+  const parts = (statuses: Record<string, RunPart['status']>) => (id: string) =>
+    statuses[id] ? { status: statuses[id], output: null, reason: null } : undefined;
+
+  it('follows the run along the ways it took, not along every line after a finished box', () => {
+    const steps = [
+      {
+        id: 'a',
+        kind: 'agent',
+        when: { otherwise: 'goto', goto: 'c' },
+        next: 'end',
+      },
+      { id: 'b', kind: 'agent' },
+      { id: 'c', kind: 'notify' },
+    ];
+    // The condition did not hold: the run went from the instruction past a and b to c.
+    const no = takenWays(steps, parts({ prompt: 'done', a: 'skipped', b: 'skipped', c: 'done' }));
+    expect([...no]).toEqual(['prompt>a', 'a>c']);
+    // It held: a ran and the run ended there, so no line leaves a.
+    const yes = takenWays(steps, parts({ prompt: 'done', a: 'done' }));
+    expect([...yes]).toEqual(['prompt>a']);
+  });
+
+  it('follows a failed step to its way on failure only when the run went on there', () => {
+    const steps = [
+      { id: 'a', kind: 'agent', onError: 'c' },
+      { id: 'b', kind: 'agent' },
+      { id: 'c', kind: 'notify' },
+    ];
+    expect([...takenWays(steps, parts({ prompt: 'done', a: 'error', b: 'skipped', c: 'running' }))]).toEqual([
+      'prompt>a',
+      'a>c',
+    ]);
+    expect([...takenWays(steps, parts({ prompt: 'done', a: 'error' }))]).toEqual(['prompt>a']);
+    expect([...takenWays([{ id: 'a', kind: 'agent' }], parts({}))]).toEqual([]);
+  });
+
+  it('draws a jump on one row above the boxes it passes, and between rows as a line', () => {
+    const a = { x: 24, y: 24 };
+    const c = { x: 24 + 2 * (BOX_W + 56), y: 24 };
+    const over = jumpLink(a, c, 0);
+    expect(over.path.startsWith(`M ${a.x + BOX_W - 40} ${a.y} L ${a.x + BOX_W - 40} 14`)).toBe(true);
+    expect(over.mid.y).toBe(14);
+    // A second jump runs on a lane of its own, never off the canvas's top.
+    expect(jumpLink(a, c, 1).mid.y).toBe(6);
+    expect(jumpLink(a, c, 5).mid.y).toBe(4);
+    const below = { x: 24, y: 24 + 340 };
+    expect(jumpLink(a, below, 0)).toEqual(link(a, below));
   });
 });

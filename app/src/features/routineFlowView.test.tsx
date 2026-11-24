@@ -120,6 +120,35 @@ describe('rutin akışı', () => {
     expect(list().getByDisplayValue('approved')).toBeTruthy();
   });
 
+  it('adımın yolları listede ve akışın kutusunda aynı görünür; akış atlamayı etiketli çizer', () => {
+    const steps: StepForm[] = [
+      {
+        id: 'a',
+        kind: 'agent',
+        prompt: 'Compare the prices',
+        model: '',
+        onError: 'c',
+        when: { contains: 'changed', filter: '', absent: false, otherwise: 'goto', goto: 'c' },
+      },
+      { ...agent('b', 'Write a summary'), next: 'end' },
+      { id: 'c', kind: 'notify', text: 'Nothing changed', withBefore: false },
+    ];
+    render(<Both initial={steps} />);
+    for (const view of [list(), flow()]) {
+      expect(view.getByRole('radio', { name: 'Go on at a later step' }).getAttribute('aria-checked')).toBe(
+        'true',
+      );
+      const failing = view.getAllByRole('combobox', { name: 'If it fails' })[0]!;
+      expect(failing.textContent).toContain('Go to Notify step: Nothing changed');
+      expect(view.getAllByRole('combobox', { name: 'Then' })[1]!.textContent).toContain('End the run here');
+    }
+    // Two ways leave the first box for the last: the condition's other way and the way on failure.
+    expect(flow().getByText('if not')).toBeTruthy();
+    expect(flow().getByText('if it fails')).toBeTruthy();
+    // The last step has nothing after it, so it offers no way to choose.
+    expect(list().getAllByRole('combobox', { name: 'Then' })).toHaveLength(2);
+  });
+
   it('Alt ve ok tuşuyla sırayı değiştirir, Delete siler; bir alana yazarken tuşlar alanındır', () => {
     render(<Both initial={[agent('a', 'One'), agent('b', 'Two')]} />);
     fireEvent.keyDown(titles()[3]!, { key: 'ArrowUp', altKey: true });

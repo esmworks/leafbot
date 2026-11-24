@@ -1,6 +1,7 @@
 import {
   INTL_LOCALE,
   ROUTINE_APPROVAL_MAX_DAYS,
+  ROUTINE_STEP_END,
   ROUTINE_WAIT_MAX_MINUTES,
   type RoutineRun,
   type RoutineStepRun,
@@ -27,6 +28,7 @@ import {
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useLocale, useT, type MessageKey } from '@/i18n';
@@ -36,10 +38,12 @@ import { cn } from '@/lib/utils';
 
 /**
  * A step as the routine's window edits it; text fields stay strings while typed. `when` is what
- * must hold in what the step before ended with for it to run; none, it always runs.
+ * must hold in what the step before ended with for it to run; none, it always runs. `next` is
+ * where the run goes once it ended well (empty, the step after it), and an agent step's `onError`
+ * where it goes when the step fails (empty, the run stops).
  */
 export type StepForm = (
-  | { id: string; kind: 'agent'; prompt: string; model: string }
+  | { id: string; kind: 'agent'; prompt: string; model: string; onError?: string }
   | { id: string; kind: 'approval'; question: string; timeoutDays: number }
   | { id: string; kind: 'notify'; text: string; withBefore: boolean }
   | {
@@ -50,7 +54,7 @@ export type StepForm = (
       filter: string;
       timeoutDays: number;
     }
-) & { when?: RoutineStepWhen | null };
+) & { when?: RoutineStepWhen | null; next?: string };
 
 const WAIT_ON = ['time', 'webhook', 'email'] as const;
 
@@ -170,6 +174,7 @@ export function StepsEditor({
           </div>
           <StepFields
             step={s}
+            later={steps.slice(i + 1)}
             onChange={(next) => set(i, next)}
             error={errors?.[i]}
             modelListId={modelListId}
@@ -222,12 +227,15 @@ export function StepsEditor({
 /** What one step does, as the list and the flow both edit it. */
 export function StepFields({
   step: s,
+  later,
   onChange,
   error,
   modelListId,
   modelPlaceholder,
 }: {
   step: StepForm;
+  /** The steps after it, which its ways may go on at. */
+  later: readonly StepForm[];
   onChange(next: StepForm): void;
   /** The message key of the step's text that did not pass. */
   error?: string;
@@ -235,6 +243,9 @@ export function StepFields({
   modelPlaceholder: string;
 }) {
   const t = useT();
+  // A way that goes nowhere it can is shown under the ways; any other message under the step's text.
+  const wayError = error === WAY_INVALID;
+  const textError = wayError ? undefined : error;
   return (
     <>
       {s.kind === 'agent' ? (
@@ -247,7 +258,7 @@ export function StepFields({
             className="scroll-thin max-h-60 overflow-y-auto rounded-xl"
             aria-label={t('routine.step.agent')}
           />
-          {error && <p className="text-sm text-destructive">{t(error as MessageKey)}</p>}
+          {textError && <p className="text-sm text-destructive">{t(textError as MessageKey)}</p>}
           <Input
             value={s.model}
             onChange={(e) => onChange({ ...s, model: e.target.value })}
@@ -285,7 +296,7 @@ export function StepFields({
             className="scroll-thin max-h-40 overflow-y-auto rounded-xl"
             aria-label={t('routine.step.approval')}
           />
-          {error && <p className="text-sm text-destructive">{t(error as MessageKey)}</p>}
+          {textError && <p className="text-sm text-destructive">{t(textError as MessageKey)}</p>}
           <p className="text-xs text-muted-foreground">{t('routine.stepApprovalHint')}</p>
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
             <Hourglass className="size-3.5" aria-hidden />
@@ -303,8 +314,117 @@ export function StepFields({
           </label>
         </>
       )}
-      <WhenFields when={s.when ?? null} onChange={(when) => onChange({ ...s, when })} />
+      <WhenFields when={s.when ?? null} later={later} onChange={(when) => onChange({ ...s, when })} />
+      <WayFields step={s} later={later} onChange={onChange} />
+      {wayError && <p className="text-sm text-destructive">{t(WAY_INVALID)}</p>}
     </>
+  );
+}
+
+/** The message of a way that goes to a step not after its own. */
+const WAY_INVALID = 'routine.stepWayInvalid' satisfies MessageKey;
+
+/** What a way choice stands for when it goes nowhere else: the usual way, kept apart from step ids. */
+const USUAL = '__usual';
+
+/** A step as a way's list names it: its kind and the start of what it says. */
+function wayLabel(s: StepForm, t: ReturnType<typeof useT>): string {
+  const text =
+    s.kind === 'agent'
+      ? s.prompt
+      : s.kind === 'approval'
+        ? s.question
+        : s.kind === 'notify'
+          ? s.text
+          : s.on === 'time'
+            ? t('routine.stepWaitMinutes', { minutes: String(s.minutes) })
+            : s.on;
+  const short = text.trim().replace(/\s+/g, ' ');
+  const kind = t(`routine.step.${s.kind}`);
+  return short ? `${kind}: ${short.length > 40 ? `${short.slice(0, 39)}…` : short}` : kind;
+}
+
+/**
+ * A choice of where a way goes: `usual` for its usual way, `end` when it may end the run, then the
+ * steps after this one. A step it names that is not among them (moved before it, or taken out)
+ * stays shown, so the person sees what the save turns away.
+ */
+function WaySelect({
+  label,
+  value,
+  usual,
+  end,
+  later,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  usual?: string;
+  end?: string;
+  later: readonly StepForm[];
+  onChange(next: string): void;
+}) {
+  const t = useT();
+  const lost = !!value && value !== ROUTINE_STEP_END && !later.some((x) => x.id === value);
+  return (
+    <label className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+      <span className="shrink-0">{label}</span>
+      <Select value={value || USUAL} onValueChange={(v) => onChange(v === USUAL ? '' : v)}>
+        <SelectTrigger className="h-8 min-w-0 max-w-64 flex-1 rounded-xl text-xs" aria-label={label}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {usual && <SelectItem value={USUAL}>{usual}</SelectItem>}
+          {end && <SelectItem value={ROUTINE_STEP_END}>{end}</SelectItem>}
+          {later.map((x) => (
+            <SelectItem key={x.id} value={x.id}>
+              {t('routine.stepGoTo', { step: wayLabel(x, t) })}
+            </SelectItem>
+          ))}
+          {lost && <SelectItem value={value}>{t('routine.stepWayLost')}</SelectItem>}
+        </SelectContent>
+      </Select>
+    </label>
+  );
+}
+
+/**
+ * Where the run goes after the step: on to the step after it, ending there, or a later step; and
+ * for a bot step, where it goes when the step fails. With no step after it there is nothing to
+ * choose: the run ends after it anyway.
+ */
+function WayFields({
+  step: s,
+  later,
+  onChange,
+}: {
+  step: StepForm;
+  later: readonly StepForm[];
+  onChange(next: StepForm): void;
+}) {
+  const t = useT();
+  if (!later.length && !s.next && !(s.kind === 'agent' && s.onError)) return null;
+  return (
+    <div className="space-y-2 border-t pt-2">
+      <WaySelect
+        label={t('routine.stepNext')}
+        value={s.next ?? ''}
+        usual={t('routine.stepNextFollowing')}
+        end={t('routine.stepNextEnd')}
+        later={later}
+        onChange={(next) => onChange({ ...s, next })}
+      />
+      {s.kind === 'agent' && (
+        <WaySelect
+          label={t('routine.stepOnError')}
+          value={s.onError ?? ''}
+          usual={t('routine.stepOnErrorStop')}
+          later={later}
+          onChange={(onError) => onChange({ ...s, onError })}
+        />
+      )}
+      <p className="text-xs text-muted-foreground">{t('routine.stepWaysHint')}</p>
+    </div>
   );
 }
 
@@ -314,9 +434,11 @@ export function StepFields({
  */
 function WhenFields({
   when,
+  later,
   onChange,
 }: {
   when: RoutineStepWhen | null;
+  later: readonly StepForm[];
   onChange(next: RoutineStepWhen | null): void;
 }) {
   const t = useT();
@@ -341,9 +463,22 @@ function WhenFields({
       aria-checked={when?.otherwise === to}
       variant={when?.otherwise === to ? 'default' : 'secondary'}
       className="h-7 rounded-full px-3 text-xs"
-      onClick={() => when && onChange({ ...when, otherwise: to })}
+      onClick={() =>
+        when &&
+        onChange(
+          to === 'goto'
+            ? { ...when, otherwise: to, goto: when.goto || later[0]?.id || '' }
+            : { ...when, otherwise: to, goto: undefined },
+        )
+      }
     >
-      {t(to === 'end' ? 'routine.stepWhenEnd' : 'routine.stepWhenSkip')}
+      {t(
+        to === 'end'
+          ? 'routine.stepWhenEnd'
+          : to === 'goto'
+            ? 'routine.stepWhenGoto'
+            : 'routine.stepWhenSkip',
+      )}
     </Button>
   );
   return (
@@ -385,7 +520,16 @@ function WhenFields({
             <span>{t('routine.stepWhenOtherwise')}</span>
             {otherwise('skip')}
             {otherwise('end')}
+            {(later.length > 0 || when.otherwise === 'goto') && otherwise('goto')}
           </div>
+          {when.otherwise === 'goto' && (
+            <WaySelect
+              label={t('routine.stepWhenGotoStep')}
+              value={when.goto ?? ''}
+              later={later}
+              onChange={(goto) => onChange({ ...when, goto })}
+            />
+          )}
           <p className="text-xs text-muted-foreground">{t('routine.stepWhenHint')}</p>
         </>
       )}
