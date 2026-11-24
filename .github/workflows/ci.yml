@@ -102,3 +102,21 @@ jobs:
           # Name the runner's Chrome, so a missing browser fails the browser tests instead of
           # skipping them without a word.
           LEAFBOT_TEST_BROWSER: /usr/bin/google-chrome
+
+  # The Windows helper that lets a bot use the person's computer runs only on Windows, so its own
+  # tests run on a Windows runner: they start the real script, read the screen's size, take a
+  # picture and check how it answers a request it does not know. They post no input.
+  windows-helper:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run --project shared shared/src/windows.test.ts

@@ -115,8 +115,11 @@ cannot turn right to left without a restart. [docs/i18n.md](docs/i18n.md) covers
   the bot never sees the password. Stored secrets are encrypted with AES-256-GCM.
 - **A computer per bot** (Docker) — an optional sandboxed Linux desktop for each bot with a browser, terminal, file
   manager and LibreOffice, viewable from the app.
-- **Your own Mac** (desktop app, macOS) — let a bot look at your screen and use the mouse and keyboard for work in
-  apps that only run there; it asks on a card before its first step in each piece of work.
+- **Your own computer** (desktop app, macOS and Windows) — let a bot look at your screen and use the mouse and
+  keyboard for work in apps that only run there; it asks on a card before its first step in each piece of work. With
+  the server elsewhere, each person's desktop app can offer their computer from the Leaf Bot icon's menu; that
+  computer then asks on its own screen before a bot first uses it. On Windows the helper is a PowerShell script, so
+  nothing extra is installed.
 - **Sandboxed shell** — Claude's Bash commands run in a bubblewrap sandbox that only sees the bot's own folders, and a
   few catastrophic commands are refused whatever is allowed.
 - **Import and backup** — bring in bots exported from other assistants, and keep everything in one password-sealed

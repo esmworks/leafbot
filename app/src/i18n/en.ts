@@ -1825,9 +1825,13 @@ export const en: Catalog<MessageKey> = {
   'bot.internet': 'Internet access',
   'bot.internetHint':
     'When on, the bot searches the web, reads pages, and uses its own browser and computer. When off, it can do none of these.',
-  'bot.personComputer': 'Can use my Mac',
+  'bot.personComputer': 'Can use my computer',
   'bot.personComputerHint':
     'In work you ask for, it can look at your screen and use the mouse and keyboard. It asks before its first step each time.',
+  'bot.personComputerRemote':
+    'Your computer is not connected. In the Leaf Bot desktop app on your Mac or Windows computer, turn on “Bots may use this computer” in the Leaf Bot icon’s menu.',
+  'bot.personComputerDevice':
+    'Connected: {device}. That computer asks on its own screen before a bot first uses it.',
   'bot.personComputerMissing': 'macOS has not allowed it yet: {what}',
   'bot.personComputerAccessibility': 'Accessibility',
   'bot.personComputerScreen': 'Screen Recording',

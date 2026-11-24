@@ -15,6 +15,20 @@ version is 0.x, a minor release may change the data format or the API; the serve
   way as a labelled line, with the way the latest run took in colour. Set them on each step in the routine's window,
   in the list or the flow, or ask the bot; the approval card lists them, and a new way past an approval step is
   asked about. A failure the routine handles this way does not count toward switching it off.
+- A bot can use your own computer on Windows too, as it could a Mac: look at the screen, click, type and press
+  keys, for work in apps that only run there. Shortcuts follow the system: on Windows the bot uses ctrl, and is told
+  so; a window running as administrator, or a sign-in or User Account Control screen, is out of its reach and it
+  asks you to do that step. The switch in a bot's settings now reads "Can use my computer".
+- A bot can use your computer when the server runs elsewhere, such as on a Linux host: in the desktop app on your
+  Mac or Windows computer, connected to that server, turn on "Bots may use this computer" in the Leaf Bot icon's
+  menu. It is the one way that server reaches your computer, and it is off until you turn it on. The computer is the
+  one of the person signed in in the app, and only their own bots' work in their own conversations uses it. Before a
+  bot first sees or touches the screen, the computer asks on its own screen, naming the bot and the server; that yes
+  lasts until two minutes pass with nothing done, or fifteen minutes at the latest, and "Stop the bot using this
+  computer" in the same menu ends it at once. After a no or a stop it does not ask again for half a minute. The
+  desktop app passes on only looking, clicking, typing, keys, scrolling and dragging, never commands or files;
+  screenshots go to the server as JPEG. On such a server anyone who may change a bot may let it use the computer of
+  the person it works for; on a server that runs on the owner's own computer, still only the owner may.
 - A bot can delete finished tickets (done or won't do) from the board when you ask; open work stays until it is
   set to won't do. Taking the bot's turn back puts the tickets back with their comments.
 - A routine's step can run only when what the step before ended with has (or lacks) a text, passes a JSON filter,

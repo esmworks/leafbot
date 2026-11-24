@@ -199,7 +199,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     routinesEnabled: true,
     onUserComputer: env.LEAFBOT_ON_USER_COMPUTER === '1',
     personComputer:
-      env.LEAFBOT_ON_USER_COMPUTER === '1' && process.platform === 'darwin' && env.LEAFBOT_PERSON_COMPUTER
+      env.LEAFBOT_ON_USER_COMPUTER === '1' &&
+      (process.platform === 'darwin' || process.platform === 'win32') &&
+      env.LEAFBOT_PERSON_COMPUTER
         ? env.LEAFBOT_PERSON_COMPUTER
         : null,
     browserPath: findBrowser(env),

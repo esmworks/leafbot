@@ -4,6 +4,7 @@ import { writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Approval, Bot, Message, PersonComputerState, Routine, Thread } from '@leafbot/shared';
+import { localShot } from '@leafbot/shared/mac';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   helperDriver,
@@ -44,12 +45,15 @@ class FakeHelper implements PersonComputerDriver {
 
 const fakeMac = (helper: FakeHelper) => {
   const scaled: { width: number; height: number }[] = [];
-  const mac = new PersonComputer(helper, {
-    capture: (file) => writeFile(file, PNG),
-    scale: async (_file, size) => {
-      scaled.push(size);
-    },
-  });
+  const mac = new PersonComputer(
+    helper,
+    localShot({
+      capture: (file) => writeFile(file, PNG),
+      scale: async (_file, size) => {
+        scaled.push(size);
+      },
+    }),
+  );
   return { mac, scaled };
 };
 
@@ -105,7 +109,7 @@ describe('kişinin Mac’i: kullanım', () => {
     const helper = new FakeHelper();
     const { mac, scaled } = fakeMac(helper);
     const shot = await mac.screenshot();
-    expect(shot.png).toBe(PNG.toString('base64'));
+    expect(shot).toMatchObject({ data: PNG.toString('base64'), mimeType: 'image/png' });
     expect(scaled).toEqual([shotSize({ width: 1512, height: 982 })]);
     helper.screen = false;
     await expect(mac.screenshot()).rejects.toMatchObject({ code: 'screen' });
@@ -203,7 +207,7 @@ describe('kişinin Mac’i: botlar ve onay', () => {
   const pending = async () => (await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body;
 
   it('yalnız izin verilen bota ve yalnız sahibin işinde açılır', async () => {
-    expect((await t.api<PersonComputerState>('GET', '/api/person-computer')).body).toEqual({
+    expect((await t.api<PersonComputerState>('GET', '/api/person-computer')).body).toMatchObject({
       available: true,
       accessibility: true,
       screen: true,
@@ -236,7 +240,7 @@ describe('kişinin Mac’i: botlar ve onay', () => {
     const card = await waitFor(async () => (await pending())[0]);
     expect(card.toolName).toBe('mcp__leafbot__person_computer_screenshot');
     const asked = (await t.messages(thread.id)).find((m: Message) => m.role === 'approval')!;
-    expect(asked.text).toContain("Mac'ini kullanmak istiyor");
+    expect(asked.text).toContain('bilgisayarını kullanmak istiyor');
     expect(asked.props.noAlways).toBe(true);
     // Nothing was seen or touched before the yes.
     expect(helper.ops()).toEqual([]);

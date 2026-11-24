@@ -98,6 +98,9 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'GET /api/usage': 'admin',
   'GET /api/usage/turns.csv': 'admin',
   'GET /api/usage/plan': 'signedIn',
+  // Each person's own Mac: the server's for the owner, the one their desktop app offers for anyone.
+  'GET /api/person-computer': 'signedIn',
+  'POST /api/person-computer/request': 'signedIn',
   'GET /api/storage': 'admin',
 
   // Everything at once: only the owner holds every person's data.
@@ -106,8 +109,6 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'POST /api/setup-import': 'owner',
   'POST /api/backup': 'owner',
   'GET /api/acp-agents': 'owner',
-  'GET /api/person-computer': 'owner',
-  'POST /api/person-computer/request': 'owner',
   'GET /api/tailscale': 'owner',
   'POST /api/tailscale': 'owner',
   'GET /api/backup/:id': 'owner',
