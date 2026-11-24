@@ -487,7 +487,9 @@
 
 /*
  * With a picture of the person's own behind the window (lib/wallpaper.ts), the chat lets it through
- * and the sidebar frosts it; everything else (cards, pills, dialogs) keeps its own fill.
+ * and the sidebar frosts it; everything else (cards, pills, dialogs) keeps its own fill. A bot's
+ * bubbles let the picture show through as its cards do, so the chat reads as one surface; the
+ * outline is drawn inside, so the bubble keeps its size.
  */
 :root[data-wallpaper] .wallpaper-clear {
   background-color: transparent;
@@ -496,6 +498,10 @@
   background-color: color-mix(in oklab, var(--sidebar) 55%, transparent);
   -webkit-backdrop-filter: blur(24px) saturate(1.2);
   backdrop-filter: blur(24px) saturate(1.2);
+}
+:root[data-wallpaper] .wallpaper-bubble {
+  background-color: color-mix(in oklab, var(--card) 60%, transparent);
+  box-shadow: inset 0 0 0 1px var(--color-border);
 }
 :root[data-wallpaper] .wallpaper-fade {
   background-image: none;

@@ -1199,7 +1199,10 @@ export function AssistantCard({
   const long = !streaming && !whole && typed.length > LONG_MESSAGE;
   const shown = long ? `${typed.slice(0, LONG_MESSAGE)}…` : typed;
   return (
-    <div className="max-w-(--bubble-width) rounded-3xl bg-bubble px-5 py-4" data-reply-start={replyKey}>
+    <div
+      className="max-w-(--bubble-width) wallpaper-bubble rounded-3xl bg-bubble px-5 py-4"
+      data-reply-start={replyKey}
+    >
       <div data-message-body>
         {raw ? (
           <pre className="font-mono text-[13px] leading-relaxed break-words whitespace-pre-wrap">{text}</pre>
@@ -1899,7 +1902,9 @@ function QuestionCard({ a, color }: { a: Approval; color: string }) {
 
   return (
     <div className="max-w-(--bubble-width) space-y-2">
-      {title && <div className="w-fit rounded-3xl bg-bubble px-4 py-2.5 text-[15px]">{title}</div>}
+      {title && (
+        <div className="w-fit wallpaper-bubble rounded-3xl bg-bubble px-4 py-2.5 text-[15px]">{title}</div>
+      )}
       <div
         className={cn(
           'space-y-3 rounded-3xl border px-5 py-4',
