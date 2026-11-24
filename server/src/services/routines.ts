@@ -19,6 +19,7 @@ import {
   wallClock,
   occurrenceKey,
   parseFilter,
+  outsideTrigger,
   passesFilter,
   stepRoutesProblem,
   versionChanges,
@@ -3135,6 +3136,74 @@ export class RoutineService {
     return taken;
   }
 
+  /**
+   * Offers a message written in a conversation of the bot to the runs held at a wait for a chat
+   * reply. A run takes it when the message answers one of the run's own messages, is written in
+   * the run's own conversation (an answer on WhatsApp to what the run sent lands there), or, when
+   * the step names a filter, comes from a chat app into the person's main conversation with the
+   * bot and meets it. Only the words of the run's own person count, never a guest's. True when a
+   * run took it: the message is then the run's, and starts no turn of its own.
+   */
+  async takeChatReply(m: {
+    threadId: string;
+    botId: string;
+    text: string;
+    userId: string | null;
+    /** The chat app it came from, if any. */
+    via: string | null;
+    /** Whose words it is when not the person's own (an answer on WhatsApp). */
+    outside: OutsideTrigger | null;
+    /** The run whose message it answers, if it answers one. */
+    answersRun: string | null;
+    /** Whether it is written in the person's main conversation with the bot. */
+    inMain: boolean;
+    /** Who wrote it, as the chat app names them. */
+    from: string;
+  }): Promise<boolean> {
+    if (!m.userId) return false;
+    const held = await this.ctx.db
+      .select({ step: schema.routineStepRuns, run: schema.routineRuns, routine: schema.routines })
+      .from(schema.routineStepRuns)
+      .innerJoin(schema.routineRuns, eq(schema.routineRuns.id, schema.routineStepRuns.runId))
+      .innerJoin(schema.routines, eq(schema.routines.id, schema.routineRuns.routineId))
+      .where(
+        and(
+          eq(schema.routines.botId, m.botId),
+          eq(schema.routineRuns.status, 'paused'),
+          eq(schema.routineStepRuns.status, 'waiting'),
+          eq(schema.routineStepRuns.kind, 'wait'),
+          isNull(schema.routineStepRuns.eventId),
+        ),
+      )
+      .orderBy(asc(schema.routineStepRuns.startedAt));
+    const fields = JSON.stringify({ via: m.via ?? 'app', from: m.from, text: m.text });
+    for (const { step, run, routine } of held) {
+      const def = (snapshotSteps(run.stepsSnapshot) ?? [])[step.position - 1];
+      if (def?.kind !== 'wait' || def.on !== 'chat' || step.filter === null) continue;
+      const filter = step.filter.trim();
+      const meant =
+        m.answersRun === run.id || run.threadId === m.threadId || (!!filter && !!m.via && m.inMain);
+      if (!meant) continue;
+      if (filter && !passesFilter(filter, fields)) continue;
+      if ((await this.personOf(toRoutine(routine))) !== m.userId) continue;
+      const [took] = await this.ctx.db
+        .update(schema.routineStepRuns)
+        .set({ eventId: `chat:${m.outside ?? 'own'}:${newId()}`, output: cutAt(m.text, POST_MAX) })
+        .where(
+          and(
+            eq(schema.routineStepRuns.id, step.id),
+            eq(schema.routineStepRuns.status, 'waiting'),
+            isNull(schema.routineStepRuns.eventId),
+          ),
+        )
+        .returning({ id: schema.routineStepRuns.id });
+      if (!took) continue;
+      await this.settleSteps();
+      return true;
+    }
+    return false;
+  }
+
   /** Whether a run of the routine already took this event at a wait step. */
   private async eventTaken(routineId: string, eventId: string): Promise<boolean> {
     const [seen] = await this.ctx.db
@@ -3290,8 +3359,14 @@ export class RoutineService {
     const step = (snapshotSteps(r.run.stepsSnapshot) ?? [])[r.step.position - 1];
     const on = step?.kind === 'wait' ? step.on : 'time';
     if (r.step.eventId) {
-      // What came in is outside text: the run's later turns read it as such.
-      const trigger = r.step.output && on !== 'time' ? on : undefined;
+      // What came in is outside text: the run's later turns read it as such. A chat reply is
+      // only when someone else wrote it; the person's own words are not.
+      const trigger =
+        on === 'chat'
+          ? outsideTrigger(r.step.eventId.split(':')[1])
+          : r.step.output && on !== 'time'
+            ? on
+            : undefined;
       return this.goOn(r, t, trigger ? { trigger } : {});
     }
     if (on === 'time') return this.goOn(r, t, {});

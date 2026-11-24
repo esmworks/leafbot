@@ -1744,6 +1744,7 @@ export const tr = {
   'routine.waitOn.time': 'Süre',
   'routine.waitOn.webhook': 'Webhook çağrısı',
   'routine.waitOn.email': 'E-posta',
+  'routine.waitOn.chat': 'Sohbet cevabı',
   'routine.waitMinutes': 'Kaç dakika',
   'routine.waitFilter': 'Hangi olay',
   'routine.waitFilterHook': 'Her satır bir koşul, ör. action=closed ve issue.number={{issue}}',
@@ -1752,6 +1753,9 @@ export const tr = {
     'Rutinin webhook adresi açık olmalı. {{ad}}, önceki bir adımın kaydettiği değerle doldurulur. Webhook bekleyen bir rutin, yeni çalışmayı yalnızca tetikleme filtresine uyan çağrıyla başlatır.',
   'routine.waitMailHint':
     'Botun e-posta adresine gelen postayı bekler. {{ad}}, önceki bir adımın kaydettiği değerle doldurulur.',
+  'routine.waitFilterChat': 'İsteğe bağlı, her satır bir koşul, ör. via=telegram ya da text~=evet',
+  'routine.waitChatHint':
+    'WhatsApp, Telegram ya da Slack cevabını bekler: çalışmanın WhatsApp’tan gönderdiğine gelen cevap, çalışmanın mesajına verdiğin yanıt ya da çalışmanın kendi sohbetine yazılan bir mesaj. Filtre yazılırsa botla sohbetine bir sohbet uygulamasından gelen ve ona uyan mesaj da (via, from, text). Yalnız senin sohbetlerin sayılır.',
   'routine.waitUntil': '{at} tarihine kadar',
   'routine.endWait': 'Beklemeyi bitir',
   'routine.stepQuestionPlaceholder': 'Size ne sorulsun? Örneğin: Bu e-posta gönderilsin mi?',

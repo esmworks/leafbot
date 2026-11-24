@@ -7,6 +7,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A routine's wait step can wait for a chat reply: it goes on with the person's answer in the run's conversation, a
+  reply to the run's message from a chat app, a WhatsApp reply that comes back to the run, or, when the step names a
+  filter such as `text~=onay`, a Telegram, Slack or WhatsApp message in the main conversation that meets it. Only the
+  routine's own person counts; the answer goes on to the next step and starts no turn of its own.
 - A routine's bot step can be done by another bot: pick it under "Done by" on the step, in the list or on the flow, or
   a bot names it with `by_bot`. That bot does the step with its own settings, apps and account, in its conversation
   with the routine's bot, for the routine's person; its answer shows in the run's conversation and goes on to the steps

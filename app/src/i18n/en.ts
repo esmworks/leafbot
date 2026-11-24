@@ -1779,6 +1779,7 @@ export const en: Catalog<MessageKey> = {
   'routine.waitOn.time': 'Time',
   'routine.waitOn.webhook': 'Webhook call',
   'routine.waitOn.email': 'Email',
+  'routine.waitOn.chat': 'Chat reply',
   'routine.waitMinutes': 'Minutes',
   'routine.waitFilter': 'Which event',
   'routine.waitFilterHook': 'One condition per line, e.g. action=closed and issue.number={{issue}}',
@@ -1787,6 +1788,9 @@ export const en: Catalog<MessageKey> = {
     "The routine's webhook address must be on. {{name}} is filled in with a value an earlier step saved. A routine that waits for its webhook starts a new run only on a call that passes its trigger filter.",
   'routine.waitMailHint':
     "Waits for mail to the bot's email address. {{name}} is filled in with a value an earlier step saved.",
+  'routine.waitFilterChat': 'Optional, one condition per line, e.g. via=telegram or text~=yes',
+  'routine.waitChatHint':
+    "Waits for a WhatsApp, Telegram or Slack reply: an answer on WhatsApp to what the run sent, your reply to the run's message, or a message in the run's own conversation. With a filter, also a message from a chat app in your conversation with the bot that meets it (via, from, text). Only your own chats count.",
   'routine.waitUntil': 'Until {at}',
   'routine.endWait': 'End the wait',
   'routine.stepQuestionPlaceholder': 'What should you be asked? For example: Send this email?',

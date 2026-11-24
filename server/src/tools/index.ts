@@ -111,7 +111,7 @@ const StepInput = z.object({
   timeout_days: z.number().int().optional(),
   text: z.string().max(4000).optional(),
   with_before: z.boolean().optional(),
-  on: z.enum(['time', 'webhook', 'email']).optional(),
+  on: z.enum(['time', 'webhook', 'email', 'chat']).optional(),
   minutes: z.number().int().optional(),
   filter: z.string().max(2000).optional(),
   /** A fetch step's https address. */

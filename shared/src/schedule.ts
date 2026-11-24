@@ -330,7 +330,7 @@ export const RoutineStep = z.discriminatedUnion('kind', [
     kind: z.literal('wait'),
     when,
     next,
-    on: z.enum(['time', 'webhook', 'email']),
+    on: z.enum(['time', 'webhook', 'email', 'chat']),
     minutes: z.number().int().min(1).max(ROUTINE_WAIT_MAX_MINUTES).default(60),
     filter: z.string().max(2000).default(''),
     timeoutDays: z.number().int().min(1).max(ROUTINE_APPROVAL_MAX_DAYS).default(7),
