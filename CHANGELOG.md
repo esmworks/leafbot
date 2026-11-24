@@ -40,7 +40,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
   go out, or data about to leave, while its card waits for you. When something looks wrong (an address the request
   never named, private data going out, a step that does more than was asked, text the bot read steering it) it adds
   one line to the card. It never decides, never holds the bot up and adds no cards; a card it finds nothing on stays
-  as it was. Off by default; set it in the bot's settings. Its cost shows on the usage page.
+  as it was. Searches, page reads and looks at the browser are left alone. The step, with the mail's text, goes to the
+  reviewer's provider too. The line shows in the app and on the phone; a chat app shows it only if it came before the
+  card was posted there. Off by default; set it in the bot's settings. Its cost shows on the usage page.
 - Each routine shows its health: how its runs of the last 30 days ended (done, nothing to report, failed), what they
   cost and how long they took, worked out from the runs with no AI. It points out a routine that keeps failing, that
   switched itself off, that waits for a sign-in, a step that keeps failing, a wait that keeps running out, runs that

@@ -368,7 +368,7 @@ export const tr = {
   'bot.memory': 'Hafıza',
   'bot.reviewer': 'Denetçi',
   'bot.reviewerHint':
-    'Bir mail gitmek ya da veri dışarı çıkmak üzereyken, kart beklerken başka bir model ona bakar; bir şey ters görünürse karta bir satır ekler. Hiçbir zaman karar vermez, botu bekletmez. Botun kendisinden farklı aileden bir model daha çok şey yakalar. Her bakış kısa bir mesaj kadar ücretlenir.',
+    'Bir mail gitmek ya da bir adım veriyi dışarı göndermek üzereyken, kart beklerken başka bir model ona bakar; bir şey ters görünürse karta bir satır ekler. Hiçbir zaman karar vermez, botu bekletmez. Adım, mailin metniyle birlikte denetçinin sağlayıcısına da gider. Botun kendisinden farklı aileden bir model daha çok şey yakalar. Her bakış kısa bir mesaj kadar ücretlenir. Satır uygulamada ve telefonda görünür; sohbet uygulamaları (Telegram, Slack…) yalnızca kart oraya gönderilmeden önce geldiyse gösterir.',
   'bot.reviewerOff': 'Yok',
   'bot.reviewerClaude': 'Claude (küçük model)',
   'bot.memoryHint':
@@ -3124,6 +3124,8 @@ export const tr = {
   'memory.mapNoMeaning':
     'Notları yalnızca aynı site ya da aynı konuşma üzerinden değil, anlamca yakınlığa göre de bağlamak için anlamla aramayı aç (Ayarlar → Yapay zekâ servisleri).',
   'memory.mapTruncated': 'Haritanın bağladığından daha çok not var: en yeniler bağsız kaldı.',
+  'memory.mapCapped':
+    '{total} notun {shown} tanesi gösteriliyor: önce bağlı olanlar, sonra en çok kullanılanlar. Daraltmak için ara.',
   'memory.pinHint': 'Sabitlenen notlar her konuşmada bota mutlaka verilir.',
   'memory.rooms': 'Kanalların ve odaların notları',
   'memory.roomsHint': 'Bir kanalda ya da odada tutulan notlar yalnızca orada okunur.',

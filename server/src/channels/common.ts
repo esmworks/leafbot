@@ -81,8 +81,13 @@ export function cardView(
       : '';
     // A step that needs two people's yes says so: the first says it here, the second elsewhere.
     const two = a.needsSecond ? `\n_${t('channel.needsSecond')}_` : '';
+    // The reviewer's concern, when it came before the card was posted here.
+    const review =
+      typeof props.reviewNote === 'string' && props.reviewNote
+        ? `\n⚠️ ${t('channel.reviewNote', { note: masked(props.reviewNote) })}`
+        : '';
     return {
-      text: `🔐 ${a.summary}${copy}${shown}${why}${two}${reason}`,
+      text: `🔐 ${a.summary}${copy}${review}${shown}${why}${two}${reason}`,
       buttons: [
         { label: t('channel.allow'), data: `a:${a.id}:y` },
         ...(always ? [{ label: t('channel.always'), data: `a:${a.id}:r` }] : []),

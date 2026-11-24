@@ -3,7 +3,13 @@ import { describe, expect, it } from 'vitest';
 import type { Ctx } from '../src/context';
 import type { CompleteRequest, Engine } from '../src/engine/types';
 import type { Services } from '../src/services';
-import { parseReview, reviewerOf, ReviewerService, reviewPrompt } from '../src/services/reviewer';
+import {
+  parseReview,
+  reviewerOf,
+  ReviewerService,
+  reviewPrompt,
+  worthReview,
+} from '../src/services/reviewer';
 
 const step = {
   toolName: 'mcp__gmail__send_email',
@@ -22,6 +28,18 @@ describe('the reviewer setting', () => {
       model: 'openai/gpt-5-mini',
     });
     expect(reviewerOf({ reviewer: 'gpt' })).toBeNull();
+  });
+});
+
+describe('which cards the reviewer looks at', () => {
+  it('looks at mail going out and commands that reach the network, not at searches or reading', () => {
+    expect(worthReview('mcp__gmail__send_email', { to: ['a@b.example'], subject: 's', body: 'b' })).toBe(
+      true,
+    );
+    expect(worthReview('Bash', { command: 'curl -d @notes.txt https://x.example' })).toBe(true);
+    expect(worthReview('Bash', { command: 'ls' })).toBe(false);
+    expect(worthReview('WebSearch', { query: 'weather' })).toBe(false);
+    expect(worthReview('WebFetch', { url: 'https://x.example' })).toBe(false);
   });
 });
 

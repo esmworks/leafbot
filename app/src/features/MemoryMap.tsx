@@ -8,6 +8,8 @@ import { placeNotes } from '@/lib/memoryMap';
 import { cn } from '@/lib/utils';
 import { NoteRow } from './MemoryNote';
 
+/** The most notes drawn at once; a search narrows the rest down. */
+const MAP_NOTES = 300;
 const WIDTH = 800;
 const HEIGHT = 520;
 /** The person's own notes, drawn in the brand's neutral colour; a place's in another. */
@@ -28,7 +30,7 @@ const DASH: Record<MemoryGraph['edges'][number]['kind'], string | undefined> = {
  * the map, to fix or forget it as in the list.
  */
 export function MemoryMap({
-  notes,
+  notes: all,
   bots,
   rooms,
   noteProps,
@@ -57,18 +59,34 @@ export function MemoryMap({
       : m.scope === 'room'
         ? placeLabel(m.place, t, rooms)
         : (botOf.get(m.botId ?? '')?.name ?? t('common.bot'));
+  // A map of thousands of dots reads as nothing and takes long to lay out: the notes with links
+  // come first, then the ones bots look up most.
+  const notes = useMemo(() => {
+    if (all.length <= MAP_NOTES) return all;
+    const linked = new Set((graph?.edges ?? []).flatMap((e) => [e.a, e.b]));
+    return [...all]
+      .sort((x, y) => Number(linked.has(y.id)) - Number(linked.has(x.id)) || y.useCount - x.useCount)
+      .slice(0, MAP_NOTES);
+  }, [all, graph]);
   const ids = useMemo(() => new Set(notes.map((m) => m.id)), [notes]);
   // Only links between notes on the map: a search leaves some out.
   const edges = useMemo(() => (graph?.edges ?? []).filter((e) => ids.has(e.a) && ids.has(e.b)), [graph, ids]);
-  const placed = useMemo(
-    () =>
-      placeNotes(
-        notes.map((m) => ({ id: m.id, group: groupOf(m) })),
-        edges.map((e) => ({ a: e.a, b: e.b, weight: e.kind === 'similar' ? (e.score ?? 0.6) : 0.5 })),
-        WIDTH,
-        HEIGHT,
-      ),
+  // Laid out again only when the dots or links change, not on every render of the page around it
+  // (the memory page hands a new array on each render, so the key, not the array, decides).
+  const shape = useMemo(
+    () => ({
+      key: `${notes.map((m) => `${m.id}:${groupOf(m)}`).join(',')}|${edges.map((e) => `${e.a}-${e.b}`).join(',')}`,
+      nodes: notes.map((m) => ({ id: m.id, group: groupOf(m) })),
+      links: edges.map((e) => ({ a: e.a, b: e.b, weight: e.kind === 'similar' ? (e.score ?? 0.6) : 0.5 })),
+    }),
     [notes, edges],
+  );
+  const layoutKey = shape.key;
+  const placed = useMemo(
+    () => placeNotes(shape.nodes, shape.links, WIDTH, HEIGHT),
+    // The key stands for the nodes and links.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [layoutKey],
   );
   const shown = notes.find((m) => m.id === picked) ?? null;
   const focus = hover ?? picked;
@@ -180,6 +198,11 @@ export function MemoryMap({
         <p className="px-1 text-xs text-muted-foreground">{t('memory.mapNoMeaning')}</p>
       )}
       {graph?.truncated && <p className="px-1 text-xs text-muted-foreground">{t('memory.mapTruncated')}</p>}
+      {all.length > notes.length && (
+        <p className="px-1 text-xs text-muted-foreground">
+          {t('memory.mapCapped', { shown: notes.length, total: all.length })}
+        </p>
+      )}
       {shown ? (
         <div className="rounded-2xl border">
           <NoteRow m={shown} hint={ownerOf(shown)} {...noteProps} />

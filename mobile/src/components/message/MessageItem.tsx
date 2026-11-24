@@ -147,6 +147,7 @@ function MessageBody({
           bots={bots}
           heldBy={typeof m.props.heldBy === 'string' ? m.props.heldBy : undefined}
           reviewReason={typeof m.props.reviewReason === 'string' ? m.props.reviewReason : undefined}
+          reviewNote={typeof m.props.reviewNote === 'string' ? m.props.reviewNote : undefined}
           resembles={typeof m.props.resembles === 'string' ? m.props.resembles : undefined}
           askRule={typeof m.props.askRule === 'string' ? m.props.askRule : undefined}
           outside={outsideTrigger(m.props.outside)}

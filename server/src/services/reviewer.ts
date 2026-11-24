@@ -1,6 +1,7 @@
-import { LANGUAGE_NAMES, type Bot, type Locale } from '@leafbot/shared';
+import { emailPreview, LANGUAGE_NAMES, type Bot, type Locale } from '@leafbot/shared';
 import type { Ctx } from '../context';
-import type { Engine } from '../engine/types';
+import type { AppTool, Engine } from '../engine/types';
+import { reachesOut } from '../runtime/outside';
 import { truncate } from '../util';
 import type { Services } from './index';
 
@@ -24,6 +25,34 @@ export function reviewerOf(bot: Pick<Bot, 'reviewer'>): { engine: 'claude' | 'pi
   if (!r) return null;
   if (r === 'claude') return { engine: 'claude', model: 'haiku' };
   return /^[^/\s]+\/\S+$/.test(r) ? { engine: 'pi', model: r } : null;
+}
+
+/** Browser steps that only look at the page the bot is on: nothing of the person's goes out. */
+const BROWSER_LOOKS = new Set([
+  'browser_snapshot',
+  'browser_screenshot',
+  'browser_scroll',
+  'browser_wait',
+  'browser_network',
+  'browser_console',
+  'browser_tabs',
+  'browser_history',
+  'browser_hover',
+]);
+
+/**
+ * Whether a step waiting on a card is one the reviewer looks at: a mail going out (not a draft),
+ * or a step that carries something out (a command reaching the network, a call to another
+ * service, typing into a page). A search, reading a page and looking at the browser send nothing
+ * of the person's, so they are left alone and cost nothing.
+ */
+export function worthReview(toolName: string, input: Record<string, unknown>, tool?: AppTool): boolean {
+  const mail = emailPreview(toolName, input);
+  if (mail) return mail.kind !== 'draft';
+  if (toolName === 'WebSearch' || toolName === 'WebFetch') return false;
+  if (tool?.readOnly) return false;
+  if (BROWSER_LOOKS.has(toolName.replace(/^mcp__leafbot__/, ''))) return false;
+  return reachesOut(toolName, input, tool);
 }
 
 export interface ReviewStep {
