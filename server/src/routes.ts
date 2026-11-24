@@ -2296,6 +2296,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     s.routines.update(IdParams.parse(req.params).id, RoutineUpdate.parse(req.body), me(req).userId),
   );
   app.get('/api/routines/health', async (req) => s.routineHealth.list(me(req)));
+  app.get('/api/unused', async (req) => s.unused.list(me(req)));
   app.post('/api/routines/:id/health/dismiss', async (req) =>
     s.routineHealth.dismiss(
       me(req),
@@ -2408,6 +2409,9 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     return s.routines.endWait(p.id, p.runId);
   });
   app.get('/api/routines/:id/revisions', async (req) => s.routines.revisions(IdParams.parse(req.params).id));
+  app.get('/api/routines/:id/versions', async (req) =>
+    s.routines.versionStats(IdParams.parse(req.params).id),
+  );
   // Trying a routine without doing anything; each person sees only the rehearsals they asked for.
   app.post('/api/routines/:id/rehearse', async (req) =>
     s.rehearsals.start(IdParams.parse(req.params).id, me(req).userId, RehearsalStart.parse(req.body ?? {})),

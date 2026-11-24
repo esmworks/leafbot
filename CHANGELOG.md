@@ -7,6 +7,19 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- The phone app shows a routine's health too: Settings → Routines names the routines that want a look, and a
+  routine's page has the same numbers and findings as on the web, with Apply (and undo), Ask the bot (the message waits
+  in the bot's chat for you to send) and Hide.
+- Settings → Usage lists what sits unused, worked out with no AI: skills no bot has read for 60 days, bots with no
+  turn for 60 days, and connections no bot could use for 60 days (open to none, or signed out). A bot with a routine switched on, a
+  chat app it answers in or bots it looks after is left out, and so is a connection a routine checks or waits on. Each
+  can be cleared away from there: a skill or connection is removed after you say yes, as that cannot be undone, and a
+  bot is archived with a way to take it back. Only what you may change is listed, and nothing goes by itself.
+- A routine's history keeps each version whole: its instruction, steps, model and condition, not the instruction
+  alone, and a new version only when one of those really changed. Each version says what changed and how its runs
+  went (done, nothing to report, failed, what they cost, how long they took), marked when it has too few runs to go
+  by; bringing a version back puts all of it in the form. Runs from before versions were kept are counted apart, and
+  versions kept before this with the instruction alone bring back only that.
 - A routine's ways can go back to an earlier step, so a run can read a page every half hour until what it waits for
   is there, or have a step write a draft again when the step checking it does not like it. What the step the way
   leaves hands on reaches the step it goes back to. A run goes back 20 times at most; one that never comes out of

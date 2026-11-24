@@ -2822,8 +2822,6 @@ export const id: Partial<Catalog<MessageKey>> = {
   'notify.soundKind.question': 'Pertanyaan',
   'notify.soundKind.approval': 'Izin',
   'notify.soundKind.error': 'Galat',
-  'routine.history': 'Riwayat instruksi',
-  'routine.historyNone': 'Instruksi belum berubah.',
   'routine.historyNow': 'saat ini',
   'routine.historySame': 'Instruksi di formulir sama dengan versi ini.',
   'routine.historyDiff': 'Merah: ada di versi ini tetapi tidak sekarang. Hijau: ditambahkan sejak itu.',

@@ -101,6 +101,11 @@ export const useMemoryChanges = () => {
   const api = useApi();
   return useQuery({ queryKey: ['memory', useOrigin(), 'changes'], queryFn: api.memoryChanges });
 };
+/** Each routine's health over its last 30 days, for routines of bots the person may change. */
+export const useRoutineHealth = () => {
+  const api = useApi();
+  return useQuery({ queryKey: ['routine-health', useOrigin()], queryFn: api.routineHealth });
+};
 export const useRoutines = () => {
   const api = useApi();
   return useQuery({ queryKey: ['routines', useOrigin()], queryFn: api.routines });

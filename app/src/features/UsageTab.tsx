@@ -23,6 +23,7 @@ import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { Chip } from './onboarding/Chip';
 import { Card, Row, useSaveSettings } from './SettingsPage';
+import { UnusedCard } from './UnusedCard';
 
 /** What the bots cost over a period: a total, the cost per day and the cost per bot. */
 export function UsageTab() {
@@ -93,6 +94,7 @@ export function UsageTab() {
       <BackgroundNet calls={data?.background} />
       <Parallel parallel={data?.parallel} />
       <Storage />
+      <UnusedCard />
       <Button variant="secondary" size="sm" className="rounded-full" asChild>
         <a href={`/api/usage/turns.csv?days=${days}`} download>
           <Download /> {t('usage.downloadCsv')}

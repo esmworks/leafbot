@@ -353,6 +353,7 @@ function refresh(origin: string, e: RefreshScope, inv: (...key: unknown[]) => vo
       break;
     case 'routines':
       inv('routines', origin);
+      inv('routine-health', origin);
       // A routine's instruction may have changed, by a bot or on another device.
       inv('routine-rehearsals', origin);
       inv('routine-replayable', origin);

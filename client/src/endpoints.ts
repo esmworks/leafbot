@@ -74,6 +74,8 @@ import type {
   SkillCreate,
   SkillUpdate,
   RoutineRevision,
+  RoutineVersionReport,
+  UnusedReport,
   RoutineHealth,
   RoutineHealthFindingId,
   Rehearsal,
@@ -624,6 +626,8 @@ export function endpoints(send: Transport, base = '') {
     endRoutineWait: (id: string, runId: string) =>
       http.post<RoutineRun>(`/api/routines/${id}/runs/${runId}/end-wait`),
     routineRevisions: (id: string) => http.get<RoutineRevision[]>(`/api/routines/${id}/revisions`),
+    routineVersions: (id: string) => http.get<RoutineVersionReport>(`/api/routines/${id}/versions`),
+    unused: () => http.get<UnusedReport>('/api/unused'),
     routineHealth: () => http.get<RoutineHealth[]>('/api/routines/health'),
     dismissRoutineHealth: (id: string, finding: RoutineHealthFindingId) =>
       http.post<RoutineHealth>(`/api/routines/${id}/health/dismiss`, { finding }),

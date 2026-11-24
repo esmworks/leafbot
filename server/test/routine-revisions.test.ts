@@ -1,4 +1,5 @@
-import type { Routine, RoutineRevision } from '@leafbot/shared';
+import type { Routine, RoutineRevision, RoutineVersionReport } from '@leafbot/shared';
+import { isNotNull } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
 import { testServer, type TestServer } from './helpers';
@@ -54,6 +55,113 @@ describe('rutin talimat geçmişi', () => {
     later();
     await t.api('PATCH', `/api/routines/${r.id}`, { prompt: 'Günlük raporu yaz' });
     expect(await history(r.id)).toEqual(['Günlük raporu yaz', 'Haftalık raporu yaz']);
+  });
+
+  it('aynı haliyle kaydetmek ya da yalnız kapatmak sürüm yazmaz; adım, model ya da koşul değişikliği yazar', async () => {
+    const r = await make();
+    later();
+    // The form sends every field on save, also those it did not change.
+    await t.api('PATCH', `/api/routines/${r.id}`, {
+      prompt: r.prompt,
+      steps: [],
+      model: '',
+      condition: null,
+      schedule: r.schedule,
+    });
+    await t.api('PATCH', `/api/routines/${r.id}`, { enabled: false });
+    expect(await history(r.id)).toHaveLength(1);
+    later();
+    const step = { id: 'a', kind: 'approval', question: 'Gönderilsin mi?', timeoutDays: 7 };
+    await t.api('PATCH', `/api/routines/${r.id}`, { steps: [step] });
+    later();
+    await t.api('PATCH', `/api/routines/${r.id}`, { model: 'claude-haiku-5-5' });
+    const list = (await t.api<RoutineRevision[]>('GET', `/api/routines/${r.id}/revisions`)).body;
+    expect(list).toHaveLength(3);
+    expect(list[0]).toMatchObject({ full: true, model: 'claude-haiku-5-5', steps: [step] });
+    expect(list[1]).toMatchObject({ full: true, model: '', steps: [step] });
+    expect(list[2]).toMatchObject({ full: true, steps: [], condition: null });
+  });
+
+  it('botun yazdığı adımı formdaki boş alanlarıyla aynen kaydetmek sürüm yazmaz', async () => {
+    const r = await make();
+    later();
+    const bare = { id: 'a', kind: 'agent', prompt: 'Özetle', model: '' };
+    const saved = (await t.api<Routine>('PATCH', `/api/routines/${r.id}`, { steps: [bare] })).body;
+    expect(await history(r.id)).toHaveLength(2);
+    later();
+    // As the form sends it back: each step with its empty fields written out.
+    const steps = (saved.steps ?? []).map((x) => ({ ...x, when: null, next: '', onError: '' }));
+    const res = await t.api('PATCH', `/api/routines/${r.id}`, { prompt: saved.prompt, steps, model: '' });
+    expect(res.status).toBe(200);
+    expect(await history(r.id)).toHaveLength(2);
+  });
+
+  const runTimes = async (id: string, times: number) => {
+    for (let i = 0; i < times; i++) {
+      t.now.value = new Date(t.now.value.getTime() + 1000);
+      await t.api('POST', `/api/routines/${id}/run`);
+      await t.services.turns.idle();
+    }
+  };
+  const versions = async (id: string) =>
+    (await t.api<RoutineVersionReport>('GET', `/api/routines/${id}/versions`)).body;
+
+  it('her çalışma başladığı sürümün altında sayılır', async () => {
+    const bot = await t.bot();
+    const r = (
+      await t.api<Routine>('POST', '/api/routines', {
+        botId: bot.id,
+        name: 'Kontrol',
+        prompt: 'tamam',
+        schedule: { type: 'interval', minutes: 30 },
+        inMain: false,
+      })
+    ).body;
+    await runTimes(r.id, 2);
+    later();
+    await t.api('PATCH', `/api/routines/${r.id}`, { prompt: '[hata]' });
+    await runTimes(r.id, 1);
+    const [now, before] = (await t.api<RoutineRevision[]>('GET', `/api/routines/${r.id}/revisions`)).body;
+    // The fake engine's replies cost nothing; each run's turn is priced here instead.
+    await t.db.db.update(schema.turns).set({ costUsd: 0.01 }).where(isNotNull(schema.turns.routineRunId));
+    const v = await versions(r.id);
+    expect(v.versions[before!.id]).toMatchObject({ total: 2, ok: 2, failed: 0, unpricedRuns: 0 });
+    expect(v.versions[before!.id]!.costUsd).toBeCloseTo(0.02);
+    expect(v.versions[now!.id]).toMatchObject({ total: 1, ok: 0, failed: 1 });
+    expect(v.versions[now!.id]!.costUsd).toBeCloseTo(0.01);
+    expect(v.untracked).toBeNull();
+  });
+
+  it('sürümün yalnız talimatı tutulmuş rutin ilk çalışmasında tam sürüm alır; eski çalışmalar ayrı sayılır', async () => {
+    const bot = await t.bot();
+    const r = (
+      await t.api<Routine>('POST', '/api/routines', {
+        botId: bot.id,
+        name: 'Kontrol',
+        prompt: 'tamam',
+        schedule: { type: 'interval', minutes: 30 },
+        inMain: false,
+      })
+    ).body;
+    await runTimes(r.id, 1);
+    // As kept before this: the instruction alone, and runs with no version on them.
+    await t.db.db.update(schema.routineRevisions).set({ full: false, steps: null, model: null });
+    await t.db.db.update(schema.routineRuns).set({ revisionId: null });
+    later();
+    await runTimes(r.id, 1);
+    const list = (await t.api<RoutineRevision[]>('GET', `/api/routines/${r.id}/revisions`)).body;
+    expect(list.map((x) => x.full)).toEqual([true, false]);
+    expect(list[1]).not.toHaveProperty('steps');
+    const v = await versions(r.id);
+    expect(v.untracked).toMatchObject({ total: 1, ok: 1 });
+    expect(v.versions[list[0]!.id]).toMatchObject({ total: 1, ok: 1 });
+  });
+
+  it('başkasının botunun rutin sürümlerini göstermez', async () => {
+    const r = await make();
+    const ayse = await t.person('ayse');
+    const res = await ayse.api('GET', `/api/routines/${r.id}/versions`);
+    expect([403, 404]).toContain(res.status);
   });
 
   it('rutin silinince geçmişi de gider', async () => {

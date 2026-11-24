@@ -287,6 +287,7 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'POST /api/routines': 'self',
   // Each routine's health is read only for bots the person may change, inside the service.
   'GET /api/routines/health': 'self',
+  'GET /api/unused': 'self',
   'POST /api/routines/:id/health/dismiss': edit('routine'),
   'PATCH /api/routines/:id': edit('routine'),
   'DELETE /api/routines/:id': edit('routine'),
@@ -299,6 +300,7 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'POST /api/routines/:id/runs/:runId/retry': edit('routine'),
   'POST /api/routines/:id/runs/:runId/end-wait': edit('routine'),
   'GET /api/routines/:id/revisions': edit('routine'),
+  'GET /api/routines/:id/versions': edit('routine'),
   // The service keeps each person to the rehearsals they asked for.
   'POST /api/routines/:id/rehearse': edit('routine'),
   'GET /api/routines/:id/rehearsals': edit('routine'),

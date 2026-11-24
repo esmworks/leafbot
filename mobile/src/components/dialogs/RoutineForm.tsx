@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AreaBox, FormField, SaveButton, TextBox } from '@/components/dialogs/common';
 import { Rehearsal } from '@/components/dialogs/Rehearsal';
+import { RoutineHealthSection } from '@/components/dialogs/RoutineHealthSection';
 import { isLoopback, runCommand, TIME, tomorrow } from '@/components/dialogs/model';
 import { confirm, toast, toastError } from '@/components/overlay';
 import { Empty, Loading, PillButton, Page, Row, Section, SwitchRow, back } from '@/components/page';
@@ -578,6 +579,7 @@ function RoutinePage({ routine, initialBotId }: { routine?: Routine; initialBotI
         </Section>
       ) : null}
 
+      {routine ? <RoutineHealthSection routine={routine} locked={dirty} /> : null}
       {routine ? <RecentRuns routineId={routine.id} botId={routine.botId} /> : null}
 
       {routine ? (

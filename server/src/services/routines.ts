@@ -21,11 +21,15 @@ import {
   parseFilter,
   passesFilter,
   stepRoutesProblem,
+  versionChanges,
   type Routine,
   type RoutineCheck,
   type RoutineCondition,
   type RoutineCreate,
   type RoutineRevision,
+  type RoutineVersion,
+  type RoutineVersionReport,
+  type RoutineVersionStats,
   type RoutineRun,
   type RoutineStep,
   type RoutineStepWhen,
@@ -333,7 +337,7 @@ export class RoutineService {
         .returning();
       await tx
         .insert(schema.routineRevisions)
-        .values({ id: newId(), routineId: made!.id, prompt: made!.prompt, createdAt: now });
+        .values({ id: newId(), routineId: made!.id, ...versionRow(toRoutine(made!)), createdAt: now });
       return made;
     });
     this.ctx.bus.refresh({ scope: 'routines' });
@@ -385,7 +389,7 @@ export class RoutineService {
     const tableId = patch.tableTrigger !== undefined ? patch.tableTrigger : current.tableTrigger;
     if (tableId && (patch.tableTrigger !== undefined || patch.tableFilter !== undefined))
       await this.checkTable(current.botId, tableId, patch.tableFilter ?? current.tableFilter ?? '');
-    // A changed instruction goes into the history in the same write: a failed save leaves none.
+    // A changed version goes into the history in the same write: a failed save leaves none.
     const row = await this.ctx.db.transaction(async (tx) => {
       const [saved] = await tx
         .update(schema.routines)
@@ -404,8 +408,11 @@ export class RoutineService {
         })
         .where(eq(schema.routines.id, id))
         .returning();
-      if (patch.prompt !== undefined && patch.prompt !== current.prompt)
-        await this.keepRevision(tx, current, patch.prompt);
+      // Compared as saved, not as sent: the form sends every field, and only a real change of what
+      // the routine is told, its steps, model or condition is a new version.
+      const after = toRoutine(saved!);
+      if (versionChanges(versionOf(after), versionOf(current)).length)
+        await this.keepRevision(tx, current, after);
       return saved;
     });
     // Pausing a routine also ends a run of it that waits on the person; one at work goes on.
@@ -421,11 +428,11 @@ export class RoutineService {
   }
 
   /**
-   * Writes a changed instruction into the routine's history. A routine made before the history
-   * was kept gets its old instruction written first, dated when the routine was made, so the
-   * first change can still be undone.
+   * Writes a changed version into the routine's history. A routine made before the history was
+   * kept gets its old version written first, dated when the routine was made, so the first change
+   * can still be undone.
    */
-  private async keepRevision(db: Tx, current: Routine, prompt: string) {
+  private async keepRevision(db: Tx, current: Routine, after: Routine) {
     const [first] = await db
       .select({ id: schema.routineRevisions.id })
       .from(schema.routineRevisions)
@@ -439,17 +446,37 @@ export class RoutineService {
             {
               id: newId(),
               routineId: current.id,
-              prompt: current.prompt,
+              ...versionRow(current),
               // Never after the change itself, whatever the clocks say.
               createdAt: new Date(Math.min(Date.parse(current.createdAt), now.getTime() - 1)),
             },
           ]),
-      { id: newId(), routineId: current.id, prompt, createdAt: now },
+      { id: newId(), routineId: current.id, ...versionRow(after), createdAt: now },
     ];
     await db.insert(schema.routineRevisions).values(rows);
   }
 
-  /** The instructions the routine has had, newest first; the first is the one it has now. */
+  /**
+   * The version a run starts with. A routine whose newest version was kept before steps, model and
+   * condition were, or that was changed by a way that keeps none (a backup brought back), gets its
+   * version as it is now, so its runs from here on are counted under what they really ran.
+   */
+  private async revisionFor(routine: Routine): Promise<string> {
+    const [last] = await this.ctx.db
+      .select()
+      .from(schema.routineRevisions)
+      .where(eq(schema.routineRevisions.routineId, routine.id))
+      .orderBy(desc(schema.routineRevisions.createdAt), desc(schema.routineRevisions.id))
+      .limit(1);
+    if (last?.full && !versionChanges(versionOf(revisionOf(last)), versionOf(routine)).length) return last.id;
+    const id = newId();
+    await this.ctx.db
+      .insert(schema.routineRevisions)
+      .values({ id, routineId: routine.id, ...versionRow(routine), createdAt: this.clock() });
+    return id;
+  }
+
+  /** The versions the routine has had, newest first; the first is the one it has now. */
   async revisions(routineId: string, limit = 50): Promise<RoutineRevision[]> {
     const routine = await this.get(routineId);
     const rows = await this.ctx.db
@@ -458,9 +485,71 @@ export class RoutineService {
       .where(eq(schema.routineRevisions.routineId, routineId))
       .orderBy(desc(schema.routineRevisions.createdAt), desc(schema.routineRevisions.id))
       .limit(limit);
-    const list = rows.map((r) => ({ id: r.id, prompt: r.prompt, createdAt: r.createdAt.toISOString() }));
+    const list = rows.map((r) => ({ ...revisionOf(r), id: r.id, createdAt: r.createdAt.toISOString() }));
     // A routine never changed since before the history was kept has only the one it has now.
-    return list.length ? list : [{ id: routine.id, prompt: routine.prompt, createdAt: routine.createdAt }];
+    return list.length
+      ? list
+      : [{ id: routine.id, ...versionOf(routine), full: true, createdAt: routine.createdAt }];
+  }
+
+  /**
+   * How the runs of each version went, over all of them, counted as the routine's health counts
+   * them; runs from before a version was kept on them are counted apart. Summed in the database: a
+   * routine that runs every few minutes has more runs than are worth carrying here.
+   */
+  async versionStats(routineId: string): Promise<RoutineVersionReport> {
+    await this.get(routineId);
+    const runs = schema.routineRuns;
+    const turnCost = this.ctx.db
+      .select({
+        runId: sql<string>`${schema.turns.routineRunId}`.as('run_id'),
+        cost: sql<number | null>`sum(${schema.turns.costUsd})`.as('cost'),
+        unpriced: sql<number>`count(*) filter (where ${schema.turns.costUsd} is null)`.as('unpriced'),
+      })
+      .from(schema.turns)
+      .innerJoin(runs, eq(runs.id, schema.turns.routineRunId))
+      .where(and(eq(runs.routineId, routineId), isNotNull(schema.turns.finishedAt)))
+      .groupBy(schema.turns.routineRunId)
+      .as('turn_cost');
+    const ended = sql`${runs.finishedAt} is not null`;
+    const rows = await this.ctx.db
+      .select({
+        revisionId: runs.revisionId,
+        total: sql<number | string>`count(*) filter (where ${runs.status} <> 'skipped')`,
+        ok: sql<number | string>`count(*) filter (where ${ended} and ${runs.outcome} = 'ok')`,
+        quiet: sql<number | string>`count(*) filter (where ${ended} and ${runs.outcome} = 'quiet')`,
+        failed: sql<number | string>`count(*) filter (where ${ended} and ${runs.outcome} = 'failed')`,
+        skipped: sql<number | string>`count(*) filter (where ${runs.status} = 'skipped')`,
+        costUsd: sql<
+          number | string | null
+        >`sum(coalesce(${turnCost.cost}, 0) + coalesce(${runs.gateCostUsd}, 0)) filter (where coalesce(${turnCost.unpriced}, 0) = 0 and ${runs.status} <> 'skipped')`,
+        unpricedRuns: sql<number | string>`count(*) filter (where coalesce(${turnCost.unpriced}, 0) > 0)`,
+        avgMs: sql<
+          number | string | null
+        >`avg(extract(epoch from ${runs.finishedAt} - ${runs.startedAt}) * 1000) filter (where ${ended} and ${runs.outcome} is not null)`,
+      })
+      .from(runs)
+      .leftJoin(turnCost, eq(turnCost.runId, runs.id))
+      // Queued runs have not started; they say nothing yet about how the version goes.
+      .where(and(eq(runs.routineId, routineId), ne(runs.status, 'queued')))
+      .groupBy(runs.revisionId);
+    const stats = (r: (typeof rows)[number]): RoutineVersionStats => ({
+      total: Number(r.total),
+      ok: Number(r.ok),
+      quiet: Number(r.quiet),
+      failed: Number(r.failed),
+      skipped: Number(r.skipped),
+      costUsd: Number(r.costUsd ?? 0),
+      unpricedRuns: Number(r.unpricedRuns),
+      avgMs: r.avgMs === null ? null : Math.round(Number(r.avgMs)),
+    });
+    const versions: Record<string, RoutineVersionStats> = {};
+    let untracked: RoutineVersionStats | null = null;
+    for (const r of rows) {
+      if (r.revisionId) versions[r.revisionId] = stats(r);
+      else untracked = stats(r);
+    }
+    return { versions, untracked };
   }
 
   /**
@@ -1403,6 +1492,7 @@ export class RoutineService {
         reason: skipped ?? null,
         threadId: thread.id,
         promptSnapshot: routine.prompt,
+        revisionId: await this.revisionFor(routine),
         finishedAt: this.clock(),
       })
       .returning()) as [typeof schema.routineRuns.$inferSelect];
@@ -1627,6 +1717,7 @@ export class RoutineService {
           status: 'running',
           threadId: thread?.id ?? null,
           promptSnapshot: routine.prompt,
+          revisionId: await this.revisionFor(routine),
           stepsSnapshot: stepsOf(routine),
           // Text from outside starts it: its turns change nothing without a card.
           trigger: check?.trigger ?? outside ?? null,
@@ -1870,6 +1961,7 @@ export class RoutineService {
           reason: t('routine.queued'),
           threadId,
           promptSnapshot: routine.prompt,
+          revisionId: await this.revisionFor(routine),
           stepsSnapshot: stepsOf(routine),
           trigger,
           payload: payload ?? null,
@@ -3560,6 +3652,7 @@ export class RoutineService {
           status,
           reason,
           promptSnapshot: routine.prompt,
+          revisionId: await this.revisionFor(routine),
           finishedAt: this.clock(),
           busySkips,
         })
@@ -4032,6 +4125,35 @@ function fetchProblem(err: unknown, t: T): string {
 /** Whether a routine's runs may stop part way for the person or for something to happen. */
 function holdsRuns(routine: Routine): boolean {
   return !!routine.steps?.some((s) => s.kind === 'approval' || s.kind === 'wait');
+}
+
+/** What makes the routine's version, as it is now. */
+function versionOf(r: {
+  prompt: string;
+  steps?: RoutineStep[] | null;
+  model?: string | null;
+  condition?: RoutineCondition | null;
+}): RoutineVersion {
+  return { prompt: r.prompt, steps: r.steps ?? [], model: r.model ?? '', condition: r.condition ?? null };
+}
+
+/** A version as a history row keeps it, with every part. */
+function versionRow(r: Routine) {
+  return { ...versionOf(r), full: true };
+}
+
+/** A history row read back; one from before every part was kept has only its instruction. */
+function revisionOf(
+  row: typeof schema.routineRevisions.$inferSelect,
+): Omit<RoutineRevision, 'id' | 'createdAt'> {
+  if (!row.full) return { prompt: row.prompt, full: false };
+  return {
+    prompt: row.prompt,
+    full: true,
+    steps: snapshotSteps(row.steps) ?? [],
+    model: row.model ?? '',
+    condition: (row.condition as RoutineCondition | null) ?? null,
+  };
 }
 
 function stepsOf(routine: Routine): RoutineStep[] | null {

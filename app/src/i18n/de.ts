@@ -2925,8 +2925,6 @@ export const de: Partial<Catalog<MessageKey>> = {
   'notify.soundKind.question': 'Frage',
   'notify.soundKind.approval': 'Berechtigung',
   'notify.soundKind.error': 'Fehler',
-  'routine.history': 'Verlauf der Anweisung',
-  'routine.historyNone': 'Die Anweisung hat sich noch nicht geändert.',
   'routine.historyNow': 'aktuell',
   'routine.historySame': 'Die Anweisung im Formular ist dieselbe wie in dieser Version.',
   'routine.historyDiff': 'Rot: in dieser Version, aber jetzt nicht mehr. Grün: seitdem hinzugefügt.',

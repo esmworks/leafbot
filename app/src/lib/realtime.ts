@@ -145,6 +145,7 @@ function refresh(qc: QueryClient, e: RefreshScope) {
       inv('routines');
       // A routine's instruction may have changed, by a bot or on another device.
       inv('routine-revisions');
+      inv('routine-versions');
       inv('routine-rehearsals');
       inv('routine-replayable');
       // A run that ended, or a routine changed, changes how it stands.
