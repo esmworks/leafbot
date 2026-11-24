@@ -799,15 +799,20 @@ describe.skipIf(!BROWSER)('botun tarayıcısı', () => {
     await t.send(thread.id, `[araç:browser_open {"url":"${base}/"}]`);
     await t.services.turns.idle();
     const browser = t.services.ctx.browser;
-    // The renderer is crashed through the DevTools protocol, as an out-of-memory page would crash
-    // it. Not through `chrome://crash`: Chrome's own builds turn their internal debugging pages off,
-    // so on the CI runner the tab never crashed and the test waited for a fresh tab that never came.
-    // The call is not awaited: its reply would have come from the renderer that just died.
-    const crashed = await browser.use(bot.id, async (page) => {
-      const devtools = await page.context().newCDPSession(page);
-      void devtools.send('Page.crash').catch(() => {});
-      return page;
-    });
+    // The page's renderer process is killed, as the system kills one that runs out of memory. Chrome's
+    // own ways of crashing a tab did not do it on the CI runner's Chrome: `chrome://crash` is turned
+    // off in its builds, and `Page.crash` left the tab running, so no crash was ever reported.
+    const crashed = await browser.use(bot.id, async (page) => page);
+    const owner = crashed.context().browser();
+    if (!owner) throw new Error('the bot browser has no browser to ask for its processes');
+    const devtools = await owner.newBrowserCDPSession();
+    const { processInfo } = (await devtools.send('SystemInfo.getProcessInfo')) as {
+      processInfo: { type: string; id: number }[];
+    };
+    await devtools.detach();
+    const renderers = processInfo.filter((p) => p.type === 'renderer').map((p) => p.id);
+    expect(renderers.length).toBeGreaterThan(0);
+    for (const pid of renderers) process.kill(pid, 'SIGKILL');
     // The page the bot was on is not merely still there: a fresh tab took its place.
     await waitFor(() => browser.use(bot.id, async (page) => page !== crashed));
     await waitFor(async () => crashed.isClosed());
