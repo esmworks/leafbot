@@ -233,7 +233,11 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
   const ctx: Ctx = {
     card,
     values,
-    set: (name, v) => setValues((s) => ({ ...s, [name]: v })),
+    // A change may fix what the last press found missing, so its message goes; the next press checks again.
+    set: (name, v) => {
+      setProblem(null);
+      setValues((s) => ({ ...s, [name]: v }));
+    },
     press,
     locked,
     pressed: answer?.node,
