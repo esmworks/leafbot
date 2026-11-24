@@ -2,8 +2,8 @@ import { create } from 'zustand';
 
 export type ThemeChoice = 'system' | 'light' | 'dark';
 /** A tint over the gray surfaces; see index.css. */
-export type ToneChoice = 'neutral' | 'slate' | 'leaf';
-export const TONES: readonly ToneChoice[] = ['neutral', 'slate', 'leaf'];
+export type ToneChoice = 'neutral' | 'slate' | 'leaf' | 'rose' | 'lavender' | 'peach' | 'sand';
+export const TONES: readonly ToneChoice[] = ['neutral', 'slate', 'leaf', 'rose', 'lavender', 'peach', 'sand'];
 const KEY = 'leafbot.theme';
 const TONE_KEY = 'leafbot.tone';
 const media = window.matchMedia('(prefers-color-scheme: dark)');

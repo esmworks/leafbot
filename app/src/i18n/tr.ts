@@ -1909,6 +1909,10 @@ export const tr = {
   'general.tone.neutral': 'Nötr',
   'general.tone.slate': 'Arduvaz',
   'general.tone.leaf': 'Yaprak',
+  'general.tone.rose': 'Gül',
+  'general.tone.lavender': 'Lavanta',
+  'general.tone.peach': 'Şeftali',
+  'general.tone.sand': 'Kum',
   'general.wallpaper': 'Arka plan',
   'general.wallpaperHint':
     'Kenar çubuğunun ve sohbetin arkasında kendi seçtiğiniz bir görsel. Bu cihazda saklanır.',
