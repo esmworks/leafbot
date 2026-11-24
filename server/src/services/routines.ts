@@ -19,6 +19,7 @@ import {
   wallClock,
   occurrenceKey,
   parseFilter,
+  outsideTrigger,
   passesFilter,
   stepRoutesProblem,
   versionChanges,
@@ -741,6 +742,13 @@ export class RoutineService {
   ) {
     for (const c of condition.checks) {
       if (c.kind === 'tool') await this.checkCheck(botId, { ...c }, person, !!slackChannel);
+      else if (c.kind === 'number' && c.from === 'tool')
+        await this.checkCheck(
+          botId,
+          { connectionId: c.connectionId, tool: c.tool, args: c.args },
+          person,
+          !!slackChannel,
+        );
       else if (c.kind === 'table') await this.checkTable(botId, c.tableId, c.filter);
       else if (c.kind === 'files' && c.folder === 'group') {
         const bot = await this.services.bots.get(botId);
@@ -954,6 +962,14 @@ export class RoutineService {
     if (!r) return;
     const routine = r;
     const occurrence = occurrenceKey(routine.nextRunAt!);
+    // What the condition's number checks read when they held, for the run to start from.
+    let found: string[] = [];
+    const conditionStops = async () => {
+      const r = await this.conditionStops(routine, now, occurrence, t);
+      if (r === true) return true;
+      found = r;
+      return false;
+    };
     try {
       const late = now.getTime() - routine.nextRunAt!.getTime() > MISSED_GRACE_MS;
       const waitingOn = await this.signInStillWaiting(routine);
@@ -966,7 +982,7 @@ export class RoutineService {
         );
       } else if (late && routine.missed === 'skip') {
         await this.record(toRoutine(routine), occurrence, 'skipped', t('routine.missedSkipped'));
-      } else if (routine.condition && (await this.conditionStops(routine, now, occurrence, t))) {
+      } else if (routine.condition && (await conditionStops())) {
         // Looked at before the page and the app's check: those keep what they read as they read it,
         // so a change they found would be lost on a run the condition held back.
       } else if (routine.watchUrl || routine.check) {
@@ -1005,11 +1021,12 @@ export class RoutineService {
         }
         // Its new answer is already kept: a change found while the server stops still runs.
         const still = news.length ? await current(routine) : null;
+        const read = found.length ? [t('routine.numberFound', { lines: found.join('\n') })] : [];
         if (still)
           await this.fire(
             toRoutine(still),
             occurrence,
-            news.join('\n\n'),
+            [...read, ...news].join('\n\n'),
             false,
             { trigger: 'watch', input: changes.join('\n\n') },
             undefined,
@@ -1020,7 +1037,7 @@ export class RoutineService {
         await this.fire(
           toRoutine(routine),
           occurrence,
-          undefined,
+          found.length ? t('routine.numberFound', { lines: found.join('\n') }) : undefined,
           false,
           undefined,
           undefined,
@@ -1040,17 +1057,23 @@ export class RoutineService {
   }
 
   /**
-   * Looks at the routine's condition before a scheduled run; true when the run must not start.
+   * Looks at the routine's condition before a scheduled run; true when the run must not start,
+   * otherwise what its number checks read, for the run to start from.
    * Not met, it is looked at again later the same day when the routine says so, as long as that
    * comes before its next regular run; at the end its note, if it has one, goes where it reports.
    * A check that could not be read holds the run back too, but never sends the note: the note says
    * something did not come, which nobody knows then.
    */
-  private async conditionStops(row: RoutineRow, now: Date, occurrence: string, t: T): Promise<boolean> {
+  private async conditionStops(
+    row: RoutineRow,
+    now: Date,
+    occurrence: string,
+    t: T,
+  ): Promise<true | string[]> {
     const routine = toRoutine(row);
     const condition = routine.condition!;
-    const result = await this.conditions.evaluate(routine, condition, t);
-    if (result.outcome === 'holds') return false;
+    const result = await this.conditions.evaluate(routine, condition, t, occurrence);
+    if (result.outcome === 'holds') return result.found;
     const reason = result.lines.join('; ');
     const schedule = row.schedule as Schedule;
     if (condition.recheckMinutes && condition.recheckUntil) {
@@ -1918,7 +1941,7 @@ export class RoutineService {
     // schedule then would do the same work beside it (read the same page twice, say). Looked at
     // once this run holds the routine's slot, so the sleeping one cannot wake in between. One held
     // for a person or an event may wait for days and does not hold the schedule back.
-    if (scheduled && (await this.sleeping(routine.id))) {
+    if (scheduled && (await this.sleeping(routine))) {
       await this.ctx.db.delete(schema.routineRuns).where(eq(schema.routineRuns.id, run.id));
       return this.recordBusy(routine, retriable(occurrence), t);
     }
@@ -3135,6 +3158,74 @@ export class RoutineService {
     return taken;
   }
 
+  /**
+   * Offers a message written in a conversation of the bot to the runs held at a wait for a chat
+   * reply. A run takes it when the message answers one of the run's own messages, is written in
+   * the run's own conversation (an answer on WhatsApp to what the run sent lands there), or, when
+   * the step names a filter, comes from a chat app into the person's main conversation with the
+   * bot and meets it. Only the words of the run's own person count, never a guest's. True when a
+   * run took it: the message is then the run's, and starts no turn of its own.
+   */
+  async takeChatReply(m: {
+    threadId: string;
+    botId: string;
+    text: string;
+    userId: string | null;
+    /** The chat app it came from, if any. */
+    via: string | null;
+    /** Whose words it is when not the person's own (an answer on WhatsApp). */
+    outside: OutsideTrigger | null;
+    /** The run whose message it answers, if it answers one. */
+    answersRun: string | null;
+    /** Whether it is written in the person's main conversation with the bot. */
+    inMain: boolean;
+    /** Who wrote it, as the chat app names them. */
+    from: string;
+  }): Promise<boolean> {
+    if (!m.userId) return false;
+    const held = await this.ctx.db
+      .select({ step: schema.routineStepRuns, run: schema.routineRuns, routine: schema.routines })
+      .from(schema.routineStepRuns)
+      .innerJoin(schema.routineRuns, eq(schema.routineRuns.id, schema.routineStepRuns.runId))
+      .innerJoin(schema.routines, eq(schema.routines.id, schema.routineRuns.routineId))
+      .where(
+        and(
+          eq(schema.routines.botId, m.botId),
+          eq(schema.routineRuns.status, 'paused'),
+          eq(schema.routineStepRuns.status, 'waiting'),
+          eq(schema.routineStepRuns.kind, 'wait'),
+          isNull(schema.routineStepRuns.eventId),
+        ),
+      )
+      .orderBy(asc(schema.routineStepRuns.startedAt));
+    const fields = JSON.stringify({ via: m.via ?? 'app', from: m.from, text: m.text });
+    for (const { step, run, routine } of held) {
+      const def = (snapshotSteps(run.stepsSnapshot) ?? [])[step.position - 1];
+      if (def?.kind !== 'wait' || def.on !== 'chat' || step.filter === null) continue;
+      const filter = step.filter.trim();
+      const meant =
+        m.answersRun === run.id || run.threadId === m.threadId || (!!filter && !!m.via && m.inMain);
+      if (!meant) continue;
+      if (filter && !passesFilter(filter, fields)) continue;
+      if ((await this.personOf(toRoutine(routine))) !== m.userId) continue;
+      const [took] = await this.ctx.db
+        .update(schema.routineStepRuns)
+        .set({ eventId: `chat:${m.outside ?? 'own'}:${newId()}`, output: cutAt(m.text, POST_MAX) })
+        .where(
+          and(
+            eq(schema.routineStepRuns.id, step.id),
+            eq(schema.routineStepRuns.status, 'waiting'),
+            isNull(schema.routineStepRuns.eventId),
+          ),
+        )
+        .returning({ id: schema.routineStepRuns.id });
+      if (!took) continue;
+      await this.settleSteps();
+      return true;
+    }
+    return false;
+  }
+
   /** Whether a run of the routine already took this event at a wait step. */
   private async eventTaken(routineId: string, eventId: string): Promise<boolean> {
     const [seen] = await this.ctx.db
@@ -3290,8 +3381,14 @@ export class RoutineService {
     const step = (snapshotSteps(r.run.stepsSnapshot) ?? [])[r.step.position - 1];
     const on = step?.kind === 'wait' ? step.on : 'time';
     if (r.step.eventId) {
-      // What came in is outside text: the run's later turns read it as such.
-      const trigger = r.step.output && on !== 'time' ? on : undefined;
+      // What came in is outside text: the run's later turns read it as such. A chat reply is
+      // only when someone else wrote it; the person's own words are not.
+      const trigger =
+        on === 'chat'
+          ? outsideTrigger(r.step.eventId.split(':')[1])
+          : r.step.output && on !== 'time'
+            ? on
+            : undefined;
       return this.goOn(r, t, trigger ? { trigger } : {});
     }
     if (on === 'time') return this.goOn(r, t, {});
@@ -3850,25 +3947,35 @@ export class RoutineService {
     return { text, at: row.createdAt.toISOString().slice(0, 16).replace('T', ' '), outside: row.outside };
   }
 
-  /** Whether a run of the routine is paused at a wait for a time. */
-  private async sleeping(routineId: string): Promise<boolean> {
+  /**
+   * Whether a run of the routine is paused at a wait for a time no longer than the time between two
+   * of its slots. A longer one (a wait of days on a daily routine) would hold every slot until it
+   * ends, so the schedule goes on beside it, as it does beside a run held for a person.
+   */
+  private async sleeping(routine: Routine): Promise<boolean> {
     const rows = await this.ctx.db
       .select({ position: schema.routineStepRuns.position, snapshot: schema.routineRuns.stepsSnapshot })
       .from(schema.routineStepRuns)
       .innerJoin(schema.routineRuns, eq(schema.routineRuns.id, schema.routineStepRuns.runId))
       .where(
         and(
-          eq(schema.routineRuns.routineId, routineId),
+          eq(schema.routineRuns.routineId, routine.id),
           eq(schema.routineRuns.status, 'paused'),
           eq(schema.routineStepRuns.status, 'waiting'),
           eq(schema.routineStepRuns.kind, 'wait'),
         ),
       );
-    return rows.some(
-      (r) =>
-        Array.isArray(r.snapshot) &&
-        (r.snapshot[r.position - 1] as { on?: unknown } | undefined)?.on === 'time',
-    );
+    if (!rows.length) return false;
+    const first = nextRun(routine.schedule, routine.timezone, this.clock());
+    const second =
+      first && nextRun(routine.schedule, routine.timezone, new Date(first.getTime() + 1000), first);
+    const gap = first && second ? second.getTime() - first.getTime() : Infinity;
+    return rows.some((r) => {
+      const step = Array.isArray(r.snapshot)
+        ? (r.snapshot[r.position - 1] as { on?: unknown; minutes?: unknown } | undefined)
+        : undefined;
+      return step?.on === 'time' && typeof step.minutes === 'number' && step.minutes * 60_000 <= gap;
+    });
   }
 
   /**

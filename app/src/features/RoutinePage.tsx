@@ -125,7 +125,7 @@ export const Form = z.object({
         z.object({
           id: z.string(),
           kind: z.literal('wait'),
-          on: z.enum(['time', 'webhook', 'email']),
+          on: z.enum(['time', 'webhook', 'email', 'chat']),
           minutes: z.number().int().min(1).max(ROUTINE_WAIT_MAX_MINUTES),
           filter: z.string().max(2000),
           timeoutDays: z.number().int().min(1).max(ROUTINE_APPROVAL_MAX_DAYS),

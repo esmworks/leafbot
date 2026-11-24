@@ -7,6 +7,24 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A manager bot can set up a team of bots in one go with `bot_factory`: up to five bots with their instructions,
+  skills, routines and notes, listed on one card. A yes sets all of it up at once and a no sets up nothing; the card
+  is asked at every permission level. The bots start as one the manager creates does (auto level, off the internet,
+  in its section, the person's own), and the routines start switched off. A bot name that is taken is refused, and
+  one taken while the card waited saves nothing.
+- A routine's rehearsal can compare two models: the same input, or each of the last inputs, is rehearsed on each
+  model one after the other and shown side by side with each one's status, report, steps it would take, real cost
+  and time, and each model's totals. It shows what happened rather than a score, and like any rehearsal it records
+  no run, so the routine's history and its versions' cost are unchanged.
+- A routine's condition can look at a number, with no AI: read from an app's tool or a web address (at a path in
+  its JSON, or after a label on a page), it holds above or below a threshold, or once it is more than a percent away
+  from the average of its last scheduled readings. The run then starts with the number and the average, so the bot
+  can look into why. Each scheduled time keeps one reading; until three are kept there is no average, a number that
+  could not be read is neither kept nor taken as zero, and looking at the condition outside a slot keeps nothing.
+- A routine's wait step can wait for a chat reply: it goes on with the person's answer in the run's conversation, a
+  reply to the run's message from a chat app, a WhatsApp reply that comes back to the run, or, when the step names a
+  filter such as `text~=onay`, a Telegram, Slack or WhatsApp message in the main conversation that meets it. Only the
+  routine's own person counts; the answer goes on to the next step and starts no turn of its own.
 - A routine's bot step can be done by another bot: pick it under "Done by" on the step, in the list or on the flow, or
   a bot names it with `by_bot`. That bot does the step with its own settings, apps and account, in its conversation
   with the routine's bot, for the routine's person; its answer shows in the run's conversation and goes on to the steps
@@ -160,9 +178,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 - Screenshots of a bot's computer go to the model as JPEG of the same size, which costs fewer tokens.
 - Card expiry dates can be typed in any usual form (1227, 12-27, 12 2027, 2027-12).
 - A long reply no longer scrolls its beginning out of view while it is written; the view stays at its start.
-- A routine's scheduled run waits while an earlier run of it is waiting out a time between its steps, so a routine
-  that reads a page every half hour until something is there no longer reads it twice. A run held for an approval or
-  an event still lets the schedule go on, as it may wait for days.
+- A routine's scheduled run waits while an earlier run of it is waiting out a time between its steps, no longer than
+  the time between two of its slots, so a routine that reads a page every half hour until something is there no
+  longer reads it twice. A longer wait, or a run held for an approval or an event, still lets the schedule go on, as
+  it may wait for days.
 
 ### Fixed
 

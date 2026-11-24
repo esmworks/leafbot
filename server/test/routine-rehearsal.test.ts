@@ -246,6 +246,76 @@ describe('rehearsing a routine', () => {
     expect(prompts.some((p) => p.includes('FATURA 2'))).toBe(true);
   });
 
+  it('rehearses the same inputs on two models, each on its own, and records no run', async () => {
+    const { routine } = await make('Faturayı özetle.', { model: 'haiku' });
+    const runs: string[] = [];
+    for (const payload of ['FATURA 1', 'FATURA 2']) {
+      t.now.value = new Date(t.now.value.getTime() + 60_000);
+      runs.push((await t.api<RoutineRun>('POST', `/api/routines/${routine.id}/run`, { payload })).body.id);
+      await t.services.turns.idle();
+    }
+    const asked = t.engine.requests.length;
+    const started = await t.api<Rehearsal>('POST', `/api/routines/${routine.id}/rehearse`, {
+      replayLast: 2,
+      models: ['haiku', 'sonnet'],
+    });
+    expect(started.status).toBe(200);
+    for (let i = 0; i < 20 && (t.services.rehearsals.batchGoing(routine.id) || i === 0); i++) {
+      await t.services.turns.idle();
+    }
+    await t.services.turns.idle();
+    const batch = (await t.api<Rehearsal[]>('GET', `/api/routines/${routine.id}/rehearsals`)).body.filter(
+      (r) => r.batchId === started.body.batchId,
+    );
+    // Each input on each model.
+    expect(batch.map((r) => `${r.replay?.runId} ${r.model}`).sort()).toEqual(
+      runs.flatMap((id) => [`${id} haiku`, `${id} sonnet`]).sort(),
+    );
+    expect(batch.every((r) => r.status === 'done' && r.costUsd !== null && r.finishedAt)).toBe(true);
+    expect(t.engine.requests.slice(asked).map((q) => q.model)).toEqual([
+      'haiku',
+      'sonnet',
+      'haiku',
+      'sonnet',
+    ]);
+    const turns = await t.db.db
+      .select({ model: schema.turns.model, routineRunId: schema.turns.routineRunId })
+      .from(schema.turns)
+      .innerJoin(schema.routineRehearsals, eq(schema.routineRehearsals.turnId, schema.turns.id))
+      .where(eq(schema.routineRehearsals.batchId, started.body.batchId!));
+    expect(turns.map((x) => x.model).sort()).toEqual(['haiku', 'haiku', 'sonnet', 'sonnet']);
+    // Each in a conversation of its own: one model never reads the other's answer.
+    const threads = await t.db.db
+      .select({ threadId: schema.routineRehearsals.threadId })
+      .from(schema.routineRehearsals)
+      .where(eq(schema.routineRehearsals.batchId, started.body.batchId!));
+    expect(new Set(threads.map((x) => x.threadId)).size).toBe(4);
+    // No run is recorded, so the routine's history and its versions' cost stay as they were.
+    expect(turns.every((x) => x.routineRunId === null)).toBe(true);
+    expect((await t.api<RoutineRun[]>('GET', `/api/routines/${routine.id}/runs`)).body).toHaveLength(2);
+  });
+
+  it('compares two models on no input, and refuses the same model twice', async () => {
+    const { routine } = await make('Günü özetle.');
+    const same = await t.api('POST', `/api/routines/${routine.id}/rehearse`, { models: ['haiku', 'haiku'] });
+    expect(same.status).toBe(400);
+    const started = await t.api<Rehearsal>('POST', `/api/routines/${routine.id}/rehearse`, {
+      models: ['haiku', 'opus'],
+    });
+    expect(started.status).toBe(200);
+    for (let i = 0; i < 10 && (t.services.rehearsals.batchGoing(routine.id) || i === 0); i++) {
+      await t.services.turns.idle();
+    }
+    await t.services.turns.idle();
+    const list = (await t.api<Rehearsal[]>('GET', `/api/routines/${routine.id}/rehearsals`)).body;
+    expect(
+      list
+        .filter((r) => r.batchId === started.body.batchId)
+        .map((r) => r.model)
+        .sort(),
+    ).toEqual(['haiku', 'opus']);
+  });
+
   it('refuses to rehearse on the last inputs when none was kept', async () => {
     const { routine } = await make('x');
     const res = await t.api('POST', `/api/routines/${routine.id}/rehearse`, { replayLast: 3 });

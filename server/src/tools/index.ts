@@ -9,6 +9,10 @@ import {
   CONNECTION_CATALOG,
   ConnectionCreate,
   describeSchedule,
+  BOT_IMPORT_FORMAT,
+  BOT_IMPORT_VERSION,
+  BotImportMemory,
+  BotImportSkill,
   Schedule,
   parseAnswers,
   PERMISSION_MODES,
@@ -111,7 +115,7 @@ const StepInput = z.object({
   timeout_days: z.number().int().optional(),
   text: z.string().max(4000).optional(),
   with_before: z.boolean().optional(),
-  on: z.enum(['time', 'webhook', 'email']).optional(),
+  on: z.enum(['time', 'webhook', 'email', 'chat']).optional(),
   minutes: z.number().int().optional(),
   filter: z.string().max(2000).optional(),
   /** A fetch step's https address. */
@@ -148,7 +152,7 @@ const ConditionInput = z.object({
   checks: z
     .array(
       z.object({
-        kind: z.enum(['files', 'email', 'whatsapp', 'table', 'tool', 'page']),
+        kind: z.enum(['files', 'email', 'whatsapp', 'table', 'tool', 'page', 'number']),
         folder: z.enum(['bot', 'group']).optional(),
         pattern: z.string().max(300).optional(),
         min: z.number().int().optional(),
@@ -159,6 +163,11 @@ const ConditionInput = z.object({
         args: z.record(z.string(), z.unknown()).optional(),
         contains: z.string().max(500).optional(),
         url: z.string().max(2000).optional(),
+        path: z.string().max(300).optional(),
+        op: z.enum(['above', 'below', 'either']).optional(),
+        than: z.enum(['value', 'average']).optional(),
+        threshold: z.number().optional(),
+        window: z.number().int().optional(),
         absent: z.boolean().optional(),
       }),
     )
@@ -376,6 +385,9 @@ export function sourceAddress(from: string): string | null | undefined {
   }
 }
 
+/** The most a bot factory's plan sets up at once, so its card lists all of it. */
+const FACTORY_MAX = { bots: 5, routines: 5, skills: 5, notes: 10 } as const;
+
 const MEMORY_TOOLS = new Set<string>([
   'memory_search',
   'memory_write',
@@ -579,6 +591,7 @@ export type ToolName =
   | 'reply_files'
   | 'bot_conversations_read'
   | 'bot_create'
+  | 'bot_factory'
   | 'models_list'
   | 'bot_update'
   | 'bot_profile'
@@ -937,6 +950,13 @@ export class ToolFactory {
           const named = x.tool ? await s.connections.checkFromName(botId, x.tool, person) : null;
           if (!named) return t('tool.routineBadCheck', { tool: x.tool ?? '-' });
           checks.push({ ...common, ...named, args: x.args, filter: x.filter, contains: x.contains });
+        } else if (x.kind === 'number') {
+          const reading = { path: x.path, op: x.op, than: x.than, threshold: x.threshold, window: x.window };
+          if (x.tool) {
+            const named = await s.connections.checkFromName(botId, x.tool, person);
+            if (!named) return t('tool.routineBadCheck', { tool: x.tool });
+            checks.push({ kind: x.kind, from: 'tool', ...named, args: x.args, ...reading });
+          } else checks.push({ kind: x.kind, from: 'page', url: x.url ?? '', ...reading });
         } else checks.push({ ...common, url: x.url ?? '', contains: x.contains ?? '' });
       }
       const parsed = ConditionSchema.safeParse({
@@ -1006,6 +1026,16 @@ export class ToolFactory {
               ...(x.filter && { filter: x.filter }),
               ...(x.contains && { contains: x.contains }),
               ...absent,
+            };
+          if (x.kind === 'number')
+            return {
+              kind: x.kind,
+              ...(x.from === 'tool' ? { tool: x.tool, args: x.args } : { url: x.url }),
+              ...(x.path && { path: x.path }),
+              op: x.op,
+              than: x.than,
+              threshold: x.threshold,
+              ...(x.than === 'average' && { window: x.window }),
             };
           return { kind: x.kind, url: x.url, contains: x.contains, ...absent };
         }),
@@ -3034,6 +3064,139 @@ export class ToolFactory {
           return t('tool.created', { name: created.name, id: created.id });
         },
         // A new bot works by itself and starts off the internet; turning it on takes a card.
+        'internal',
+      ),
+      def(
+        'bot_factory',
+        {
+          purpose: z.string().trim().min(1).max(200),
+          bots: z
+            .array(
+              z.object({
+                name: z.string().trim().min(1).max(60),
+                description: z.string().trim().max(500).default(''),
+                instructions: z.string().trim().max(20_000).default(''),
+                skills: z.array(BotImportSkill).max(FACTORY_MAX.skills).default([]),
+                routines: z
+                  .array(
+                    z.object({
+                      name: z.string().trim().min(1).max(80),
+                      prompt: z.string().trim().min(1).max(20_000),
+                      schedule: Schedule,
+                      report_only: z.boolean().default(false),
+                    }),
+                  )
+                  .max(FACTORY_MAX.routines)
+                  .default([]),
+                notes: z.array(BotImportMemory).max(FACTORY_MAX.notes).default([]),
+              }),
+            )
+            .min(1)
+            .max(FACTORY_MAX.bots),
+        },
+        async (a) => {
+          // Names the card shows are the names the bots get: one taken is refused, not renamed.
+          const taken = new Set((await s.bots.list()).map((b) => b.name.toLocaleLowerCase('tr')));
+          const named = new Set<string>();
+          for (const b of a.bots) {
+            const key = b.name.toLocaleLowerCase('tr');
+            if (taken.has(key) || named.has(key)) return t('tool.factoryNameTaken', { name: b.name });
+            named.add(key);
+          }
+          const { timezone } = await s.settings.all(person);
+          // The plan as an import file: saved at once in one go, or not at all.
+          const file = {
+            format: BOT_IMPORT_FORMAT,
+            version: BOT_IMPORT_VERSION,
+            source: '',
+            bots: a.bots.map((b, i) => ({
+              ref: `bot-${i + 1}`,
+              name: b.name,
+              description: b.description,
+              instructions: b.instructions,
+              skills: b.skills,
+              memories: b.notes,
+              routines: b.routines.map((r) => ({
+                name: r.name,
+                prompt: r.prompt,
+                steps: [],
+                schedule: r.schedule,
+                timezone,
+                enabled: false,
+                reportOnly: r.report_only,
+              })),
+            })),
+            groups: [],
+            notImported: [],
+          };
+          let plan: Awaited<ReturnType<typeof s.botImport.preview>>;
+          try {
+            plan = await s.botImport.preview(file);
+          } catch (err) {
+            return t('tool.factoryInvalid', { issues: errorText(err, t) });
+          }
+          if (plan.warnings.length)
+            return t('tool.factoryInvalid', {
+              issues: plan.warnings.map((w) => Object.values(w.params ?? {}).join(' ')).join('; '),
+            });
+          const locale = await s.settings.locale();
+          const lines: string[] = [];
+          for (const b of plan.bots) {
+            lines.push(`**${b.name}**${b.description ? ` — ${b.description}` : ''}`);
+            if (b.instructions)
+              lines.push(
+                `- ${t('tool.factoryInstructions', { text: truncate(b.instructions.replace(/\s+/g, ' '), 300) })}`,
+              );
+            for (const k of b.skills)
+              lines.push(
+                `- ${t(k.held ? 'tool.factorySkillHeld' : k.existing ? 'tool.factorySkillLinked' : 'tool.factorySkill', { name: k.name, description: truncate(k.description, 200) })}`,
+              );
+            for (const r of b.routines)
+              lines.push(
+                `- ${t(r.reportOnly ? 'tool.factoryRoutineReport' : 'tool.factoryRoutine', { name: r.name, when: describeSchedule(r.schedule, locale) })}`,
+              );
+            if (b.memories.length) lines.push(`- ${t('tool.factoryNotes', { count: b.memories.length })}`);
+          }
+          const routines = plan.bots.reduce((n, b) => n + b.routines.length, 0);
+          lines.push('', t('tool.factoryStarts'));
+          if (routines) lines.push(t('tool.factoryRoutinesOff'));
+          const approve = t('tool.approve');
+          const ok = await confirm(
+            t('tool.factoryAsk', { purpose: a.purpose }),
+            {
+              title: a.purpose,
+              questions: [
+                {
+                  question: t('tool.factoryAsk', { purpose: a.purpose }),
+                  context: lines.join('\n'),
+                  options: [approve, t('tool.reject')],
+                },
+              ],
+              plan: file,
+            },
+            'bot_factory',
+          );
+          if (ok !== true) return refused(t('tool.factoryNo'), ok);
+          let made: Awaited<ReturnType<typeof s.botImport.commit>>;
+          try {
+            made = await s.botImport.commit(file, {
+              owner: person,
+              // As a bot the manager creates alone: off the internet, in the manager's section.
+              internet: false,
+              groupId: manager.groupId,
+              names: plan.bots.map((b) => b.name),
+            });
+          } catch (err) {
+            return t('tool.factoryFailed', { reason: errorText(err, t) });
+          }
+          for (const [i, id] of made.botIds.entries())
+            await audit('create', id, null, { name: made.plan.bots[i]!.name, factory: a.purpose });
+          return t('tool.factoryDone', {
+            bots: made.plan.bots.map((b) => b.name).join(', '),
+            routines: String(routines),
+          });
+        },
+        // It asks on its own card, at every level: what it sets up is too much to allow at once.
         'internal',
       ),
       def(
