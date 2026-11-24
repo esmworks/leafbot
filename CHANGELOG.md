@@ -70,6 +70,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- On Linux, a bot on an API-key model can run commands again when the server is installed under the home folder;
+  every command failed with "No such file or directory", because the sandbox's own helper was hidden with the home
+  folder.
 - Words you write on a WhatsApp draft's card instead of picking Send or Don't send now reach the bot: the message is
   still not sent, and the bot reads what you wrote and answers it or redoes the draft. Before, such an answer counted
   as a plain "no" and the bot never saw it. The same goes for the front door's card suggesting a bot for a chat: words
