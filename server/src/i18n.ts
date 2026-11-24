@@ -1837,7 +1837,14 @@ const tr = {
   'whatsapp.hidden':
     '[Bir mesaj atlandı: kod, şifre ya da giriş bağlantısı içeriyor gibi görünüyor; içeriği saklanmadı.]',
   'whatsapp.draftDropped': '{to} kişisine WhatsApp mesajı gönderilmedi (kartta onaylanmadı):\n\n{text}',
+  'whatsapp.draftAnswered':
+    '{to} kişisine WhatsApp mesajı gönderilmedi; kartında kendi sözlerinle cevap verdin, bot onu okuyor:\n\n{text}',
+  'whatsapp.statusAnswered':
+    'WhatsApp Durum paylaşılmadı; kartında kendi sözlerinle cevap verdin, bot onu okuyor.',
+  'whatsapp.draftAnsweredPrompt':
+    'Kullanıcı, hazırladığın WhatsApp taslağının ({to}) kartında Gönder ya da Gönderme seçmedi; kendi sözleriyle şunu yazdı, bu yüzden taslak gönderilmedi:\n<<<\n{answer}\n>>>\n\nTaslak şuydu:\n<<<\n{text}\n>>>\n\nYazdığına göre devam et: bir soruysa cevapla; değişiklik ya da başka bir zaman istiyorsa ona göre yap (gerekirse taslağı yeniden hazırla ya da takip kur). Kullanıcı onaylamadan hiçbir şey gönderme.',
   'whatsapp.statusDropped': 'WhatsApp Durum paylaşılmadı.',
+  'whatsapp.statusName': 'WhatsApp Durum paylaşımı',
   'tool.whatsappNoGroupReply': 'WhatsApp gruplarına yazılmaz; gruplar yalnızca okunur.',
   'whatsapp.draftSent': '{to} kişisine WhatsApp mesajı gönderildi:\n\n{text}',
   'whatsapp.statusPosted': 'WhatsApp Durum paylaşıldı.',
@@ -3835,7 +3842,14 @@ const en: Catalog<ServerKey> = {
   'whatsapp.hidden':
     '[A message was left out: it looks like it holds a code, a password or a sign-in link; its content was not kept.]',
   'whatsapp.draftDropped': 'The WhatsApp message to {to} was not sent (not approved on its card):\n\n{text}',
+  'whatsapp.draftAnswered':
+    'The WhatsApp message to {to} was not sent; you answered its card in your own words, and the bot is reading them:\n\n{text}',
+  'whatsapp.statusAnswered':
+    'The WhatsApp Status was not posted; you answered its card in your own words, and the bot is reading them.',
+  'whatsapp.draftAnsweredPrompt':
+    'On the card of the WhatsApp draft you made ({to}), the user picked neither Send nor Don’t send; they wrote this in their own words instead, so the draft was not sent:\n<<<\n{answer}\n>>>\n\nThe draft was:\n<<<\n{text}\n>>>\n\nGo on from what they wrote: answer it if it is a question; if they want it changed or at another time, do that (draft it again or set a follow-up if needed). Send nothing without their approval.',
   'whatsapp.statusDropped': 'The WhatsApp Status was not posted.',
+  'whatsapp.statusName': 'WhatsApp Status post',
   'tool.whatsappNoGroupReply': 'WhatsApp groups are never written to; they are only read.',
   'whatsapp.draftSent': 'The WhatsApp message to {to} was sent:\n\n{text}',
   'whatsapp.statusPosted': 'The WhatsApp Status was posted.',
