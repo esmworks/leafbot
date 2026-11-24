@@ -74,7 +74,8 @@ describe('kullanılmayanlar', () => {
     const talked = await t.bot({ name: 'B Konuşan' });
     const scheduled = await t.bot({ name: 'C Rutinli' });
     await t.bot({ name: 'D Yeni' });
-    for (const b of [idle, talked, scheduled])
+    const reminding = await t.bot({ name: 'E Hatırlatacak' });
+    for (const b of [idle, talked, scheduled, reminding])
       await t.db.db.update(schema.bots).set({ createdAt: old() }).where(eq(schema.bots.id, b.id));
     const thread = (await t.api<Thread>('GET', `/api/bots/${talked.id}/main-thread`)).body;
     await t.send(thread.id, 'merhaba');
@@ -84,6 +85,14 @@ describe('kullanılmayanlar', () => {
       name: 'Kontrol',
       prompt: 'x',
       schedule: { type: 'interval', minutes: 60 },
+    });
+    // Something it is to bring up months from now still waits on it.
+    await t.db.db.insert(schema.followUps).values({
+      id: 'hatirlat',
+      botId: reminding.id,
+      userId: 'owner',
+      text: 'Sözleşmeyi yenile',
+      dueAt: new Date(t.now.value.getTime() + 120 * 86_400_000),
     });
     expect((await unused()).bots).toEqual([{ id: idle.id, name: 'A Boşta', lastTurnAt: null }]);
   });

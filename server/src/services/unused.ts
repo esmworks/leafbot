@@ -122,7 +122,7 @@ export class UnusedService {
   /**
    * Bots with no turn in the days, made before them, that the person may archive. A bot that
    * still has work waiting to come is left out: a routine switched on, a chat app it answers in,
-   * or bots it looks after.
+   * something it is to bring up later, or bots it looks after.
    */
   private async bots(viewer: Viewer, since: Date): Promise<UnusedReport['bots']> {
     const editable = await this.services.access.botIds(viewer, 'edit');
@@ -147,6 +147,13 @@ export class UnusedService {
               .select({ id: schema.channels.id })
               .from(schema.channels)
               .where(eq(schema.channels.botId, schema.bots.id)),
+          ),
+          // Something it is to bring up later, however far off: archived, it would never come up.
+          notExists(
+            this.ctx.db
+              .select({ id: schema.followUps.id })
+              .from(schema.followUps)
+              .where(and(eq(schema.followUps.botId, schema.bots.id), eq(schema.followUps.status, 'open'))),
           ),
         ),
       )

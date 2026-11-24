@@ -503,20 +503,44 @@ export class RoutineService {
   /**
    * The version a run starts with. A routine whose newest version was kept before steps, model and
    * condition were, or that was changed by a way that keeps none (a backup brought back), gets its
-   * version as it is now, so its runs from here on are counted under what they really ran.
+   * version as it is now, so its runs from here on are counted under what they really ran. One
+   * started from a copy older than the routine's last save is counted under that older version.
    */
   private async revisionFor(routine: Routine): Promise<string> {
-    const [last] = await this.ctx.db
+    const version = versionOf(routine);
+    const recent = await this.ctx.db
       .select()
       .from(schema.routineRevisions)
       .where(eq(schema.routineRevisions.routineId, routine.id))
       .orderBy(desc(schema.routineRevisions.createdAt), desc(schema.routineRevisions.id))
-      .limit(1);
-    if (last?.full && !versionChanges(versionOf(revisionOf(last)), versionOf(routine)).length) return last.id;
-    const id = newId();
+      .limit(50);
+    const holds = (r: (typeof recent)[number]) =>
+      r.full && !versionChanges(versionOf(revisionOf(r)), version).length;
+    const [newest] = recent;
+    if (newest && holds(newest)) return newest.id;
+    // A run may start from a copy of the routine read before a save (a watched page takes minutes
+    // to read): it ran the version before, which must not become the newest over the saved one.
+    const [row] = await this.ctx.db.select().from(schema.routines).where(eq(schema.routines.id, routine.id));
+    const stale = !!row && versionChanges(versionOf(toRoutine(row)), version).length > 0;
+    if (stale) {
+      const kept = recent.find(holds);
+      if (kept) return kept.id;
+    }
+    // Named by what it holds and the version it follows, so two runs starting at once keep one.
+    const id = `v${createHash('sha256')
+      .update(`${routine.id}\n${newest?.id ?? ''}\n${JSON.stringify(version)}`)
+      .digest('hex')
+      .slice(0, 24)}`;
+    const now = this.clock();
     await this.ctx.db
       .insert(schema.routineRevisions)
-      .values({ id, routineId: routine.id, ...versionRow(routine), createdAt: this.clock() });
+      .values({
+        id,
+        routineId: routine.id,
+        ...versionRow(routine),
+        createdAt: stale && newest ? new Date(Math.min(now.getTime(), newest.createdAt.getTime() - 1)) : now,
+      })
+      .onConflictDoNothing();
     return id;
   }
 
@@ -1888,6 +1912,14 @@ export class RoutineService {
       // A row the person wrote alone is not written again either, and it waits as their own words.
       if (occurrence.startsWith('table:'))
         return this.queue(routine, thread?.id ?? null, occurrence, payload, null, t);
+      return this.recordBusy(routine, retriable(occurrence), t);
+    }
+    // A run waiting out a time is still under way, only between two of its steps: a slot of the
+    // schedule then would do the same work beside it (read the same page twice, say). Looked at
+    // once this run holds the routine's slot, so the sleeping one cannot wake in between. One held
+    // for a person or an event may wait for days and does not hold the schedule back.
+    if (scheduled && (await this.sleeping(routine.id))) {
+      await this.ctx.db.delete(schema.routineRuns).where(eq(schema.routineRuns.id, run.id));
       return this.recordBusy(routine, retriable(occurrence), t);
     }
     const threadOf = thread?.id ?? (await this.ownThread(routine, bot.id, run.id));
@@ -3816,6 +3848,27 @@ export class RoutineService {
     if (!row?.text.trim()) return null;
     const text = row.text.length > REPORT_MAX ? `${row.text.slice(0, REPORT_MAX)}…` : row.text;
     return { text, at: row.createdAt.toISOString().slice(0, 16).replace('T', ' '), outside: row.outside };
+  }
+
+  /** Whether a run of the routine is paused at a wait for a time. */
+  private async sleeping(routineId: string): Promise<boolean> {
+    const rows = await this.ctx.db
+      .select({ position: schema.routineStepRuns.position, snapshot: schema.routineRuns.stepsSnapshot })
+      .from(schema.routineStepRuns)
+      .innerJoin(schema.routineRuns, eq(schema.routineRuns.id, schema.routineStepRuns.runId))
+      .where(
+        and(
+          eq(schema.routineRuns.routineId, routineId),
+          eq(schema.routineRuns.status, 'paused'),
+          eq(schema.routineStepRuns.status, 'waiting'),
+          eq(schema.routineStepRuns.kind, 'wait'),
+        ),
+      );
+    return rows.some(
+      (r) =>
+        Array.isArray(r.snapshot) &&
+        (r.snapshot[r.position - 1] as { on?: unknown } | undefined)?.on === 'time',
+    );
   }
 
   /**
