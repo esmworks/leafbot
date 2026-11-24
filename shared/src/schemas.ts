@@ -1401,6 +1401,8 @@ export const ProviderSignIn = z.object({
   /** The browser could not hand the sign-in back by itself: the person pastes the address it ended on. */
   needsPaste: z.boolean(),
   error: z.string().nullable(),
+  /** What the sign-in said after a pasted code while it still waits, such as why it did not take it. */
+  message: z.string().nullable().optional(),
 });
 export type ProviderSignIn = z.infer<typeof ProviderSignIn>;
 export const ProviderSignInStart = z.object({

@@ -1232,7 +1232,11 @@ export class TurnManager {
     // reports to a Slack channel, as a team conversation that uses only what the team shares.
     const [rehearsing] = turn.rehearsalId
       ? await this.ctx.db
-          .select({ model: schema.routines.model, slackChannel: schema.routines.slackChannel })
+          .select({
+            model: schema.routines.model,
+            compared: schema.routineRehearsals.model,
+            slackChannel: schema.routines.slackChannel,
+          })
           .from(schema.routineRehearsals)
           .innerJoin(schema.routines, eq(schema.routines.id, schema.routineRehearsals.routineId))
           .where(eq(schema.routineRehearsals.id, turn.rehearsalId))
@@ -1298,9 +1302,17 @@ export class TurnManager {
     // room member another bot named, or a new round of the room, is the bots' doing.
     const present = attended(turn.source);
     // The turn's routine run: what outside text started it, and the model the routine names.
-    // A rehearsal runs only the routine's own instruction, so it has no step model.
+    // A rehearsal runs only the routine's own instruction, so it has no step model; one comparing
+    // models runs on the one it was given.
     const [routineRun] = rehearsing
-      ? [{ trigger: null, model: rehearsing.model, stepModel: null, botId: turn.botId }]
+      ? [
+          {
+            trigger: null,
+            model: rehearsing.compared || rehearsing.model,
+            stepModel: null,
+            botId: turn.botId,
+          },
+        ]
       : turn.routineRunId
         ? await this.ctx.db
             .select({

@@ -1,6 +1,7 @@
 import { createReadStream, readdirSync, realpathSync, statSync } from 'node:fs';
 import { readFile, rm } from 'node:fs/promises';
 import type { BackupService } from './services/backup';
+import type { ClaudeSignInService } from './services/claude-sign-in';
 import type { MemoryReach } from './services/memory';
 import type { SkillReach } from './services/skills';
 import { MAX_AUDIO_BYTES, type TranscribeService } from './services/transcribe';
@@ -189,6 +190,8 @@ interface Deps {
     set(input: ClaudeAuthSet): Promise<ServerInfo['claude']>;
     clear(): Promise<ServerInfo['claude']>;
     models(): Promise<ClaudeModel[]>;
+    /** Signing in with the person's own Claude account, run by the Claude Code the server brings. */
+    signIn: Pick<ClaudeSignInService, 'start' | 'status' | 'paste' | 'cancel'>;
   };
   /** One short request to a provider's model with its stored key. */
   testModel(provider: string, model: string): Promise<ModelTest>;
@@ -514,6 +517,19 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.put('/api/claude/auth', async (req) => d.claude.set(ClaudeAuthSet.parse(req.body)));
   app.delete('/api/claude/auth', async () => d.claude.clear());
   app.get('/api/claude/models', async () => d.claude.models());
+  // Signing in to Claude with the person's own account; the app follows the sign-in it starts.
+  app.post('/api/claude/sign-in', async () => d.claude.signIn.start());
+  app.get('/api/claude/sign-in/:id', async (req) => d.claude.signIn.status(IdParams.parse(req.params).id));
+  app.post('/api/claude/sign-in/:id/paste', async (req) =>
+    d.claude.signIn.paste(
+      IdParams.parse(req.params).id,
+      z.object({ input: z.string().min(1).max(4000) }).parse(req.body).input,
+    ),
+  );
+  app.delete('/api/claude/sign-in/:id', async (req) => {
+    d.claude.signIn.cancel(IdParams.parse(req.params).id);
+    return { ok: true };
+  });
 
   // Notifications on phones while the app is closed. The Apple key is write-only.
   const PushToken = z.object({ token: z.string().regex(/^[0-9a-fA-F]{32,200}$/) });

@@ -44,7 +44,7 @@ function stepsText(raw: unknown, locale: Locale): string | null {
       case 'notify':
         return `${n} ${tr ? 'bildirir' : 'tells'}: ${cut(str(x.text) ?? '')}`;
       case 'wait':
-        return x.on === 'webhook' || x.on === 'email'
+        return x.on === 'webhook' || x.on === 'email' || x.on === 'chat'
           ? `${n} ${tr ? 'bekler' : 'waits for'} ${x.on}${str(x.filter) ? ` (${cut(str(x.filter)!)})` : ''}`
           : `${n} ${tr ? 'bekler' : 'waits'} ${typeof x.minutes === 'number' ? x.minutes : 60} ${tr ? 'dk' : 'min'}`;
       case 'fetch':
@@ -134,6 +134,18 @@ function stepsText(raw: unknown, locale: Locale): string | null {
  * A routine's condition as the card shows it: what is looked at with no AI before each scheduled
  * run, when it is looked at again, and the note sent when it is not met.
  */
+/** A number check as the card shows it: where it is read and what it is compared with. */
+function numberText(x: Record<string, unknown>, tr: boolean): string {
+  const where = `${str(x.tool) ?? str(x.url) ?? ''}${str(x.path) ? ` ${str(x.path)}` : ''}`;
+  const op = x.op === 'below' ? '<' : x.op === 'either' ? '≠' : '>';
+  const threshold = typeof x.threshold === 'number' ? x.threshold : 0;
+  if (x.than !== 'average') return `${where} ${op} ${threshold}`;
+  const window = typeof x.window === 'number' ? x.window : 10;
+  return tr
+    ? `${where} ${op} son ${window} okumanın ortalaması ±%${threshold}`
+    : `${where} ${op} average of the last ${window} ±${threshold}%`;
+}
+
 function conditionText(raw: unknown, locale: Locale): string | null {
   if (!raw || typeof raw !== 'object') return null;
   const c = raw as Record<string, unknown>;
@@ -147,11 +159,13 @@ function conditionText(raw: unknown, locale: Locale): string | null {
         ? `${str(x.pattern) ?? ''}${typeof x.min === 'number' && x.min > 1 ? ` ×${x.min}` : ''}`
         : x.kind === 'page'
           ? `${str(x.url) ?? ''} "${str(x.contains) ?? ''}"`
-          : x.kind === 'tool'
-            ? `${str(x.tool) ?? ''} ${str(x.filter) ?? str(x.contains) ?? ''}`.trim()
-            : x.kind === 'table'
-              ? `${str(x.table) ?? ''} ${str(x.filter) ?? ''}`.trim()
-              : (str(x.filter) ?? '*');
+          : x.kind === 'number'
+            ? numberText(x, tr)
+            : x.kind === 'tool'
+              ? `${str(x.tool) ?? ''} ${str(x.filter) ?? str(x.contains) ?? ''}`.trim()
+              : x.kind === 'table'
+                ? `${str(x.table) ?? ''} ${str(x.filter) ?? ''}`.trim()
+                : (str(x.filter) ?? '*');
     return `${no}${String(x.kind)} ${cut(what.replace(/\n/g, ', '))}`;
   };
   const lines = [`${tr ? 'Koşul (yapay zekâsız)' : 'Condition (no AI)'}: ${checks.map(one).join(' + ')}`];
@@ -420,6 +434,13 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
         tr: ['hafızadaki bir notu', 'hafızadaki bu notu', DELETE],
         en: ['delete a note from memory', 'delete this note from memory', 'delete notes from memory'],
       };
+    case 'bot_factory': {
+      const n = Array.isArray(input.bots) ? input.bots.length : 0;
+      return {
+        tr: [`${n} botluk bir ekip`, 'bu bot ekibini', SET_UP],
+        en: [`set up a team of ${n} bots`, 'set up this team of bots', 'set up teams of bots'],
+      };
+    }
     case 'bot_create':
       return {
         tr: [
@@ -613,6 +634,10 @@ function detailFor(name: string, input: Record<string, unknown>, locale: Locale)
     }
     case 'bot_create':
       return str(input.description);
+    case 'bot_factory': {
+      const bots = Array.isArray(input.bots) ? (input.bots as Record<string, unknown>[]) : [];
+      return bots.map((b) => str(b?.name) ?? '?').join(', ') || null;
+    }
     case 'bot_send':
       return str(input.text) ?? str(input.message);
     case 'app_add':

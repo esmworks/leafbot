@@ -145,6 +145,7 @@ function Result({ rehearsal: r }: { rehearsal: RehearsalRun }) {
           {t(`rehearsal.status.${r.status}` as MessageKey)}
         </Text>
         {r.draft ? ` · ${t('rehearsal.draftTag')}` : ''}
+        {r.model ? ` · ${t('rehearsal.modelTag', { model: r.model })}` : ''}
         {took !== null ? ` · ${t('rehearsal.duration', { time: clock(took) })}` : ''}
         {r.costUsd !== null ? ` · ${t('rehearsal.cost', { cost: usd(r.costUsd) })}` : ''}
       </Text>

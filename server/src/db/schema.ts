@@ -790,6 +790,29 @@ export const routineRevisions = pgTable(
   (t) => [index('routine_revisions_routine_idx').on(t.routineId, t.createdAt)],
 );
 
+/**
+ * The numbers a routine's number check read at its scheduled slots, one per slot, so a reading can
+ * be compared with the average of the ones before it. `key` names the check by what it reads, so
+ * changing where it reads starts its history afresh. Only the newest few are kept.
+ */
+export const routineReadings = pgTable(
+  'routine_readings',
+  {
+    id: text('id').primaryKey(),
+    routineId: text('routine_id')
+      .notNull()
+      .references(() => routines.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    occurrence: text('occurrence').notNull(),
+    value: doublePrecision('value').notNull(),
+    at: ts('at').notNull(),
+  },
+  (t) => [
+    uniqueIndex('routine_readings_slot_uq').on(t.routineId, t.key, t.occurrence),
+    index('routine_readings_routine_idx').on(t.routineId, t.key, t.at),
+  ],
+);
+
 /** Bot-to-bot requests. A job chain shares `rootId`; `depth` guards against loops. */
 export const jobs = pgTable(
   'jobs',
@@ -2163,6 +2186,8 @@ export const routineRehearsals = pgTable(
     replayRunId: text('replay_run_id'),
     /** Rehearsals started together on the routine's last real inputs share it; null for one alone. */
     batchId: text('batch_id'),
+    /** The model it was asked to run on, when models are compared; null for the routine's own. */
+    model: text('model'),
     /** The instruction as it was rehearsed. */
     prompt: sealedText('prompt').notNull(),
     status: text('status', { enum: ['running', 'done', 'error', 'stopped'] })
