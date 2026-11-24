@@ -293,7 +293,7 @@ export function MessageItem({
         const id = m.props.openedThread;
         return (
           <div className="flex items-center justify-center gap-2 py-1 text-center text-sm text-muted-foreground">
-            {m.text}
+            <span className="wallpaper-chip rounded-lg px-2 py-0.5">{m.text}</span>
             <Button
               size="sm"
               variant="secondary"
@@ -325,7 +325,8 @@ export function MessageItem({
         );
       return (
         <div className="flex items-center justify-center gap-2 py-1 text-center text-sm text-muted-foreground">
-          {m.text}
+          {/* Written straight on the chat: over a picture it needs a backing, or the grey text and its selection vanish. */}
+          <span className="wallpaper-chip rounded-lg px-2 py-0.5">{m.text}</span>
           {retry && m.props.kind === 'interrupted' && <RetryButton messageId={m.id} />}
         </div>
       );
