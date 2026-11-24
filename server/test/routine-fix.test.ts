@@ -100,6 +100,13 @@ describe('a fix proposed for a routine from its runs', () => {
     await runOnce(r);
     t.engine.completer = () => 'olmadı';
     expect((await t.api('POST', `/api/routines/${r.id}/fix`)).status).toBe(502);
+    // The provider down: told so, in the person's language, not as a server error.
+    t.engine.completer = () => {
+      throw new Error('overloaded_error');
+    };
+    const down = await t.api('POST', `/api/routines/${r.id}/fix`);
+    expect(down.status).toBe(502);
+    expect(JSON.stringify(down.body)).not.toContain('overloaded_error');
   });
 
   it('keeps to what it may change', () => {

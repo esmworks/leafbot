@@ -306,12 +306,14 @@ const tr = {
     'Rutinin denetimi, bu bota açık bir uygulamanın açık ve yalnız okuyan bir aracı olmalı',
   'error.routineLimit': 'Bir botun en çok {max} rutini olabilir',
   'error.stepBot': '{n}. adımı yapacak bot bulunamadı ya da onunla konuşamıyorsun',
+  'error.stepBotSlack': 'Slack’e rapor veren bir rutin ekibi için çalışır; {n}. adımı başka bir bot yapamaz',
   'error.routineFixNotYours':
     'Bir rutine düzeltmeyi yalnızca onu kuran kişi önerebilir; öneri onun çalışmalarından yazılır',
   'error.routineFixNoRuns': 'Rutin henüz hiç çalışmadı; önerinin bakacağı bir çalışma yok',
   'error.routineFixUnavailable': 'Bu botun motoru öneri yazamıyor',
   'error.routineFixLimit': 'Botun kullanım sınırı doldu; öneri yazılmadı',
   'error.routineFixUnreadable': 'Model okunabilir bir öneri yazmadı; yeniden dene',
+  'error.routineFixFailed': 'Modele ulaşılamadı ya da zamanında cevap gelmedi; yeniden dene',
   'error.routineNoWebhook':
     'Önce rutinin webhook adresini oluşturun; anahtar o adrese gelen çağrılar içindir',
   'error.rehearsalNotYours':
@@ -1227,6 +1229,8 @@ const tr = {
   'tool.routineValueSaved': '"{name}" kaydedildi.',
   'tool.routineValuesFull': 'Bu çalışma en fazla {max} değer tutabilir.',
   'tool.routineGone': 'Rutin artık yok.',
+  'tool.routineStopOther':
+    'Bu rutin başka bir botun; onu yalnızca kendi botu kapatabilir. Adımı yapamıyorsan routine_failed ile nedenini söyle.',
   'tool.routineWebhook': 'Webhook adresi (sunucunun adresinin sonuna eklenir, gizli tutulmalı): {path}',
   'tool.routineExists':
     '{name} adında bir rutinin zaten var; yenisini kurmak yerine kullanıcıya onu değiştirmesini öner.',
@@ -2456,12 +2460,14 @@ const en: Catalog<ServerKey> = {
     "A routine's check must be a tool that only reads, switched on, of an app open to this bot",
   'error.routineLimit': 'A bot can have at most {max} routines',
   'error.stepBot': 'The bot for step {n} was not found, or you may not talk with it',
+  'error.stepBotSlack': 'A routine that reports to Slack works for its team; another bot cannot do step {n}',
   'error.routineFixNotYours':
     "Only the person who set a routine up can ask for a fix to it; it is written from that person's runs",
   'error.routineFixNoRuns': 'The routine has not run yet; there is no run to propose a fix from',
   'error.routineFixUnavailable': "This bot's engine cannot write a proposal",
   'error.routineFixLimit': "The bot's usage limit is spent; no proposal was written",
   'error.routineFixUnreadable': 'The model did not write a proposal that could be read; try again',
+  'error.routineFixFailed': 'The model could not be reached or did not answer in time; try again',
   'error.routineNoWebhook':
     "Make the routine's webhook address first; the secret is for calls to that address",
   'error.rehearsalNotYours':
@@ -3385,6 +3391,8 @@ const en: Catalog<ServerKey> = {
   'tool.routineValueSaved': '"{name}" is saved.',
   'tool.routineValuesFull': 'A run keeps at most {max} values.',
   'tool.routineGone': 'The routine no longer exists.',
+  'tool.routineStopOther':
+    "This routine is another bot's; only its own bot can switch it off. If you cannot do the step, say why with routine_failed.",
   'tool.routineWebhook': 'Webhook address (goes after the server address; keep it secret): {path}',
   'tool.routineExists':
     'You already have a routine named {name}; rather than a new one, suggest the user changes it.',
