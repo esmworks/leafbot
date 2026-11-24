@@ -23,6 +23,16 @@ function sandboxCli(): string {
 }
 
 /**
+ * On Linux the sandbox starts each command through a helper program of its own, inside the sandbox.
+ * When the server is installed under the home folder, which commands may not read, the helper was
+ * hidden too and every command failed with "No such file or directory"; its folder is read again.
+ */
+function sandboxHelpers(): string[] {
+  if (process.platform !== 'linux') return [];
+  return [join(dirname(sandboxCli()), '..', 'vendor', 'seccomp')];
+}
+
+/**
  * Variables a command keeps from the server's environment: none that holds a secret or an address.
  * In the desktop app the server runs on Electron's own binary as Node; without ELECTRON_RUN_AS_NODE
  * that binary, started again for the sandbox's program, would open the app instead.
@@ -84,7 +94,7 @@ export function shellRun(sb: Sandbox, t: T, o: ShellOptions): ShellRun {
         network,
         filesystem: {
           denyRead: [...new Set(o.hidden)],
-          allowRead: [sb.cwd, ...sb.additionalDirectories, own],
+          allowRead: [sb.cwd, ...sb.additionalDirectories, own, ...sandboxHelpers()],
           allowWrite: [...sb.writable, home, temp],
           denyWrite: [],
         },

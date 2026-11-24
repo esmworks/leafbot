@@ -43,6 +43,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- On Linux, a bot on an API-key model can run commands again when the server is installed under the home folder;
+  every command failed with "No such file or directory", because the sandbox's own helper was hidden with the home
+  folder.
 - WhatsApp no longer wipes its link when the server's secret key changes; it says the saved keys cannot be read and
   asks you to link again. Telegram, Slack, Discord and Teams show as not connected, with a reason, when their saved
   tokens can no longer be read, instead of showing as connected while doing nothing.
