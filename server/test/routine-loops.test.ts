@@ -160,6 +160,23 @@ describe('a routine that goes back, or on after a no', () => {
     expect((await runRow(done!.id)).backs).toBe(2);
   });
 
+  it('lets the schedule go on beside a wait longer than the time between its slots', async () => {
+    const bot = await t.bot();
+    const r = await make(bot.id, [
+      { id: 'oku', kind: 'fetch', url: 'https://ornek.com/durum.json' },
+      { id: 'bekle', kind: 'wait', on: 'time', minutes: 120 },
+    ]);
+    const run = await runOnce(r);
+    expect(run.status).toBe('waiting');
+    t.now.value = new Date(t.now.value.getTime() + 31 * 60_000);
+    await t.services.routines.tick();
+    await settle();
+    // A two-hour wait on a half-hourly routine: holding the slots would hold four of them.
+    const others = (await runs(r.id)).filter((x) => x.id !== run.id);
+    expect(others.map((x) => x.status)).not.toContain('skipped');
+    expect(others).toHaveLength(1);
+  });
+
   it('waits for the webhook again after a call that was not the one, and goes on at the right one', async () => {
     const bot = await t.bot();
     const r = await make(bot.id, [

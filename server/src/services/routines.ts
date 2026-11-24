@@ -1918,7 +1918,7 @@ export class RoutineService {
     // schedule then would do the same work beside it (read the same page twice, say). Looked at
     // once this run holds the routine's slot, so the sleeping one cannot wake in between. One held
     // for a person or an event may wait for days and does not hold the schedule back.
-    if (scheduled && (await this.sleeping(routine.id))) {
+    if (scheduled && (await this.sleeping(routine))) {
       await this.ctx.db.delete(schema.routineRuns).where(eq(schema.routineRuns.id, run.id));
       return this.recordBusy(routine, retriable(occurrence), t);
     }
@@ -3850,25 +3850,35 @@ export class RoutineService {
     return { text, at: row.createdAt.toISOString().slice(0, 16).replace('T', ' '), outside: row.outside };
   }
 
-  /** Whether a run of the routine is paused at a wait for a time. */
-  private async sleeping(routineId: string): Promise<boolean> {
+  /**
+   * Whether a run of the routine is paused at a wait for a time no longer than the time between two
+   * of its slots. A longer one (a wait of days on a daily routine) would hold every slot until it
+   * ends, so the schedule goes on beside it, as it does beside a run held for a person.
+   */
+  private async sleeping(routine: Routine): Promise<boolean> {
     const rows = await this.ctx.db
       .select({ position: schema.routineStepRuns.position, snapshot: schema.routineRuns.stepsSnapshot })
       .from(schema.routineStepRuns)
       .innerJoin(schema.routineRuns, eq(schema.routineRuns.id, schema.routineStepRuns.runId))
       .where(
         and(
-          eq(schema.routineRuns.routineId, routineId),
+          eq(schema.routineRuns.routineId, routine.id),
           eq(schema.routineRuns.status, 'paused'),
           eq(schema.routineStepRuns.status, 'waiting'),
           eq(schema.routineStepRuns.kind, 'wait'),
         ),
       );
-    return rows.some(
-      (r) =>
-        Array.isArray(r.snapshot) &&
-        (r.snapshot[r.position - 1] as { on?: unknown } | undefined)?.on === 'time',
-    );
+    if (!rows.length) return false;
+    const first = nextRun(routine.schedule, routine.timezone, this.clock());
+    const second =
+      first && nextRun(routine.schedule, routine.timezone, new Date(first.getTime() + 1000), first);
+    const gap = first && second ? second.getTime() - first.getTime() : Infinity;
+    return rows.some((r) => {
+      const step = Array.isArray(r.snapshot)
+        ? (r.snapshot[r.position - 1] as { on?: unknown; minutes?: unknown } | undefined)
+        : undefined;
+      return step?.on === 'time' && typeof step.minutes === 'number' && step.minutes * 60_000 <= gap;
+    });
   }
 
   /**

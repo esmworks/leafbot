@@ -160,9 +160,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 - Screenshots of a bot's computer go to the model as JPEG of the same size, which costs fewer tokens.
 - Card expiry dates can be typed in any usual form (1227, 12-27, 12 2027, 2027-12).
 - A long reply no longer scrolls its beginning out of view while it is written; the view stays at its start.
-- A routine's scheduled run waits while an earlier run of it is waiting out a time between its steps, so a routine
-  that reads a page every half hour until something is there no longer reads it twice. A run held for an approval or
-  an event still lets the schedule go on, as it may wait for days.
+- A routine's scheduled run waits while an earlier run of it is waiting out a time between its steps, no longer than
+  the time between two of its slots, so a routine that reads a page every half hour until something is there no
+  longer reads it twice. A longer wait, or a run held for an approval or an event, still lets the schedule go on, as
+  it may wait for days.
 
 ### Fixed
 
