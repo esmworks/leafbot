@@ -1,4 +1,5 @@
 import type { Routine, RoutineRevision, RoutineVersionReport } from '@leafbot/shared';
+import { isNotNull } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
 import { testServer, type TestServer } from './helpers';
@@ -81,6 +82,20 @@ describe('rutin talimat geçmişi', () => {
     expect(list[2]).toMatchObject({ full: true, steps: [], condition: null });
   });
 
+  it('botun yazdığı adımı formdaki boş alanlarıyla aynen kaydetmek sürüm yazmaz', async () => {
+    const r = await make();
+    later();
+    const bare = { id: 'a', kind: 'agent', prompt: 'Özetle', model: '' };
+    const saved = (await t.api<Routine>('PATCH', `/api/routines/${r.id}`, { steps: [bare] })).body;
+    expect(await history(r.id)).toHaveLength(2);
+    later();
+    // As the form sends it back: each step with its empty fields written out.
+    const steps = (saved.steps ?? []).map((x) => ({ ...x, when: null, next: '', onError: '' }));
+    const res = await t.api('PATCH', `/api/routines/${r.id}`, { prompt: saved.prompt, steps, model: '' });
+    expect(res.status).toBe(200);
+    expect(await history(r.id)).toHaveLength(2);
+  });
+
   const runTimes = async (id: string, times: number) => {
     for (let i = 0; i < times; i++) {
       t.now.value = new Date(t.now.value.getTime() + 1000);
@@ -107,9 +122,16 @@ describe('rutin talimat geçmişi', () => {
     await t.api('PATCH', `/api/routines/${r.id}`, { prompt: '[hata]' });
     await runTimes(r.id, 1);
     const [now, before] = (await t.api<RoutineRevision[]>('GET', `/api/routines/${r.id}/revisions`)).body;
+    // The fake engine's replies cost nothing; each run's turn is priced here instead.
+    await t.db.db
+      .update(schema.turns)
+      .set({ costUsd: 0.01 })
+      .where(isNotNull(schema.turns.routineRunId));
     const v = await versions(r.id);
-    expect(v.versions[before!.id]).toMatchObject({ total: 2, ok: 2, failed: 0 });
+    expect(v.versions[before!.id]).toMatchObject({ total: 2, ok: 2, failed: 0, unpricedRuns: 0 });
+    expect(v.versions[before!.id]!.costUsd).toBeCloseTo(0.02);
     expect(v.versions[now!.id]).toMatchObject({ total: 1, ok: 0, failed: 1 });
+    expect(v.versions[now!.id]!.costUsd).toBeCloseTo(0.01);
     expect(v.untracked).toBeNull();
   });
 

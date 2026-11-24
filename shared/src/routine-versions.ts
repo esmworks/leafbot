@@ -15,14 +15,18 @@ export type RoutineVersionPart = (typeof ROUTINE_VERSION_PARTS)[number];
 /** Below this many runs with a known ending, a version's numbers say little. */
 export const VERSION_FEW_RUNS = 5;
 
-/** The same value written the same way: keys in order, nothing left undefined. */
+/**
+ * The same value written the same way: keys in order, and a field left empty read as one left out.
+ * The routine form writes every step with its empty fields while the bot and the API leave them
+ * out; saving a routine unchanged from the form must not make a new version of it.
+ */
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {};
     for (const key of Object.keys(value).sort()) {
       const v = (value as Record<string, unknown>)[key];
-      if (v !== undefined) out[key] = canonical(v);
+      if (v !== undefined && v !== null && v !== '') out[key] = canonical(v);
     }
     return out;
   }
@@ -33,10 +37,6 @@ function same(a: unknown, b: unknown): boolean {
   return JSON.stringify(canonical(a ?? null)) === JSON.stringify(canonical(b ?? null));
 }
 
-/**
- * Which parts differ between two versions. A version kept before steps, model and condition were
- * kept says only what it was told: the rest is compared only when both kept it.
- */
 /** A version as a history row or a routine has it; parts left out read as empty. */
 export interface VersionLike {
   prompt: string;
@@ -46,6 +46,10 @@ export interface VersionLike {
   full?: boolean;
 }
 
+/**
+ * Which parts differ between two versions. A version kept before steps, model and condition were
+ * kept says only what it was told: the rest is compared only when both kept it.
+ */
 export function versionChanges(newer: VersionLike, older: VersionLike): RoutineVersionPart[] {
   const out: RoutineVersionPart[] = [];
   if (newer.prompt !== older.prompt) out.push('prompt');

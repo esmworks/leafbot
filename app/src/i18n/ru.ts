@@ -3006,8 +3006,6 @@ export const ru: Partial<Catalog<MessageKey>> = {
   'notify.soundKind.question': 'Вопрос',
   'notify.soundKind.approval': 'Разрешение',
   'notify.soundKind.error': 'Ошибка',
-  'routine.history': 'История инструкции',
-  'routine.historyNone': 'Инструкция пока не менялась.',
   'routine.historyNow': 'текущая',
   'routine.historySame': 'Инструкция в форме совпадает с этой версией.',
   'routine.historyDiff': 'Красное: есть в этой версии, но не сейчас. Зелёное: добавлено с тех пор.',

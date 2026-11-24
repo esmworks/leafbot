@@ -24,7 +24,7 @@ export class UnusedService {
     const since = new Date(this.clock().getTime() - UNUSED_DAYS * DAY_MS);
     const [skills, connections, bots] = await Promise.all([
       this.skills(viewer, since),
-      this.connections(viewer),
+      this.connections(viewer, since),
       this.bots(viewer, since),
     ]);
     return { skills, connections, bots };
@@ -53,10 +53,12 @@ export class UnusedService {
   }
 
   /**
-   * Connections open to no bot, or waiting for a sign-in. One a routine checks, reads for its
-   * condition or waits on is left out: removing it would break the routine.
+   * Connections open to no bot since before the days, or signed out since before them. A newer one
+   * may still be being set up or wait for a sign-in the person means to give, so it is left out.
+   * One a routine checks, reads for its condition or waits on is left out too: removing it would
+   * break the routine.
    */
-  private async connections(viewer: Viewer): Promise<UnusedReport['connections']> {
+  private async connections(viewer: Viewer, since: Date): Promise<UnusedReport['connections']> {
     const mine = managesServer(viewer.role)
       ? or(eq(schema.connections.userId, viewer.userId), isNull(schema.connections.userId))
       : eq(schema.connections.userId, viewer.userId);
@@ -69,21 +71,30 @@ export class UnusedService {
           .where(eq(schema.botConnections.connectionId, schema.connections.id)),
       ),
     );
+    // Its last change is when it went signed out: the jobs that look at connections again skip those.
+    const signedOut = and(
+      eq(schema.connections.status, 'signed-out'),
+      lt(schema.connections.updatedAt, since),
+    );
     const rows = await this.ctx.db
       .select({
         id: schema.connections.id,
         name: schema.connections.name,
         status: schema.connections.status,
-        allBots: schema.connections.allBots,
+        updatedAt: schema.connections.updatedAt,
       })
       .from(schema.connections)
-      .where(and(mine, or(noBot, eq(schema.connections.status, 'signed-out'))))
+      .where(and(mine, or(and(noBot, lt(schema.connections.createdAt, since)), signedOut)))
       .orderBy(schema.connections.name);
     if (!rows.length) return [];
     const needed = await this.neededByRoutines();
     return rows
       .filter((r) => !needed.has(r.id))
-      .map((r) => ({ id: r.id, name: r.name, reason: r.status === 'signed-out' ? 'signedOut' : 'noBot' }));
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        reason: r.status === 'signed-out' && r.updatedAt < since ? 'signedOut' : 'noBot',
+      }));
   }
 
   /** The connections some routine checks, reads for its condition, or waits for a sign-in to. */

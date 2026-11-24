@@ -2803,8 +2803,6 @@ export const hi: Partial<Catalog<MessageKey>> = {
   'notify.soundKind.question': 'सवाल',
   'notify.soundKind.approval': 'अनुमति',
   'notify.soundKind.error': 'त्रुटि',
-  'routine.history': 'निर्देश इतिहास',
-  'routine.historyNone': 'निर्देश अभी नहीं बदला है।',
   'routine.historyNow': 'वर्तमान',
   'routine.historySame': 'फ़ॉर्म में लिखा निर्देश इस संस्करण जैसा ही है।',
   'routine.historyDiff': 'लाल: इस संस्करण में था, अब नहीं। हरा: तब से जोड़ा गया।',

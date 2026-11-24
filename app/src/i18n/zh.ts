@@ -2680,8 +2680,6 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'notify.soundKind.question': '提问',
   'notify.soundKind.approval': '权限',
   'notify.soundKind.error': '错误',
-  'routine.history': '指令历史',
-  'routine.historyNone': '指令尚未更改。',
   'routine.historyNow': '当前',
   'routine.historySame': '表单中的指令与此版本相同。',
   'routine.historyDiff': '红色：此版本中存在但当前已移除。绿色：此后新增。',

@@ -3031,8 +3031,6 @@ export const uk: Partial<Catalog<MessageKey>> = {
   'notify.soundKind.question': 'Запитання',
   'notify.soundKind.approval': 'Дозвіл',
   'notify.soundKind.error': 'Помилка',
-  'routine.history': 'Історія інструкції',
-  'routine.historyNone': 'Інструкція ще не змінювалася.',
   'routine.historyNow': 'поточна',
   'routine.historySame': 'Інструкція у формі збігається з цією версією.',
   'routine.historyDiff': 'Червоне: є в цій версії, але не зараз. Зелене: додано відтоді.',

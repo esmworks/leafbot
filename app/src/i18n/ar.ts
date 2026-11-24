@@ -3051,8 +3051,6 @@ export const ar: Partial<Catalog<MessageKey>> = {
   'notify.soundKind.question': 'سؤال',
   'notify.soundKind.approval': 'طلب إذن',
   'notify.soundKind.error': 'خطأ',
-  'routine.history': 'سجل التعليمات',
-  'routine.historyNone': 'لم تتغيّر التعليمات بعد.',
   'routine.historyNow': 'الحالية',
   'routine.historySame': 'التعليمات في المربع مطابقة لهذه النسخة.',
   'routine.historyDiff': 'الأحمر: في هذه النسخة وليس الآن. والأخضر: أُضيف بعدها.',

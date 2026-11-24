@@ -2813,8 +2813,6 @@ export const vi: Partial<Catalog<MessageKey>> = {
   'notify.soundKind.question': 'Câu hỏi',
   'notify.soundKind.approval': 'Quyền',
   'notify.soundKind.error': 'Lỗi',
-  'routine.history': 'Lịch sử chỉ dẫn',
-  'routine.historyNone': 'Chỉ dẫn chưa thay đổi.',
   'routine.historyNow': 'hiện tại',
   'routine.historySame': 'Chỉ dẫn trong biểu mẫu giống với phiên bản này.',
   'routine.historyDiff': 'Đỏ: có trong phiên bản này nhưng không còn bây giờ. Xanh: được thêm từ đó.',

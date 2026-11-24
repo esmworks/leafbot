@@ -28,8 +28,11 @@ describe('kullanılmayanlar', () => {
     expect((await unused()).skills.map((s) => s.name)).toEqual(['eski-beceri']);
   });
 
-  it('hiçbir bota açık olmayan ya da oturumu kapanmış bağlantıyı listeler; bir rutinin kullandığını listelemez', async () => {
-    const add = async (id: string, o: { allBots?: boolean; status?: 'connected' | 'signed-out' }) =>
+  it('uzun süredir hiçbir bota açık olmayan ya da oturumu kapalı bağlantıyı listeler; yeni olanı ya da bir rutinin kullandığını listelemez', async () => {
+    const add = async (
+      id: string,
+      o: { allBots?: boolean; status?: 'connected' | 'signed-out'; recent?: boolean },
+    ) =>
       t.db.db.insert(schema.connections).values({
         id,
         userId: null,
@@ -39,9 +42,13 @@ describe('kullanılmayanlar', () => {
         auth: 'none',
         status: o.status ?? 'connected',
         allBots: o.allBots ?? true,
+        ...(!o.recent && { createdAt: old(), updatedAt: old() }),
       });
     await add('botsuz', { allBots: false });
     await add('kapali', { status: 'signed-out' });
+    // Still being set up, and signed out only lately: the person may yet finish them.
+    await add('kuruluyor', { allBots: false, recent: true });
+    await add('yeni-kapanan', { status: 'signed-out', recent: true });
     await add('acik', {});
     await add('rutinin', { status: 'signed-out' });
     const bot = await t.bot();
@@ -92,6 +99,7 @@ describe('kullanılmayanlar', () => {
       url: 'https://example.com/mcp',
       auth: 'none',
       status: 'signed-out',
+      updatedAt: old(),
     });
     const skill = (await t.api<Skill>('POST', '/api/skills', { name: 'ortak-beceri', description: 'x' }))
       .body;

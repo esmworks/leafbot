@@ -2944,8 +2944,6 @@ export const es: Partial<Catalog<MessageKey>> = {
   'notify.soundKind.question': 'Pregunta',
   'notify.soundKind.approval': 'Permiso',
   'notify.soundKind.error': 'Error',
-  'routine.history': 'Historial de instrucciones',
-  'routine.historyNone': 'La instrucción aún no ha cambiado.',
   'routine.historyNow': 'actual',
   'routine.historySame': 'La instrucción del formulario es igual a esta versión.',
   'routine.historyDiff': 'Rojo: está en esta versión pero no ahora. Verde: añadido después.',

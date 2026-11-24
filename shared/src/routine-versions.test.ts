@@ -15,6 +15,9 @@ describe('routine versions', () => {
   it('reads the same value written in another key order, or with a part left out, as unchanged', () => {
     const reordered = { timeoutDays: 7, question: 'ok?', kind: 'approval', id: 'a', next: undefined };
     expect(versionChanges({ ...base, steps: [reordered as RoutineStep] }, base)).toEqual([]);
+    // The routine form writes the empty fields the bot and the API leave out.
+    const fromForm = { ...step, when: null, next: '', onError: '' } as unknown as RoutineStep;
+    expect(versionChanges({ ...base, steps: [fromForm] }, base)).toEqual([]);
     expect(versionChanges({ prompt: 'x' }, { prompt: 'x', steps: [], model: '', condition: null })).toEqual(
       [],
     );

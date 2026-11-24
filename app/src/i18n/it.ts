@@ -2903,8 +2903,6 @@ export const it: Partial<Catalog<MessageKey>> = {
   'notify.soundKind.question': 'Domanda',
   'notify.soundKind.approval': 'Permesso',
   'notify.soundKind.error': 'Errore',
-  'routine.history': 'Cronologia dell’istruzione',
-  'routine.historyNone': 'L’istruzione non è ancora cambiata.',
   'routine.historyNow': 'attuale',
   'routine.historySame': 'L’istruzione nel modulo è uguale a questa versione.',
   'routine.historyDiff': 'Rosso: presente in questa versione ma non ora. Verde: aggiunto dopo.',
