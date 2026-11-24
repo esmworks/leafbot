@@ -202,6 +202,34 @@ describe('routine tools with steps', () => {
     expect((await mine(bot.id)).slackReaction).toBe('');
   });
 
+  it('lets a manager set a routine up for a bot it looks after, never for another manager', async () => {
+    const m = await t.bot({ name: 'Kahya', isManager: true, permissionMode: 'auto' });
+    const other = await t.bot({ name: 'Şef', isManager: true });
+    const pasa = await t.bot({ name: 'Paşa' });
+    const plain = await t.bot({ name: 'Ali', permissionMode: 'auto' });
+    const thread = await main(m.id);
+    const made = await ask(thread.id, 'routine_create', { ...briefing, bot: 'Paşa' });
+    expect(made).toContain('"Brifing" rutini kuruldu');
+    expect(await mine(pasa.id)).toMatchObject({ name: 'Brifing', botId: pasa.id, model: 'haiku' });
+    expect(await t.services.routines.list(m.id)).toHaveLength(0);
+    // The same name again for that bot is its own routine already.
+    expect(await ask(thread.id, 'routine_create', { ...briefing, bot: 'Paşa' })).toContain('Brifing');
+    expect(await t.services.routines.list(pasa.id)).toHaveLength(1);
+    await ask(thread.id, 'routine_create', { ...briefing, bot: 'Şef' });
+    expect(await t.services.routines.list(other.id)).toHaveLength(0);
+    // A bot that is not a manager sets routines up for itself only.
+    const own = await main(plain.id);
+    await ask(own.id, 'routine_create', { ...briefing, bot: 'Paşa' });
+    expect(await t.services.routines.list(pasa.id)).toHaveLength(1);
+    expect(await t.services.routines.list(plain.id)).toHaveLength(0);
+    const card = describeAction(
+      'mcp__leafbot__routine_create',
+      { ...briefing, bot: 'Paşa' },
+      { bot: 'Kahya', locale: 'tr' },
+    );
+    expect(card.want).toBe('Kahya "Paşa" botuna "Brifing" adında bir rutin kurmak istiyor.');
+  });
+
   it('shows every step on the card the person approves', () => {
     const detail = describeAction('mcp__leafbot__routine_create', briefing, {
       bot: 'Paşa',
