@@ -35,6 +35,7 @@ import { DoctorService } from './doctor';
 import { TitleService } from './titles';
 import { LinkPreviews } from './link-preview';
 import { OfferService } from './offers';
+import { CardService } from './cards';
 import { JobService } from './jobs';
 import { MemoryService } from './memory';
 import { MemoryFlagService } from './memory-flags';
@@ -125,6 +126,8 @@ export class Services {
   readonly doctor: DoctorService;
   readonly titles: TitleService;
   readonly offers: OfferService;
+  /** Interactive cards bots show in conversations; `cards` are the vault's payment cards. */
+  readonly chatCards: CardService;
   readonly linkPreviews = new LinkPreviews();
   readonly telegram: TelegramChannels;
   readonly whatsapp: WhatsAppChannel;
@@ -201,6 +204,7 @@ export class Services {
     this.titles = new TitleService(ctx, this, engineFor);
     this.turns.onFinished((t, o) => this.titles.onTurnFinished(t, o));
     this.offers = new OfferService(ctx, this, engineFor, clock);
+    this.chatCards = new CardService(ctx, this, clock);
     this.turns.onFinished((t, o) => this.offers.onTurnFinished(t, o));
     this.threads.onContextReset((id) => this.memoryReview.onContextReset(id));
     this.promises = new PromiseService(ctx, this, engineFor, clock);

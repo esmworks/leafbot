@@ -328,6 +328,7 @@ export type ToolName =
   | 'routine_stop'
   | 'app_suggest'
   | 'quick_replies'
+  | 'show_card'
   | 'app_add'
   | 'plan_update'
   | 'memory_write'
@@ -713,6 +714,21 @@ export class ToolFactory {
           });
           return t('tool.quickRepliesShown');
         },
+        'internal',
+      ),
+      def(
+        'show_card',
+        {
+          card: z
+            .unknown()
+            .describe('The card: one JSON tree of ChatKit widget components, rooted at a Card or a ListView'),
+          card_id: z
+            .string()
+            .max(64)
+            .optional()
+            .describe('Only to replace a card you showed and nobody has answered: the card_id it returned'),
+        },
+        ({ card, card_id }) => s.chatCards.show({ bot, thread, input: card, cardId: card_id, t }),
         'internal',
       ),
       def(

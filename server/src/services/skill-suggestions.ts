@@ -72,6 +72,7 @@ const BOOKKEEPING = new Set([
   'TodoWrite',
   'plan_update',
   'quick_replies',
+  'show_card',
   'ask_user',
   'react',
   'memory_search',

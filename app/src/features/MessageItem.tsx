@@ -93,6 +93,7 @@ import { personNameOf } from './PeopleTab';
 import { toolLabel } from '@/lib/toolLabel';
 import { isRefusal } from '@/lib/refusal';
 import { BotPage } from './BotPage';
+import { ChatCard } from './ChatCard';
 import { McpAppView } from './McpAppView';
 import { EmailApprovalCard } from './EmailApproval';
 import { speechSupported, toggleSpeech, useServerVoice, useSpeech } from '@/lib/speech';
@@ -196,7 +197,9 @@ export function MessageItem({
           data-reply-start={m.turnId ?? m.id}
         >
           {(m.props.routineReport === true || m.props.routineInMain === true) && <RoutineReportLine m={m} />}
-          {page ? (
+          {m.props.card ? (
+            <ChatCard m={m} />
+          ) : page ? (
             <BotPage
               botId={botId ?? ''}
               path={page.path}
