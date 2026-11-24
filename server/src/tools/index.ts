@@ -16,6 +16,7 @@ import {
   ROUTINE_VAR_NAME,
   ROUTINE_VARS_MAX,
   ROUTINE_STEP_MAX,
+  routesPastApproval,
   ROUTINE_CONDITION_MAX,
   RoutineCondition as ConditionSchema,
   type RoutineCondition,
@@ -119,9 +120,15 @@ const StepInput = z.object({
       contains: z.string().max(500).optional(),
       filter: z.string().max(2000).optional(),
       absent: z.boolean().optional(),
-      otherwise: z.enum(['skip', 'end']).optional(),
+      otherwise: z.enum(['skip', 'end', 'goto']).optional(),
+      /** With `goto`: the id of a later step the run goes on at. */
+      goto: z.string().max(40).optional(),
     })
     .optional(),
+  /** After the step ended well: `end`, or the id of a later step; none, the step after it. */
+  next: z.string().max(40).optional(),
+  /** An agent step that fails goes on at this later step's id instead of stopping the run. */
+  on_error: z.string().max(40).optional(),
 });
 const StepsInput = z.array(StepInput).max(ROUTINE_STEP_MAX);
 
@@ -173,10 +180,18 @@ export function stepsFrom(input: z.infer<typeof StepsInput>, t: T): RoutineStep[
       filter: s.when.filter ?? '',
       absent: s.when.absent ?? false,
       otherwise: s.when.otherwise ?? 'skip',
+      ...(s.when.otherwise === 'goto' && { goto: s.when.goto?.trim() ?? '' }),
     };
+    const next = s.next?.trim();
     const raw = {
       ...(s.kind === 'agent'
-        ? { id, kind: s.kind, prompt: s.prompt ?? '', model: s.model ?? '' }
+        ? {
+            id,
+            kind: s.kind,
+            prompt: s.prompt ?? '',
+            model: s.model ?? '',
+            ...(s.on_error?.trim() && { onError: s.on_error.trim() }),
+          }
         : s.kind === 'approval'
           ? { id, kind: s.kind, question: s.question ?? '', timeoutDays: s.timeout_days }
           : s.kind === 'notify'
@@ -190,6 +205,7 @@ export function stepsFrom(input: z.infer<typeof StepsInput>, t: T): RoutineStep[
                 timeoutDays: s.timeout_days,
               }),
       ...(when && { when }),
+      ...(next && { next }),
     };
     const parsed = StepSchema.safeParse(raw);
     if (!parsed.success) {
@@ -238,8 +254,11 @@ export function stepsOut(steps: readonly RoutineStep[]): Record<string, unknown>
         ...(s.when.filter && { filter: s.when.filter }),
         ...(s.when.absent && { absent: true }),
         otherwise: s.when.otherwise,
+        ...(s.when.otherwise === 'goto' && { goto: s.when.goto ?? '' }),
       },
     }),
+    ...(s.next && { next: s.next }),
+    ...(s.kind === 'agent' && s.onError && { on_error: s.onError }),
   }));
 }
 
@@ -1447,20 +1466,27 @@ export class ToolFactory {
           const before = r.steps ?? [];
           const at = (id: string) => steps?.findIndex((y) => y.id === id) ?? -1;
           // Taken away, or with a step that came after it (and so waited for the person) now before it,
-          // or given a condition that can pass it over and let the steps after it run unasked.
+          // or given a condition that can pass it over and let the steps after it run unasked, or
+          // with a new way from a step before it to one after it.
+          const passedBefore = new Set(routesPastApproval(before));
           const loosened =
             steps &&
-            held.some((x) => {
-              const now = steps.findIndex((y) => y.id === x.id && y.kind === 'approval');
-              if (now < 0) return true;
-              const when = steps[now]!.when;
-              if (when && when.otherwise !== 'end' && JSON.stringify(when) !== JSON.stringify(x.when ?? null))
-                return true;
-              return before.slice(before.indexOf(x) + 1).some((y) => {
-                const there = at(y.id);
-                return there >= 0 && there < now;
-              });
-            });
+            (routesPastApproval(steps).some((k) => !passedBefore.has(k)) ||
+              held.some((x) => {
+                const now = steps.findIndex((y) => y.id === x.id && y.kind === 'approval');
+                if (now < 0) return true;
+                const when = steps[now]!.when;
+                if (
+                  when &&
+                  when.otherwise !== 'end' &&
+                  JSON.stringify(when) !== JSON.stringify(x.when ?? null)
+                )
+                  return true;
+                return before.slice(before.indexOf(x) + 1).some((y) => {
+                  const there = at(y.id);
+                  return there >= 0 && there < now;
+                });
+              }));
           if (loosened) {
             const ok = await askOnCard(
               t('tool.routineApprovalDropped', { name: r.name }),

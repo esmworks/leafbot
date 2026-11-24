@@ -212,6 +212,13 @@ export function fillFilter(filter: string, vars: Readonly<Record<string, string>
  * before (the last bot step's answer, and what a wait step brought). With neither `contains` nor
  * `filter`, it holds when something reached the step at all.
  */
+/**
+ * Where a step's route goes: the id of a step after it, or `end` where the run may end there.
+ * Empty takes the route's usual way. A route only goes forward, so a run cannot go round in a loop.
+ */
+export const ROUTINE_STEP_END = 'end';
+const stepTarget = z.union([z.literal(''), stepId]).optional();
+
 export const RoutineStepWhen = z.object({
   /** Text that must be in it, any letter case. */
   contains: z.string().trim().max(500).default(''),
@@ -219,17 +226,35 @@ export const RoutineStepWhen = z.object({
   filter: z.string().max(2000).default(''),
   /** The step runs when it is not there instead. */
   absent: z.boolean().default(false),
-  /** When it does not hold: the step is passed over, or the run ends there. */
-  otherwise: z.enum(['skip', 'end']).default('skip'),
+  /**
+   * When it does not hold: the step is passed over and the one after it runs, the run ends there,
+   * or the run goes on at the step `goto` names, passing over the ones in between.
+   */
+  otherwise: z.enum(['skip', 'end', 'goto']).default('skip'),
+  /** The step the run goes on at with `goto`: one after this step. */
+  goto: stepTarget,
 });
 export type RoutineStepWhen = z.infer<typeof RoutineStepWhen>;
 const when = RoutineStepWhen.nullable().optional();
+/**
+ * Where the run goes once the step ended well: empty, the step after it; `end`, the run ends
+ * there; or a later step's id, passing over the ones in between. A step its condition passed over
+ * does not follow it: the step after it runs, as if it were not there.
+ */
+const next = stepTarget;
 
 export const RoutineStep = z.discriminatedUnion('kind', [
   z.object({
     id: stepId,
     kind: z.literal('agent'),
     when,
+    next,
+    /**
+     * Where the run goes when the bot's work fails (or the bot says it could not do it): empty
+     * stops the run there, to be tried again from this step; a later step's id goes on there with
+     * why it failed.
+     */
+    onError: stepTarget,
     prompt: z.string().trim().min(1, 'validation.stepPrompt').max(20_000),
     model: z.string().trim().max(200).default(''),
   }),
@@ -237,6 +262,7 @@ export const RoutineStep = z.discriminatedUnion('kind', [
     id: stepId,
     kind: z.literal('approval'),
     when,
+    next,
     question: z.string().trim().min(1, 'validation.stepQuestion').max(2000),
     timeoutDays: z.number().int().min(1).max(ROUTINE_APPROVAL_MAX_DAYS).default(7),
   }),
@@ -244,6 +270,7 @@ export const RoutineStep = z.discriminatedUnion('kind', [
     id: stepId,
     kind: z.literal('notify'),
     when,
+    next,
     text: z.string().trim().max(4000).default(''),
     withBefore: z.boolean().default(true),
   }),
@@ -251,6 +278,7 @@ export const RoutineStep = z.discriminatedUnion('kind', [
     id: stepId,
     kind: z.literal('wait'),
     when,
+    next,
     on: z.enum(['time', 'webhook', 'email']),
     minutes: z.number().int().min(1).max(ROUTINE_WAIT_MAX_MINUTES).default(60),
     filter: z.string().max(2000).default(''),
@@ -259,6 +287,56 @@ export const RoutineStep = z.discriminatedUnion('kind', [
 ]);
 export type RoutineStep = z.infer<typeof RoutineStep>;
 export type RoutineStepKind = RoutineStep['kind'];
+
+/** What a step's routes need to be read: the routine's window and a bot's input both have it. */
+type Routed = {
+  id: string;
+  kind: string;
+  when?: { otherwise: string; goto?: string } | null;
+  next?: string;
+  onError?: string;
+};
+
+/** Which route of a step goes where: `otherwise` its condition's, `next` after it, `onError` on failure. */
+export type StepRoute = { from: number; field: 'otherwise' | 'next' | 'onError'; to: string };
+
+/** Every route of the steps that leaves the usual way, with the index of the step it starts at. */
+export function stepRoutes(steps: readonly Routed[]): StepRoute[] {
+  const out: StepRoute[] = [];
+  steps.forEach((s, from) => {
+    if (s.when?.otherwise === 'goto') out.push({ from, field: 'otherwise', to: s.when.goto ?? '' });
+    if (s.next) out.push({ from, field: 'next', to: s.next });
+    if (s.kind === 'agent' && s.onError) out.push({ from, field: 'onError', to: s.onError });
+  });
+  return out;
+}
+
+/**
+ * Why the steps' routes cannot be followed, as a message key, or null when each names a step
+ * after its own (or ends the run, after a step ended well). `end` is kept for that, so no step
+ * may have it as its id.
+ */
+export function stepRoutesProblem(steps: readonly Routed[]): string | null {
+  if (steps.some((s) => s.id === ROUTINE_STEP_END)) return 'validation.stepIdEnd';
+  for (const r of stepRoutes(steps)) {
+    if (r.field === 'next' && r.to === ROUTINE_STEP_END) continue;
+    const at = steps.findIndex((s) => s.id === r.to);
+    if (at <= r.from) return 'validation.stepRoute';
+  }
+  return null;
+}
+
+/**
+ * The routes that let the run pass over an approval step without the person: each from a step
+ * before it to a step after it, as `from>field>to` by the steps' ids.
+ */
+export function routesPastApproval(steps: readonly Routed[]): string[] {
+  return stepRoutes(steps).flatMap((r) => {
+    const to = steps.findIndex((s) => s.id === r.to);
+    const over = to > r.from + 1 && steps.slice(r.from + 1, to).some((s) => s.kind === 'approval');
+    return over ? [`${steps[r.from]!.id}>${r.field}>${r.to}`] : [];
+  });
+}
 
 /**
  * Where each box of a routine's flow view sits on its canvas, in pixels from the top left: steps by
@@ -363,11 +441,18 @@ export const RoutineCreate = z.object({
   botId: z.string(),
   name: z.string().trim().min(1).max(80),
   prompt: z.string().trim().min(1).max(20_000),
-  /** Steps done in order after the instruction, each once the one before it ended well. */
+  /**
+   * Steps done in order after the instruction, each once the one before it ended well, unless a
+   * step's route goes on at a later one.
+   */
   steps: z
     .array(RoutineStep)
     .max(ROUTINE_STEP_MAX)
     .refine((s) => new Set(s.map((x) => x.id)).size === s.length, 'validation.stepIds')
+    .superRefine((s, ctx) => {
+      const problem = stepRoutesProblem(s);
+      if (problem) ctx.addIssue({ code: 'custom', message: problem });
+    })
     .default([]),
   schedule: Schedule,
   timezone: z.string().refine(isValidTimeZone, 'validation.timezone').default('Europe/Istanbul'),

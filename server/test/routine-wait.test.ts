@@ -105,6 +105,43 @@ describe('a wait step of a routine', () => {
     expect(await reports(bot.id)).toHaveLength(1);
   });
 
+  it('goes on after the wait where its way leads, passing over the steps in between', async () => {
+    const bot = await t.bot();
+    const r = await make(bot.id, 'ilk iş', [
+      { id: 'bekle', kind: 'wait', on: 'time', minutes: 30, next: 'son' },
+      { id: 'ara', kind: 'agent', prompt: 'ara iş' },
+      { id: 'son', kind: 'agent', prompt: 'son iş' },
+    ]);
+    const run = await runOnce(r);
+    expect(run.status).toBe('waiting');
+    later(31 * 60_000);
+    await tick();
+    const done = await runOf(r, run.id);
+    expect(done.status).toBe('done');
+    expect(done.steps?.map((s) => s.status)).toEqual(['done', 'done', 'skipped', 'done']);
+    expect(t.engine.requests.some((q) => q.prompt.includes('ara iş'))).toBe(false);
+    // The step it went on at builds on the bot step before the wait.
+    expect(t.engine.requests.at(-1)!.prompt).toContain('son iş');
+    expect(t.engine.requests.at(-1)!.prompt).toContain('ilk iş');
+  });
+
+  it('ends the run after the wait when its way is to end', async () => {
+    const bot = await t.bot();
+    const r = await make(bot.id, 'ilk iş', [
+      { id: 'bekle', kind: 'wait', on: 'time', minutes: 30, next: 'end' },
+      { id: 'son', kind: 'agent', prompt: 'son iş' },
+    ]);
+    const run = await runOnce(r);
+    later(31 * 60_000);
+    await tick();
+    const done = await runOf(r, run.id);
+    expect(done.status).toBe('done');
+    expect(t.engine.requests.some((q) => q.prompt.includes('son iş'))).toBe(false);
+    const sent = await reports(bot.id);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text).toContain('ilk iş');
+  });
+
   it('goes on when the person ends the wait', async () => {
     const bot = await t.bot();
     const r = await make(bot.id, 'ilk iş', [

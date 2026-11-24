@@ -302,5 +302,72 @@ describe('routine tools with steps', () => {
     ).detail;
     expect(gated).toContain('(yalnız varsa: "[1]"; yoksa çalışma biter)');
     expect(gated).toContain('(yalnız önceki adımdan bir şey gelmezse)');
+    const branched = describeAction(
+      'mcp__leafbot__routine_create',
+      {
+        ...briefing,
+        steps: [
+          {
+            id: 'bak',
+            kind: 'agent',
+            prompt: 'Fiyatlara bak',
+            when: { contains: 'değişti', otherwise: 'goto', goto: 'sessiz' },
+            next: 'end',
+            on_error: 'hata',
+          },
+          { id: 'sessiz', kind: 'notify', text: 'Değişiklik yok', next: 'end' },
+          { id: 'hata', kind: 'notify', text: 'Bakılamadı' },
+        ],
+      },
+      { bot: 'Paşa', locale: 'tr' },
+    ).detail;
+    expect(branched).toContain('yoksa 2. adıma geçer');
+    expect(branched).toContain('→ sonra çalışma biter → olmazsa 3. adım');
+  });
+
+  it('sets up branches, reads them back, and asks before a new way passes an approval step', async () => {
+    const bot = await t.bot({ name: 'Paşa', permissionMode: 'auto' });
+    const thread = await main(bot.id);
+    const steps = [
+      {
+        id: 'bak',
+        kind: 'agent',
+        prompt: 'Fiyatlara bak.',
+        on_error: 'hata',
+        when: { contains: 'değişti', otherwise: 'goto', goto: 'hata' },
+      },
+      { id: 'sor', kind: 'approval', question: 'Gönderilsin mi?' },
+      { id: 'gonder', kind: 'agent', prompt: 'Gönder.', next: 'end' },
+      { id: 'hata', kind: 'notify', text: 'Bakılamadı' },
+    ];
+    expect(await ask(thread.id, 'routine_create', { ...briefing, steps })).toContain('rutini kuruldu');
+    const r = await mine(bot.id);
+    expect(r.steps![0]).toMatchObject({ onError: 'hata', when: { otherwise: 'goto', goto: 'hata' } });
+    expect(r.steps![2]).toMatchObject({ next: 'end' });
+    const read = await ask(thread.id, 'routine_read', { routine: 'Brifing' });
+    expect(read).toContain('"on_error": "hata"');
+    expect(read).toContain('"goto": "hata"');
+    expect(read).toContain('"next": "end"');
+
+    // A way back is turned away, with the reason, and nothing changes.
+    const back = steps.map((s) => (s.id === 'hata' ? { ...s, next: 'bak' } : s));
+    expect(await ask(thread.id, 'routine_update', { routine: 'Brifing', steps: back })).toContain(
+      'sonraki bir adıma',
+    );
+    expect((await mine(bot.id)).steps![3]).not.toHaveProperty('next', 'bak');
+
+    // A new way from before the approval to after it lets the sending run unasked: asked on a card.
+    const around = steps.map((s) => (s.id === 'bak' ? { ...s, next: 'gonder' } : s));
+    await t.send(thread.id, `[araç:routine_update ${JSON.stringify({ routine: 'Brifing', steps: around })}]`);
+    const card = await waitFor(async () => (await pending())[0]);
+    expect(card.summary).toContain('Brifing');
+    await t.api('POST', `/api/approvals/${card.id}`, { decision: 'allow', answer: 'Reddet' });
+    await t.services.turns.idle();
+    expect((await mine(bot.id)).steps![0]!.next).toBeFalsy();
+    // A way that only went past it before, as the failure one did, needs no card when it stays.
+    expect(await ask(thread.id, 'routine_update', { routine: 'Brifing', steps })).toContain(
+      'rutini güncellendi',
+    );
+    expect(await pending()).toHaveLength(0);
   });
 });

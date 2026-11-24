@@ -16,6 +16,7 @@ import {
   occurrenceKey,
   parseFilter,
   passesFilter,
+  stepRoutesProblem,
   type Routine,
   type RoutineCheck,
   type RoutineCondition,
@@ -46,7 +47,7 @@ import {
 } from 'drizzle-orm';
 import type { z } from 'zod';
 import type { Ctx } from '../context';
-import type { T } from '../i18n';
+import { isServerKey, type T } from '../i18n';
 import { isSilentReply, SILENT_REPLY } from '../engine/types';
 import { schema } from '../db';
 import type { Engine, GateRequest, GateVerdict, TurnOutcome } from '../engine/types';
@@ -54,7 +55,7 @@ import type { TurnRow } from '../runtime/turns';
 import { cutAt, errorText, HttpError, isUniqueViolation, newId, notFound, truncate } from '../util';
 import { checkSignature, signatureAllows } from './webhook-signatures';
 import { toRoutine, toRun } from './mappers';
-import { botStepAt, handedOn, snapshotSteps, stepList, varsWanted } from './routine-steps';
+import { botStepAt, handedOn, routeFrom, snapshotSteps, stepList, varsWanted } from './routine-steps';
 import { fetchPublicText } from './skill-link';
 import { mailText } from './email';
 import { describeWhen, RoutineConditions, stepWhenHolds, type ConditionResult } from './routine-conditions';
@@ -276,6 +277,7 @@ export class RoutineService {
       .where(eq(schema.routines.botId, input.botId));
     if (made >= MAX_ROUTINES_PER_BOT)
       throw new HttpError(400, 'error.routineLimit', { max: MAX_ROUTINES_PER_BOT });
+    checkRoutes(input.steps);
     if (input.check) await this.checkCheck(input.botId, input.check, userId, !!input.slackChannel);
     if (input.condition)
       await this.checkCondition(
@@ -331,6 +333,7 @@ export class RoutineService {
     const enabled = patch.enabled ?? current.enabled;
     const last = current.lastRunAt ? new Date(current.lastRunAt) : null;
     if (patch.schedule) this.checkOnce(schedule, timezone, this.clock());
+    if (patch.steps) checkRoutes(patch.steps);
     // Also when one is turned on: an imported routine comes paused, its schedule never checked.
     if (patch.schedule || (enabled && !current.enabled)) this.checkOften(schedule);
     const was = await this.personOf(current);
@@ -2138,9 +2141,12 @@ export class RoutineService {
         target: [schema.routineStepRuns.runId, schema.routineStepRuns.position],
         set: passed,
       });
-    if (when.otherwise === 'skip' && position < steps.length) {
-      await this.startStep(run, routineName, steps, position + 1, before, t);
-      return;
+    // Passed over, the step's own way after it is not followed: the step after it runs, as if this
+    // one were not there. `goto` goes on where the condition's other way leads.
+    if (when.otherwise !== 'end') {
+      const route = routeFrom(steps, position, when.otherwise === 'goto' ? when.goto : '');
+      if ('to' in route) return this.goTo(run, routineName, steps, position, route.to, before, t);
+      if ('lost' in route) return this.lostRoute(run, route.lost, t);
     }
     const [row] = await this.ctx.db
       .select({ trigger: schema.routineRuns.trigger, slackChannel: schema.routines.slackChannel })
@@ -2165,6 +2171,71 @@ export class RoutineService {
       outside: row?.trigger ?? null,
       slackChannel: row?.slackChannel ?? null,
     });
+    this.ctx.bus.refresh({ scope: 'routines' });
+    await this.startQueued(run.routineId);
+  }
+
+  /**
+   * Goes on from the step at `from` to the one at `to`. The steps in between are marked as not on
+   * the way this run took, so what one of them ended with on an earlier pass (before a correction
+   * sent the run back) is not handed on. `before` is what reaches the step; when not given, what
+   * the steps before it handed on.
+   */
+  private async goTo(
+    run: StepRun,
+    routineName: string,
+    steps: readonly RoutineStep[],
+    from: number,
+    to: number,
+    before: string | null | undefined,
+    t: T,
+  ) {
+    const now = this.clock();
+    const off = {
+      status: 'skipped' as const,
+      reason: t('routine.stepOffRoute'),
+      output: null,
+      turnId: null,
+      approvalId: null,
+      startedAt: now,
+      finishedAt: now,
+    };
+    for (let p = from + 1; p < to; p++) {
+      await this.ctx.db
+        .insert(schema.routineStepRuns)
+        .values({ id: newId(), runId: run.id, position: p, kind: steps[p - 1]!.kind, ...off })
+        .onConflictDoUpdate({
+          target: [schema.routineStepRuns.runId, schema.routineStepRuns.position],
+          set: off,
+        });
+    }
+    let given = before;
+    if (given === undefined) {
+      const rows = await this.ctx.db
+        .select()
+        .from(schema.routineStepRuns)
+        .where(eq(schema.routineStepRuns.runId, run.id));
+      given = handedOn(steps, rows, to);
+    }
+    await this.startStep(run, routineName, steps, to, given, t);
+  }
+
+  /**
+   * Ends a run whose route names a step it does not have after the one it is at. Going on with the
+   * step after it instead could do what the routine was set to go around (send a mail, say), so the
+   * run stops there as failed, with why.
+   */
+  private async lostRoute(run: StepRun, target: string, t: T) {
+    await this.ctx.db
+      .update(schema.routineRuns)
+      .set({
+        status: 'error',
+        reason: t('routine.stepRouteLost', { step: target }),
+        stepModel: null,
+        finishedAt: this.clock(),
+      })
+      .where(eq(schema.routineRuns.id, run.id));
+    await this.countRun(run.routineId, 'failed', run.id);
     this.ctx.bus.refresh({ scope: 'routines' });
     await this.startQueued(run.routineId);
   }
@@ -2379,14 +2450,10 @@ export class RoutineService {
         });
       }
     }
-    if (position < steps.length) {
-      const rows = await this.ctx.db
-        .select()
-        .from(schema.routineStepRuns)
-        .where(eq(schema.routineStepRuns.runId, run.id));
-      await this.startStep(run, routineName, steps, position + 1, handedOn(steps, rows, position + 1), t);
-      return;
-    }
+    const route = routeFrom(steps, position, step.next);
+    if ('to' in route) return this.goTo(run, routineName, steps, position, route.to, undefined, t);
+    if ('lost' in route) return this.lostRoute(run, route.lost, t);
+    // What it told is the run's report: nothing more is sent when it ends here.
     await this.ctx.db
       .update(schema.routineRuns)
       .set({ status: 'done', stepModel: null, finishedAt: now })
@@ -2725,6 +2792,7 @@ export class RoutineService {
       botId: bot.id,
       userId: r.routine.userId,
     };
+    const route = routeFrom(steps, step.position, steps[step.position - 1]?.next);
     try {
       if (o.revise) {
         await this.restartStep(
@@ -2737,17 +2805,12 @@ export class RoutineService {
           t('routine.reviseNote', { answer: o.revise }),
           t,
         );
-      } else if (step.position < steps.length) {
-        await this.startStep(
-          at,
-          r.routine.name,
-          steps,
-          step.position + 1,
-          handedOn(steps, rows, step.position + 1),
-          t,
-        );
+      } else if ('to' in route) {
+        await this.goTo(at, r.routine.name, steps, step.position, route.to, undefined, t);
+      } else if ('lost' in route) {
+        await this.lostRoute(at, route.lost, t);
       } else {
-        // The held step was the last: what reached it is the run's report.
+        // The held step was the last, or the run ends after it: what reached it is the run's report.
         await this.ctx.db
           .update(schema.routineRuns)
           .set({ status: 'done', finishedAt: now })
@@ -2917,7 +2980,8 @@ export class RoutineService {
   /**
    * A bot's turn of a run with steps ended. One that failed, or that the person stopped, ends the
    * run there, to be tried again from that step; nothing runs again by itself, since the steps
-   * before it may already have changed something. One that ended well starts the next step. True
+   * before it may already have changed something. A failed step with a way on failure goes on
+   * there instead. One that ended well starts the step its way leads to, the next by default. True
    * when it handled the run; false for the last step ending well, which ends the run as a run of
    * one instruction does.
    */
@@ -2958,10 +3022,42 @@ export class RoutineService {
       this.ctx.bus.refresh({ scope: 'routines' });
       await this.startQueued(run.routineId);
     };
+    const at: StepRun = {
+      id: runId,
+      routineId: run.routineId,
+      threadId: turn.threadId,
+      botId: turn.botId,
+      userId: run.userId,
+    };
     if (run.failedByBot || !outcome.ok) {
       const stopped = !outcome.ok && outcome.kind === 'interrupted' && outcome.byPerson === true;
       const status = run.failedByBot ? 'error' : stopped ? 'stopped' : 'error';
       const reason = run.failedByBot ? run.reason : outcome.ok ? null : outcome.message;
+      // A step with a way to go on failure takes it for work that really failed, or that the bot
+      // said it could not do. A stop by the person, an account out of usage or a server stop end
+      // the run as before: the step after would meet the same.
+      const step = position > 0 ? steps[position - 1] : undefined;
+      const onError = step?.kind === 'agent' ? step.onError : undefined;
+      const route =
+        onError && (run.failedByBot || realFailure(outcome)) ? routeFrom(steps, position, onError) : null;
+      if (route && 'to' in route) {
+        // The failure is handled where the routine said, and is not counted toward switching it
+        // off: that way tells the person on each run, and a routine that watches for something
+        // going down must not turn itself off once it does.
+        await endStep({ status: 'error', reason, output: outcome.text.trim() || null });
+        await this.ctx.db
+          .update(schema.routineRuns)
+          .set({ status: 'running', reason: null, failedByBot: false })
+          .where(eq(schema.routineRuns.id, runId));
+        const t = await this.services.settings.translator();
+        const what = [
+          t('routine.stepFailedBefore', { step: String(position + 1), reason: reason?.trim() || '-' }),
+          ...(outcome.text.trim() ? [cutAt(outcome.text.trim(), REPORT_MAX)] : []),
+        ].join('\n\n');
+        await this.goTo(at, run.routineName, steps, position, route.to, what, t);
+        this.ctx.bus.refresh({ scope: 'routines' });
+        return true;
+      }
       if (run.failedByBot || realFailure(outcome)) await this.countRun(run.routineId, 'failed', runId);
       await endStep({ status, reason, output: outcome.text.trim() || null });
       // A run the bot marked as failed keeps the bot's reason.
@@ -2985,16 +3081,13 @@ export class RoutineService {
       });
       return true;
     }
-    if (position >= steps.length) return false;
+    // The routine's own instruction has no way of its own: the first step comes after it.
+    const route = routeFrom(steps, position, position > 0 ? steps[position - 1]?.next : '');
+    // Ending here, its answer is the run's report, as the last step's is.
+    if ('end' in route) return false;
     const t = await this.services.settings.translator();
-    await this.startStep(
-      { id: runId, routineId: run.routineId, threadId: turn.threadId, botId: turn.botId, userId: run.userId },
-      run.routineName,
-      steps,
-      position + 1,
-      outcome.text,
-      t,
-    );
+    if ('lost' in route) await this.lostRoute(at, route.lost, t);
+    else await this.goTo(at, run.routineName, steps, position, route.to, outcome.text, t);
     this.ctx.bus.refresh({ scope: 'routines' });
     return true;
   }
@@ -3458,6 +3551,15 @@ export const FAILURE_LIMIT = 10;
  * provider that is busy for now, a restart and the person's stop say nothing about the routine, and
  * the first two would end every routine at once.
  */
+/**
+ * Turns away steps whose routes name no step after their own: the bot's tools and an import write
+ * steps without the request's schema, and a route that goes back could run a step again and again.
+ */
+function checkRoutes(steps: readonly RoutineStep[] | undefined) {
+  const problem = steps ? stepRoutesProblem(steps) : null;
+  if (problem) throw new HttpError(400, isServerKey(problem) ? problem : 'validation.stepRoute');
+}
+
 function realFailure(outcome: TurnOutcome): boolean {
   if (outcome.ok) return false;
   return (outcome.kind === 'engine' && outcome.transient !== true) || outcome.kind === 'stalled';
