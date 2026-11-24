@@ -11,7 +11,7 @@ version is 0.x, a minor release may change the data format or the API; the serve
   routine's page has the same numbers and findings as on the web, with Apply (and undo), Ask the bot (the message waits
   in the bot's chat for you to send) and Hide.
 - Settings → Usage lists what sits unused, worked out with no AI: skills no bot has read for 60 days, bots with no
-  turn for 60 days, and connections no bot can use (open to none, or signed out). A bot with a routine switched on, a
+  turn for 60 days, and connections no bot could use for 60 days (open to none, or signed out). A bot with a routine switched on, a
   chat app it answers in or bots it looks after is left out, and so is a connection a routine checks or waits on. Each
   can be cleared away from there: a skill or connection is removed after you say yes, as that cannot be undone, and a
   bot is archived with a way to take it back. Only what you may change is listed, and nothing goes by itself.
@@ -20,6 +20,27 @@ version is 0.x, a minor release may change the data format or the API; the serve
   went (done, nothing to report, failed, what they cost, how long they took), marked when it has too few runs to go
   by; bringing a version back puts all of it in the form. Runs from before versions were kept are counted apart, and
   versions kept before this with the instruction alone bring back only that.
+- A routine's ways can go back to an earlier step, so a run can read a page every half hour until what it waits for
+  is there, or have a step write a draft again when the step checking it does not like it. What the step the way
+  leaves hands on reaches the step it goes back to. A run goes back 20 times at most; one that never comes out of
+  its loop stops there as failed. An approval step can also have a way for a "no": the run goes on at that step
+  with what the person turned down (a step that writes it again, a note to someone) instead of stopping. A bot that
+  sets or changes that way asks on a card first, since a "no" could lead where a "yes" does. The flow view draws
+  each way with an arrow at its end, so one that goes back reads as such.
+- Memory can be seen as a map (Memory → Map): each note a dot coloured by whose it is, clustered by owner, linked to
+  notes about the same site, written in the same conversation, or, with search by meaning on, near it in meaning. A
+  dot opens the note to fix, pin or forget, as in the list.
+- A routine started by something (a mail, a webhook, a watched page) can be rehearsed on the inputs of its last runs at
+  once: up to five, one after another, with a list of what it would have changed or sent for each input. Nothing is
+  done; each rehearsal is billed like a run, and the button says how many it starts.
+- Each conversation has an action log (in the conversation's menu): the turns that changed or sent something, newest
+  first, each listing what can still be taken back, what was, and what no one can take back, such as a mail that went
+  out or a call to another service. A turn can be taken back from there.
+- A bot can have a reviewer: a second model, best of another family than the bot's own, that reads a mail about to
+  go out, or data about to leave, while its card waits for you. When something looks wrong (an address the request
+  never named, private data going out, a step that does more than was asked, text the bot read steering it) it adds
+  one line to the card. It never decides, never holds the bot up and adds no cards; a card it finds nothing on stays
+  as it was. Off by default; set it in the bot's settings. Its cost shows on the usage page.
 - Each routine shows its health: how its runs of the last 30 days ended (done, nothing to report, failed), what they
   cost and how long they took, worked out from the runs with no AI. It points out a routine that keeps failing, that
   switched itself off, that waits for a sign-in, a step that keeps failing, a wait that keeps running out, runs that

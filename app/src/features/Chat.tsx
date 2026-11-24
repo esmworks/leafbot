@@ -36,6 +36,7 @@ import {
   Target,
   RotateCcw,
   Trash2,
+  History,
   Webhook,
   KanbanSquare,
   UsersRound,
@@ -104,6 +105,7 @@ import { editAsTyped } from '@/lib/undoableEdit';
 import { useHoldReload } from '@/lib/update';
 import { holdsFor, isOffline, retryOutbox, useOutbox } from '@/lib/outbox';
 import { markedName } from '@/lib/markup';
+import { ActionLogDialog } from './ActionLog';
 import { ComputerButton } from './Computer';
 import { EmojiButton } from '@/components/EmojiPicker';
 import { PlanMeter } from './PlanMeter';
@@ -363,6 +365,7 @@ function Header({
   const showList = useUi((s) => s.showList);
   const findOpen = useUi((s) => s.findOpen);
   const setFindOpen = useUi((s) => s.setFindOpen);
+  const [logOpen, setLogOpen] = useState(false);
   const qc = useQueryClient();
   const create = useMutation({
     mutationFn: () => api.newThread(bot.id),
@@ -501,6 +504,11 @@ function Header({
               </DropdownMenuItem>
             )}
             {thread && (
+              <DropdownMenuItem onClick={() => setLogOpen(true)}>
+                <History /> {t('actionLog.title')}
+              </DropdownMenuItem>
+            )}
+            {thread && (
               <DropdownMenuItem onClick={() => renameThread(thread)}>
                 <Pencil /> {t('chat.renameThread')}
               </DropdownMenuItem>
@@ -630,6 +638,7 @@ function Header({
             />
           </DropdownMenuContent>
         </DropdownMenu>
+        {thread && <ActionLogDialog threadId={thread.id} open={logOpen} onOpenChange={setLogOpen} />}
         <div className="pointer-events-auto flex items-center justify-end gap-1">
           {bot.engine === 'claude' && <PlanMeter />}
           <Tooltip>

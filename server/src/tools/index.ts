@@ -125,14 +125,16 @@ const StepInput = z.object({
       filter: z.string().max(2000).optional(),
       absent: z.boolean().optional(),
       otherwise: z.enum(['skip', 'end', 'goto']).optional(),
-      /** With `goto`: the id of a later step the run goes on at. */
+      /** With `goto`: the id of another step the run goes on at; an earlier one goes back. */
       goto: z.string().max(40).optional(),
     })
     .optional(),
-  /** After the step ended well: `end`, or the id of a later step; none, the step after it. */
+  /** After the step ended well: `end`, or the id of another step; none, the step after it. */
   next: z.string().max(40).optional(),
-  /** An agent, fetch or extract step that fails goes on at this later step's id instead of stopping the run. */
+  /** An agent, fetch or extract step that fails goes on at this step's id instead of stopping the run. */
   on_error: z.string().max(40).optional(),
+  /** An approval step the person turns down goes on at this step's id instead of stopping the run. */
+  on_reject: z.string().max(40).optional(),
 });
 const StepsInput = z.array(StepInput).max(ROUTINE_STEP_MAX);
 
@@ -188,6 +190,7 @@ export function stepsFrom(input: z.infer<typeof StepsInput>, t: T): RoutineStep[
     };
     const next = s.next?.trim();
     const onError = s.on_error?.trim();
+    const onReject = s.on_reject?.trim();
     const raw = {
       ...(s.kind === 'agent'
         ? {
@@ -198,7 +201,13 @@ export function stepsFrom(input: z.infer<typeof StepsInput>, t: T): RoutineStep[
             ...(onError && { onError }),
           }
         : s.kind === 'approval'
-          ? { id, kind: s.kind, question: s.question ?? '', timeoutDays: s.timeout_days }
+          ? {
+              id,
+              kind: s.kind,
+              question: s.question ?? '',
+              timeoutDays: s.timeout_days,
+              ...(onReject && { onReject }),
+            }
           : s.kind === 'notify'
             ? { id, kind: s.kind, text: s.text ?? '', withBefore: s.with_before }
             : s.kind === 'fetch'
@@ -268,6 +277,7 @@ export function stepsOut(steps: readonly RoutineStep[]): Record<string, unknown>
     }),
     ...(s.next && { next: s.next }),
     ...('onError' in s && s.onError && { on_error: s.onError }),
+    ...('onReject' in s && s.onReject && { on_reject: s.onReject }),
   }));
 }
 
@@ -2944,6 +2954,7 @@ export class ToolFactory {
               internet: false,
               // The person's Mac is theirs to open to a bot, never a manager bot's.
               personComputer: false,
+              reviewer: null,
               projectDir: null,
               memory: true,
               effort: a.effort ?? '',

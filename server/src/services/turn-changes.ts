@@ -1,8 +1,15 @@
 import { createHash } from 'node:crypto';
 import { lstat, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, basename } from 'node:path';
-import type { Ticket, TurnChangeItem, TurnChanges, TurnChangeOutcome, TurnChangeKind } from '@leafbot/shared';
-import { and, asc, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm';
+import type {
+  Ticket,
+  TurnChangeItem,
+  TurnChanges,
+  TurnChangeOutcome,
+  TurnChangeKind,
+  TurnLogEntry,
+} from '@leafbot/shared';
+import { and, asc, desc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import type { T } from '../i18n';
@@ -16,6 +23,9 @@ export const CHANGE_KEEP_DAYS = 30;
 /** The largest file whose earlier content is kept, and the most one turn keeps in all. */
 export const FILE_KEEP_MAX = 2 * 1024 * 1024;
 export const TURN_KEEP_MAX = 20 * 1024 * 1024;
+/** How many turns, newest first, the action log of a conversation lists; and of what it was asked, how much. */
+const LOG_TURNS = 30;
+const LOG_REQUEST = 200;
 /** A file larger than this is not read to tell whether it changed later. */
 const HASH_MAX = 64 * 1024 * 1024;
 
@@ -315,6 +325,63 @@ export class TurnChangeService {
     return rows
       .filter((r) => !NOT_OUTSIDE.has(stepName(r.toolName)))
       .map((r) => ({ summary: r.summary || stepName(r.toolName), at: r.createdAt.toISOString() }));
+  }
+
+  /**
+   * The action log of a conversation: the person's own turns that changed something, newest first,
+   * each with what can still be taken back, what was, and what no one can (steps that reached
+   * outside, changes too large to keep). Only what is kept, `CHANGE_KEEP_DAYS` back.
+   */
+  async log(threadId: string, userId: string): Promise<TurnLogEntry[]> {
+    const since = new Date(Date.now() - CHANGE_KEEP_DAYS * 86_400_000);
+    const turns = await this.ctx.db
+      .select({
+        id: schema.turns.id,
+        status: schema.turns.status,
+        prompt: schema.turns.prompt,
+        createdAt: schema.turns.createdAt,
+      })
+      .from(schema.turns)
+      .where(
+        and(
+          eq(schema.turns.threadId, threadId),
+          eq(schema.turns.userId, userId),
+          gt(schema.turns.createdAt, since),
+        ),
+      )
+      .orderBy(desc(schema.turns.createdAt))
+      .limit(LOG_TURNS * 4);
+    if (!turns.length) return [];
+    const ids = turns.map((t) => t.id);
+    const changes = await this.ctx.db
+      .select()
+      .from(schema.turnChanges)
+      .where(and(inArray(schema.turnChanges.turnId, ids), eq(schema.turnChanges.userId, userId)))
+      .orderBy(desc(schema.turnChanges.createdAt), desc(schema.turnChanges.id));
+    const actions = await this.ctx.db
+      .select()
+      .from(schema.botActions)
+      .where(inArray(schema.botActions.turnId, ids))
+      .orderBy(asc(schema.botActions.createdAt));
+    const entries: TurnLogEntry[] = [];
+    for (const turn of turns) {
+      const rows = changes.filter((c) => c.turnId === turn.id);
+      const outside = actions
+        .filter((a) => a.turnId === turn.id && !NOT_OUTSIDE.has(stepName(a.toolName)))
+        .map((a) => ({ summary: a.summary || stepName(a.toolName), at: a.createdAt.toISOString() }));
+      if (!rows.length && !outside.length) continue;
+      entries.push({
+        turnId: turn.id,
+        at: turn.createdAt.toISOString(),
+        request: truncate(turn.prompt.trim(), LOG_REQUEST),
+        running: turn.status === 'queued' || turn.status === 'running',
+        undone: rows.length > 0 && rows.every((r) => r.undoneAt),
+        items: await Promise.all(rows.map((r) => this.item(r, userId))),
+        outside,
+      });
+      if (entries.length >= LOG_TURNS) break;
+    }
+    return entries;
   }
 
   /** What taking the turn back would put back, and what no one can. */

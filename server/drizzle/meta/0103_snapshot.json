@@ -1,5 +1,5 @@
 {
-  "id": "fafd0e1b-3320-4ae2-b0a0-ad734f9a1111",
+  "id": "bf557d00-0b08-4252-b581-7d124d8e0b9c",
   "prevId": "0f5fb5da-51d4-4366-a037-13954fcd6b53",
   "version": "7",
   "dialect": "postgresql",
@@ -1194,6 +1194,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "reviewer": {
+          "name": "reviewer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         },
         "project_dir": {
           "name": "project_dir",
@@ -5088,31 +5094,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "full": {
-          "name": "full",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "steps": {
-          "name": "steps",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "model": {
-          "name": "model",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "condition": {
-          "name": "condition",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -5280,12 +5261,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "revision_id": {
-          "name": "revision_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "step_model": {
           "name": "step_model",
           "type": "text",
@@ -5364,19 +5339,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "routine_runs_revision_id_routine_revisions_id_fk": {
-          "name": "routine_runs_revision_id_routine_revisions_id_fk",
-          "tableFrom": "routine_runs",
-          "tableTo": "routine_revisions",
-          "columnsFrom": [
-            "revision_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

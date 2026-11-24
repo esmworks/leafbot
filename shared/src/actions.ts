@@ -94,7 +94,7 @@ function stepsText(raw: unknown, locale: Locale): string | null {
           : '';
     return ` (${tr ? 'yalnız ' : 'only '}${test}${end})`;
   };
-  // Where the run goes after the step and when it fails, so the person sees each branch.
+  // Where the run goes after the step, when it fails and when it is turned down, so the person sees each branch.
   const ways = (x: Record<string, unknown>) => {
     const next = str(x.next);
     const failed = str(x.on_error);
@@ -112,7 +112,13 @@ function stepsText(raw: unknown, locale: Locale): string | null {
         ? ` → olmazsa ${place(failed)} adım`
         : ` → if it fails, step ${place(failed)}`
       : '';
-    return after + onError;
+    const rejected = str(x.on_reject);
+    const onReject = rejected
+      ? tr
+        ? ` → reddedilirse ${place(rejected)} adım`
+        : ` → if turned down, step ${place(rejected)}`
+      : '';
+    return after + onError + onReject;
   };
   const head = tr ? 'Adımlar:' : 'Steps:';
   return [

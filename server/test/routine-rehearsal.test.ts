@@ -218,6 +218,40 @@ describe('rehearsing a routine', () => {
     expect(old.status).toBe(400);
   });
 
+  it('rehearses on the last real inputs one after another, and lists what each would do', async () => {
+    const { routine } = await make('Faturayı özetle. [araç:memory_write {"content":"yeni not"}]');
+    const runs: string[] = [];
+    for (const payload of ['FATURA 1', 'FATURA 2', 'FATURA 3']) {
+      t.now.value = new Date(t.now.value.getTime() + 60_000);
+      runs.push((await t.api<RoutineRun>('POST', `/api/routines/${routine.id}/run`, { payload })).body.id);
+      await t.services.turns.idle();
+    }
+    const started = await t.api<Rehearsal>('POST', `/api/routines/${routine.id}/rehearse`, { replayLast: 2 });
+    expect(started.status).toBe(200);
+    // Each starts when the one before ends; wait until none is left to start.
+    for (let i = 0; i < 20 && (t.services.rehearsals.batchGoing(routine.id) || i === 0); i++) {
+      await t.services.turns.idle();
+    }
+    await t.services.turns.idle();
+    const list = (await t.api<Rehearsal[]>('GET', `/api/routines/${routine.id}/rehearsals`)).body;
+    const batch = list.filter((r) => r.batchId === started.body.batchId);
+    // The two newest inputs, not the oldest.
+    expect(batch.map((r) => r.replay?.runId).sort()).toEqual([runs[1], runs[2]].sort());
+    expect(batch.every((r) => r.status === 'done')).toBe(true);
+    expect(batch.every((r) => r.steps.some((x) => x.kind === 'would'))).toBe(true);
+    expect(t.services.rehearsals.batchGoing(routine.id)).toBe(false);
+    // Nothing was written: the step was only listed.
+    const prompts = t.engine.requests.slice(-2).map((r) => r.prompt);
+    expect(prompts.some((p) => p.includes('FATURA 3'))).toBe(true);
+    expect(prompts.some((p) => p.includes('FATURA 2'))).toBe(true);
+  });
+
+  it('refuses to rehearse on the last inputs when none was kept', async () => {
+    const { routine } = await make('x');
+    const res = await t.api('POST', `/api/routines/${routine.id}/rehearse`, { replayLast: 3 });
+    expect(res.status).toBe(400);
+  });
+
   it('caps what it keeps of a run input', async () => {
     const { routine } = await make('x');
     const big = 'a'.repeat(50_000);

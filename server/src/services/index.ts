@@ -32,6 +32,7 @@ import { TicketService } from './tickets';
 import { TableService } from './tables';
 import { ContentSealService } from './content-seal';
 import { DoctorService } from './doctor';
+import { ReviewerService } from './reviewer';
 import { TitleService } from './titles';
 import { LinkPreviews } from './link-preview';
 import { OfferService } from './offers';
@@ -129,6 +130,7 @@ export class Services {
   readonly contentSeal: ContentSealService;
   readonly doctor: DoctorService;
   readonly titles: TitleService;
+  readonly reviewer: ReviewerService;
   readonly offers: OfferService;
   /** Interactive cards bots show in conversations; `cards` are the vault's payment cards. */
   readonly chatCards: CardService;
@@ -208,6 +210,7 @@ export class Services {
     this.memoryTidy = new MemoryTidyService(ctx, this, engineFor, clock);
     this.memoryFlags = new MemoryFlagService(ctx, this, clock);
     this.titles = new TitleService(ctx, this, engineFor);
+    this.reviewer = new ReviewerService(ctx, this, engineFor);
     this.turns.onFinished((t, o) => this.titles.onTurnFinished(t, o));
     this.offers = new OfferService(ctx, this, engineFor, clock);
     this.chatCards = new CardService(ctx, this, clock);

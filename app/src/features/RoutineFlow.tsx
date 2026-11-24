@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import {
   useEffect,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
@@ -30,7 +31,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Textarea } from '@/components/ui/textarea';
 import { useLocale, useT, type MessageKey } from '@/i18n';
 import {
   BOX_MAX_H,
@@ -61,6 +61,7 @@ import {
   StepIcon,
   type StepForm,
 } from './RoutineSteps';
+import { LongText } from './LongText';
 
 /** A box's title bar, `h-11`: the fields under it get the rest of the box's height. */
 const TITLE_H = 44;
@@ -143,6 +144,8 @@ export function RoutineFlow({
   // Boxes without a place of their own fill the canvas's width, so it is measured.
   const scroller = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(FALLBACK_WIDTH);
+  /** The arrow at a jump's end, by an id of this view's own. */
+  const arrow = useId();
   useLayoutEffect(() => {
     const el = scroller.current;
     if (!el) return;
@@ -216,7 +219,7 @@ export function RoutineFlow({
     id === 'start' ? undefined : runPart(run, id === 'prompt' ? null : id);
   /** The lines the latest run went along, drawn in the brand's color. */
   const taken = takenWays(steps, partOf);
-  /** The ways that jump ahead, each with the box it leaves and the one it goes to. */
+  /** The ways that jump ahead or go back, each with the box it leaves and the one it goes to. */
   const jumps = stepRoutes(steps).flatMap((r) => {
     const from = steps[r.from]!.id;
     return spots[r.to] && r.to !== from ? [{ from, to: r.to, field: r.field }] : [];
@@ -516,6 +519,20 @@ export function RoutineFlow({
                 height={size.height}
                 aria-hidden
               >
+                <defs>
+                  {/* A way's end, so one that goes back reads as going back. */}
+                  <marker
+                    id={arrow}
+                    viewBox="0 0 8 8"
+                    refX="7"
+                    refY="4"
+                    markerWidth="7"
+                    markerHeight="7"
+                    orient="auto-start-reverse"
+                  >
+                    <path d="M 0 0 L 8 4 L 0 8 z" fill="context-stroke" />
+                  </marker>
+                </defs>
                 {ids.slice(1).map((id, k) => {
                   const from = ids[k]!;
                   const { path } = link(spots[from]!, spots[id]!);
@@ -549,7 +566,9 @@ export function RoutineFlow({
                       ? 'flow.wayOtherwise'
                       : j.field === 'next'
                         ? 'flow.wayNext'
-                        : 'flow.wayError';
+                        : j.field === 'onReject'
+                          ? 'flow.wayReject'
+                          : 'flow.wayError';
                   return (
                     <g key={`${j.from}-${j.field}`}>
                       <path
@@ -557,6 +576,7 @@ export function RoutineFlow({
                         fill="none"
                         strokeWidth={on ? 2 : 1.5}
                         strokeDasharray={going ? '6 5' : '3 4'}
+                        markerEnd={`url(#${arrow})`}
                         style={{
                           stroke: on
                             ? 'var(--brand)'
@@ -637,12 +657,12 @@ export function RoutineFlow({
                 error: !!promptError,
                 children: (
                   <>
-                    <Textarea
+                    <LongText
                       value={prompt}
-                      onChange={(e) => onPrompt(e.target.value)}
+                      onChange={onPrompt}
                       rows={4}
-                      className="scroll-thin max-h-48 overflow-y-auto rounded-xl text-sm"
-                      aria-label={t('routine.prompt')}
+                      label={t('routine.prompt')}
+                      inFlow
                     />
                     {promptError && (
                       <p className="text-xs text-destructive">{t(promptError as MessageKey)}</p>
@@ -669,10 +689,12 @@ export function RoutineFlow({
                       <StepFields
                         step={s}
                         later={steps.slice(i + 1)}
+                        earlier={steps.slice(0, i)}
                         onChange={(next) => onSteps(steps.map((x, j) => (j === i ? next : x)))}
                         error={errors?.[i]}
                         modelListId={modelListId}
                         modelPlaceholder={modelPlaceholder}
+                        inFlow
                       />
                       {statusBody(st)}
                       {s.kind === 'agent' && tryButton(s.prompt, true)}

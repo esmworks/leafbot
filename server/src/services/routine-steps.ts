@@ -24,8 +24,9 @@ export function snapshotSteps(raw: unknown): RoutineStep[] | null {
 
 /**
  * Where a run goes from the step at `position` along a route: `to` the position of the step it
- * starts next, `end` when it ends there, `lost` when the route names a step the run does not have
- * after this one (a step the server could not read when the run started). Empty is the usual way:
+ * starts next (before it when the route goes back), `end` when it ends there, `lost` when the route
+ * names the step itself or a step the run does not have (one the server could not read when the
+ * run started). Empty is the usual way:
  * the step after it, or the end after the last.
  */
 export type Route = { to: number } | { end: true } | { lost: string };
@@ -34,7 +35,8 @@ export function routeFrom(steps: readonly RoutineStep[], position: number, targe
   if (!target) return position < steps.length ? { to: position + 1 } : { end: true };
   if (target === ROUTINE_STEP_END) return { end: true };
   const at = steps.findIndex((s) => s.id === target) + 1;
-  return at > position ? { to: at } : { lost: target };
+  // An earlier step goes back; the step itself, or one it does not have, is lost.
+  return at > 0 && at !== position ? { to: at } : { lost: target };
 }
 
 /** The kind a run's step at `position` has: its own instruction first, then the steps after it. */

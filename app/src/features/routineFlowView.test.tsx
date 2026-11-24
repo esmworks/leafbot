@@ -76,11 +76,34 @@ describe('rutin akışı', () => {
     fireEvent.keyDown(add, { key: 'Enter' });
     fireEvent.click(await screen.findByRole('menuitem', { name: /Bot step/ }));
     expect(listed()).toEqual(['', 'Summarise it']);
-    // Each box edits its step where it is.
-    const fields = flow().getAllByPlaceholderText(/step before ended with/);
-    expect(fields).toHaveLength(2);
-    fireEvent.change(fields[0]!, { target: { value: 'Pick the top three' } });
+    // Each box opens its step's text in a window, where it is written out in full.
+    const texts = flow().getAllByRole('button', { name: /^Bot step\. Open to read and edit/ });
+    expect(texts).toHaveLength(2);
+    fireEvent.click(texts[0]!);
+    const editor = within(await screen.findByRole('dialog', { name: 'Bot step' }));
+    fireEvent.change(editor.getByRole('textbox', { name: 'Bot step' }), {
+      target: { value: 'Pick the top three' },
+    });
     expect(listed()).toEqual(['Pick the top three', 'Summarise it']);
+    fireEvent.click(editor.getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(texts[0]!.textContent).toContain('Pick the top three');
+  });
+
+  it('talimatın uzun metni kutuda başıyla görünür, tamamı pencerede yazılır', async () => {
+    render(<Both initial={[]} />);
+    const box = within(flow().getByRole('region', { name: 'What should it do?' }));
+    // The box has no field of its own to scroll inside it; its text opens over the flow.
+    expect(box.queryByRole('textbox')).toBeNull();
+    const text = box.getByRole('button', { name: /Open to read and edit/ });
+    expect(text.textContent).toContain('Read the news');
+    fireEvent.click(text);
+    const editor = within(await screen.findByRole('dialog', { name: 'What should it do?' }));
+    const long = Array.from({ length: 40 }, (_, i) => `${i + 1}. Check one more thing`).join('\n');
+    fireEvent.change(editor.getByRole('textbox'), { target: { value: long } });
+    fireEvent.keyDown(editor.getByRole('textbox'), { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(text.textContent).toContain('40. Check one more thing');
   });
 
   it('adımın koşulu listede açılır, akışın kutusunda da aynı görünür; kapatılınca silinir', () => {
@@ -135,7 +158,7 @@ describe('rutin akışı', () => {
     ];
     render(<Both initial={steps} />);
     for (const view of [list(), flow()]) {
-      expect(view.getByRole('radio', { name: 'Go on at a later step' }).getAttribute('aria-checked')).toBe(
+      expect(view.getByRole('radio', { name: 'Go on at another step' }).getAttribute('aria-checked')).toBe(
         'true',
       );
       const failing = view.getAllByRole('combobox', { name: 'If it fails' })[0]!;
@@ -145,16 +168,18 @@ describe('rutin akışı', () => {
     // Two ways leave the first box for the last: the condition's other way and the way on failure.
     expect(flow().getByText('if not')).toBeTruthy();
     expect(flow().getByText('if it fails')).toBeTruthy();
-    // The last step has nothing after it, so it offers no way to choose.
-    expect(list().getAllByRole('combobox', { name: 'Then' })).toHaveLength(2);
+    // The last step has nothing after it, but it may go back to the steps before it.
+    const last = list().getAllByRole('combobox', { name: 'Then' });
+    expect(last).toHaveLength(3);
+    expect(last[2]!.textContent).toContain('Go on to the next step');
   });
 
   it('Alt ve ok tuşuyla sırayı değiştirir, Delete siler; bir alana yazarken tuşlar alanındır', () => {
     render(<Both initial={[agent('a', 'One'), agent('b', 'Two')]} />);
     fireEvent.keyDown(titles()[3]!, { key: 'ArrowUp', altKey: true });
     expect(listed()).toEqual(['Two', 'One']);
-    // Backspace in a step's own text field deletes a letter, not the step.
-    fireEvent.keyDown(flow().getByDisplayValue('Two'), { key: 'Backspace' });
+    // Backspace in a step's own field deletes a letter, not the step.
+    fireEvent.keyDown(flow().getAllByLabelText("The step's model")[0]!, { key: 'Backspace' });
     expect(listed()).toEqual(['Two', 'One']);
     fireEvent.keyDown(titles()[2]!, { key: 'Delete' });
     expect(listed()).toEqual(['One']);
