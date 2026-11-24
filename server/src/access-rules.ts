@@ -307,6 +307,7 @@ export const ROUTE_RULES: Record<string, Rule> = {
 
   // Memory: each person's own notes, and those of the bots they may change (checked by the routes).
   'GET /api/memory': 'self',
+  'GET /api/memory/graph': 'self',
   'POST /api/memory': 'self',
   'PATCH /api/memory/:id': 'self',
   'DELETE /api/bots/:id/memory': edit(),

@@ -7,6 +7,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Memory can be seen as a map (Memory → Map): each note a dot coloured by whose it is, clustered by owner, linked to
+  notes about the same site, written in the same conversation, or, with search by meaning on, near it in meaning. A
+  dot opens the note to fix, pin or forget, as in the list.
 - A routine started by something (a mail, a webhook, a watched page) can be rehearsed on the inputs of its last runs at
   once: up to five, one after another, with a list of what it would have changed or sent for each input. Nothing is
   done; each rehearsal is billed like a run, and the button says how many it starts.

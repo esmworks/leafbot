@@ -133,6 +133,22 @@ export class EmbeddingService {
     return { indexed: todo.length, left: stale.length - todo.length };
   }
 
+  /**
+   * The vectors of these notes that are indexed with the current model and words, by id; null when
+   * search by meaning is off. Nothing is sent to the service: a note not indexed yet has none.
+   */
+  async vectors(
+    notes: { id: string; content: string; embedding: number[] | null; embeddingKey: string | null }[],
+  ) {
+    const s = await this.ai.get('embeddings');
+    if (!s) return null;
+    const out = new Map<string, number[]>();
+    for (const n of notes) {
+      if (n.embedding && n.embeddingKey === keyOf(s.model, n.content)) out.set(n.id, n.embedding);
+    }
+    return out;
+  }
+
   /** How many notes are indexed with the current model, of all of them. */
   async status(): Promise<{ indexed: number; total: number }> {
     const s = await this.ai.get('embeddings');

@@ -1093,6 +1093,27 @@ export const Memory = z.object({
 export type Memory = z.infer<typeof Memory>;
 
 /**
+ * How notes hang together, for the memory map: `site`, notes about the same site; `conversation`,
+ * notes a bot wrote in the same conversation; `similar`, notes near each other in meaning, with
+ * how near (0–1). The notes are the ones `GET /api/memory` lists.
+ */
+export const MemoryGraph = z.object({
+  edges: z.array(
+    z.object({
+      a: Id,
+      b: Id,
+      kind: z.enum(['site', 'conversation', 'similar']),
+      score: z.number().optional(),
+    }),
+  ),
+  /** Search by meaning is on, so notes near in meaning are linked. */
+  meaning: z.boolean(),
+  /** There were more notes than the map links. */
+  truncated: z.boolean(),
+});
+export type MemoryGraph = z.infer<typeof MemoryGraph>;
+
+/**
  * A memory change a bot asked for while nobody watched (a routine, another bot's request); it
  * takes effect only once the person accepts it.
  */

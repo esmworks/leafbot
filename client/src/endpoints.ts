@@ -56,6 +56,7 @@ import type {
   MailSender,
   LiveText,
   Memory,
+  MemoryGraph,
   MemoryChange,
   MemoryFlag,
   MemoryHistoryLine,
@@ -583,6 +584,7 @@ export function endpoints(send: Transport, base = '') {
     removeRule: (id: string) => http.del<{ ok: true }>(`/api/rules/${id}`),
 
     memory: () => http.get<Memory[]>('/api/memory'),
+    memoryGraph: () => http.get<MemoryGraph>('/api/memory/graph'),
     addMemory: (m: {
       scope: 'bot' | 'user';
       botId?: string | null;

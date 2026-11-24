@@ -3,6 +3,7 @@ import {
   type Bot,
   type Memory,
   type MemoryChange,
+  type MemoryGraph,
   type MemoryScope,
 } from '@leafbot/shared';
 import {
@@ -29,7 +30,7 @@ import { toMemory, toMemoryChange } from './mappers';
 import { scrubCanary } from './canary';
 import { noteKey } from './secrets';
 import { siteMatches } from './vault';
-import { MIN_SCORE, type EmbeddingService } from './embeddings';
+import { MIN_SCORE, similarity, type EmbeddingService } from './embeddings';
 import { OWNER_ID } from '../users';
 import { settleChangeFlags, settleNoteFlags } from './memory-flags';
 
@@ -57,6 +58,11 @@ export interface MemoryReach {
 }
 
 /** The SQL condition for the notes of `reach`. */
+/** The most notes the memory map links; and how near two must be in meaning, and to how many each is linked. */
+const GRAPH_NOTES = 500;
+const GRAPH_NEAR = 0.6;
+const GRAPH_NEIGHBOURS = 3;
+
 const reachable = (reach: MemoryReach) =>
   or(
     and(eq(schema.memories.scope, 'user'), eq(schema.memories.userId, reach.userId)),
@@ -163,6 +169,55 @@ export class MemoryService {
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(asc(schema.memories.createdAt));
     return rows.map(toMemory);
+  }
+
+  /**
+   * How the notes `reach` covers hang together, for the memory map: notes about the same site,
+   * notes a bot wrote in the same conversation, and, when search by meaning is on, notes near each
+   * other in meaning (each to its few nearest). The notes themselves come from `list`.
+   */
+  async graph(reach?: MemoryReach): Promise<MemoryGraph> {
+    const rows = await this.ctx.db
+      .select()
+      .from(schema.memories)
+      .where(reach ? reachable(reach) : undefined)
+      .orderBy(asc(schema.memories.createdAt))
+      .limit(GRAPH_NOTES);
+    const edges: MemoryGraph['edges'] = [];
+    const seen = new Set<string>();
+    const link = (a: string, b: string, kind: MemoryGraph['edges'][number]['kind'], score?: number) => {
+      const key = a < b ? `${a} ${b}` : `${b} ${a}`;
+      if (a === b || seen.has(key)) return;
+      seen.add(key);
+      edges.push({ a, b, kind, ...(score !== undefined && { score: Math.round(score * 100) / 100 }) });
+    };
+    // Notes that share a site, or a conversation, are linked one to the next, not each to each.
+    for (const [kind, of] of [
+      ['site', (r: (typeof rows)[number]) => r.site],
+      ['conversation', (r: (typeof rows)[number]) => r.threadId],
+    ] as const) {
+      const groups = new Map<string, string[]>();
+      for (const r of rows) {
+        const k = of(r);
+        if (k) groups.set(k, [...(groups.get(k) ?? []), r.id]);
+      }
+      for (const ids of groups.values())
+        for (let i = 1; i < ids.length; i++) link(ids[i - 1]!, ids[i]!, kind);
+    }
+    const vectors = this.embeddings ? await this.embeddings.vectors(rows) : null;
+    if (vectors) {
+      const ids = [...vectors.keys()];
+      for (const a of ids) {
+        const near = ids
+          .filter((b) => b !== a)
+          .map((b) => ({ b, score: similarity(vectors.get(a)!, vectors.get(b)!) }))
+          .filter((x) => x.score >= GRAPH_NEAR)
+          .sort((x, y) => y.score - x.score)
+          .slice(0, GRAPH_NEIGHBOURS);
+        for (const { b, score } of near) link(a, b, 'similar', score);
+      }
+    }
+    return { edges, meaning: !!vectors, truncated: rows.length >= GRAPH_NOTES };
   }
 
   /** The notes a bot has about the site of `host`: its own, those of the person it works for, and the place's. */

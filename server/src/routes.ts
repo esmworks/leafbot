@@ -2161,6 +2161,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       .parse(req.query);
     return s.memory.list({ ...q, reach: await memoryReach(req) });
   });
+  app.get('/api/memory/graph', async (req) => s.memory.graph(await memoryReach(req)));
   app.post('/api/memory', async (req) => {
     const b = MemoryCreate.parse(req.body);
     // A bot's note needs its bot, and leave to change it.

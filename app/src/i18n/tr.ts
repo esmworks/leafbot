@@ -3076,6 +3076,18 @@ export const tr = {
   'memory.pin': 'Sabitle',
   'memory.unpin': 'Sabitlemeyi kaldır',
   'memory.pinned': 'Sabit',
+  'memory.viewList': 'Liste',
+  'memory.viewMap': 'Harita',
+  'memory.mapTitle': 'Notların haritası',
+  'memory.mapLink.similar': 'anlamca yakın',
+  'memory.mapLink.site': 'aynı site',
+  'memory.mapLink.conversation': 'aynı konuşmada yazılmış',
+  'memory.mapSize': 'Büyük nokta daha sık bakılan notu, halkalı olan sabitlenmiş notu gösterir.',
+  'memory.mapHint':
+    'Her renk notun kime ait olduğunu gösterir. Notu okumak, düzeltmek ya da unutturmak için bir noktaya dokun.',
+  'memory.mapNoMeaning':
+    'Notları yalnızca aynı site ya da aynı konuşma üzerinden değil, anlamca yakınlığa göre de bağlamak için anlamla aramayı aç (Ayarlar → Yapay zekâ servisleri).',
+  'memory.mapTruncated': 'Haritanın bağladığından daha çok not var: en yeniler bağsız kaldı.',
   'memory.pinHint': 'Sabitlenen notlar her konuşmada bota mutlaka verilir.',
   'memory.rooms': 'Kanalların ve odaların notları',
   'memory.roomsHint': 'Bir kanalda ya da odada tutulan notlar yalnızca orada okunur.',
