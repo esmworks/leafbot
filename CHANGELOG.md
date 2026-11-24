@@ -7,6 +7,13 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A routine's ways can go back to an earlier step, so a run can read a page every half hour until what it waits for
+  is there, or have a step write a draft again when the step checking it does not like it. What the step the way
+  leaves hands on reaches the step it goes back to. A run goes back 20 times at most; one that never comes out of
+  its loop stops there as failed. An approval step can also have a way for a "no": the run goes on at that step
+  with what the person turned down (a step that writes it again, a note to someone) instead of stopping. A bot that
+  sets or changes that way asks on a card first, since a "no" could lead where a "yes" does. The flow view draws
+  each way with an arrow at its end, so one that goes back reads as such.
 - Memory can be seen as a map (Memory → Map): each note a dot coloured by whose it is, clustered by owner, linked to
   notes about the same site, written in the same conversation, or, with search by meaning on, near it in meaning. A
   dot opens the note to fix, pin or forget, as in the list.

@@ -49,12 +49,21 @@ describe('the routine window keeps the ways a bot set', () => {
     expect(checked.data![2]).toMatchObject({ next: 'end' });
   });
 
-  it('shows a way to a step that is no longer after its own on that step', () => {
+  it('keeps a way back and a reject way, and shows a way to a step taken out on that step', () => {
     const r = routine([
       { id: 'a', kind: 'agent', prompt: 'One', model: '' },
-      { id: 'b', kind: 'agent', prompt: 'Two', model: '', next: 'a' },
+      { id: 'b', kind: 'approval', question: 'Send?', timeoutDays: 7, onReject: 'a' },
+      { id: 'c', kind: 'agent', prompt: 'Two', model: '', next: 'a' },
     ]);
-    const checked = Form.shape.steps.safeParse(fromRoutine(r).steps);
+    const kept = Form.shape.steps.safeParse(fromRoutine(r).steps);
+    expect(kept.success).toBe(true);
+    expect(kept.data![1]).toMatchObject({ onReject: 'a' });
+    expect(kept.data![2]).toMatchObject({ next: 'a' });
+    const gone = routine([
+      { id: 'a', kind: 'agent', prompt: 'One', model: '' },
+      { id: 'b', kind: 'agent', prompt: 'Two', model: '', next: 'yok' },
+    ]);
+    const checked = Form.shape.steps.safeParse(fromRoutine(gone).steps);
     expect(checked.success).toBe(false);
     expect(checked.error!.issues[0]).toMatchObject({ path: [1, 'next'], message: 'routine.stepWayInvalid' });
   });

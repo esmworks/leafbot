@@ -9,6 +9,7 @@ import {
   INTL_LOCALE,
   MIN_RUN_GAP_MINUTES,
   ROUTINE_APPROVAL_TOOL,
+  ROUTINE_BACK_MAX,
   ROUTINE_VAR_MAX,
   ROUTINE_VARS_MAX,
   nextRun,
@@ -40,6 +41,7 @@ import {
   inArray,
   isNotNull,
   isNull,
+  lt,
   lte,
   ne,
   notExists,
@@ -2216,6 +2218,10 @@ export class RoutineService {
    * the way this run took, so what one of them ended with on an earlier pass (before a correction
    * sent the run back) is not handed on. `before` is what reaches the step; when not given, what
    * the steps before it handed on.
+   *
+   * A `to` at or before `from` goes back: what the step at `from` hands on reaches it, and the steps
+   * after it are marked off the way until they run again. Past `ROUTINE_BACK_MAX` times the run
+   * stops there as failed, since a loop that never comes out would run on with no end.
    */
   private async goTo(
     run: StepRun,
@@ -2225,7 +2231,7 @@ export class RoutineService {
     to: number,
     before: string | null | undefined,
     t: T,
-  ) {
+  ): Promise<void> {
     const now = this.clock();
     const off = {
       status: 'skipped' as const,
@@ -2236,6 +2242,28 @@ export class RoutineService {
       startedAt: now,
       finishedAt: now,
     };
+    if (to <= from) {
+      const [went] = await this.ctx.db
+        .update(schema.routineRuns)
+        .set({ backs: sql`${schema.routineRuns.backs} + 1` })
+        .where(and(eq(schema.routineRuns.id, run.id), lt(schema.routineRuns.backs, ROUTINE_BACK_MAX)))
+        .returning({ id: schema.routineRuns.id });
+      if (!went) return this.stopOffWay(run, t('routine.backTooMany', { max: String(ROUTINE_BACK_MAX) }));
+      let given = before;
+      if (given === undefined) {
+        const rows = await this.ctx.db
+          .select()
+          .from(schema.routineStepRuns)
+          .where(eq(schema.routineStepRuns.runId, run.id));
+        given = handedOn(steps, rows, from + 1);
+      }
+      // A wait step keeps the event it took, so the same delivery sent again is not taken twice.
+      await this.ctx.db
+        .update(schema.routineStepRuns)
+        .set(off)
+        .where(and(eq(schema.routineStepRuns.runId, run.id), gt(schema.routineStepRuns.position, to)));
+      return this.startStep(run, routineName, steps, to, given, t);
+    }
     for (let p = from + 1; p < to; p++) {
       await this.ctx.db
         .insert(schema.routineStepRuns)
@@ -2262,14 +2290,14 @@ export class RoutineService {
    * run stops there as failed, with why.
    */
   private async lostRoute(run: StepRun, target: string, t: T) {
+    await this.stopOffWay(run, t('routine.stepRouteLost', { step: target }));
+  }
+
+  /** Ends a run that cannot go on along its way as failed, with why, and starts one kept waiting. */
+  private async stopOffWay(run: StepRun, reason: string) {
     await this.ctx.db
       .update(schema.routineRuns)
-      .set({
-        status: 'error',
-        reason: t('routine.stepRouteLost', { step: target }),
-        stepModel: null,
-        finishedAt: this.clock(),
-      })
+      .set({ status: 'error', reason, stepModel: null, finishedAt: this.clock() })
       .where(eq(schema.routineRuns.id, run.id));
     await this.countRun(run.routineId, 'failed', run.id);
     this.ctx.bus.refresh({ scope: 'routines' });
@@ -2892,6 +2920,7 @@ export class RoutineService {
           status: schema.approvals.status,
           answer: schema.approvals.answer,
           options: schema.approvals.options,
+          decidedBy: schema.approvals.decidedBy,
         },
         routine,
       })
@@ -2939,7 +2968,9 @@ export class RoutineService {
   }
 
   private async settleApproval(
-    r: HeldStep & { card: { status: string; answer: string | null; options: string[] } },
+    r: HeldStep & {
+      card: { status: string; answer: string | null; options: string[]; decidedBy: string | null };
+    },
     t: T,
   ) {
     const { card } = r;
@@ -2947,8 +2978,13 @@ export class RoutineService {
     const [approve, reject] = card.options;
     const kept = answer && answer !== APPROVAL_TIMED_OUT ? answer : null;
     if (card.status === 'expired') return this.endHeldRun(r, 'error', t('routine.approvalTimedOut'), kept);
-    if (card.status === 'denied' || (reject !== undefined && answer === reject))
+    if (card.status === 'denied' || (reject !== undefined && answer === reject)) {
+      // The person's "no" goes on along the step's way for it; one a rule gave ends the run.
+      const step = (snapshotSteps(r.run.stepsSnapshot) ?? [])[r.step.position - 1];
+      if (step?.kind === 'approval' && step.onReject && card.decidedBy !== 'rule')
+        return this.goOn(r, t, { output: kept, rejectedTo: step.onReject });
       return this.endHeldRun(r, 'stopped', t('routine.approvalRejected'), kept);
+    }
     // An answer in words is a correction: the bot step before the card does its work again with it.
     return this.goOn(r, t, { output: kept, ...(answer && answer !== approve && { revise: answer }) });
   }
@@ -2986,13 +3022,14 @@ export class RoutineService {
   /**
    * A run held at a step goes on: it takes the routine's slot again, and the step after the held
    * one starts with what reached it; the run ends when the held step was its last. With `revise`,
-   * the bot step before it is done again with that correction instead. While another run of the
-   * routine holds the slot, it stays held, and goes on at a later pass.
+   * the bot step before it is done again with that correction instead. With `rejectedTo`, the
+   * person turned an approval down and the run goes on at that step, with what they turned down.
+   * While another run of the routine holds the slot, it stays held, and goes on at a later pass.
    */
   private async goOn(
     r: HeldStep,
     t: T,
-    o: { output?: string | null; revise?: string; trigger?: OutsideTrigger },
+    o: { output?: string | null; revise?: string; trigger?: OutsideTrigger; rejectedTo?: string },
   ) {
     const { step, run } = r;
     const steps = snapshotSteps(run.stepsSnapshot) ?? [];
@@ -3016,7 +3053,12 @@ export class RoutineService {
     if (!resumed) return;
     await this.ctx.db
       .update(schema.routineStepRuns)
-      .set({ status: 'done', finishedAt: now, ...(o.output !== undefined && { output: o.output }) })
+      .set({
+        status: o.rejectedTo ? 'stopped' : 'done',
+        ...(o.rejectedTo && { reason: t('routine.approvalRejected') }),
+        finishedAt: now,
+        ...(o.output !== undefined && { output: o.output }),
+      })
       .where(eq(schema.routineStepRuns.id, step.id));
     if (o.trigger && step.output) {
       // What came in shows in the run's conversation, marked as outside text.
@@ -3039,7 +3081,16 @@ export class RoutineService {
       botId: bot.id,
       userId: r.routine.userId,
     };
-    const route = routeFrom(steps, step.position, steps[step.position - 1]?.next);
+    const route = routeFrom(steps, step.position, o.rejectedTo ?? steps[step.position - 1]?.next);
+    // What reaches the step a "no" leads to: that it was turned down, and what was asked about.
+    const rejected = o.rejectedTo
+      ? [
+          t('routine.rejectedBefore', { step: String(step.position + 1) }),
+          handedOn(steps, rows, step.position + 1) ?? '',
+        ]
+          .filter(Boolean)
+          .join('\n\n')
+      : undefined;
     try {
       if (o.revise) {
         await this.restartStep(
@@ -3053,7 +3104,7 @@ export class RoutineService {
           t,
         );
       } else if ('to' in route) {
-        await this.goTo(at, r.routine.name, steps, step.position, route.to, undefined, t);
+        await this.goTo(at, r.routine.name, steps, step.position, route.to, rejected, t);
       } else if ('lost' in route) {
         await this.lostRoute(at, route.lost, t);
       } else {
@@ -3379,7 +3430,15 @@ export class RoutineService {
     try {
       [restarted] = await this.ctx.db
         .update(schema.routineRuns)
-        .set({ status: 'running', reason: null, finishedAt: null, failedByBot: false, outcome: null })
+        // Tried again by the person, the run may go back as often as a new one.
+        .set({
+          status: 'running',
+          reason: null,
+          finishedAt: null,
+          failedByBot: false,
+          outcome: null,
+          backs: 0,
+        })
         .where(
           and(eq(schema.routineRuns.id, runId), inArray(schema.routineRuns.status, ['error', 'stopped'])),
         )
@@ -3811,8 +3870,9 @@ export const FAILURE_LIMIT = 10;
  * the first two would end every routine at once.
  */
 /**
- * Turns away steps whose routes name no step after their own: the bot's tools and an import write
- * steps without the request's schema, and a route that goes back could run a step again and again.
+ * Turns away steps whose routes name no other step of the routine: the bot's tools and an import
+ * write steps without the request's schema, and a route to the step itself would run it again and
+ * again with what it was given.
  */
 function checkRoutes(steps: readonly RoutineStep[] | undefined) {
   const problem = steps ? stepRoutesProblem(steps) : null;

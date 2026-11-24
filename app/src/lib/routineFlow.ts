@@ -1,5 +1,6 @@
 import {
   FLOW_LAYOUT_MAX,
+  ROUTINE_FAILING_STEPS,
   ROUTINE_STEP_END,
   ROUTINE_STEP_MAX,
   type RoutineRun,
@@ -146,13 +147,16 @@ type Wayed = {
   when?: { otherwise: string; goto?: string } | null;
   next?: string;
   onError?: string;
+  onReject?: string;
 };
 
 /**
  * The lines the run went along, as `from>to` by box id (`prompt` for the routine's instruction),
  * followed from the instruction with each box's part saying where the run went from it: on after a
- * step that ended well, where the condition's other way leads after one it passed over, and where
- * the way on failure leads after one that failed, when the run went on there.
+ * step that ended well, where the condition's other way leads after one it passed over, where the
+ * way on failure leads after one that failed, and where the way for a "no" leads after an approval
+ * turned down, when the run went on there. A way back is not followed: each box shows only its last
+ * pass, so the lines of the passes before cannot be told.
  */
 export function takenWays(steps: readonly Wayed[], part: (id: string) => RunPart | undefined): Set<string> {
   const out = new Set<string>();
@@ -168,7 +172,9 @@ export function takenWays(steps: readonly Wayed[], part: (id: string) => RunPart
     else if (status === 'skipped' && step?.when)
       to =
         step.when.otherwise === 'goto' ? step.when.goto : step.when.otherwise === 'skip' ? after : undefined;
-    else if (status === 'error' && step?.kind === 'agent') to = step.onError || undefined;
+    else if (status === 'error' && step && (ROUTINE_FAILING_STEPS as readonly string[]).includes(step.kind))
+      to = step.onError || undefined;
+    else if (status === 'stopped' && step?.kind === 'approval') to = step.onReject || undefined;
     const there = to ? ids.indexOf(to) : -1;
     const went = there > at ? part(to!)?.status : undefined;
     if (!went || went === 'pending') break;

@@ -384,12 +384,21 @@ describe('routine tools with steps', () => {
     expect(read).toContain('"goto": "hata"');
     expect(read).toContain('"next": "end"');
 
-    // A way back is turned away, with the reason, and nothing changes.
-    const back = steps.map((s) => (s.id === 'hata' ? { ...s, next: 'bak' } : s));
-    expect(await ask(thread.id, 'routine_update', { routine: 'Brifing', steps: back })).toContain(
-      'sonraki bir adıma',
+    // A way to its own step is turned away, with the reason, and nothing changes.
+    const own = steps.map((s) => (s.id === 'hata' ? { ...s, next: 'hata' } : s));
+    expect(await ask(thread.id, 'routine_update', { routine: 'Brifing', steps: own })).toContain(
+      'kendisine değil',
     );
-    expect((await mine(bot.id)).steps![3]).not.toHaveProperty('next', 'bak');
+    expect((await mine(bot.id)).steps![3]).not.toHaveProperty('next', 'hata');
+
+    // A "no" that goes on somewhere may lead where the "yes" does: asked on a card.
+    const no = steps.map((s) => (s.id === 'sor' ? { ...s, on_reject: 'gonder' } : s));
+    await t.send(thread.id, `[araç:routine_update ${JSON.stringify({ routine: 'Brifing', steps: no })}]`);
+    const asked = await waitFor(async () => (await pending())[0]);
+    expect(JSON.stringify(asked.input)).toContain('"on_reject":"gonder"');
+    await t.api('POST', `/api/approvals/${asked.id}`, { decision: 'allow', answer: 'Reddet' });
+    await t.services.turns.idle();
+    expect((await mine(bot.id)).steps![1]).not.toHaveProperty('onReject');
 
     // A new way from before the approval to after it lets the sending run unasked: asked on a card.
     const around = steps.map((s) => (s.id === 'bak' ? { ...s, next: 'gonder' } : s));

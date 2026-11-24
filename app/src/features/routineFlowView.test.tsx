@@ -158,7 +158,7 @@ describe('rutin akışı', () => {
     ];
     render(<Both initial={steps} />);
     for (const view of [list(), flow()]) {
-      expect(view.getByRole('radio', { name: 'Go on at a later step' }).getAttribute('aria-checked')).toBe(
+      expect(view.getByRole('radio', { name: 'Go on at another step' }).getAttribute('aria-checked')).toBe(
         'true',
       );
       const failing = view.getAllByRole('combobox', { name: 'If it fails' })[0]!;
@@ -168,8 +168,10 @@ describe('rutin akışı', () => {
     // Two ways leave the first box for the last: the condition's other way and the way on failure.
     expect(flow().getByText('if not')).toBeTruthy();
     expect(flow().getByText('if it fails')).toBeTruthy();
-    // The last step has nothing after it, so it offers no way to choose.
-    expect(list().getAllByRole('combobox', { name: 'Then' })).toHaveLength(2);
+    // The last step has nothing after it, but it may go back to the steps before it.
+    const last = list().getAllByRole('combobox', { name: 'Then' });
+    expect(last).toHaveLength(3);
+    expect(last[2]!.textContent).toContain('Go on to the next step');
   });
 
   it('Alt ve ok tuşuyla sırayı değiştirir, Delete siler; bir alana yazarken tuşlar alanındır', () => {

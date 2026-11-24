@@ -42,12 +42,13 @@ import { LongText } from './LongText';
 /**
  * A step as the routine's window edits it; text fields stay strings while typed. `when` is what
  * must hold in what the step before ended with for it to run; none, it always runs. `next` is
- * where the run goes once it ended well (empty, the step after it), and an agent, fetch or extract
- * step's `onError` where it goes when the step fails (empty, the run stops).
+ * where the run goes once it ended well (empty, the step after it), an agent, fetch or extract
+ * step's `onError` where it goes when the step fails (empty, the run stops), and an approval
+ * step's `onReject` where it goes when the person turns it down (empty, the run stops).
  */
 export type StepForm = (
   | { id: string; kind: 'agent'; prompt: string; model: string; onError?: string }
-  | { id: string; kind: 'approval'; question: string; timeoutDays: number }
+  | { id: string; kind: 'approval'; question: string; timeoutDays: number; onReject?: string }
   | { id: string; kind: 'notify'; text: string; withBefore: boolean }
   | {
       id: string;
@@ -198,6 +199,7 @@ export function StepsEditor({
           <StepFields
             step={s}
             later={steps.slice(i + 1)}
+            earlier={steps.slice(0, i)}
             onChange={(next) => set(i, next)}
             error={errors?.[i]}
             modelListId={modelListId}
@@ -269,6 +271,7 @@ export function StepsEditor({
 export function StepFields({
   step: s,
   later,
+  earlier,
   onChange,
   error,
   modelListId,
@@ -278,6 +281,8 @@ export function StepFields({
   step: StepForm;
   /** The steps after it, which its ways may go on at. */
   later: readonly StepForm[];
+  /** The steps before it, which its ways may go back to. */
+  earlier: readonly StepForm[];
   onChange(next: StepForm): void;
   /** The message key of the step's text that did not pass. */
   error?: string;
@@ -388,14 +393,19 @@ export function StepFields({
           </label>
         </>
       )}
-      <WhenFields when={s.when ?? null} later={later} onChange={(when) => onChange({ ...s, when })} />
-      <WayFields step={s} later={later} onChange={onChange} />
+      <WhenFields
+        when={s.when ?? null}
+        later={later}
+        earlier={earlier}
+        onChange={(when) => onChange({ ...s, when })}
+      />
+      <WayFields step={s} later={later} earlier={earlier} onChange={onChange} />
       {wayError && <p className="text-sm text-destructive">{t(WAY_INVALID)}</p>}
     </>
   );
 }
 
-/** The message of a way that goes to a step not after its own. */
+/** The message of a way that goes to a step the routine no longer has. */
 const WAY_INVALID = 'routine.stepWayInvalid' satisfies MessageKey;
 
 /** What a way choice stands for when it goes nowhere else: the usual way, kept apart from step ids. */
@@ -424,8 +434,8 @@ function wayLabel(s: StepForm, t: ReturnType<typeof useT>): string {
 
 /**
  * A choice of where a way goes: `usual` for its usual way, `end` when it may end the run, then the
- * steps after this one. A step it names that is not among them (moved before it, or taken out)
- * stays shown, so the person sees what the save turns away.
+ * steps after this one, then the steps before it, which go back. A step it names that is not among
+ * them (taken out) stays shown, so the person sees what the save turns away.
  */
 function WaySelect({
   label,
@@ -433,6 +443,7 @@ function WaySelect({
   usual,
   end,
   later,
+  earlier,
   onChange,
 }: {
   label: string;
@@ -440,10 +451,15 @@ function WaySelect({
   usual?: string;
   end?: string;
   later: readonly StepForm[];
+  earlier: readonly StepForm[];
   onChange(next: string): void;
 }) {
   const t = useT();
-  const lost = !!value && value !== ROUTINE_STEP_END && !later.some((x) => x.id === value);
+  const lost =
+    !!value &&
+    value !== ROUTINE_STEP_END &&
+    !later.some((x) => x.id === value) &&
+    !earlier.some((x) => x.id === value);
   return (
     <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
       <span className="shrink-0">{label}</span>
@@ -459,6 +475,11 @@ function WaySelect({
               {wayLabel(x, t)}
             </SelectItem>
           ))}
+          {earlier.map((x) => (
+            <SelectItem key={x.id} value={x.id}>
+              {t('routine.stepWayBack', { step: wayLabel(x, t) })}
+            </SelectItem>
+          ))}
           {lost && <SelectItem value={value}>{t('routine.stepWayLost')}</SelectItem>}
         </SelectContent>
       </Select>
@@ -467,22 +488,27 @@ function WaySelect({
 }
 
 /**
- * Where the run goes after the step: on to the step after it, ending there, or a later step; and
- * for a bot step, where it goes when the step fails. With no step after it there is nothing to
- * choose: the run ends after it anyway.
+ * Where the run goes after the step: on to the step after it, ending there, or another step (an
+ * earlier one goes back); for a step that can fail, where it goes when it does; and for an
+ * approval step, where it goes when the person turns it down. With no other step there is nothing
+ * to choose: the run ends after it anyway.
  */
 function WayFields({
   step: s,
   later,
+  earlier,
   onChange,
 }: {
   step: StepForm;
   later: readonly StepForm[];
+  earlier: readonly StepForm[];
   onChange(next: StepForm): void;
 }) {
   const t = useT();
   const fails = s.kind === 'agent' || s.kind === 'fetch' || s.kind === 'extract';
-  if (!later.length && !s.next && !(fails && s.onError)) return null;
+  const asks = s.kind === 'approval';
+  if (!later.length && !earlier.length && !s.next && !(fails && s.onError) && !(asks && s.onReject))
+    return null;
   return (
     <div className="space-y-2 border-t pt-2">
       <WaySelect
@@ -491,6 +517,7 @@ function WayFields({
         usual={t('routine.stepNextFollowing')}
         end={t('routine.stepNextEnd')}
         later={later}
+        earlier={earlier}
         onChange={(next) => onChange({ ...s, next })}
       />
       {fails && (
@@ -499,7 +526,18 @@ function WayFields({
           value={s.onError ?? ''}
           usual={t('routine.stepOnErrorStop')}
           later={later}
+          earlier={earlier}
           onChange={(onError) => onChange({ ...s, onError })}
+        />
+      )}
+      {asks && (
+        <WaySelect
+          label={t('routine.stepOnReject')}
+          value={s.onReject ?? ''}
+          usual={t('routine.stepOnRejectStop')}
+          later={later}
+          earlier={earlier}
+          onChange={(onReject) => onChange({ ...s, onReject })}
         />
       )}
     </div>
@@ -513,10 +551,12 @@ function WayFields({
 function WhenFields({
   when,
   later,
+  earlier,
   onChange,
 }: {
   when: RoutineStepWhen | null;
   later: readonly StepForm[];
+  earlier: readonly StepForm[];
   onChange(next: RoutineStepWhen | null): void;
 }) {
   const t = useT();
@@ -545,7 +585,7 @@ function WhenFields({
         when &&
         onChange(
           to === 'goto'
-            ? { ...when, otherwise: to, goto: when.goto || later[0]?.id || '' }
+            ? { ...when, otherwise: to, goto: when.goto || later[0]?.id || earlier[0]?.id || '' }
             : { ...when, otherwise: to, goto: undefined },
         )
       }
@@ -598,13 +638,14 @@ function WhenFields({
             <span>{t('routine.stepWhenOtherwise')}</span>
             {otherwise('skip')}
             {otherwise('end')}
-            {(later.length > 0 || when.otherwise === 'goto') && otherwise('goto')}
+            {(later.length > 0 || earlier.length > 0 || when.otherwise === 'goto') && otherwise('goto')}
           </div>
           {when.otherwise === 'goto' && (
             <WaySelect
               label={t('routine.stepWhenGotoStep')}
               value={when.goto ?? ''}
               later={later}
+              earlier={earlier}
               onChange={(goto) => onChange({ ...when, goto })}
             />
           )}

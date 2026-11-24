@@ -200,7 +200,8 @@ export function fillFilter(filter: string, vars: Readonly<Record<string, string>
  * `agent`: the bot works on another instruction, with the step before it as what it builds on, on a
  * model of its own when one is named (empty for the routine's). `approval`: the run waits for the
  * person to answer `question` about what the step before it ended with; they let it go on, turn it
- * down (the run stops), or write what to change (the step before it is done again with that). Left
+ * down (the run stops, or goes on at `onReject`), or write what to change (the step before it is
+ * done again with that). Left
  * unanswered for `timeoutDays`, the run ends. `wait`: the run waits `minutes`, or for the routine's
  * webhook to be called or a mail to come to the bot whose content passes `filter` (the run's saved
  * values put in for `{{name}}`); what came is handed to the next step. No event in `timeoutDays`
@@ -216,10 +217,17 @@ export function fillFilter(filter: string, vars: Readonly<Record<string, string>
  * `filter`, it holds when something reached the step at all.
  */
 /**
- * Where a step's route goes: the id of a step after it, or `end` where the run may end there.
- * Empty takes the route's usual way. A route only goes forward, so a run cannot go round in a loop.
+ * Where a step's route goes: the id of another step, or `end` where the run may end there. Empty
+ * takes the route's usual way. A route to an earlier step goes back, so the steps from there run
+ * again (asking again for more, polling until something is there); a run goes back
+ * `ROUTINE_BACK_MAX` times at most, so a loop that never comes out ends.
  */
 export const ROUTINE_STEP_END = 'end';
+/**
+ * How many times one run may go back to an earlier step: a poll every half hour over a working
+ * day, or a draft written again a few times, fit in it; a loop of bot steps costs no more turns.
+ */
+export const ROUTINE_BACK_MAX = 20;
 const stepTarget = z.union([z.literal(''), stepId]).optional();
 
 export const RoutineStepWhen = z.object({
@@ -234,14 +242,15 @@ export const RoutineStepWhen = z.object({
    * or the run goes on at the step `goto` names, passing over the ones in between.
    */
   otherwise: z.enum(['skip', 'end', 'goto']).default('skip'),
-  /** The step the run goes on at with `goto`: one after this step. */
+  /** The step the run goes on at with `goto`: another step, before or after this one. */
   goto: stepTarget,
 });
 export type RoutineStepWhen = z.infer<typeof RoutineStepWhen>;
 const when = RoutineStepWhen.nullable().optional();
 /**
  * Where the run goes once the step ended well: empty, the step after it; `end`, the run ends
- * there; or a later step's id, passing over the ones in between. A step its condition passed over
+ * there; or another step's id: a later one passing over the ones in between, an earlier one going
+ * back. A step its condition passed over
  * does not follow it: the step after it runs, as if it were not there.
  */
 const next = stepTarget;
@@ -284,7 +293,7 @@ export const RoutineStep = z.discriminatedUnion('kind', [
     next,
     /**
      * Where the run goes when the bot's work fails (or the bot says it could not do it): empty
-     * stops the run there, to be tried again from this step; a later step's id goes on there with
+     * stops the run there, to be tried again from this step; another step's id goes on there with
      * why it failed.
      */
     onError: stepTarget,
@@ -296,6 +305,11 @@ export const RoutineStep = z.discriminatedUnion('kind', [
     kind: z.literal('approval'),
     when,
     next,
+    /**
+     * Where the run goes when the person turns it down: empty stops the run there; another step's
+     * id goes on there with what they turned down (a step that writes it again, a note to someone).
+     */
+    onReject: stepTarget,
     question: z.string().trim().min(1, 'validation.stepQuestion').max(2000),
     timeoutDays: z.number().int().min(1).max(ROUTINE_APPROVAL_MAX_DAYS).default(7),
   }),
@@ -352,10 +366,14 @@ type Routed = {
   when?: { otherwise: string; goto?: string } | null;
   next?: string;
   onError?: string;
+  onReject?: string;
 };
 
-/** Which route of a step goes where: `otherwise` its condition's, `next` after it, `onError` on failure. */
-export type StepRoute = { from: number; field: 'otherwise' | 'next' | 'onError'; to: string };
+/**
+ * Which route of a step goes where: `otherwise` its condition's, `next` after it, `onError` on
+ * failure, `onReject` when the person turns an approval down.
+ */
+export type StepRoute = { from: number; field: 'otherwise' | 'next' | 'onError' | 'onReject'; to: string };
 
 /** Every route of the steps that leaves the usual way, with the index of the step it starts at. */
 export function stepRoutes(steps: readonly Routed[]): StepRoute[] {
@@ -364,33 +382,37 @@ export function stepRoutes(steps: readonly Routed[]): StepRoute[] {
     if (s.when?.otherwise === 'goto') out.push({ from, field: 'otherwise', to: s.when.goto ?? '' });
     if (s.next) out.push({ from, field: 'next', to: s.next });
     if (canFail(s.kind) && s.onError) out.push({ from, field: 'onError', to: s.onError });
+    if (s.kind === 'approval' && s.onReject) out.push({ from, field: 'onReject', to: s.onReject });
   });
   return out;
 }
 
 /**
- * Why the steps' routes cannot be followed, as a message key, or null when each names a step
- * after its own (or ends the run, after a step ended well). `end` is kept for that, so no step
- * may have it as its id.
+ * Why the steps' routes cannot be followed, as a message key, or null when each names another
+ * step (or ends the run, after a step ended well). `end` is kept for that, so no step may have it
+ * as its id.
  */
 export function stepRoutesProblem(steps: readonly Routed[]): string | null {
   if (steps.some((s) => s.id === ROUTINE_STEP_END)) return 'validation.stepIdEnd';
   for (const r of stepRoutes(steps)) {
     if (r.field === 'next' && r.to === ROUTINE_STEP_END) continue;
     const at = steps.findIndex((s) => s.id === r.to);
-    if (at <= r.from) return 'validation.stepRoute';
+    if (at < 0 || at === r.from) return 'validation.stepRoute';
   }
   return null;
 }
 
 /**
- * The routes that let the run pass over an approval step without the person: each from a step
- * before it to a step after it, as `from>field>to` by the steps' ids.
+ * The routes that let the run pass over an approval step without the person, as `from>field>to` by
+ * the steps' ids: each from a step before it to a step after it, and each way an approval's "no"
+ * goes, which can lead where its "yes" does.
  */
 export function routesPastApproval(steps: readonly Routed[]): string[] {
   return stepRoutes(steps).flatMap((r) => {
     const to = steps.findIndex((s) => s.id === r.to);
-    const over = to > r.from + 1 && steps.slice(r.from + 1, to).some((s) => s.kind === 'approval');
+    const over =
+      r.field === 'onReject' ||
+      (to > r.from + 1 && steps.slice(r.from + 1, to).some((s) => s.kind === 'approval'));
     return over ? [`${steps[r.from]!.id}>${r.field}>${r.to}`] : [];
   });
 }
