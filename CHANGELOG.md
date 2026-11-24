@@ -7,6 +7,8 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A bot can delete finished tickets (done or won't do) from the board when you ask; open work stays until it is
+  set to won't do. Taking the bot's turn back puts the tickets back with their comments.
 - A routine's step can run only when what the step before ended with has (or lacks) a text, passes a JSON filter,
   or is anything at all; looked at with no AI, so a check that finds nothing costs no model. When it does not hold
   the step is shown as skipped and the next step gets what reached it, or the run ends there and reports what came
@@ -77,6 +79,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- A bot that asked another bot, read the answer and asked again went one level deeper in the chain each round, so
+  its fifth message, even a notice, failed with "Chain too deep" although nothing was nested. Only work a bot hands on
+  while answering counts now; a chain's overall limit on requests still stops rounds that never end.
 - After Leaf Bot was updated, a bot whose conversation had already loaded a tool kept working by that tool as it was
   before, and said that a field it had was missing (a routine's steps and condition, say). Such a conversation now
   moves on to a new session with the recent exchange, once, and a line in the chat says which tools changed; a
