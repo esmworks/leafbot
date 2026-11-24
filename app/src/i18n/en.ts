@@ -1606,6 +1606,8 @@ export const en: Catalog<MessageKey> = {
   'routine.addApprovalStep': 'Add an approval step',
   'routine.addWaitStep': 'Add a wait step',
   'routine.addNotifyStep': 'Add a notify step',
+  'routine.addFetchStep': 'Add a fetch step',
+  'routine.addExtractStep': 'Add an extract step',
   'routine.templates': 'Start from a template',
   'routine.template.reply.name': 'Draft a reply, approve, send',
   'routine.template.reply.prompt':
@@ -1623,9 +1625,19 @@ export const en: Catalog<MessageKey> = {
   'routine.template.weekly.prompt': "Gather last week's results and write a short report.",
   'routine.template.weekly.notify': 'The weekly report is ready.',
   'routine.step.notify': 'Notify step',
+  'routine.step.fetch': 'Fetch step',
+  'routine.step.extract': 'Extract step',
   'routine.notifyPlaceholder': 'Text to send; may be empty. {{name}} is filled in with a saved value.',
   'routine.notifyWithBefore': 'Add what the step before ended with',
   'routine.notifyHint': 'No AI runs: the text goes as it is to where the routine reports.',
+  'routine.fetchHint':
+    'No AI runs: what the https address serves (a page as its text) goes to the next step. After the server name, {{name}} puts in a value the run saved. It runs only while the bot may reach the internet.',
+  'routine.fetchUrlInvalid': 'The address must start with https://, with {{name}} only after the server name',
+  'routine.fetchPlaceholder': 'https://api.example.com/items/{{code}}',
+  'routine.extractPlaceholder': 'price=items.0.price',
+  'routine.extractHint':
+    'No AI runs: each name=path line takes that value from the JSON that reached the step (dots go into objects, numbers into lists). The values are saved for the run, for {{name}} in later steps, and go on as JSON. A value that is not there fails the step.',
+  'routine.extractFieldsInvalid': 'Write one name=path per line, at most 20, each name once',
   'routine.stepWhen': 'Run this step only if…',
   'routine.stepWhenHint': 'Looked at with no AI, in what the step before ended with.',
   'routine.stepWhenHas': 'It has',

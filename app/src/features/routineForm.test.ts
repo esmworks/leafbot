@@ -58,4 +58,29 @@ describe('the routine window keeps the ways a bot set', () => {
     expect(checked.success).toBe(false);
     expect(checked.error!.issues[0]).toMatchObject({ path: [1, 'next'], message: 'routine.stepWayInvalid' });
   });
+
+  it('keeps fetch and extract steps with their failure ways, and points at a field that does not pass', () => {
+    const r = routine([
+      { id: 'read', kind: 'fetch', url: 'https://api.example.com/items/{{code}}', onError: 'failed' },
+      { id: 'take', kind: 'extract', fields: 'price=item.price', onError: 'failed' },
+      { id: 'failed', kind: 'notify', text: 'Could not read', withBefore: true },
+    ]);
+    const checked = Form.shape.steps.safeParse(fromRoutine(r).steps);
+    expect(checked.success).toBe(true);
+    expect(checked.data![0]).toMatchObject({
+      url: 'https://api.example.com/items/{{code}}',
+      onError: 'failed',
+    });
+    expect(checked.data![1]).toMatchObject({ fields: 'price=item.price', onError: 'failed' });
+
+    const bad = Form.shape.steps.safeParse([
+      { id: 'a', kind: 'fetch', url: 'https://{{site}}/x' },
+      { id: 'b', kind: 'extract', fields: 'price' },
+    ]);
+    expect(bad.success).toBe(false);
+    expect(bad.error!.issues.map((i) => [i.path.join('.'), i.message])).toEqual([
+      ['0.url', 'routine.fetchUrlInvalid'],
+      ['1.fields', 'routine.extractFieldsInvalid'],
+    ]);
+  });
 });

@@ -23,7 +23,8 @@ export function parseFilter(
     });
 }
 
-function at(value: unknown, path: string[]): unknown {
+/** What sits at `path` in a JSON value: dots go into objects, numbers into lists. */
+export function valueAt(value: unknown, path: string[]): unknown {
   let cur = value;
   for (const key of path) {
     if (cur === null || typeof cur !== 'object') return undefined;
@@ -46,7 +47,7 @@ export function passesFilter(filter: string, body: string): boolean {
     return false;
   }
   return rules.every((r) => {
-    const v = at(json, r.path);
+    const v = valueAt(json, r.path);
     if (r.op === 'has') return v !== undefined && v !== null && v !== false && v !== 0 && v !== '';
     if (r.op === 'contains')
       return asText(v).toLocaleLowerCase('tr').includes(r.value.toLocaleLowerCase('tr'));

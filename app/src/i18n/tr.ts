@@ -1571,6 +1571,8 @@ export const tr = {
   'routine.addApprovalStep': 'Onay adımı ekle',
   'routine.addWaitStep': 'Bekleme adımı ekle',
   'routine.addNotifyStep': 'Bildirim adımı ekle',
+  'routine.addFetchStep': 'Adres okuma adımı ekle',
+  'routine.addExtractStep': 'Değer alma adımı ekle',
   'routine.templates': 'Şablondan başla',
   'routine.template.reply.name': 'Cevap taslağı, onay, gönder',
   'routine.template.reply.prompt':
@@ -1588,9 +1590,19 @@ export const tr = {
   'routine.template.weekly.prompt': 'Geçen haftanın sonuçlarını topla ve kısa bir rapor yaz.',
   'routine.template.weekly.notify': 'Haftalık rapor hazır.',
   'routine.step.notify': 'Bildirim adımı',
+  'routine.step.fetch': 'Adres okuma adımı',
+  'routine.step.extract': 'Değer alma adımı',
   'routine.notifyPlaceholder': 'Gönderilecek metin; boş bırakılabilir. {{ad}} kaydedilen değerle doldurulur.',
   'routine.notifyWithBefore': 'Önceki adımın sonucunu ekle',
   'routine.notifyHint': 'Yapay zekâ çalışmaz: metin, rutinin rapor verdiği yere olduğu gibi gider.',
+  'routine.fetchHint':
+    'Yapay zekâ çalışmaz: https adresinin verdiği (sayfaysa metni) sonraki adıma gider. Sunucu adından sonra {{ad}}, çalışmanın kaydettiği bir değeri koyar. Yalnız botun internet izni açıkken çalışır.',
+  'routine.fetchUrlInvalid': 'Adres https:// ile başlamalı; {{ad}} yalnız sunucu adından sonra gelebilir',
+  'routine.fetchPlaceholder': 'https://api.ornek.com/urunler/{{kod}}',
+  'routine.extractPlaceholder': 'fiyat=items.0.price',
+  'routine.extractHint':
+    'Yapay zekâ çalışmaz: her ad=yol satırı o değeri adıma ulaşan JSON’dan alır (noktalar nesnelerin, sayılar listelerin içine girer). Değerler çalışma için kaydedilir, sonraki adımlarda {{ad}} ile kullanılır ve JSON olarak sonraki adıma gider. Bulunamayan bir değer adımı başarısız sayar.',
+  'routine.extractFieldsInvalid': 'Her satıra bir ad=yol yazın; en çok 20, her ad bir kez',
   'routine.stepWhen': 'Bu adım yalnız şu durumda çalışsın…',
   'routine.stepWhenHint': 'Yapay zekâsız bakılır: önceki adımın sonucuna.',
   'routine.stepWhenHas': 'İçinde varsa',

@@ -205,7 +205,10 @@ export function fillFilter(filter: string, vars: Readonly<Record<string, string>
  * webhook to be called or a mail to come to the bot whose content passes `filter` (the run's saved
  * values put in for `{{name}}`); what came is handed to the next step. No event in `timeoutDays`
  * ends the run. `notify`: with no AI, `text` (the run's saved values put in for `{{name}}`) and,
- * with `withBefore`, what the step before it ended with go where the routine reports.
+ * with `withBefore`, what the step before it ended with go where the routine reports. `fetch`: with
+ * no AI, what an https address serves (a page as its text) is handed to the next step. `extract`:
+ * with no AI, the values `fields` names are taken from the JSON that reached it, saved as the run's
+ * values and handed on as a JSON object of them.
  */
 /**
  * What must hold, read with no AI, for a step to run: looked at in what reaches it from the steps
@@ -242,6 +245,36 @@ const when = RoutineStepWhen.nullable().optional();
  * does not follow it: the step after it runs, as if it were not there.
  */
 const next = stepTarget;
+
+/**
+ * A fetch step's address: https, with `{{name}}` for the run's saved values only after the host,
+ * so a saved value (which may be outside text) never picks the server the request goes to.
+ */
+export const ROUTINE_FETCH_URL = /^https:\/\/[^/?#{}\s]+(?:[/?#]\S*)?$/;
+
+/** One line of an extract step: the value's name, `=`, and where it is in the JSON (dots between keys). */
+const FIELD_LINE = /^([A-Za-z][A-Za-z0-9_]{0,39})\s*=\s*([^\s=]+)$/;
+
+/**
+ * The values an extract step takes, one `name=path` per line (blank lines and `#` notes left out);
+ * null when a line is not of that form or a name comes twice.
+ */
+export function parseFields(text: string): { name: string; path: string[] }[] | null {
+  const out: { name: string; path: string[] }[] = [];
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line || line.startsWith('#')) continue;
+    const m = FIELD_LINE.exec(line);
+    const path = m?.[2]!.split('.').filter(Boolean) ?? [];
+    if (!m || !path.length || out.some((f) => f.name === m[1])) return null;
+    out.push({ name: m[1]!, path });
+  }
+  return out;
+}
+
+/** The kinds of step that can fail on their own, and so may have a way to go when they do. */
+export const ROUTINE_FAILING_STEPS = ['agent', 'fetch', 'extract'] as const;
+const canFail = (kind: string) => (ROUTINE_FAILING_STEPS as readonly string[]).includes(kind);
 
 export const RoutineStep = z.discriminatedUnion('kind', [
   z.object({
@@ -284,6 +317,30 @@ export const RoutineStep = z.discriminatedUnion('kind', [
     filter: z.string().max(2000).default(''),
     timeoutDays: z.number().int().min(1).max(ROUTINE_APPROVAL_MAX_DAYS).default(7),
   }),
+  z.object({
+    id: stepId,
+    kind: z.literal('fetch'),
+    when,
+    next,
+    /** As an agent step's: where the run goes when the address cannot be read. */
+    onError: stepTarget,
+    url: z.string().trim().max(2000).regex(ROUTINE_FETCH_URL, 'validation.fetchUrl'),
+  }),
+  z.object({
+    id: stepId,
+    kind: z.literal('extract'),
+    when,
+    next,
+    /** As an agent step's: where the run goes when what reached it is not JSON or lacks a value. */
+    onError: stepTarget,
+    fields: z
+      .string()
+      .max(2000)
+      .refine((v) => {
+        const f = parseFields(v);
+        return !!f && f.length >= 1 && f.length <= ROUTINE_VARS_MAX;
+      }, 'validation.extractFields'),
+  }),
 ]);
 export type RoutineStep = z.infer<typeof RoutineStep>;
 export type RoutineStepKind = RoutineStep['kind'];
@@ -306,7 +363,7 @@ export function stepRoutes(steps: readonly Routed[]): StepRoute[] {
   steps.forEach((s, from) => {
     if (s.when?.otherwise === 'goto') out.push({ from, field: 'otherwise', to: s.when.goto ?? '' });
     if (s.next) out.push({ from, field: 'next', to: s.next });
-    if (s.kind === 'agent' && s.onError) out.push({ from, field: 'onError', to: s.onError });
+    if (canFail(s.kind) && s.onError) out.push({ from, field: 'onError', to: s.onError });
   });
   return out;
 }

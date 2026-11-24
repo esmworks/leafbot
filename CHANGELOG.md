@@ -16,6 +16,14 @@ version is 0.x, a minor release may change the data format or the API; the serve
   only as far as its permissions allow. A finding you hide comes back only when the runs after that meet it again.
   Settings → Routines shows each routine's health and can list only those needing attention, and Today says how many
   have a problem.
+- Two routine steps work with data and no AI. A fetch step reads an https address (a page as its text) and hands
+  what it got to the next step; after the server name the address can carry a value the run saved, as `{{name}}`.
+  An extract step takes values from the JSON that reached it, one `name=path` per line, saves them as the run's
+  values for `{{name}}` in later steps, and hands them on as JSON, so a condition, a notify step or a bot step can
+  use them. A routine that reads a price and tells it, say, no longer needs a model turn for it. A fetch step runs
+  only while the bot may reach the internet, refuses addresses in the local network and answers over 256 KB, and
+  marks the run as one that read outside text. When either fails, the run can go on along the step's failure way, as
+  with a bot step; otherwise it stops there and can be tried again from that step.
 - A routine's steps can branch. When a step's condition does not hold, the run can go on at a later step instead
   of only skipping it or ending; after a step ends, the run can end there or go on at a later step, so a "yes"
   branch does not run into the "no" branch after it; and when a bot step really fails, or the bot says it could not

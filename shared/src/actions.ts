@@ -46,6 +46,16 @@ function stepsText(raw: unknown, locale: Locale): string | null {
         return x.on === 'webhook' || x.on === 'email'
           ? `${n} ${tr ? 'bekler' : 'waits for'} ${x.on}${str(x.filter) ? ` (${cut(str(x.filter)!)})` : ''}`
           : `${n} ${tr ? 'bekler' : 'waits'} ${typeof x.minutes === 'number' ? x.minutes : 60} ${tr ? 'dk' : 'min'}`;
+      case 'fetch':
+        return `${n} ${tr ? 'adresi okur' : 'reads'}: ${cut(str(x.url) ?? '')}`;
+      case 'extract':
+        return `${n} ${tr ? 'değerleri alır' : 'takes values'}: ${cut(
+          (str(x.fields) ?? '')
+            .split('\n')
+            .map((l) => l.trim())
+            .filter(Boolean)
+            .join(', '),
+        )}`;
       default:
         return `${n} ${String(x.kind)}`;
     }
