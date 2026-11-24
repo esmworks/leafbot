@@ -188,7 +188,7 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
   const trFile = file ? `"${file}" dosyasını` : null;
   const bot = str(input.bot) ?? str(input.name);
   if (name.startsWith(PERSON_COMPUTER)) {
-    return { tr: ["Mac'ini", "Mac'ini", USE], en: ['use your Mac', 'use your Mac'] };
+    return { tr: ['bilgisayarını', 'bilgisayarını', USE], en: ['use your computer', 'use your computer'] };
   }
   if (name === `${PERSON_PHONE}calendar`) {
     return {

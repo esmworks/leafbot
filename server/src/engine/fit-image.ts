@@ -62,12 +62,17 @@ export async function fitImage(image: ToolImage): Promise<ToolImage> {
  * because the bot clicks by coordinates in this picture. Where the library cannot load, or
  * cannot read it, it goes as the PNG it was.
  */
-export async function screenshotImage(pngBase64: string): Promise<ToolImage> {
-  const png: ToolImage = { data: pngBase64, mimeType: 'image/png' };
+export async function screenshotImage(
+  data: string,
+  mimeType: 'image/png' | 'image/jpeg' = 'image/png',
+): Promise<ToolImage> {
+  const png: ToolImage = { data, mimeType };
+  // A picture that is JPEG already is sent as it is.
+  if (mimeType === 'image/jpeg') return png;
   const sharp = await library();
   if (!sharp) return png;
   try {
-    const jpeg = await sharp(Buffer.from(pngBase64, 'base64'))
+    const jpeg = await sharp(Buffer.from(data, 'base64'))
       .flatten({ background: '#ffffff' })
       .jpeg({ quality: 80 })
       .toBuffer();

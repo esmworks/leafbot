@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fastifyCookie from '@fastify/cookie';
+import { MAC_EVENT, MAC_NAMESPACE } from '@leafbot/shared/mac';
 import fastifyStatic from '@fastify/static';
 import {
   BrowserControlEvent,
@@ -36,6 +37,7 @@ import {
 import { BrowserManager } from './browser/manager';
 import { browserErrorText } from './browser/text';
 import { Bus } from './bus';
+import { MacBridge } from './computer/bridge';
 import { PersonComputer } from './computer/person';
 import { ComputerService } from './computer/service';
 import { RfbClientFilter } from './computer/rfb-filter';
@@ -205,8 +207,9 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
   });
   // The person's own Mac, through the desktop app's helper, for the bots they allow to use it.
   const personComputer = config.personComputer ? PersonComputer.start(config.personComputer) : null;
+  const macs = new MacBridge();
   const phones = new PhoneBridge();
-  const ctx: Ctx = { db: db.db, bus, config, browser, computer, egress, personComputer, phones };
+  const ctx: Ctx = { db: db.db, bus, config, browser, computer, egress, personComputer, macs, phones };
   const accessKey = loadAccessKey(config);
   setToolCallTimeout(config.mcpCallTimeoutMs);
   const auth = new Auth(db.db, accessKey);
@@ -580,6 +583,27 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
       if (Buffer.isBuffer(f)) link.receive(f);
     });
     socket.on('disconnect', () => link.detach());
+  });
+
+  // A desktop app offers its Mac to the bots of the person signed in there, with the switch in its
+  // own menu on. Any signed-in person may: it only reaches their own turns. The app checks every
+  // request and asks on the Mac itself before a bot first sees or touches the screen.
+  const macSockets = io.of(MAC_NAMESPACE) as unknown as Namespace;
+  macs.attach(async (socketId, req, timeoutMs) => {
+    const socket = macSockets.sockets.get(socketId);
+    if (!socket) throw new Error('gone');
+    return socket.timeout(timeoutMs).emitWithAck(MAC_EVENT, req);
+  });
+  macSockets.on('connection', (socket) => {
+    const by = socketPrincipals.get(socket.request);
+    if (!by) return void socket.disconnect(true);
+    const device: unknown = socket.handshake.auth?.device;
+    macs.offer(socket.id, by.userId, typeof device === 'string' ? device : '');
+    bus.refresh({ scope: 'info' });
+    socket.on('disconnect', () => {
+      macs.drop(socket.id);
+      bus.refresh({ scope: 'info' });
+    });
   });
 
   io.on('connection', (socket) => {

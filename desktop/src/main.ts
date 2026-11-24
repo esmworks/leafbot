@@ -31,11 +31,13 @@ import {
 import { createCrashGuard, isCrash } from './crash-guard';
 import { DISPLAY_POLL_MS, keepDisplayOn } from './display-awake';
 import { startEgress } from './egress';
+import { startHelper } from '@leafbot/shared/windows';
 import { readMoveDeclined, runsFromTransientPlace, writeMoveDeclined } from './install-location';
 import { readSpellingOn, spellingEntries, spellingLanguages, writeSpellingOn } from './spelling';
 import { isLocale } from '@leafbot/shared/i18n';
 import { loadLocale, locale, saveLocale, setLocale, t, type DesktopKey } from './i18n';
 import { LINK_SCHEMES, linkInArgs, parseLink, type AppLink } from './links';
+import { type MacGate, readMacOn, startMacBridge, writeMacOn } from './mac-bridge';
 import { claimQuickKey, isThreadId, quickBounds, quickUrl, readQuickOn, writeQuickOn } from './quick';
 import { ServerProcess } from './server-process';
 import { startUpdates, type Updates } from './updates';
@@ -135,14 +137,32 @@ let updates: Updates | null = null;
 let updateReady: string | null = null;
 /** Ends this computer's offer to be the bots' way out to the web; set while connected to a remote server. */
 let stopEgress: (() => void) | null = null;
+/** Ends this Mac's offer to the bots of a remote server; set while it is offered. */
+let stopMac: (() => void) | null = null;
+let macGate: MacGate | null = null;
+/** Whether a bot uses this Mac now, with the person's yes on it; shown in the menu bar. */
+let macInUse = false;
 
 const resources = () => (app.isPackaged ? process.resourcesPath : join(app.getAppPath(), '..'));
 const serverEntry = () => join(resources(), 'server', 'dist', 'index.mjs');
 const appDir = () => (app.isPackaged ? join(resources(), 'app') : join(resources(), 'app', 'dist'));
 const assets = () => (app.isPackaged ? join(resources(), 'assets') : join(app.getAppPath(), 'assets'));
-/** The macOS helper that moves the mouse and types for a bot the person allowed to use this Mac. */
-const personComputer = () =>
-  app.isPackaged ? join(resources(), 'person-computer') : join(app.getAppPath(), 'dist', 'person-computer');
+/**
+ * The helper that moves the mouse and types for a bot the person allowed to use this computer: a
+ * program built from Swift on macOS, a PowerShell script on Windows. None on other systems.
+ */
+const personComputer = () => {
+  if (process.platform === 'win32') {
+    return app.isPackaged
+      ? join(resources(), 'person-computer.ps1')
+      : join(app.getAppPath(), 'native', 'person-computer.ps1');
+  }
+  return app.isPackaged
+    ? join(resources(), 'person-computer')
+    : join(app.getAppPath(), 'dist', 'person-computer');
+};
+/** This system has a helper for bots to use the computer. */
+const helperSystem = () => process.platform === 'darwin' || process.platform === 'win32';
 
 /** A `leafbot://` link waiting for the page to take it (see `links.ts`). */
 let pendingLink: AppLink | null = linkInArgs(process.argv);
@@ -199,6 +219,7 @@ async function boot() {
   registerIpc();
   registerLinks();
   createTray();
+  watchMacSignIn();
   registerQuickKey();
   watchForUpdates();
   config = readDesktopConfig(userData, safeStorage);
@@ -285,6 +306,7 @@ async function connect() {
       device: hostname().replace(/\.local$/, ''),
       log: (level, line) => log[level](line),
     });
+    startMac();
     return;
   }
   setStatus('status.serverStarting');
@@ -300,7 +322,7 @@ async function connect() {
       ...(!app.isPackaged && process.env.LEAFBOT_ENGINE
         ? { LEAFBOT_ENGINE: process.env.LEAFBOT_ENGINE }
         : {}),
-      ...(process.platform === 'darwin' && existsSync(personComputer())
+      ...(helperSystem() && existsSync(personComputer())
         ? { LEAFBOT_PERSON_COMPUTER: personComputer() }
         : {}),
     },
@@ -828,6 +850,7 @@ function stopDisplayWatch() {
 async function switchTo(next: DesktopConfig) {
   stopEgress?.();
   stopEgress = null;
+  stopMacOffer();
   if (awake !== null) powerSaveBlocker.stop(awake);
   awake = null;
   await server?.stop();
@@ -890,6 +913,135 @@ function hardenSessions() {
       }
     });
   });
+}
+
+/**
+ * This computer can be offered to a remote server's bots: a Mac or a Windows computer, with its
+ * helper in place, connected to a server elsewhere.
+ */
+const canOfferMac = () => helperSystem() && config.mode === 'remote' && existsSync(personComputer());
+
+/**
+ * Offers this Mac to the bots of the remote server, when the person turned it on in the menu bar.
+ * The Mac is the one of the person signed in in the window: the connection uses the window's
+ * session, and the access key (always the owner) only when there is none.
+ */
+function startMac() {
+  stopMacOffer();
+  if (!canOfferMac() || !readMacOn(userData) || config.mode !== 'remote') return;
+  const remote = config;
+  const helper = startHelper(personComputer(), 'jpeg');
+  const bridge = startMacBridge({
+    url: remote.url,
+    headers: async (): Promise<Record<string, string>> => {
+      macSignIn = await sessionCookie(remote.url);
+      if (macSignIn) return { cookie: macSignIn };
+      return remote.key ? { authorization: `Bearer ${remote.key}` } : {};
+    },
+    device: hostname().replace(/\.local$/, ''),
+    driver: helper.driver,
+    shot: helper.shot,
+    ask: (bot, signal) => askForMac(bot, new URL(remote.url).host, signal),
+    onChange: (active) => {
+      macInUse = active;
+      // A sleeping display makes the bot's screenshots black: kept on while the use goes on, which
+      // ends by itself after a quiet while.
+      if (active && displayAwake === null) displayAwake = powerSaveBlocker.start('prevent-display-sleep');
+      if (!active) releaseDisplay();
+      rebuildMenu();
+    },
+    log: (level, line) => log[level](line),
+  });
+  macGate = bridge.gate;
+  stopMac = bridge.stop;
+}
+
+let macRestart: ReturnType<typeof setTimeout> | null = null;
+/** The window's sign-in the Mac's connection was made with; null when it used the access key. */
+let macSignIn: string | null = null;
+
+/** The names the server gives its sign-in cookie; the second is from before the app's new name. */
+const SESSION_COOKIES = ['leafbot_session', 'yumakbot_session'];
+
+/** The window's sign-in cookie for `url`, as a Cookie header value, or null when there is none. */
+async function sessionCookie(url: string): Promise<string | null> {
+  const cookies = await session.defaultSession.cookies.get({ url });
+  const c = cookies.find((x) => SESSION_COOKIES.includes(x.name));
+  return c ? `${c.name}=${c.value}` : null;
+}
+
+/**
+ * A sign-in that changed in the window (another person, or signed out) changes whose Mac this is:
+ * the offer starts again with the new sign-in, and a use the previous one allowed ends with it. The
+ * server sets the same cookie again on each visit to keep it from running out; that is no change.
+ */
+function watchMacSignIn() {
+  session.defaultSession.cookies.on('changed', (_e, cookie) => {
+    if (config.mode !== 'remote' || !stopMac || !SESSION_COOKIES.includes(cookie.name)) return;
+    const url = config.url;
+    if (cookie.domain?.replace(/^\./, '') !== new URL(url).hostname) return;
+    if (macRestart) clearTimeout(macRestart);
+    macRestart = setTimeout(() => {
+      macRestart = null;
+      void sessionCookie(url).then((now) => {
+        if (stopMac && now !== macSignIn) startMac();
+      });
+    }, 1_000);
+  });
+}
+
+function stopMacOffer() {
+  stopMac?.();
+  stopMac = null;
+  macGate = null;
+  if (macInUse) {
+    macInUse = false;
+    releaseDisplay();
+  }
+}
+
+/**
+ * Asks on this Mac whether a bot of the server at `host` may use it. The question is the app's own,
+ * not the page's, so the server cannot answer it; the bot's name comes from the server and is shown
+ * with the server's address.
+ */
+async function askForMac(bot: string, host: string, signal: AbortSignal): Promise<boolean> {
+  const name =
+    bot
+      .replace(/[\p{Cc}\p{Cf}]/gu, ' ')
+      .trim()
+      .slice(0, 60) || t('mac.someBot');
+  app.focus({ steal: true });
+  const { response } = await dialog.showMessageBox({
+    type: 'question',
+    message: t('mac.askTitle', { bot: name, host }),
+    detail: t('mac.askDetail'),
+    buttons: [t('mac.allow'), t('mac.deny')],
+    defaultId: 1,
+    cancelId: 1,
+    signal,
+  });
+  return response === 0 && !signal.aborted;
+}
+
+/** The menu bar's part for this Mac: the switch, and while a bot uses it, a way to stop that. */
+function macMenu(): Electron.MenuItemConstructorOptions[] {
+  if (!canOfferMac()) return [];
+  return [
+    {
+      label: t('mac.offer'),
+      type: 'checkbox',
+      checked: readMacOn(userData),
+      click: (item) => {
+        writeMacOn(userData, item.checked);
+        if (item.checked) startMac();
+        else stopMacOffer();
+        rebuildMenu();
+      },
+    },
+    ...(macInUse ? [{ label: t('mac.stop'), click: () => macGate?.stop() }] : []),
+    { type: 'separator' },
+  ];
 }
 
 function createTray() {
@@ -979,6 +1131,10 @@ function buildAppMenu() {
 function rebuildMenu() {
   buildAppMenu();
   if (!tray) return;
+  // While a bot uses this computer, the menu bar says so next to the icon; Windows' tray has no
+  // text, so its tooltip does.
+  if (process.platform === 'darwin') tray.setTitle(macInUse ? t('mac.inUse') : '');
+  else tray.setToolTip(macInUse ? `Leaf Bot · ${t('mac.inUse')}` : 'Leaf Bot');
   const openAtLogin = app.getLoginItemSettings().openAtLogin;
   tray.setContextMenu(
     Menu.buildFromTemplate([
@@ -1004,6 +1160,7 @@ function rebuildMenu() {
         ? { label: t('menu.connectRemote'), click: () => openConnectWindow() }
         : { label: t('menu.useLocal'), click: () => void switchTo({ mode: 'local' }) },
       { type: 'separator' },
+      ...macMenu(),
       {
         label: t('menu.openAtLogin'),
         type: 'checkbox',
@@ -1032,6 +1189,7 @@ function rebuildMenu() {
 app.on('activate', () => showWindow());
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  stopMacOffer();
   stopDisplayWatch();
 });
 // Keep running in the menu bar when every window is closed.

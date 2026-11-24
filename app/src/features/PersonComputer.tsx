@@ -5,14 +5,15 @@ import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 
 /**
- * The switch that lets a bot use this Mac, shown only to the server's owner and only where the
- * server runs on their Mac. With it on, it says which of macOS's two permissions are still missing
- * and opens macOS's prompts for them.
+ * The switch that lets a bot use the computer (Mac or Windows) of the person it works for. Where the server runs on the
+ * owner's computer, only the owner sees it. Where it runs elsewhere, everyone does: each person's computer is
+ * the one their desktop app offers, and the switch says whether it is connected. With it on, it
+ * says which of macOS's two permissions are still missing and opens macOS's prompts for them.
  */
 export function PersonComputerSwitch({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
   const t = useT();
   const qc = useQueryClient();
-  // Only the owner may ask; for anyone else the request is refused and nothing shows.
+  // Anyone signed in may ask; without a computer of theirs it says so, or nothing shows.
   const { data } = useQuery({
     queryKey: ['person-computer'],
     queryFn: api.personComputer,
@@ -24,7 +25,7 @@ export function PersonComputerSwitch({ on, onChange }: { on: boolean; onChange: 
     mutationFn: api.requestPersonComputer,
     onSuccess: (state) => qc.setQueryData(['person-computer'], state),
   });
-  if (!data?.available) return null;
+  if (!data?.available && !data?.remote) return null;
   const missing = [
     ...(data.accessibility ? [] : [t('bot.personComputerAccessibility')]),
     ...(data.screen ? [] : [t('bot.personComputerScreen')]),
@@ -38,7 +39,14 @@ export function PersonComputerSwitch({ on, onChange }: { on: boolean; onChange: 
         </span>
         <Switch checked={on} onCheckedChange={onChange} />
       </label>
-      {on && missing.length > 0 && (
+      {on && data.remote && (
+        <p className="mt-2 text-xs text-muted-foreground">
+          {data.available && data.device
+            ? t('bot.personComputerDevice', { device: data.device })
+            : t('bot.personComputerRemote')}
+        </p>
+      )}
+      {on && data.available && missing.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs text-muted-foreground">
             {t('bot.personComputerMissing', { what: missing.join(', ') })}

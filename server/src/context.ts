@@ -1,5 +1,6 @@
 import type { BrowserManager } from './browser/manager';
 import type { Bus } from './bus';
+import type { MacBridge } from './computer/bridge';
 import type { PersonComputer } from './computer/person';
 import type { ComputerService } from './computer/service';
 import type { Config } from './config';
@@ -15,8 +16,13 @@ export interface Ctx {
   browser: BrowserManager;
   /** The bots' desktops; null when no computer service is configured. */
   computer: ComputerService | null;
-  /** The person's own Mac, for the bots they allow to use it; null where it cannot be used. */
+  /**
+   * The owner's Mac when the server runs on it, for the bots they allow to use it; null where the
+   * server runs elsewhere.
+   */
   personComputer?: PersonComputer | null;
+  /** The people's Macs offered from afar by their desktop apps. */
+  macs?: MacBridge;
   /**
    * The person's own computer as the way out for the bots' browsers; null when the server itself
    * runs on that computer.

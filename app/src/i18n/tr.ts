@@ -1779,9 +1779,13 @@ export const tr = {
   'bot.internet': 'İnternet erişimi',
   'bot.internetHint':
     'Açıkken bot internette arama yapar, sayfa okur, kendi tarayıcısını ve bilgisayarını kullanır. Kapalıyken bunların hiçbirini yapamaz.',
-  'bot.personComputer': "Mac'imi kullanabilir",
+  'bot.personComputer': 'Bilgisayarımı kullanabilir',
   'bot.personComputerHint':
     'Senin istediğin işlerde ekranına bakabilir, fareyi ve klavyeyi kullanabilir. Her işte ilk adımdan önce sorar.',
+  'bot.personComputerRemote':
+    'Bilgisayarın bağlı değil. Mac ya da Windows bilgisayarındaki Leaf Bot masaüstü uygulamasında, Leaf Bot simgesinin menüsünden "Botlar bu bilgisayarı kullanabilir"i aç.',
+  'bot.personComputerDevice':
+    'Bağlı: {device}. O bilgisayar, bir bot onu ilk kullanmadan önce kendi ekranında sorar.',
   'bot.personComputerMissing': 'macOS henüz izin vermedi: {what}',
   'bot.personComputerAccessibility': 'Erişilebilirlik',
   'bot.personComputerScreen': 'Ekran Kaydı',

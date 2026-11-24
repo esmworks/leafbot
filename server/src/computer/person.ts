@@ -1,14 +1,23 @@
-import { type ChildProcessWithoutNullStreams, execFile, spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import { createInterface } from 'node:readline';
-import { promisify } from 'node:util';
+import {
+  helperDriver,
+  localShot,
+  MAC_KEY_CODES,
+  type MacDriver,
+  type MacPicture,
+  type MacShot,
+} from '@leafbot/shared/mac';
+import { startHelper } from '@leafbot/shared/windows';
 
-const run = promisify(execFile);
+export { helperDriver };
 
-/** Why the person's computer could not be used. */
-export type PersonComputerCode = 'accessibility' | 'screen' | 'busy' | 'failed';
+/**
+ * Why the person's computer could not be used. `offline`: a computer offered from afar is not
+ * connected now, or went away during a step; `refused`: the person did not allow the use on the
+ * computer itself; `blocked`: Windows kept the step from the window in front, which runs as
+ * administrator, or from its sign-in or UAC screen.
+ */
+export type PersonComputerCode =
+  'accessibility' | 'screen' | 'busy' | 'offline' | 'refused' | 'blocked' | 'failed';
 
 export class PersonComputerError extends Error {
   constructor(
@@ -20,8 +29,17 @@ export class PersonComputerError extends Error {
   }
 }
 
-/** What macOS lets the app do, and the main screen's size in points. */
+/** The error a failed answer from the helper or a Mac across the network stands for. */
+export function failureOf(r: Record<string, unknown>): PersonComputerError {
+  const known: PersonComputerCode[] = ['accessibility', 'offline', 'refused', 'blocked'];
+  const code = known.find((c) => c === r.error) ?? 'failed';
+  return new PersonComputerError(code, String(r.error ?? 'failed'));
+}
+
+/** What the system lets the app do, and the main screen's size in points (pixels on Windows). */
 export interface PersonComputerStatus {
+  /** The macOS helper does not say; only the Windows one does. */
+  os: 'macos' | 'windows';
   /** Allowed under Privacy & Security → Accessibility: may move the mouse and type. */
   accessibility: boolean;
   /** Allowed under Privacy & Security → Screen Recording: may see other apps' windows. */
@@ -54,83 +72,6 @@ export function toScreen(
     y: clamp(Math.round((p.y * screen.height) / shot.height), screen.height),
   };
 }
-
-/** macOS virtual key codes by name (their place on the keyboard, whatever its layout). */
-const KEY_CODES: Record<string, number> = {
-  a: 0,
-  s: 1,
-  d: 2,
-  f: 3,
-  h: 4,
-  g: 5,
-  z: 6,
-  x: 7,
-  c: 8,
-  v: 9,
-  b: 11,
-  q: 12,
-  w: 13,
-  e: 14,
-  r: 15,
-  y: 16,
-  t: 17,
-  '1': 18,
-  '2': 19,
-  '3': 20,
-  '4': 21,
-  '6': 22,
-  '5': 23,
-  equal: 24,
-  '9': 25,
-  '7': 26,
-  minus: 27,
-  '8': 28,
-  '0': 29,
-  bracketright: 30,
-  o: 31,
-  u: 32,
-  bracketleft: 33,
-  i: 34,
-  p: 35,
-  return: 36,
-  l: 37,
-  j: 38,
-  apostrophe: 39,
-  k: 40,
-  semicolon: 41,
-  backslash: 42,
-  comma: 43,
-  slash: 44,
-  n: 45,
-  m: 46,
-  period: 47,
-  tab: 48,
-  space: 49,
-  grave: 50,
-  backspace: 51,
-  escape: 53,
-  f1: 122,
-  f2: 120,
-  f3: 99,
-  f4: 118,
-  f5: 96,
-  f6: 97,
-  f7: 98,
-  f8: 100,
-  f9: 101,
-  f10: 109,
-  f11: 103,
-  f12: 111,
-  home: 115,
-  page_up: 116,
-  delete: 117,
-  end: 119,
-  page_down: 121,
-  left: 123,
-  right: 124,
-  down: 125,
-  up: 126,
-};
 
 /** Other names bots use for the same keys (xdotool's among them). */
 const KEY_ALIASES: Record<string, string> = {
@@ -202,7 +143,7 @@ export function keyPresses(keys: string): KeyPress[] | null {
         continue;
       }
       if (i < parts.length - 1) return null;
-      code = KEY_CODES[KEY_ALIASES[part] ?? part];
+      code = MAC_KEY_CODES[KEY_ALIASES[part] ?? part];
     }
     if (code === undefined) return null;
     presses.push({ code, modifiers });
@@ -212,7 +153,7 @@ export function keyPresses(keys: string): KeyPress[] | null {
 
 /** Whether pressing `keys` could submit, run or send something: Return, or any shortcut. */
 export function keysSubmit(presses: KeyPress[]): boolean {
-  return presses.some((p) => p.modifiers.some((m) => m !== 'shift') || p.code === KEY_CODES.return);
+  return presses.some((p) => p.modifiers.some((m) => m !== 'shift') || p.code === MAC_KEY_CODES.return);
 }
 
 /**
@@ -238,88 +179,15 @@ export type PersonAction =
   | { type: 'scroll'; x: number; y: number; direction: 'up' | 'down' | 'left' | 'right'; amount: number }
   | { type: 'drag'; from: { x: number; y: number }; to: { x: number; y: number } };
 
-/** Talks to the helper: one request at a time, one JSON line each way. */
-export interface PersonComputerDriver {
-  send(req: Record<string, unknown>): Promise<Record<string, unknown>>;
-  close(): void;
-}
-
-/**
- * The longest one request may take: typing a long text takes a few seconds; a helper that hangs
- * is stopped, so the Mac is not held by a step that never ends.
- */
-const REQUEST_MS = 30_000;
-
-/** Starts the helper program and keeps it running until closed. */
-export function helperDriver(path: string, timeoutMs = REQUEST_MS): PersonComputerDriver {
-  let child: ChildProcessWithoutNullStreams | null = null;
-  let next = 1;
-  const waiting = new Map<number, (r: Record<string, unknown>) => void>();
-  let chain: Promise<unknown> = Promise.resolve();
-
-  const start = () => {
-    const c = spawn(path, [], { stdio: ['pipe', 'pipe', 'pipe'] });
-    createInterface({ input: c.stdout }).on('line', (line) => {
-      try {
-        const r = JSON.parse(line) as Record<string, unknown>;
-        const done = waiting.get(Number(r.id));
-        waiting.delete(Number(r.id));
-        done?.(r);
-      } catch {
-        // Not an answer: ignored.
-      }
-    });
-    c.stderr.resume();
-    const fail = () => {
-      for (const done of waiting.values()) done({ ok: false, error: 'failed' });
-      waiting.clear();
-      if (child === c) child = null;
-    };
-    c.on('exit', fail);
-    c.on('error', fail);
-    // Writing to a helper that has just ended fails here, not in the server.
-    c.stdin.on('error', fail);
-    return c;
-  };
-
-  return {
-    send(req) {
-      const sent = chain.then(
-        () =>
-          new Promise<Record<string, unknown>>((resolve) => {
-            const c = (child ??= start());
-            const id = next++;
-            const timer = setTimeout(() => {
-              waiting.delete(id);
-              resolve({ ok: false, error: 'failed' });
-              c.kill();
-            }, timeoutMs);
-            waiting.set(id, (r) => {
-              clearTimeout(timer);
-              resolve(r);
-            });
-            c.stdin.write(`${JSON.stringify({ ...req, id })}\n`);
-          }),
-      );
-      chain = sent.catch(() => undefined);
-      return sent;
-    },
-    close() {
-      child?.kill();
-      child = null;
-    },
-  };
-}
-
-/** Takes a picture of the main screen into `file` (PNG), with the pointer in it. */
-async function captureScreen(file: string): Promise<void> {
-  await run('/usr/sbin/screencapture', ['-x', '-C', '-m', '-t', 'png', file]);
-}
-
-/** Scales a PNG in place to exactly `size`. */
-async function scalePng(file: string, size: { width: number; height: number }): Promise<void> {
-  await run('/usr/bin/sips', ['-z', String(size.height), String(size.width), file]);
-}
+/** Talks to the helper, or to a Mac across the network. */
+export type PersonComputerDriver = MacDriver & {
+  /**
+   * Asks the Mac itself for a use by `bot` before a step sees or touches the screen, for a Mac
+   * offered from afar; the Mac answers at once while a use it allowed goes on. Absent for the
+   * server's own Mac, where the bot's card is the one question.
+   */
+  begin?(bot: string): Promise<Record<string, unknown>>;
+};
 
 /** How long a bot keeps the person's computer to itself after its last step. */
 const HOLD_MS = 2 * 60_000;
@@ -336,21 +204,19 @@ export class PersonComputer {
 
   constructor(
     private driver: PersonComputerDriver,
-    private io: {
-      capture: (file: string) => Promise<void>;
-      scale: (file: string, size: { width: number; height: number }) => Promise<void>;
-    } = { capture: captureScreen, scale: scalePng },
+    private shoot: MacShot = localShot(),
   ) {}
 
+  /** The helper of the computer the server runs on: the macOS program or the Windows script. */
   static start(helper: string): PersonComputer {
-    return new PersonComputer(helperDriver(helper));
+    const { driver, shot } = startHelper(helper, 'png');
+    return new PersonComputer(driver, shot);
   }
 
   private async call(req: Record<string, unknown>): Promise<Record<string, unknown>> {
     const r = await this.driver.send(req);
     if (r.ok === true) return r;
-    const code: PersonComputerCode = r.error === 'accessibility' ? 'accessibility' : 'failed';
-    throw new PersonComputerError(code, String(r.error ?? 'failed'));
+    throw failureOf(r);
   }
 
   async status(): Promise<PersonComputerStatus> {
@@ -362,14 +228,21 @@ export class PersonComputer {
     return toStatus(await this.call({ op: 'request' }));
   }
 
-  /** Runs `fn` for `botId`, refused while another bot used the computer moments ago. */
-  async use<R>(botId: string, fn: () => Promise<R>, now = Date.now()): Promise<R> {
+  /**
+   * Runs `fn` for `botId`, refused while another bot used the computer moments ago. A Mac offered
+   * from afar is asked first, on its own screen, whether `botName` may use it.
+   */
+  async use<R>(botId: string, fn: () => Promise<R>, now = Date.now(), botName = ''): Promise<R> {
     if (this.holder && this.holder.botId !== botId && this.holder.until > now) {
       throw new PersonComputerError('busy');
     }
     this.holder = { botId, until: now + HOLD_MS };
     this.running++;
     try {
+      if (this.driver.begin) {
+        const r = await this.driver.begin(botName);
+        if (r.ok !== true) throw failureOf(r);
+      }
       return await fn();
     } finally {
       this.running--;
@@ -388,19 +261,13 @@ export class PersonComputer {
   }
 
   /** A picture of the main screen, scaled to `shotSize`. */
-  async screenshot(): Promise<{ png: string; width: number; height: number }> {
+  async screenshot(): Promise<
+    MacPicture & { width: number; height: number; os: PersonComputerStatus['os'] }
+  > {
     const s = await this.status();
     if (!s.screen) throw new PersonComputerError('screen');
     const size = shotSize(s);
-    const dir = await mkdtemp(join(tmpdir(), 'leafbot-screen-'));
-    const file = join(dir, 'screen.png');
-    try {
-      await this.io.capture(file);
-      await this.io.scale(file, size);
-      return { png: (await readFile(file)).toString('base64'), ...size };
-    } finally {
-      await rm(dir, { recursive: true, force: true });
-    }
+    return { ...(await this.shoot(size)), ...size, os: s.os };
   }
 
   async act(action: PersonAction): Promise<void> {
@@ -443,6 +310,7 @@ export class PersonComputer {
 
 function toStatus(r: Record<string, unknown>): PersonComputerStatus {
   return {
+    os: r.os === 'windows' ? 'windows' : 'macos',
     accessibility: r.accessibility === true,
     screen: r.screen === true,
     width: Number(r.width) || 0,

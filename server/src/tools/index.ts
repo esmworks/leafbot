@@ -2682,26 +2682,32 @@ export class ToolFactory {
       // folder is; the desktop does not see it.
       tools.push(...(bot.projectDir ? desk.filter((x) => x.name !== 'run_command') : desk));
     }
+    // The person who wrote the message, when the conversation is theirs.
+    const writer = turn.userId && (!thread.userId || thread.userId === turn.userId) ? turn.userId : null;
     // The person's own Mac, for a bot they allowed to use it: only in work their own message
     // started (not a routine, a mail, a webhook, a follow-up or another bot), in their own
     // conversation (not a team chat, a guest's or someone else's), and not for a bot that may only
-    // read.
+    // read. The owner's Mac is the one the server runs on, if it does; anyone else's, and the
+    // owner's when the server runs elsewhere, is the one their desktop app offers from afar, which
+    // asks on its own screen before a bot first uses it. A Mac offered from afar is used only in a
+    // conversation that is the writer's own, since its screen shows in that conversation.
+    const localMac = person === OWNER_ID ? (this.ctx.personComputer ?? null) : null;
+    const ownThread = !!writer && (thread.userId === writer || (!thread.userId && writer === OWNER_ID));
+    const mac = localMac ?? (ownThread && writer ? (this.ctx.macs?.for(writer) ?? null) : null);
     if (
-      this.ctx.personComputer &&
+      mac &&
       bot.personComputer &&
       turn.source === 'user' &&
       !team &&
       !turn.guest &&
-      person === OWNER_ID &&
       bot.permissionMode !== 'readonly'
     ) {
-      tools.push(...personComputerTools({ def, botId: bot.id, t, computer: this.ctx.personComputer }));
+      tools.push(...personComputerTools({ def, botId: bot.id, botName: bot.name, t, computer: mac }));
     }
     // The person's own phone, for what they switched on in the phone app: only in work their own
     // message started, in their own conversation, and not for a bot that may only read (it would
     // not be asked, and their phone is theirs to answer for). A guest has no phone here.
     // The phone is the one of the person who wrote the message, and the conversation must be theirs.
-    const writer = turn.userId && (!thread.userId || thread.userId === turn.userId) ? turn.userId : null;
     const phoneKinds = this.ctx.phones && writer ? this.ctx.phones.kinds(writer) : null;
     if (
       phoneKinds?.size &&

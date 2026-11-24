@@ -89,6 +89,15 @@ const tr = {
   'error.oldAppTitle': 'Önce {name} uygulamasını kapatın',
   'error.oldAppRunning':
     "Leaf Bot, {name} uygulamasının yeni adı. Botlarınız ve sohbetleriniz {name} açıkken taşınamıyor. {name} uygulamasını kapatıp Leaf Bot'u yeniden açın; hepsi buraya gelir.",
+  'mac.offer': 'Botlar bu bilgisayarı kullanabilir',
+  'mac.stop': 'Bilgisayarı kullanan botu durdur',
+  'mac.inUse': 'Bot bilgisayarda',
+  'mac.someBot': 'Bir bot',
+  'mac.askTitle': '{host} üzerindeki {bot} bu bilgisayarı kullanmak istiyor',
+  'mac.askDetail':
+    'İzin verirsen bot ekranını görür, fareyi kullanır ve yazar. Ekran görüntüleri sunucuya gider. İzin 2 dakika boyunca bir şey yapılmazsa ya da en geç 15 dakika sonra biter; Leaf Bot simgesinin menüsündeki "Bilgisayarı kullanan botu durdur" ile hemen bitirebilirsin.',
+  'mac.allow': 'İzin ver',
+  'mac.deny': 'Reddet',
 } satisfies Catalog;
 
 export type DesktopKey = keyof typeof tr;
@@ -171,6 +180,15 @@ const en: Catalog<DesktopKey> = {
   'error.oldAppTitle': 'Quit {name} first',
   'error.oldAppRunning':
     'Leaf Bot is the new name of {name}. Your bots and chats cannot be moved over while {name} is open. Quit {name} and open Leaf Bot again; everything comes along.',
+  'mac.offer': 'Bots may use this computer',
+  'mac.stop': 'Stop the bot using this computer',
+  'mac.inUse': 'Bot at work here',
+  'mac.someBot': 'A bot',
+  'mac.askTitle': '{bot} on {host} wants to use this computer',
+  'mac.askDetail':
+    'If you allow it, the bot sees your screen, uses the mouse and types. Screenshots go to the server. The permission ends after 2 minutes with nothing done, or after 15 minutes at the latest; "Stop the bot using this computer" in the menu of the Leaf Bot icon ends it at once.',
+  'mac.allow': 'Allow',
+  'mac.deny': "Don't allow",
 };
 
 const CATALOGS = { tr, en };

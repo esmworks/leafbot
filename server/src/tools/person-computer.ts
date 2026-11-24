@@ -13,6 +13,9 @@ export function personComputerErrorText(err: unknown, t: T): string {
     if (err.code === 'accessibility') return t('personComputer.accessibility');
     if (err.code === 'screen') return t('personComputer.screenOff');
     if (err.code === 'busy') return t('personComputer.busy');
+    if (err.code === 'offline') return t('personComputer.offline');
+    if (err.code === 'refused') return t('personComputer.refused');
+    if (err.code === 'blocked') return t('personComputer.blocked');
   }
   return t('personComputer.failed', { message: (err as Error).message });
 }
@@ -26,14 +29,16 @@ export function personComputerErrorText(err: unknown, t: T): string {
 export function personComputerTools(opts: {
   def: Define;
   botId: string;
+  /** Shown on a Mac offered from afar when it asks whether this bot may use it. */
+  botName: string;
   t: T;
   computer: PersonComputer;
 }): AppTool[] {
-  const { def, botId, t, computer } = opts;
+  const { def, botId, botName, t, computer } = opts;
 
   const guard = async (fn: () => Promise<ToolResult>): Promise<ToolResult> => {
     try {
-      return await computer.use(botId, fn);
+      return await computer.use(botId, fn, Date.now(), botName);
     } catch (err) {
       return personComputerErrorText(err, t);
     }
@@ -41,9 +46,12 @@ export function personComputerTools(opts: {
 
   const look = async (): Promise<ToolResult> => {
     const shot = await computer.screenshot();
+    const system = shot.os === 'windows' ? 'Windows' : 'macOS';
+    const screen = t('personComputer.screen', { system, width: shot.width, height: shot.height });
     return {
-      text: t('personComputer.screen', { width: shot.width, height: shot.height }),
-      images: [await screenshotImage(shot.png)],
+      // A bot that knows Mac shortcuts best is told which keys this system wants.
+      text: shot.os === 'windows' ? `${screen} ${t('personComputer.windowsKeys')}` : screen,
+      images: [await screenshotImage(shot.data, shot.mimeType)],
     };
   };
 

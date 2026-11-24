@@ -644,11 +644,19 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     if (!ACP_AGENTS.some((a) => a.id === model))
       throw new HttpError(400, 'engine.acpUnknown', { agent: model || '-' });
   };
+  /**
+   * Who may let a bot use the Mac of the person it works for. Where the server runs on the owner's
+   * Mac, that Mac has no question of its own, so only the owner may. Elsewhere each person's Mac is
+   * offered by their desktop app, which asks on that Mac before a bot first uses it; anyone who
+   * may change the bot may then turn it on.
+   */
+  const checkPersonComputer = (req: FastifyRequest) => {
+    if (s.ctx.personComputer && me(req).role !== 'owner') throw new HttpError(403, 'error.ownerOnly');
+  };
   // A bot linked to a document reads it right away, so its text waits for the person at once.
   app.post('/api/bots', async (req) => {
     const body = BotCreate.parse(req.body);
-    // The Mac is the owner's: only they let a bot use it.
-    if (body.personComputer && me(req).role !== 'owner') throw new HttpError(403, 'error.ownerOnly');
+    if (body.personComputer) checkPersonComputer(req);
     checkAgent(req, body.engine, body.model);
     checkProjectDir(req, body.projectDir);
     await checkGroup(req, body.groupId);
@@ -674,10 +682,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       checkProjectDir(req, patch.projectDir);
     }
     if (patch.groupId !== undefined && patch.groupId !== before.groupId) await checkGroup(req, patch.groupId);
-    // The Mac is the owner's: only they let a bot use it.
-    if (patch.personComputer && !before.personComputer && me(req).role !== 'owner') {
-      throw new HttpError(403, 'error.ownerOnly');
-    }
+    if (patch.personComputer && !before.personComputer) checkPersonComputer(req);
     if (patch.engine !== undefined || patch.model !== undefined) {
       const engine = patch.engine ?? before.engine;
       if (engine === 'acp' && (engine !== before.engine || (patch.model ?? before.model) !== before.model))
@@ -1298,17 +1303,41 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       })),
     );
   });
-  app.get('/api/person-computer', async (): Promise<PersonComputerState> => {
-    const pc = s.ctx.personComputer;
-    if (!pc) return { available: false, accessibility: false, screen: false };
-    const st = await pc.status().catch(() => null);
-    return { available: true, accessibility: st?.accessibility ?? false, screen: st?.screen ?? false };
+  /**
+   * The asker's own Mac: the one the server runs on for the owner, else the one their desktop app
+   * offers from afar. `device` names the latter.
+   */
+  const macOf = (req: FastifyRequest) => {
+    const { userId } = me(req);
+    const local = userId === OWNER_ID ? (s.ctx.personComputer ?? null) : null;
+    if (local) return { computer: local, device: null };
+    const computer = s.ctx.macs?.for(userId) ?? null;
+    return computer ? { computer, device: s.ctx.macs?.device(userId) ?? null } : null;
+  };
+  const NO_MAC: PersonComputerState = { available: false, accessibility: false, screen: false };
+  app.get('/api/person-computer', async (req): Promise<PersonComputerState> => {
+    const mac = macOf(req);
+    if (!mac) return { ...NO_MAC, remote: !s.ctx.personComputer };
+    const st = await mac.computer.status().catch(() => null);
+    return {
+      available: true,
+      accessibility: st?.accessibility ?? false,
+      screen: st?.screen ?? false,
+      remote: !!mac.device,
+      device: mac.device,
+    };
   });
-  app.post('/api/person-computer/request', async (): Promise<PersonComputerState> => {
-    const pc = s.ctx.personComputer;
-    if (!pc) return { available: false, accessibility: false, screen: false };
-    const st = await pc.request();
-    return { available: true, accessibility: st.accessibility, screen: st.screen };
+  app.post('/api/person-computer/request', async (req): Promise<PersonComputerState> => {
+    const mac = macOf(req);
+    if (!mac) return { ...NO_MAC, remote: !s.ctx.personComputer };
+    const st = await mac.computer.request();
+    return {
+      available: true,
+      accessibility: st.accessibility,
+      screen: st.screen,
+      remote: !!mac.device,
+      device: mac.device,
+    };
   });
   // Sharing this server on the person's Tailscale network.
   app.get('/api/tailscale', async () => s.tailscale.state());

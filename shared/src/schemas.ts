@@ -1629,6 +1629,13 @@ export const PersonComputerState = z.object({
   available: z.boolean(),
   accessibility: z.boolean(),
   screen: z.boolean(),
+  /**
+   * The Mac is (or would be) offered from afar by the person's desktop app, rather than being the
+   * one the server runs on; turned on in that app's own menu.
+   */
+  remote: z.boolean().optional(),
+  /** The name of the Mac offered from afar, while one is connected. */
+  device: z.string().nullable().optional(),
 });
 export type PersonComputerState = z.infer<typeof PersonComputerState>;
 
