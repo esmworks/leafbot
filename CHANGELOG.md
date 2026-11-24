@@ -7,6 +7,8 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A manager bot can set up a routine for a bot it looks after, as it could already change and remove theirs; the
+  card names that bot. It still cannot for another manager.
 - A routine can wait for something before its scheduled run starts, looked at with no AI: enough files matching a
   pattern in the bot's or group's folder, a mail or WhatsApp message that meets a filter, a table row, an answer from
   a connected app's read-only tool, or a word on a page; each check can also hold when the thing is absent. When the
@@ -70,6 +72,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- After Leaf Bot was updated, a bot whose conversation had already loaded a tool kept working by that tool as it was
+  before, and said that a field it had was missing (a routine's steps and condition, say). Such a conversation now
+  moves on to a new session with the recent exchange, once, and a line in the chat says which tools changed; a
+  conversation that never loaded a changed tool keeps its session.
 - On Linux, a bot on an API-key model can run commands again when the server is installed under the home folder;
   every command failed with "No such file or directory", because the sandbox's own helper was hidden with the home
   folder.

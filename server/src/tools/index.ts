@@ -1106,6 +1106,8 @@ export class ToolFactory {
         'routine_create',
         {
           name: z.string().min(1).max(80),
+          /** For a manager: the bot whose routine it is, by name; left out for its own. */
+          bot: z.string().min(1).max(200).optional(),
           prompt: z.string().min(1).max(20_000),
           schedule: Schedule,
           missed: z.enum(['run', 'skip']).default('run'),
@@ -1152,25 +1154,32 @@ export class ToolFactory {
         async (a) => {
           // The bot changes itself only for someone who may change it.
           if (!(await mayChange())) return t('tool.changeNotAllowed');
-          const own = await s.routines.list(bot.id);
+          // A manager sets one up for a bot it looks after, as it changes and removes theirs; never
+          // for another manager, whose routines are its own to keep.
+          const owner = a.bot ? await reachBot(a.bot, 'edit') : bot;
+          if (owner.id !== bot.id && !bot.isManager) return t('tool.routineNotYours');
+          if (owner.id !== bot.id && owner.isManager) return t('tool.otherManager');
+          const own = await s.routines.list(owner.id);
           const same = own.find((r) => r.name.toLowerCase() === a.name.trim().toLowerCase());
           if (same) return t('tool.routineExists', { name: same.name });
-          const check = a.check_tool ? await s.connections.checkFromName(bot.id, a.check_tool, person) : null;
+          const check = a.check_tool
+            ? await s.connections.checkFromName(owner.id, a.check_tool, person)
+            : null;
           if (a.check_tool && !check) return t('tool.routineBadCheck', { tool: a.check_tool });
-          const watched = a.on_table ? await tableNamed(bot.id, a.on_table) : null;
+          const watched = a.on_table ? await tableNamed(owner.id, a.on_table) : null;
           if (typeof watched === 'string') return watched;
           const steps = stepsFrom(a.steps ?? [], t);
           if (typeof steps === 'string') return steps;
-          const wrongModel = await routineModelProblem(bot.id, [a.model ?? '', ...stepModels(steps)]);
+          const wrongModel = await routineModelProblem(owner.id, [a.model ?? '', ...stepModels(steps)]);
           if (wrongModel) return wrongModel;
           const reaction = slackReaction(a.slack_reaction ?? '');
           if (reaction === null) return t('tool.routineBadReaction', { reaction: a.slack_reaction ?? '' });
-          const condition = a.condition ? await conditionFrom(a.condition, bot.id, a.name.trim()) : null;
+          const condition = a.condition ? await conditionFrom(a.condition, owner.id, a.name.trim()) : null;
           if (typeof condition === 'string') return condition;
           const settings = await s.settings.all();
           const r = await s.routines.create(
             {
-              botId: bot.id,
+              botId: owner.id,
               name: a.name.trim(),
               prompt: a.prompt.trim(),
               // The person sees each step on the card before the routine is made.

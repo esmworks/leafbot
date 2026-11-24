@@ -342,6 +342,8 @@ export type TurnOutcome = (
       provider?: string;
       /** The model is busy or down for now; another model may do the work. */
       transient?: boolean;
+      /** For `lostSession`: the tools the session held an out-of-date definition of. */
+      staleTools?: string[];
       /**
        * The reply broke off midway: the provider closed the stream before saying it was done. The
        * same request may well go through on a second try.

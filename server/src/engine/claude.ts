@@ -1,4 +1,5 @@
 import { homedir } from 'node:os';
+import { join } from 'node:path';
 import {
   createSdkMcpServer,
   query,
@@ -17,6 +18,7 @@ import { readableError } from '../util';
 import { failureStreak } from './failures';
 import { fitResult } from './fit-image';
 import { gatePrompt, parseGate } from './gate';
+import { LoadedTools } from './loaded-tools';
 import { startSandboxProxy } from './sandbox-proxy';
 import {
   announcesAction,
@@ -424,6 +426,7 @@ export function resetTime(at: number | undefined): Date | null {
 
 export class ClaudeEngine implements Engine {
   readonly kind = 'claude';
+  private loaded = new LoadedTools();
   constructor(private opts: ClaudeEngineOptions = {}) {}
 
   private async baseOptions(): Promise<{ options: Partial<Options>; credential: ClaudeCredential | null }> {
@@ -457,6 +460,18 @@ export class ClaudeEngine implements Engine {
     const t = translator(req.locale);
     const input = inbox();
     const home = this.opts.home ?? homedir();
+    if (req.sessionId) {
+      // A tool the session loaded before the server was updated keeps its old definition there,
+      // and the bot works by it; a new session that takes the recent exchange sees the new one.
+      const stale = await this.loaded.changed(
+        this.opts.configDir ?? join(home, '.claude'),
+        req.sandbox.cwd,
+        req.sessionId,
+        req.tools,
+      );
+      if (stale.length)
+        return { ok: false, kind: 'lostSession', message: '', text: '', sessionId: null, staleTools: stale };
+    }
     const hidden = [home, ...(this.opts.hidden ?? [])];
     if (this.opts.configDir) hidden.push(this.opts.configDir);
     const failures = failureStreak((tool, count) => req.onRepeatedFailure?.(tool, count));
