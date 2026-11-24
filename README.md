@@ -164,7 +164,8 @@ The desktop app can also connect to a remote Leaf Bot server: enter its URL and 
 
 Installers for macOS (`.dmg`, Apple silicon), Windows (`.exe`) and Linux (`.AppImage`, and a `.deb` for Debian and
 Ubuntu) are attached to each [release](https://github.com/esmworks/leafbot/releases). On Linux, install `bubblewrap`
-and `socat` too for the bots' shell sandbox (the `.deb` recommends them). To build one yourself on the platform it is for:
+and `socat` too for the bots' shell sandbox, and `poppler-utils` so bots can read long scanned PDFs page by page (the `.deb` recommends
+them). On a Mac in local mode, `brew install poppler` does the same. To build one yourself on the platform it is for:
 
 ```bash
 pnpm build && pnpm --filter @leafbot/desktop dist
