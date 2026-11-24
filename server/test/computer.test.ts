@@ -12,7 +12,9 @@ import type { Approval, ComputerState, DesktopStart, ServerInfo, Thread } from '
 import { io as connect, type Socket } from 'socket.io-client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { WebSocketServer, type WebSocket as WsSocket } from 'ws';
+import { desc, eq } from 'drizzle-orm';
 import { RfbClientFilter } from '../src/computer/rfb-filter';
+import { schema } from '../src/db';
 import type { AppTool } from '../src/engine/types';
 import { KEY, testServer, waitFor, type TestServer } from './helpers';
 
@@ -361,6 +363,59 @@ describe('botun bilgisayarı', () => {
     const handed = execs().at(-1)!.body;
     expect(handed.command).toBe('git push');
     expect(handed.git).toBeUndefined();
+  });
+
+  it('kişinin kendi mesajından başka botun devrettiği işte onun anahtarını verir; zincirde dışarıdan okunan bir şey varsa vermez', async () => {
+    const dev = await t.bot({ name: 'Geliştirici', permissionMode: 'auto' });
+    const lead = await t.bot({ name: 'Yönetici', permissionMode: 'auto' });
+    const execs = () =>
+      fake.calls.filter((c) => c.id === dev.id && (c.op === 'exec' || c.op === 'jobs-start'));
+    await t.services.apiCredentials.create(
+      { name: 'github_benim', origin: 'https://github.com', value: 'github_pat_benim_0123456789' },
+      'owner',
+    );
+    const { db } = t.services.ctx;
+    const lastTurn = async (threadId: string) =>
+      (
+        await db
+          .select()
+          .from(schema.turns)
+          .where(eq(schema.turns.threadId, threadId))
+          .orderBy(desc(schema.turns.createdAt))
+          .limit(1)
+      )[0]!;
+    // The person asks the lead in their own conversation; the lead hands a push on to the developer.
+    const handOn = async (fromThreadId: string, fromTurnId: string) => {
+      await t.services.jobs.send({
+        from: lead,
+        to: dev,
+        fromThreadId,
+        fromTurnId,
+        parentJobId: null,
+        text: `[araç:run_command ${JSON.stringify({ command: 'git push' })}]`,
+        kind: 'notify',
+      });
+      await t.services.turns.idle();
+      return execs().at(-1)!.body;
+    };
+
+    const mine = await main(lead.id);
+    await t.send(mine.id, 'CI düzeltmelerini geliştiriciye ilet');
+    await t.services.turns.idle();
+    const asked = await lastTurn(mine.id);
+    const handed = await handOn(mine.id, asked.id);
+    expect(handed.command).toBe('git push');
+    expect(handed.git).toEqual({ token: 'github_pat_benim_0123456789' });
+
+    // The lead read a mail before handing on: its words may be someone else's, so the team's.
+    await db.update(schema.turns).set({ outside: 'email' }).where(eq(schema.turns.id, asked.id));
+    expect((await handOn(mine.id, asked.id)).git).toBeUndefined();
+
+    // Work a routine or another bot's own turn started is not the person's either.
+    const own = await t.services.threads.create(lead.id, { title: 'Rutin', userId: 'owner' });
+    await t.services.turns.enqueue({ threadId: own.id, botId: lead.id, source: 'routine', prompt: 'rapor' });
+    await t.services.turns.idle();
+    expect((await handOn(own.id, (await lastTurn(own.id)).id)).git).toBeUndefined();
   });
 
   it('uzun komutu arka planda başlatır; bitene kadar masaüstü uyumaz, durumu sonra sorulur', async () => {

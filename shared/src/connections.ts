@@ -464,7 +464,9 @@ const ROWS: Record<CatalogCategory, Row[]> = {
       'oauth',
       {
         client: { help: 'https://github.com/settings/applications/new' },
-        scope: 'repo read:org read:user user:email notifications',
+        // `workflow`: GitHub refuses a push that changes `.github/workflows` from a sign-in without
+        // it, so git on a bot's desktop could not hand on a change to the project's CI.
+        scope: 'repo workflow read:org read:user user:email notifications',
         // Opening or changing a pull request or an issue would otherwise wait on a form in GitHub's
         // view until the person presses Submit, though they already let the bot do it.
         botSubmits: {

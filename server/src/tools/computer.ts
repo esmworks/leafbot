@@ -70,11 +70,12 @@ export function computerTools(opts: {
   cwd: string;
   /**
    * The person whose own message started this work in their own conversation, whose own GitHub
-   * key or app the commands' git uses; null otherwise, and git uses the team's.
+   * key or app the commands' git uses; null otherwise, and git uses the team's. Asked at each
+   * command, since what the turn has read by then can change the answer.
    */
-  own?: string | null;
+  own?: () => Promise<string | null>;
 }): AppTool[] {
-  const { def, bot, t, computer, cwd, own } = opts;
+  const { def, bot, t, computer, cwd } = opts;
   const readOnly = bot.permissionMode === 'readonly';
 
   const guard = async (fn: (c: ComputerClient) => Promise<ToolResult>): Promise<ToolResult> => {
@@ -177,6 +178,7 @@ export function computerTools(opts: {
       async (a) =>
         guard(async (c) => {
           // Only for this command: the desktop goes on with the team's key for everyone else.
+          const own = await opts.own?.();
           const git = own ? await computer.personGit(bot.id, own) : undefined;
           if (a.background) {
             const job = await c.startJob(bot.id, { command: a.command, cwd, ...(git && { git }) });
