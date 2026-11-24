@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { useRoutineHealth } from '@/lib/queries';
+import { useBots, useRoutineHealth, useSession } from '@/lib/queries';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
@@ -308,6 +308,8 @@ export function RoutineHealthBlock({ routine, locked }: { routine: Routine; lock
   const t = useT();
   const { usd, dayLabel } = useFormat();
   const { data } = useRoutineHealth();
+  const me = useSession().data?.user?.id;
+  const owner = useBots().data?.find((b) => b.id === routine.botId)?.ownerUserId;
   const h = data?.find((x) => x.routineId === routine.id);
   if (!h) return null;
   const open = h.runs.total - h.runs.ok - h.runs.quiet - h.runs.failed;
@@ -343,7 +345,11 @@ export function RoutineHealthBlock({ routine, locked }: { routine: Routine; lock
         {h.hidden > 0 && (
           <p className="text-xs text-muted-foreground">{t('health.hidden', { count: h.hidden })}</p>
         )}
-        {h.runs.total > 0 && <FixProposal routine={routine} locked={locked} />}
+        {/* Asked for by the routine's person, from runs that finished: the server takes no other. */}
+        {h.runs.total > h.runs.skipped &&
+          (!me || !!routine.slackChannel || (routine.createdByUserId ?? owner ?? me) === me) && (
+            <FixProposal routine={routine} locked={locked} />
+          )}
       </div>
     </div>
   );

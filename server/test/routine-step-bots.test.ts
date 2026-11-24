@@ -113,6 +113,8 @@ describe('a routine step another bot does', () => {
     const run = await runOnce(made.body);
     expect(run.status).toBe('done');
     expect(run.steps?.map((s) => s.status)).toEqual(['done', 'error', 'skipped', 'done']);
+    // Numbered as the routine's window numbers its steps: the instruction is not one.
+    expect(run.steps?.[1]?.reason).toContain('1. adımı');
     expect(t.engine.requests.some((q) => q.botId === other.id)).toBe(false);
     expect((await reports(own.id)).at(-1)?.text).toContain('Araştıran bot yok');
   });
@@ -195,6 +197,40 @@ describe('a routine step another bot does', () => {
     });
     const [changed] = await t.services.routines.list(own.id);
     expect(changed!.steps?.[0]).toMatchObject({ prompt: 'konuyu derinlemesine araştır', bot: other.id });
+  });
+
+  it('is not done by another bot in a routine that works for a Slack team', async () => {
+    const own = await t.bot();
+    const other = await t.bot();
+    const step = { id: 'a', kind: 'agent', prompt: 'iş', bot: other.id };
+    const team = await make(own.id, [step], { slackChannel: 'C0GENEL01' });
+    expect(team.status).toBe(400);
+    expect(JSON.stringify(team.body)).toContain('Slack');
+    const made = await make(own.id, [step]);
+    expect(made.status).toBe(200);
+    const moved = await t.api('PATCH', `/api/routines/${made.body.id}`, { slackChannel: 'C0GENEL01' });
+    expect(moved.status).toBe(400);
+  });
+
+  it('lets the other bot say it failed, but not switch the routine off', async () => {
+    const own = await t.bot();
+    const other = await t.bot();
+    const made = await make(own.id, [
+      { id: 'a', kind: 'agent', prompt: 'iş [araç:routine_stop {"reason":"gerek yok"}]', bot: other.id },
+    ]);
+    const run = await runOnce(made.body);
+    expect(run.steps?.[1]?.output).toContain('yalnızca kendi botu');
+    expect((await t.services.routines.get(made.body.id)).enabled).toBe(true);
+  });
+
+  it("keeps what a failed step wrote out of the run's conversation", async () => {
+    const own = await t.bot();
+    const other = await t.bot();
+    const made = await make(own.id, [{ id: 'a', kind: 'agent', prompt: 'araştır [hata]', bot: other.id }]);
+    const run = await runOnce(made.body);
+    expect(run.status).toBe('error');
+    const home = await runThread(run.id);
+    expect((await t.messages(home)).some((m) => m.author === `bot:${other.id}`)).toBe(false);
   });
 
   it('is not saved with a bot that is not there or is archived', async () => {

@@ -1807,6 +1807,13 @@ export class ToolFactory {
               'routine_stop',
               { reason: z.string().min(1).max(500) },
               async ({ reason }) => {
+                // A bot that does one step of another bot's routine does not switch that routine off.
+                const [own] = await this.ctx.db
+                  .select({ botId: schema.routines.botId })
+                  .from(schema.routineRuns)
+                  .innerJoin(schema.routines, eq(schema.routines.id, schema.routineRuns.routineId))
+                  .where(eq(schema.routineRuns.id, turn.routineRunId!));
+                if (own && own.botId !== bot.id) return t('tool.routineStopOther');
                 const name = await s.routines.stopFromRun(turn.routineRunId!, reason);
                 return name ? t('tool.routineStopped', { name }) : t('tool.routineGone');
               },
