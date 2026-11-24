@@ -1351,6 +1351,8 @@ const tr = {
   'tool.questionTimedOut':
     'Kullanıcı başında değildi ve soru zamanında yanıtlanmadı. Cevapsız yapabildiğini yap ve sonunda neyi soramadığını yaz.',
   'tool.questionSkipped': 'Kullanıcı soruyu geçti.',
+  'tool.questionTyped':
+    'Kullanıcı kartı cevaplamadı; onun yerine sohbete yazdı, mesajı hemen ardından geliyor. Sorduklarını onun sözlerine göre ele al; gerekirse yeniden sor.',
   'tool.emptyAnswer': '(boş)',
   'tool.secretAnswer':
     '{answer} (gizli cevap: yalnızca gereken yerde kullan, sohbete ya da bir dosyaya yazma)',
@@ -3357,6 +3359,8 @@ const en: Catalog<ServerKey> = {
   'tool.questionTimedOut':
     'The user was not there and the question was not answered in time. Do what you can without the answer and say at the end what you could not ask.',
   'tool.questionSkipped': 'The user skipped the question.',
+  'tool.questionTyped':
+    'The user did not answer the card; they wrote in the chat instead, and their message comes right after this. Go on from their words; ask again if you still need to.',
   'tool.emptyAnswer': '(empty)',
   'tool.secretAnswer':
     '{answer} (secret answer: use it only where it is needed; never write it in the chat or a file)',
