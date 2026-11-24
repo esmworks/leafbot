@@ -104,7 +104,7 @@ const choiceLabel = (c: z.infer<typeof Choice>) => (typeof c === 'string' ? c : 
  */
 const StepInput = z.object({
   id: z.string().max(40).optional(),
-  kind: z.enum(['agent', 'approval', 'notify', 'wait']),
+  kind: z.enum(['agent', 'approval', 'notify', 'wait', 'fetch', 'extract']),
   prompt: z.string().max(20_000).optional(),
   model: z.string().trim().max(200).optional(),
   question: z.string().max(2000).optional(),
@@ -114,6 +114,10 @@ const StepInput = z.object({
   on: z.enum(['time', 'webhook', 'email']).optional(),
   minutes: z.number().int().optional(),
   filter: z.string().max(2000).optional(),
+  /** A fetch step's https address. */
+  url: z.string().max(2000).optional(),
+  /** An extract step's `name=path` lines. */
+  fields: z.string().max(2000).optional(),
   /** Read with no AI in what reaches the step; the step runs only when it holds. */
   when: z
     .object({
@@ -127,7 +131,7 @@ const StepInput = z.object({
     .optional(),
   /** After the step ended well: `end`, or the id of a later step; none, the step after it. */
   next: z.string().max(40).optional(),
-  /** An agent step that fails goes on at this later step's id instead of stopping the run. */
+  /** An agent, fetch or extract step that fails goes on at this later step's id instead of stopping the run. */
   on_error: z.string().max(40).optional(),
 });
 const StepsInput = z.array(StepInput).max(ROUTINE_STEP_MAX);
@@ -183,6 +187,7 @@ export function stepsFrom(input: z.infer<typeof StepsInput>, t: T): RoutineStep[
       ...(s.when.otherwise === 'goto' && { goto: s.when.goto?.trim() ?? '' }),
     };
     const next = s.next?.trim();
+    const onError = s.on_error?.trim();
     const raw = {
       ...(s.kind === 'agent'
         ? {
@@ -190,20 +195,24 @@ export function stepsFrom(input: z.infer<typeof StepsInput>, t: T): RoutineStep[
             kind: s.kind,
             prompt: s.prompt ?? '',
             model: s.model ?? '',
-            ...(s.on_error?.trim() && { onError: s.on_error.trim() }),
+            ...(onError && { onError }),
           }
         : s.kind === 'approval'
           ? { id, kind: s.kind, question: s.question ?? '', timeoutDays: s.timeout_days }
           : s.kind === 'notify'
             ? { id, kind: s.kind, text: s.text ?? '', withBefore: s.with_before }
-            : {
-                id,
-                kind: s.kind,
-                on: s.on ?? 'time',
-                minutes: s.minutes,
-                filter: s.filter ?? '',
-                timeoutDays: s.timeout_days,
-              }),
+            : s.kind === 'fetch'
+              ? { id, kind: s.kind, url: s.url ?? '', ...(onError && { onError }) }
+              : s.kind === 'extract'
+                ? { id, kind: s.kind, fields: s.fields ?? '', ...(onError && { onError }) }
+                : {
+                    id,
+                    kind: s.kind,
+                    on: s.on ?? 'time',
+                    minutes: s.minutes,
+                    filter: s.filter ?? '',
+                    timeoutDays: s.timeout_days,
+                  }),
       ...(when && { when }),
       ...(next && { next }),
     };
@@ -258,7 +267,7 @@ export function stepsOut(steps: readonly RoutineStep[]): Record<string, unknown>
       },
     }),
     ...(s.next && { next: s.next }),
-    ...(s.kind === 'agent' && s.onError && { on_error: s.onError }),
+    ...('onError' in s && s.onError && { on_error: s.onError }),
   }));
 }
 
@@ -269,13 +278,17 @@ function stepOut(s: RoutineStep): Record<string, unknown> {
       ? { id: s.id, kind: s.kind, question: s.question, timeout_days: s.timeoutDays }
       : s.kind === 'notify'
         ? { id: s.id, kind: s.kind, text: s.text, with_before: s.withBefore }
-        : {
-            id: s.id,
-            kind: s.kind,
-            on: s.on,
-            ...(s.on === 'time' ? { minutes: s.minutes } : { filter: s.filter }),
-            timeout_days: s.timeoutDays,
-          };
+        : s.kind === 'fetch'
+          ? { id: s.id, kind: s.kind, url: s.url }
+          : s.kind === 'extract'
+            ? { id: s.id, kind: s.kind, fields: s.fields }
+            : {
+                id: s.id,
+                kind: s.kind,
+                on: s.on,
+                ...(s.on === 'time' ? { minutes: s.minutes } : { filter: s.filter }),
+                timeout_days: s.timeoutDays,
+              };
 }
 
 /** Query parameters that carry a sign-in or a signature rather than say which page it is. */

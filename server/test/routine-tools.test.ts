@@ -325,6 +325,41 @@ describe('routine tools with steps', () => {
     expect(branched).toContain('→ sonra çalışma biter → olmazsa 3. adım');
   });
 
+  it('sets up fetch and extract steps, reads them back whole, and shows them on the card', async () => {
+    const bot = await t.bot({ name: 'Paşa', permissionMode: 'auto' });
+    const thread = await main(bot.id);
+    const steps = [
+      { id: 'oku', kind: 'fetch', url: 'https://api.ornek.com/fiyat/{{kod}}', on_error: 'hata' },
+      { id: 'al', kind: 'extract', fields: 'fiyat=item.price\nad=item.name', on_error: 'hata' },
+      { id: 'bildir', kind: 'notify', text: '{{ad}}: {{fiyat}}', with_before: false, next: 'end' },
+      { id: 'hata', kind: 'notify', text: 'Fiyat okunamadı' },
+    ];
+    expect(await ask(thread.id, 'routine_create', { ...briefing, steps })).toContain('rutini kuruldu');
+    const r = await mine(bot.id);
+    expect(r.steps![0]).toEqual(
+      expect.objectContaining({ kind: 'fetch', url: 'https://api.ornek.com/fiyat/{{kod}}', onError: 'hata' }),
+    );
+    expect(r.steps![1]).toEqual(
+      expect.objectContaining({ kind: 'extract', fields: 'fiyat=item.price\nad=item.name', onError: 'hata' }),
+    );
+    const read = await ask(thread.id, 'routine_read', { routine: 'Brifing' });
+    expect(read).toContain('"url": "https://api.ornek.com/fiyat/{{kod}}"');
+    expect(read).toContain('"on_error": "hata"');
+    // An address with a value in its server name is turned away.
+    const bad = await ask(thread.id, 'routine_update', {
+      routine: 'Brifing',
+      steps: [{ id: 'oku', kind: 'fetch', url: 'https://{{site}}/x' }],
+    });
+    expect(bad).toContain('1. adım kurulamadı');
+    const detail = describeAction(
+      'mcp__leafbot__routine_create',
+      { ...briefing, steps },
+      { bot: 'Paşa', locale: 'tr' },
+    ).detail;
+    expect(detail).toContain('1. adresi okur: https://api.ornek.com/fiyat/{{kod}} → olmazsa 4. adım');
+    expect(detail).toContain('2. değerleri alır: fiyat=item.price, ad=item.name');
+  });
+
   it('sets up branches, reads them back, and asks before a new way passes an approval step', async () => {
     const bot = await t.bot({ name: 'Paşa', permissionMode: 'auto' });
     const thread = await main(bot.id);

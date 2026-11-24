@@ -6,8 +6,11 @@ import {
   describeSchedule,
   nextRun,
   parseCron,
+  parseFields,
   ROUTINE_APPROVAL_MAX_DAYS,
+  ROUTINE_FETCH_URL,
   ROUTINE_STEP_END,
+  ROUTINE_VARS_MAX,
   ROUTINE_WAIT_MAX_MINUTES,
   SHORT_DAY_NAMES,
   stepRoutes,
@@ -124,6 +127,28 @@ export const Form = z.object({
           timeoutDays: z.number().int().min(1).max(ROUTINE_APPROVAL_MAX_DAYS),
           when: stepWhen,
           next: stepNext,
+        }),
+        z.object({
+          id: z.string(),
+          kind: z.literal('fetch'),
+          url: z.string().trim().max(2000).regex(ROUTINE_FETCH_URL, 'routine.fetchUrlInvalid'),
+          when: stepWhen,
+          next: stepNext,
+          onError: z.string().optional(),
+        }),
+        z.object({
+          id: z.string(),
+          kind: z.literal('extract'),
+          fields: z
+            .string()
+            .max(2000)
+            .refine((v) => {
+              const f = parseFields(v);
+              return !!f && f.length >= 1 && f.length <= ROUTINE_VARS_MAX;
+            }, 'routine.extractFieldsInvalid'),
+          when: stepWhen,
+          next: stepNext,
+          onError: z.string().optional(),
         }),
       ]),
     )
@@ -361,7 +386,11 @@ export function RoutinePage({
               ? { ...x, question: x.question.trim() }
               : x.kind === 'notify'
                 ? { ...x, text: x.text.trim() }
-                : { ...x, filter: x.filter.trim() },
+                : x.kind === 'fetch'
+                  ? { ...x, url: x.url.trim() }
+                  : x.kind === 'extract'
+                    ? x
+                    : { ...x, filter: x.filter.trim() },
         ),
         schedule: toSchedule(f),
         missed: f.missed,
@@ -440,6 +469,8 @@ export function RoutinePage({
       | {
           prompt?: { message?: string };
           question?: { message?: string };
+          url?: { message?: string };
+          fields?: { message?: string };
           when?: { message?: string };
           next?: { message?: string };
           onError?: { message?: string };
@@ -448,6 +479,8 @@ export function RoutinePage({
     return (
       e?.prompt?.message ??
       e?.question?.message ??
+      e?.url?.message ??
+      e?.fields?.message ??
       e?.when?.message ??
       e?.next?.message ??
       e?.onError?.message

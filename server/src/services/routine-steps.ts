@@ -1,5 +1,5 @@
 import type { RoutineStep, RoutineStepRun } from '@leafbot/shared';
-import { filterVars, ROUTINE_STEP_END, RoutineStep as StepSchema } from '@leafbot/shared';
+import { filterVars, parseFields, ROUTINE_STEP_END, RoutineStep as StepSchema } from '@leafbot/shared';
 import type { schema } from '../db';
 import { iso } from '../util';
 
@@ -48,10 +48,16 @@ export function isBotStep(steps: readonly RoutineStep[], position: number): bool
   return kind === 'prompt' || kind === 'agent';
 }
 
+/** Whether the run's step at `position` makes what the steps after it read: a fetch or extract step. */
+export function isDataStep(steps: readonly RoutineStep[], position: number): boolean {
+  const kind = kindAt(steps, position);
+  return kind === 'fetch' || kind === 'extract';
+}
+
 /**
- * What reaches the step at `position`: the output of the nearest bot step before it, and after it,
- * what each wait step in between brought in (a webhook's body, a mail). An approval step lets
- * through what came before it and adds nothing.
+ * What reaches the step at `position`: the output of the nearest bot, fetch or extract step before
+ * it, and after it, what each wait step in between brought in (a webhook's body, a mail). An
+ * approval step lets through what came before it and adds nothing.
  */
 export function handedOn(
   steps: readonly RoutineStep[],
@@ -64,7 +70,7 @@ export function handedOn(
     // A step its condition passed over hands on what reached it, as if it were not there.
     if (row?.status === 'skipped') continue;
     const output = row?.output?.trim() || null;
-    if (isBotStep(steps, p)) {
+    if (isBotStep(steps, p) || isDataStep(steps, p)) {
       if (output) parts.unshift(output);
       break;
     }
@@ -87,15 +93,24 @@ export function botStepAt(
   return p;
 }
 
-/** The names of the values the wait steps after `position` put in their filter. */
+/**
+ * The names of the values the steps after `position` put in a wait step's filter or a fetch step's
+ * address, less those an extract step before that one takes.
+ */
 export function varsWanted(steps: readonly RoutineStep[], position: number): string[] {
-  return [
-    ...new Set(
-      steps
-        .slice(position)
-        .flatMap((s) => (s.kind === 'wait' && s.on !== 'time' ? filterVars(s.filter) : [])),
-    ),
-  ];
+  const given = new Set<string>();
+  const wanted = new Set<string>();
+  for (const s of steps.slice(position)) {
+    const used =
+      s.kind === 'wait' && s.on !== 'time'
+        ? filterVars(s.filter)
+        : s.kind === 'fetch'
+          ? filterVars(s.url)
+          : [];
+    for (const name of used) if (!given.has(name)) wanted.add(name);
+    if (s.kind === 'extract') for (const f of parseFields(s.fields) ?? []) given.add(f.name);
+  }
+  return [...wanted];
 }
 
 /** Every step of a run, with the ones that have not started as `pending`. */

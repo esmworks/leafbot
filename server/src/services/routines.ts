@@ -9,8 +9,11 @@ import {
   INTL_LOCALE,
   MIN_RUN_GAP_MINUTES,
   ROUTINE_APPROVAL_TOOL,
+  ROUTINE_VAR_MAX,
   ROUTINE_VARS_MAX,
   nextRun,
+  parseFields,
+  valueAt,
   zonedTime,
   wallClock,
   occurrenceKey,
@@ -56,7 +59,7 @@ import { cutAt, errorText, HttpError, isUniqueViolation, newId, notFound, trunca
 import { checkSignature, signatureAllows } from './webhook-signatures';
 import { toRoutine, toRun } from './mappers';
 import { botStepAt, handedOn, routeFrom, snapshotSteps, stepList, varsWanted } from './routine-steps';
-import { fetchPublicText } from './skill-link';
+import { fetchPublic, fetchPublicText } from './skill-link';
 import { mailText } from './email';
 import { describeWhen, RoutineConditions, stepWhenHolds, type ConditionResult } from './routine-conditions';
 import type { Services } from '.';
@@ -107,6 +110,21 @@ export function pageText(html: string): string {
 const REPORT_MAX = 4000;
 
 /**
+ * The longest answer a fetch step keeps: an extract step after it needs all of it, so a longer one
+ * is refused rather than cut into JSON that no longer reads.
+ */
+const FETCH_MAX = 256 * 1024;
+/** How long a fetch step waits for the address, and how many redirects it follows. */
+const FETCH_TIMEOUT_MS = 15_000;
+const FETCH_REDIRECTS = 3;
+/**
+ * The most of what reached it that a notify step, or a run ending at a step passed over, sends:
+ * a fetch step's answer can be far longer than anything a person reads in a message.
+ */
+const DELIVER_MAX = 20_000;
+const VAR_IN_TEXT = /\{\{\s*([A-Za-z][A-Za-z0-9_]{0,39})\s*\}\}/g;
+
+/**
  * How many of a routine's latest instructions in a conversation are looked through for the ones of
  * a run that ended with nothing to report: the run's own are the newest, one per step.
  */
@@ -142,6 +160,11 @@ export class RoutineService {
   private settleAgain = false;
   /** Looks at a routine's condition with no AI before a scheduled run. */
   private conditions: RoutineConditions;
+  /**
+   * Fetch and extract steps under way. They run apart from what started them (a webhook's call, a
+   * card's answer), which would otherwise wait as long as the address takes to answer.
+   */
+  private dataWork = new Set<Promise<void>>();
 
   constructor(
     private ctx: Ctx,
@@ -181,8 +204,8 @@ export class RoutineService {
 
   /** Waits for the page and app reads and the pre-checks under way, and the turns they start to be queued. */
   async settled() {
-    while (this.watching.size || this.checking.size)
-      await Promise.all([...this.watching.values(), ...this.checking]);
+    while (this.watching.size || this.checking.size || this.dataWork.size)
+      await Promise.all([...this.watching.values(), ...this.checking, ...this.dataWork]);
   }
 
   /**
@@ -2073,6 +2096,8 @@ export class RoutineService {
     if (step.kind === 'approval') return this.askApproval(run, step, position, before, t);
     if (step.kind === 'wait') return this.holdForWait(run, step, position, t);
     if (step.kind === 'notify') return this.notify(run, routineName, steps, step, position, before, t);
+    if (step.kind === 'fetch' || step.kind === 'extract')
+      return this.startData(run, routineName, steps, step, position, before, t);
     await this.ctx.db
       .update(schema.routineRuns)
       .set({ stepModel: step.model || null })
@@ -2165,7 +2190,7 @@ export class RoutineService {
         finishedAt: now,
       })
       .where(eq(schema.routineRuns.id, run.id));
-    await this.deliver(run.botId, run.threadId, before ?? '', {
+    await this.deliver(run.botId, run.threadId, cutAt(before ?? '', DELIVER_MAX), {
       id: run.id,
       routineName,
       outside: row?.trigger ?? null,
@@ -2388,6 +2413,217 @@ export class RoutineService {
   }
 
   /**
+   * Starts a fetch or extract step: the step shows as running, and its work goes on apart from
+   * what started it. Work that throws ends the step as failed, so the run does not stay running.
+   */
+  private async startData(
+    run: StepRun,
+    routineName: string,
+    steps: readonly RoutineStep[],
+    step: DataStep,
+    position: number,
+    before: string | null,
+    t: T,
+  ) {
+    const running = {
+      status: 'running' as const,
+      output: null,
+      reason: null,
+      turnId: null,
+      approvalId: null,
+      startedAt: this.clock(),
+      finishedAt: null,
+    };
+    await this.ctx.db
+      .insert(schema.routineStepRuns)
+      .values({ id: newId(), runId: run.id, position, kind: step.kind, ...running })
+      .onConflictDoUpdate({
+        target: [schema.routineStepRuns.runId, schema.routineStepRuns.position],
+        set: running,
+      });
+    this.ctx.bus.refresh({ scope: 'routines' });
+    const work: Promise<void> = this.dataStep(run, routineName, steps, step, position, before, t)
+      .catch(async (err: unknown) => {
+        console.error(`Routine step ${position} of run ${run.id}`, err);
+        await this.dataFailed(run, routineName, steps, step, position, errorText(err, t), t).catch(
+          (again: unknown) => console.error(`Routine run ${run.id}`, again),
+        );
+      })
+      .finally(() => this.dataWork.delete(work));
+    this.dataWork.add(work);
+  }
+
+  /** Does a fetch or extract step's work, then goes on along its way, or along its failure's. */
+  private async dataStep(
+    run: StepRun,
+    routineName: string,
+    steps: readonly RoutineStep[],
+    step: DataStep,
+    position: number,
+    before: string | null,
+    t: T,
+  ) {
+    const got =
+      step.kind === 'fetch'
+        ? await this.fetchFor(run, step, t)
+        : await this.extractFrom(run, step, before, t);
+    if ('error' in got) return this.dataFailed(run, routineName, steps, step, position, got.error, t);
+    const now = this.clock();
+    const [ended] = await this.ctx.db
+      .update(schema.routineStepRuns)
+      .set({ status: 'done', output: got.output || null, finishedAt: now })
+      .where(
+        and(
+          eq(schema.routineStepRuns.runId, run.id),
+          eq(schema.routineStepRuns.position, position),
+          eq(schema.routineStepRuns.status, 'running'),
+        ),
+      )
+      .returning({ id: schema.routineStepRuns.id });
+    // Stopped while it worked: what it got is left out.
+    if (!ended) return;
+    const route = routeFrom(steps, position, step.next);
+    if ('to' in route) return this.goTo(run, routineName, steps, position, route.to, got.output, t);
+    if ('lost' in route) return this.lostRoute(run, route.lost, t);
+    // Data is not a report: a run that ends here has said what it had to in the steps before.
+    await this.ctx.db
+      .update(schema.routineRuns)
+      .set({ status: 'done', stepModel: null, finishedAt: now })
+      .where(and(eq(schema.routineRuns.id, run.id), eq(schema.routineRuns.status, 'running')));
+    this.ctx.bus.refresh({ scope: 'routines' });
+    await this.startQueued(run.routineId);
+  }
+
+  /**
+   * A fetch or extract step that failed: it goes on along its failure's way with why, as a bot
+   * step does, or the run ends there as failed, to be tried again from this step.
+   */
+  private async dataFailed(
+    run: StepRun,
+    routineName: string,
+    steps: readonly RoutineStep[],
+    step: DataStep,
+    position: number,
+    reason: string,
+    t: T,
+  ) {
+    const now = this.clock();
+    const [ended] = await this.ctx.db
+      .update(schema.routineStepRuns)
+      .set({ status: 'error', reason, finishedAt: now })
+      .where(
+        and(
+          eq(schema.routineStepRuns.runId, run.id),
+          eq(schema.routineStepRuns.position, position),
+          eq(schema.routineStepRuns.status, 'running'),
+        ),
+      )
+      .returning({ id: schema.routineStepRuns.id });
+    if (!ended) return;
+    const route = step.onError ? routeFrom(steps, position, step.onError) : null;
+    // Handled where the routine said, it does not count toward switching the routine off.
+    if (route && 'to' in route) {
+      const what = t('routine.stepFailedBefore', { step: String(position + 1), reason });
+      return this.goTo(run, routineName, steps, position, route.to, what, t);
+    }
+    if (route && 'lost' in route) return this.lostRoute(run, route.lost, t);
+    await this.countRun(run.routineId, 'failed', run.id);
+    await this.ctx.db
+      .update(schema.routineRuns)
+      .set({ status: 'error', reason, stepModel: null, finishedAt: now })
+      .where(and(eq(schema.routineRuns.id, run.id), eq(schema.routineRuns.status, 'running')));
+    this.ctx.bus.refresh({ scope: 'routines' });
+    await this.startQueued(run.routineId);
+  }
+
+  /**
+   * What a fetch step's address serves, a page as its text. Only for a bot that may reach the
+   * internet; the run's values go into the address encoded, and may not change its server. What
+   * comes back is outside text: the run's later turns read it as such.
+   */
+  private async fetchFor(
+    run: StepRun,
+    step: Extract<RoutineStep, { kind: 'fetch' }>,
+    t: T,
+  ): Promise<{ output: string } | { error: string }> {
+    const bot = await this.services.bots.get(run.botId).catch(() => null);
+    if (!bot?.internet) return { error: t('routine.fetchNoInternet') };
+    const [row] = await this.ctx.db
+      .select({ vars: schema.routineRuns.vars, trigger: schema.routineRuns.trigger })
+      .from(schema.routineRuns)
+      .where(eq(schema.routineRuns.id, run.id));
+    const vars = row?.vars ?? {};
+    const missing = filterVars(step.url).filter((n) => !vars[n]?.trim());
+    if (missing.length) return { error: t('routine.fetchMissing', { names: missing.join(', ') }) };
+    let url: URL;
+    try {
+      url = new URL(step.url.replace(VAR_IN_TEXT, (_, n: string) => encodeURIComponent(vars[n]!.trim())));
+      if (url.host !== new URL(step.url.replace(VAR_IN_TEXT, 'x')).host)
+        return { error: t('routine.fetchHost') };
+    } catch {
+      return { error: t('routine.fetchHost') };
+    }
+    let body: string;
+    try {
+      const res = await fetchPublic(url, FETCH_MAX, {
+        timeoutMs: FETCH_TIMEOUT_MS,
+        redirects: FETCH_REDIRECTS,
+        accept: 'application/json, text/*;q=0.9, */*;q=0.5',
+        userAgent: 'LeafBot',
+      });
+      const text = res.body.toString('utf8');
+      body = /html/i.test(res.contentType) ? pageText(text) : text.trim();
+    } catch (err) {
+      return { error: fetchProblem(err, t) };
+    }
+    if (!row?.trigger) {
+      await this.ctx.db
+        .update(schema.routineRuns)
+        .set({ trigger: 'web' })
+        .where(eq(schema.routineRuns.id, run.id));
+    }
+    return { output: body };
+  }
+
+  /**
+   * The values an extract step names, taken from the JSON that reached it: saved as the run's
+   * values in one write, and handed on as a JSON object of them. A value that is not there fails
+   * the step, so a route on failure can go around what needed it.
+   */
+  private async extractFrom(
+    run: StepRun,
+    step: Extract<RoutineStep, { kind: 'extract' }>,
+    before: string | null,
+    t: T,
+  ): Promise<{ output: string } | { error: string }> {
+    let json: unknown;
+    try {
+      json = JSON.parse(before ?? '');
+    } catch {
+      return { error: t('routine.extractNotJson') };
+    }
+    const values: Record<string, string> = {};
+    for (const f of parseFields(step.fields) ?? []) {
+      const v = valueAt(json, f.path);
+      if (v === undefined || v === null)
+        return { error: t('routine.extractMissing', { name: f.name, path: f.path.join('.') }) };
+      values[f.name] = cutAt(typeof v === 'object' ? JSON.stringify(v) : String(v), ROUTINE_VAR_MAX);
+    }
+    const [row] = await this.ctx.db
+      .select({ vars: schema.routineRuns.vars })
+      .from(schema.routineRuns)
+      .where(eq(schema.routineRuns.id, run.id));
+    const merged = { ...(row?.vars ?? {}), ...values };
+    if (Object.keys(merged).length > ROUTINE_VARS_MAX)
+      return { error: t('routine.extractFull', { max: String(ROUTINE_VARS_MAX) }) };
+    await this.ctx.db
+      .update(schema.routineRuns)
+      .set({ vars: merged })
+      .where(eq(schema.routineRuns.id, run.id));
+    return { output: JSON.stringify(values, null, 2) };
+  }
+
+  /**
    * A notify step: with no AI, its text and what the step before it ended with go where the routine
    * reports, and the run goes on to its next step, or ends there.
    */
@@ -2414,7 +2650,9 @@ export class RoutineService {
     const own = step.text.replace(/\{\{\s*([A-Za-z][A-Za-z0-9_]{0,39})\s*\}\}/g, (_, name: string) =>
       (row?.vars[name] ?? '').trim(),
     );
-    const text = [own.trim(), step.withBefore ? (before?.trim() ?? '') : ''].filter(Boolean).join('\n\n');
+    const text = [own.trim(), step.withBefore ? cutAt(before?.trim() ?? '', DELIVER_MAX) : '']
+      .filter(Boolean)
+      .join('\n\n');
     const done = {
       status: 'done' as const,
       output: text || null,
@@ -3693,6 +3931,21 @@ const DAY_MS = 24 * 60 * 60_000;
 function saveHint(steps: readonly RoutineStep[], position: number, t: T): string[] {
   const names = varsWanted(steps, position);
   return names.length ? [t('routine.saveValues', { names: names.join(', ') })] : [];
+}
+
+/** A step that works with no AI and can fail: it reads an address or takes values from JSON. */
+type DataStep = Extract<RoutineStep, { kind: 'fetch' | 'extract' }>;
+
+/** Why a fetch step's address could not be read, in the step's own words rather than a skill link's. */
+function fetchProblem(err: unknown, t: T): string {
+  if (err instanceof HttpError) {
+    if (err.key === 'error.skillLinkStatus')
+      return t('routine.fetchStatus', { status: err.params?.status ?? '?' });
+    if (err.key === 'error.skillLinkTooLarge')
+      return t('routine.fetchTooLarge', { kb: String(FETCH_MAX / 1024) });
+    if (err.key === 'error.skillLinkPrivate') return t('routine.fetchPrivate');
+  }
+  return t('routine.fetchUnreachable');
 }
 
 /** Whether a routine's runs may stop part way for the person or for something to happen. */

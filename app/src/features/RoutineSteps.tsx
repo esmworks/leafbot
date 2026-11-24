@@ -17,7 +17,9 @@ import {
   CircleDashed,
   CircleSlash,
   CircleX,
+  Globe,
   Hourglass,
+  ListFilter,
   LoaderCircle,
   Plus,
   RotateCcw,
@@ -39,8 +41,8 @@ import { cn } from '@/lib/utils';
 /**
  * A step as the routine's window edits it; text fields stay strings while typed. `when` is what
  * must hold in what the step before ended with for it to run; none, it always runs. `next` is
- * where the run goes once it ended well (empty, the step after it), and an agent step's `onError`
- * where it goes when the step fails (empty, the run stops).
+ * where the run goes once it ended well (empty, the step after it), and an agent, fetch or extract
+ * step's `onError` where it goes when the step fails (empty, the run stops).
  */
 export type StepForm = (
   | { id: string; kind: 'agent'; prompt: string; model: string; onError?: string }
@@ -54,6 +56,8 @@ export type StepForm = (
       filter: string;
       timeoutDays: number;
     }
+  | { id: string; kind: 'fetch'; url: string; onError?: string }
+  | { id: string; kind: 'extract'; fields: string; onError?: string }
 ) & { when?: RoutineStepWhen | null; next?: string };
 
 const WAIT_ON = ['time', 'webhook', 'email'] as const;
@@ -83,8 +87,16 @@ function newWaitStep(): StepForm {
   return { id: newStepId(), kind: 'wait', on: 'time', minutes: 60, filter: '', timeoutDays: 7 };
 }
 
+function newFetchStep(): StepForm {
+  return { id: newStepId(), kind: 'fetch', url: '' };
+}
+
+function newExtractStep(): StepForm {
+  return { id: newStepId(), kind: 'extract', fields: '' };
+}
+
 /** The kinds of step, in the order they are offered. */
-export const STEP_KINDS = ['agent', 'approval', 'wait', 'notify'] as const;
+export const STEP_KINDS = ['agent', 'approval', 'wait', 'notify', 'fetch', 'extract'] as const;
 
 /** A new, empty step of each kind. */
 export const NEW_STEP: Record<StepForm['kind'], () => StepForm> = {
@@ -92,12 +104,22 @@ export const NEW_STEP: Record<StepForm['kind'], () => StepForm> = {
   approval: newApprovalStep,
   wait: newWaitStep,
   notify: newNotifyStep,
+  fetch: newFetchStep,
+  extract: newExtractStep,
 };
+
+const KIND_ICON = {
+  agent: BotIcon,
+  approval: UserCheck,
+  wait: Hourglass,
+  notify: Send,
+  fetch: Globe,
+  extract: ListFilter,
+} satisfies Record<StepForm['kind'], unknown>;
 
 /** The icon of a step's kind. */
 export function StepIcon({ kind }: { kind: StepForm['kind'] }) {
-  const Icon =
-    kind === 'approval' ? UserCheck : kind === 'wait' ? Hourglass : kind === 'notify' ? Send : BotIcon;
+  const Icon = KIND_ICON[kind] ?? BotIcon;
   return <Icon className="size-3.5" aria-hidden />;
 }
 
@@ -219,6 +241,24 @@ export function StepsEditor({
         >
           <Send /> {t('routine.addNotifyStep')}
         </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="rounded-full"
+          onClick={() => onChange([...steps, newFetchStep()])}
+        >
+          <Globe /> {t('routine.addFetchStep')}
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="secondary"
+          className="rounded-full"
+          onClick={() => onChange([...steps, newExtractStep()])}
+        >
+          <ListFilter /> {t('routine.addExtractStep')}
+        </Button>
       </div>
     </div>
   );
@@ -270,6 +310,32 @@ export function StepFields({
         </>
       ) : s.kind === 'wait' ? (
         <WaitFields step={s} onChange={onChange} />
+      ) : s.kind === 'fetch' ? (
+        <>
+          <Input
+            value={s.url}
+            onChange={(e) => onChange({ ...s, url: e.target.value })}
+            placeholder={t('routine.fetchPlaceholder')}
+            inputMode="url"
+            className="h-9 rounded-xl text-sm"
+            aria-label={t('routine.step.fetch')}
+          />
+          {textError && <p className="text-sm text-destructive">{t(textError as MessageKey)}</p>}
+          <p className="text-xs text-muted-foreground">{t('routine.fetchHint')}</p>
+        </>
+      ) : s.kind === 'extract' ? (
+        <>
+          <Textarea
+            value={s.fields}
+            onChange={(e) => onChange({ ...s, fields: e.target.value })}
+            rows={3}
+            placeholder={t('routine.extractPlaceholder')}
+            className="scroll-thin max-h-40 overflow-y-auto rounded-xl text-sm"
+            aria-label={t('routine.step.extract')}
+          />
+          {textError && <p className="text-sm text-destructive">{t(textError as MessageKey)}</p>}
+          <p className="text-xs text-muted-foreground">{t('routine.extractHint')}</p>
+        </>
       ) : s.kind === 'notify' ? (
         <>
           <Textarea
@@ -336,9 +402,13 @@ function wayLabel(s: StepForm, t: ReturnType<typeof useT>): string {
         ? s.question
         : s.kind === 'notify'
           ? s.text
-          : s.on === 'time'
-            ? t('routine.stepWaitMinutes', { minutes: String(s.minutes) })
-            : s.on;
+          : s.kind === 'fetch'
+            ? s.url.replace(/^https:\/\//, '')
+            : s.kind === 'extract'
+              ? s.fields
+              : s.on === 'time'
+                ? t('routine.stepWaitMinutes', { minutes: String(s.minutes) })
+                : s.on;
   const short = text.trim().replace(/\s+/g, ' ');
   const kind = t(`routine.step.${s.kind}`);
   return short ? `${kind}: ${short.length > 40 ? `${short.slice(0, 39)}…` : short}` : kind;
@@ -403,7 +473,8 @@ function WayFields({
   onChange(next: StepForm): void;
 }) {
   const t = useT();
-  if (!later.length && !s.next && !(s.kind === 'agent' && s.onError)) return null;
+  const fails = s.kind === 'agent' || s.kind === 'fetch' || s.kind === 'extract';
+  if (!later.length && !s.next && !(fails && s.onError)) return null;
   return (
     <div className="space-y-2 border-t pt-2">
       <WaySelect
@@ -414,7 +485,7 @@ function WayFields({
         later={later}
         onChange={(next) => onChange({ ...s, next })}
       />
-      {s.kind === 'agent' && (
+      {fails && (
         <WaySelect
           label={t('routine.stepOnError')}
           value={s.onError ?? ''}
