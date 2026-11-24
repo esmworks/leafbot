@@ -1,5 +1,6 @@
+import { createHmac } from 'node:crypto';
 import type { Message, Routine, RoutineRun, Thread } from '@leafbot/shared';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { schema } from '../src/db';
 import type * as SkillLink from '../src/services/skill-link';
@@ -115,6 +116,68 @@ describe('fetch and extract steps of a routine', () => {
     expect(asked).toContain('Fiyatlar Çay 42');
     expect(asked).not.toContain('<h1>');
     expect(asked).not.toContain('x()');
+  });
+
+  it('marks the bot turn and the conversation after a read in the main conversation as outside text', async () => {
+    const bot = await t.bot();
+    web.answer = () => ({ body: '{"n":1}', contentType: 'application/json' });
+    const made = await t.api<Routine>('POST', '/api/routines', {
+      botId: bot.id,
+      name: 'Ana',
+      prompt: 'ilk iş',
+      steps: [
+        { id: 'oku', kind: 'fetch', url: 'https://ornek.com/a.json' },
+        { id: 'yaz', kind: 'agent', prompt: 'özetle' },
+      ],
+      schedule: { type: 'interval', minutes: 30 },
+    });
+    const run = await runOnce(made.body);
+    expect(run.status).toBe('done');
+    const [turn] = await t.services.ctx.db
+      .select()
+      .from(schema.turns)
+      .where(eq(schema.turns.routineRunId, run.id))
+      .orderBy(desc(schema.turns.createdAt))
+      .limit(1);
+    expect(turn!.outside).toBe('web');
+    const [thread] = await t.services.ctx.db
+      .select()
+      .from(schema.threads)
+      .where(eq(schema.threads.id, run.threadId!));
+    expect(thread!.outsideSession).toBe('web');
+  });
+
+  it('takes values from the body a webhook it waited for brought, after the bot step’s answer', async () => {
+    const bot = await t.bot();
+    const r = await make(bot.id, 'ilk iş', [
+      { id: 'kapanis', kind: 'wait', on: 'webhook', filter: 'event=issues' },
+      { id: 'al', kind: 'extract', fields: 'no=issue.number\nbaslik=issue.title' },
+      { id: 'bildir', kind: 'notify', text: '#{{no}} {{baslik}}', withBefore: false },
+    ]);
+    const { webhookToken } = (await t.api<Routine>('POST', `/api/routines/${r.id}/webhook`)).body;
+    const run = await runOnce(r);
+    expect(run.status).toBe('waiting');
+    const raw = JSON.stringify({ action: 'closed', issue: { number: 42, title: 'Giriş hatası' } });
+    await t.app.inject({
+      method: 'POST',
+      url: `/api/hooks/routines/${r.id}/${webhookToken}`,
+      headers: {
+        host: 'localhost',
+        'content-type': 'application/json',
+        'x-github-event': 'issues',
+        'x-github-delivery': 'teslim-1',
+        'x-hub-signature-256': `sha256=${createHmac('sha256', webhookToken!).update(raw).digest('hex')}`,
+      },
+      payload: raw,
+    });
+    for (let i = 0; i < 6; i++) {
+      await t.services.turns.idle();
+      await t.services.routines.settled();
+    }
+    const [done] = await runs(r.id);
+    expect(done!.status).toBe('done');
+    const sent = await reports(bot.id);
+    expect(sent.at(-1)!.text).toBe('#42 Giriş hatası');
   });
 
   it('does not read for a bot that may not reach the internet, and counts the failed run', async () => {

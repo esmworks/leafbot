@@ -58,7 +58,7 @@ import type { TurnRow } from '../runtime/turns';
 import { cutAt, errorText, HttpError, isUniqueViolation, newId, notFound, truncate } from '../util';
 import { checkSignature, signatureAllows } from './webhook-signatures';
 import { toRoutine, toRun } from './mappers';
-import { botStepAt, handedOn, routeFrom, snapshotSteps, stepList, varsWanted } from './routine-steps';
+import { botStepAt, handedOn, jsonIn, routeFrom, snapshotSteps, stepList, varsWanted } from './routine-steps';
 import { fetchPublic, fetchPublicText } from './skill-link';
 import { mailText } from './email';
 import { describeWhen, RoutineConditions, stepWhenHolds, type ConditionResult } from './routine-conditions';
@@ -2596,12 +2596,8 @@ export class RoutineService {
     before: string | null,
     t: T,
   ): Promise<{ output: string } | { error: string }> {
-    let json: unknown;
-    try {
-      json = JSON.parse(before ?? '');
-    } catch {
-      return { error: t('routine.extractNotJson') };
-    }
+    const json = jsonIn(before?.trim() ?? '');
+    if (json === undefined) return { error: t('routine.extractNotJson') };
     const values: Record<string, string> = {};
     for (const f of parseFields(step.fields) ?? []) {
       const v = valueAt(json, f.path);
@@ -3053,12 +3049,17 @@ export class RoutineService {
           .update(schema.routineRuns)
           .set({ status: 'done', finishedAt: now })
           .where(eq(schema.routineRuns.id, run.id));
-        await this.deliver(bot.id, run.threadId, handedOn(steps, rows, step.position + 1) ?? '', {
-          id: run.id,
-          routineName: r.routine.name,
-          outside: resumed.trigger,
-          slackChannel: r.routine.slackChannel,
-        });
+        await this.deliver(
+          bot.id,
+          run.threadId,
+          cutAt(handedOn(steps, rows, step.position + 1) ?? '', DELIVER_MAX),
+          {
+            id: run.id,
+            routineName: r.routine.name,
+            outside: resumed.trigger,
+            slackChannel: r.routine.slackChannel,
+          },
+        );
         await this.startQueued(run.routineId);
       }
     } catch (err) {

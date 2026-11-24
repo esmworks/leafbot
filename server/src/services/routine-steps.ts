@@ -79,6 +79,26 @@ export function handedOn(
   return parts.length ? parts.join('\n\n') : null;
 }
 
+/** How many of the last paragraphs of a text `jsonIn` tries, so a long page is not read over and over. */
+const JSON_TAIL_PARTS = 20;
+
+/**
+ * The JSON an extract step reads in what reached it: all of it, or else its last JSON part. What
+ * reaches a step after a wait step is the bot step's answer and then what came in (a webhook's
+ * body), a paragraph apart. Undefined when there is none.
+ */
+export function jsonIn(text: string): unknown {
+  const parts = text.split('\n\n');
+  for (let i = 0; i < parts.length && i <= JSON_TAIL_PARTS; i++) {
+    try {
+      return JSON.parse(parts.slice(i === 0 ? 0 : parts.length - i).join('\n\n'));
+    } catch {
+      // Not JSON from here: try a shorter tail.
+    }
+  }
+  return undefined;
+}
+
 /**
  * The nearest bot step at or before `position` that ran: the one a written correction sends back
  * to. One its condition passed over did no work to correct.
