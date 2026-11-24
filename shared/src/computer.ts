@@ -183,10 +183,12 @@ export type ComputerErrorCode = 'badRequest' | 'unauthorized' | 'notRunning' | '
 export interface ComputerState {
   botId: string;
   status: 'off' | 'starting' | 'running';
-  /** A person has the mouse and keyboard; the bot's actions are refused until they give it back. */
+  /** A person has the mouse and keyboard; the bot's actions wait until they give it back. */
   user: boolean;
   /** The bot is doing something on it right now. */
   busy: boolean;
+  /** A step of the bot's waits for the person in control to give it back, to go on from there. */
+  waiting?: boolean;
 }
 
 export type ComputerAck = { ok: true } | { ok: false; error: string };

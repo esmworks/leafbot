@@ -74,13 +74,21 @@ export function computerTools(opts: {
    * command, since what the turn has read by then can change the answer.
    */
   own?: () => Promise<string | null>;
+  /** The turn's own: a step waiting for the person to hand the desktop back stops with it. */
+  signal?: AbortSignal;
 }): AppTool[] {
-  const { def, bot, t, computer, cwd } = opts;
+  const { def, bot, t, computer, cwd, signal } = opts;
   const readOnly = bot.permissionMode === 'readonly';
 
   const guard = async (fn: (c: ComputerClient) => Promise<ToolResult>): Promise<ToolResult> => {
     try {
-      return await computer.use(bot.id, fn);
+      // The person may have closed or moved things while they had it: the bot hears so, and looks
+      // again before it goes on from where it was.
+      const waited = await computer.awaitControl(bot.id, signal);
+      const r = await computer.use(bot.id, fn, signal);
+      if (!waited) return r;
+      const note = t('computer.handedBack');
+      return typeof r === 'string' ? `${note}\n\n${r}` : { ...r, text: `${note}\n\n${r.text}` };
     } catch (err) {
       return computerErrorText(err, t);
     }

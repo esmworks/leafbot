@@ -1023,6 +1023,14 @@ describe.skipIf(!BROWSER)('botun tarayıcısı', () => {
       paths: ['cv.pdf', `${dir}/foto.png`],
     });
     expect(page).toContain('Seçilen cv.pdf:15:application/pdf, foto.png:3:image/png');
+    expect(page).not.toContain('dosya seçicisini');
+    // Any other step that opens the picker finds it caught, not left open, and hears of the tool.
+    const clicked = await text('browser_click', {
+      ref: refOf(page, 'button "Fotoğraf seç"'),
+      element: 'Fotoğraf seç',
+    });
+    expect(clicked).toContain('dosya seçicisini açtırdı');
+    expect(clicked).toContain('browser_upload');
 
     expect(await text('browser_upload', { ref: 'e1', element: 'Belge', paths: ['/etc/hosts'] })).toContain(
       'çalışma klasörlerinin dışında',
@@ -1084,15 +1092,21 @@ describe.skipIf(!BROWSER)('botun tarayıcısı', () => {
 
     await browser.setControl(bot.id, true);
     expect(browser.state(bot.id).status).toBe('user');
-    expect(await text('browser_snapshot', {})).toContain('Kullanıcı şu an tarayıcını kullanıyor');
+    // The bot's step waits for the person rather than giving up on its work.
+    let read: string | null = null;
+    const step = text('browser_snapshot', {}).then((r) => (read = r));
     await browser.input(bot.id, { type: 'open', url: `${base}/sonuc?ad=Ali` });
     await waitFor(async () => browser.state(bot.id).url?.includes('Ali'));
+    expect(read).toBeNull();
 
-    // Leaving hands control back to the bot.
+    // Leaving hands control back to the bot, whose step goes on and hears the page may have changed.
     browser.unwatch(bot.id, 'izleyen');
     off();
     expect(browser.state(bot.id).status).toBe('idle');
-    expect(await text('browser_snapshot', {})).toContain('Merhaba Ali');
+    await step;
+    expect(read).toContain('Merhaba Ali');
+    expect(read).toContain('kontrolü geri verdi');
+    expect(await text('browser_snapshot', {})).not.toContain('kontrolü geri verdi');
   });
 
   it('ödeme kartını yalnız kart alanlarına, sitenin ilk kullanımında sorarak doldurur; bot numarayı görmez', async () => {

@@ -198,6 +198,8 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
         };
       },
       blocked: (botId: string) => computer.userHasControl(botId),
+      awaitDesktop: (botId: string, signal: AbortSignal | undefined, maxMs: number) =>
+        computer.awaitControl(botId, signal, maxMs),
       hold: (botId: string) => computer.hold(botId),
     }),
   });
@@ -747,6 +749,8 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     void inThreadOrder(threadId, () => toThread(threadId), send);
   const toBotEditors = async (botId: string) => toPeople(await services.access.botPeople(botId, 'edit'));
   computer?.on((s) => void toBotEditors(s.botId).then((to) => to.emit('computer:state', s)));
+  // A person at the desktop's controls picks files in the browser's own window; the bot never does.
+  computer?.on((s) => browser.desktopControl(s.botId, s.user));
   browser.on({
     state: (s) => void toBotEditors(s.botId).then((to) => to.emit('browser:state', s)),
     // A frame a slow viewer cannot take yet is dropped, not queued: the next one replaces it anyway.

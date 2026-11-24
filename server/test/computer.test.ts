@@ -450,7 +450,7 @@ describe('botun bilgisayarı', () => {
     expect(reply).toContain('No permissions to create a new namespace');
   });
 
-  it('kişi kontrol ederken botun işlemini reddeder; boşta kalan masaüstünü uyutur', async () => {
+  it('kişi kontrol ederken botun işlemi bekler, geri verince sürer; boşta kalan masaüstünü uyutur', async () => {
     const bot = await t.bot();
     const thread = await main(bot.id);
     await t.send(thread.id, '[araç:computer_screenshot]');
@@ -458,9 +458,29 @@ describe('botun bilgisayarı', () => {
     const computer = t.services.ctx.computer!;
 
     computer.setControl(bot.id, 'kişi', true);
-    expect(await text('computer_screenshot', {})).toContain('denetimini almış');
+    const shot = text('computer_screenshot', {});
+    await waitFor(async () => computer.state(bot.id).waiting === true);
+    expect(computer.state(bot.id)).toMatchObject({ user: true, waiting: true });
+    const before = fake.calls.length;
+    await new Promise((r) => setTimeout(r, 50));
+    // Nothing reaches the desktop while the person has it.
+    expect(fake.calls.length).toBe(before);
     computer.forget('kişi');
     expect(computer.state(bot.id).user).toBe(false);
+    const after = await shot;
+    expect(after).toContain('denetimi geri verdi');
+    expect(after).toContain('1280x800');
+    expect(computer.state(bot.id).waiting).toBe(false);
+
+    // Kept past the wait, or the turn stopped meanwhile: refused as before.
+    computer.setControl(bot.id, 'kişi', true);
+    await expect(computer.awaitControl(bot.id, undefined, 20)).rejects.toMatchObject({ code: 'userControl' });
+    const stop = new AbortController();
+    const waiting = computer.awaitControl(bot.id, stop.signal);
+    stop.abort();
+    await expect(waiting).rejects.toMatchObject({ code: 'userControl' });
+    expect(computer.state(bot.id).waiting).toBe(false);
+    computer.forget('kişi');
 
     computer.watch(bot.id, 'izleyen');
     await computer.tick(Date.now() + 120_000);
