@@ -69,9 +69,11 @@ jobs:
       - name: Let Chrome start its sandbox
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       # The Claude CLI refuses to run a sandboxed command without bubblewrap and socat
-      # ("Sandbox required but unavailable"), so the test that drives the real CLI failed.
-      - name: Install the Claude CLI sandbox tools
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends bubblewrap socat
+      # ("Sandbox required but unavailable"), so the test that drives the real CLI failed. The shell
+      # the Pi engine runs commands in uses the same sandbox, which also wants ripgrep ("Sandbox
+      # dependencies not available: ripgrep (rg) not found").
+      - name: Install the command sandbox tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends bubblewrap socat ripgrep
       # The hanging-process reporter names whatever keeps a test worker from exiting, should one hang.
       - run: pnpm exec vitest run --shard=${{ matrix.shard }}/3 --reporter=default --reporter=hanging-process
         env:

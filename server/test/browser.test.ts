@@ -799,12 +799,18 @@ describe.skipIf(!BROWSER)('botun tarayıcısı', () => {
     await t.send(thread.id, `[araç:browser_open {"url":"${base}/"}]`);
     await t.services.turns.idle();
     const browser = t.services.ctx.browser;
-    // Chromium's own page for crashing a tab, as an out-of-memory page would. The navigation is
-    // not awaited: should it not settle when the tab dies, it would wait for Playwright's 30 s
-    // navigation timeout while the browser's step queue holds the snapshots below behind it.
-    await browser.use(bot.id, async (page) => {
-      void page.goto('chrome://crash').catch(() => {});
+    // The renderer is crashed through the DevTools protocol, as an out-of-memory page would crash
+    // it. Not through `chrome://crash`: Chrome's own builds turn their internal debugging pages off,
+    // so on the CI runner the tab never crashed and the test waited for a fresh tab that never came.
+    // The call is not awaited: its reply would have come from the renderer that just died.
+    const crashed = await browser.use(bot.id, async (page) => {
+      const devtools = await page.context().newCDPSession(page);
+      void devtools.send('Page.crash').catch(() => {});
+      return page;
     });
+    // The page the bot was on is not merely still there: a fresh tab took its place.
+    await waitFor(() => browser.use(bot.id, async (page) => page !== crashed));
+    await waitFor(async () => crashed.isClosed());
     await waitFor(async () => (await text('browser_snapshot', {})).includes('heading "Giriş"'));
   });
 
