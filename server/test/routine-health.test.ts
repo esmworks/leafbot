@@ -69,7 +69,7 @@ describe('rutin sağlığı', () => {
     const h = (await health(r.id))!;
     expect(h).toMatchObject({
       status: 'improvable',
-      runs: { total: 10, quiet: 10, ok: 0, failed: 0 },
+      runs: { total: 10, quiet: 10, ok: 0, failed: 0, skipped: 0 },
       hidden: 0,
     });
     expect(h.since).not.toBeNull();
@@ -86,6 +86,48 @@ describe('rutin sağlığı', () => {
     // Ten more quiet runs after it was set aside meet it again.
     await runTimes(r.id, 10);
     expect((await health(r.id))!.findings.map((f) => f.id)).toEqual(['mostlyQuiet']);
+  });
+
+  it('onayda bekleyen çalışmayı bitmiş saymaz; süresi dolan onay uzatılınca bulgu kalkar', async () => {
+    const bot = await t.bot();
+    const r = (
+      await t.api<Routine>('POST', '/api/routines', {
+        botId: bot.id,
+        name: 'Teklif',
+        prompt: 'taslak yaz',
+        steps: [{ id: 'onay', kind: 'approval', question: 'Göndereyim mi?', timeoutDays: 1 }],
+        schedule: { type: 'interval', minutes: 30 },
+      })
+    ).body;
+    const timeOut = async () => {
+      await t.api('POST', `/api/routines/${r.id}/run`);
+      await t.services.turns.idle();
+      t.now.value = new Date(t.now.value.getTime() + 25 * 60 * 60_000);
+      await t.services.routines.tick();
+      await t.services.routines.settleSteps();
+      await t.services.turns.idle();
+    };
+
+    await t.api('POST', `/api/routines/${r.id}/run`);
+    await t.services.turns.idle();
+    // Its bot step went well, but the run waits for the person: not done yet.
+    expect((await health(r.id))!.runs).toMatchObject({ total: 1, ok: 0, failed: 0 });
+    t.now.value = new Date(t.now.value.getTime() + 25 * 60 * 60_000);
+    await t.services.routines.tick();
+    await t.services.routines.settleSteps();
+    await t.services.turns.idle();
+    await timeOut();
+    const h = (await health(r.id))!;
+    // The clock moved on a day each time, so the schedule started runs of its own as well.
+    const found = h.findings.find((f) => f.id === 'waitTimeouts');
+    expect(found).toMatchObject({ step: 1 });
+    expect(found!.count).toBeGreaterThanOrEqual(2);
+    // A run that ran out of time is neither done nor a failure of its own.
+    expect(h.runs).toMatchObject({ ok: 0, failed: 0 });
+
+    const steps = [{ id: 'onay', kind: 'approval', question: 'Göndereyim mi?', timeoutDays: 2 }];
+    expect((await t.api('PATCH', `/api/routines/${r.id}`, { steps })).status).toBe(200);
+    expect((await health(r.id))!.findings.map((f) => f.id)).not.toContain('waitTimeouts');
   });
 
   it('art arda başarısızlığı sorun sayar', async () => {

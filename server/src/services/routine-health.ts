@@ -45,6 +45,9 @@ export class RoutineHealthService {
     const now = this.clock();
     const since = new Date(now.getTime() - ROUTINE_HEALTH_DAYS * DAY_MS);
 
+    // Read by the routines and the window, never by a list of runs: a routine that runs every few
+    // minutes has thousands in 30 days, more than a query can carry as values.
+    const window = and(inArray(schema.routineRuns.routineId, ids), gte(schema.routineRuns.startedAt, since));
     const runRows = await this.ctx.db
       .select({
         id: schema.routineRuns.id,
@@ -56,35 +59,38 @@ export class RoutineHealthService {
         status: schema.routineRuns.status,
       })
       .from(schema.routineRuns)
-      .where(and(inArray(schema.routineRuns.routineId, ids), gte(schema.routineRuns.startedAt, since)));
-    // Queued runs have not started; they say nothing yet about how the routine goes.
-    const live = runRows.filter((r) => r.status !== 'queued');
-    const runIds = live.map((r) => r.id);
+      .where(window);
 
-    const turnRows = runIds.length
-      ? await this.ctx.db
-          .select({ runId: schema.turns.routineRunId, costUsd: schema.turns.costUsd })
-          .from(schema.turns)
-          .where(and(inArray(schema.turns.routineRunId, runIds), isNotNull(schema.turns.finishedAt)))
-      : [];
-    const cost = new Map<string, number | null>();
-    for (const t of turnRows) {
-      const id = t.runId!;
-      const was = cost.has(id) ? cost.get(id)! : 0;
-      cost.set(id, was === null || t.costUsd === null ? null : was + t.costUsd);
-    }
+    // Each run's turns, summed here: what they cost, and how many had no known price.
+    const turnRows = await this.ctx.db
+      .select({
+        runId: schema.turns.routineRunId,
+        costUsd: sql<number | string | null>`sum(${schema.turns.costUsd})`,
+        unpriced: sql<number | string>`count(*) filter (where ${schema.turns.costUsd} is null)`,
+      })
+      .from(schema.turns)
+      .innerJoin(schema.routineRuns, eq(schema.routineRuns.id, schema.turns.routineRunId))
+      .where(and(window, isNotNull(schema.turns.finishedAt)))
+      .groupBy(schema.turns.routineRunId);
+    const cost = new Map<string, number | null>(
+      turnRows.map((t) => [t.runId!, Number(t.unpriced) > 0 ? null : Number(t.costUsd ?? 0)]),
+    );
 
-    const stepRows = runIds.length
-      ? await this.ctx.db
-          .select({
-            runId: schema.routineStepRuns.runId,
-            position: schema.routineStepRuns.position,
-            kind: schema.routineStepRuns.kind,
-            status: schema.routineStepRuns.status,
-          })
-          .from(schema.routineStepRuns)
-          .where(inArray(schema.routineStepRuns.runId, runIds))
-      : [];
+    // Only steps after the instruction that ended in error are read: no rule looks at the others.
+    const stepRows = await this.ctx.db
+      .select({
+        runId: schema.routineStepRuns.runId,
+        routineId: schema.routineRuns.routineId,
+        position: schema.routineStepRuns.position,
+        kind: schema.routineStepRuns.kind,
+        status: schema.routineStepRuns.status,
+        snapshot: schema.routineRuns.stepsSnapshot,
+      })
+      .from(schema.routineStepRuns)
+      .innerJoin(schema.routineRuns, eq(schema.routineRuns.id, schema.routineStepRuns.runId))
+      .where(
+        and(window, eq(schema.routineStepRuns.status, 'error'), gte(schema.routineStepRuns.position, 1)),
+      );
 
     const dismissals = await this.ctx.db
       .select()
@@ -97,23 +103,37 @@ export class RoutineHealthService {
       );
 
     const runsOf = new Map<string, HealthRun[]>();
-    const runRoutine = new Map<string, string>();
-    for (const r of live) {
+    for (const r of runRows) {
+      // Queued runs have not started; they say nothing yet about how the routine goes.
+      if (r.status === 'queued') continue;
       const turns = cost.has(r.id) ? cost.get(r.id)! : 0;
-      const run: HealthRun = {
+      const list = runsOf.get(r.routineId) ?? [];
+      runsOf.set(r.routineId, list);
+      list.push({
         id: r.id,
         startedAt: r.startedAt,
         finishedAt: r.finishedAt,
-        outcome: r.outcome,
+        // A run still going, or held at a step, has only an earlier step's ending so far.
+        outcome: r.finishedAt ? r.outcome : null,
+        skipped: r.status === 'skipped',
         costUsd: turns === null ? null : turns + (r.gateCostUsd ?? 0),
-      };
-      runsOf.set(r.routineId, [...(runsOf.get(r.routineId) ?? []), run]);
-      runRoutine.set(r.id, r.routineId);
+      });
     }
     const stepsOf = new Map<string, HealthStepRun[]>();
     for (const s of stepRows) {
-      const routine = runRoutine.get(s.runId)!;
-      stepsOf.set(routine, [...(stepsOf.get(routine) ?? []), s]);
+      const had = Array.isArray(s.snapshot)
+        ? (s.snapshot[s.position - 1] as Record<string, unknown>)
+        : undefined;
+      const list = stepsOf.get(s.routineId) ?? [];
+      stepsOf.set(s.routineId, list);
+      list.push({
+        runId: s.runId,
+        position: s.position,
+        kind: s.kind,
+        status: s.status,
+        ...(typeof had?.id === 'string' && { stepId: had.id }),
+        ...(typeof had?.timeoutDays === 'number' && { timeoutDays: had.timeoutDays }),
+      });
     }
 
     return routines.map((row) => {

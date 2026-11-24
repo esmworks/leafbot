@@ -12,9 +12,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
   switched itself off, that waits for a sign-in, a step that keeps failing, a wait that keeps running out, runs that
   mostly find nothing to report with what they cost, and a routine not used for 30 days. A wait that runs out can be
   made twice as long with one press, and undone; for the rest, "Ask the bot" puts a message about it in the bot's
-  chat for you to send, and the bot asks before it changes the routine. A finding you hide comes back only when the
-  runs after that meet it again. Settings → Routines shows each routine's health and can list only those needing
-  attention, and Today says how many there are.
+  chat for you to send, asking the bot to check with you before it changes anything; the bot then changes the routine
+  only as far as its permissions allow. A finding you hide comes back only when the runs after that meet it again.
+  Settings → Routines shows each routine's health and can list only those needing attention, and Today says how many
+  have a problem.
 - A bot can delete finished tickets (done or won't do) from the board when you ask; open work stays until it is
   set to won't do. Taking the bot's turn back puts the tickets back with their comments.
 - A routine's step can run only when what the step before ended with has (or lacks) a text, passes a JSON filter,

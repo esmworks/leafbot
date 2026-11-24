@@ -27,7 +27,7 @@ const health: RoutineHealth = {
   routineId: 'r1',
   status: 'improvable',
   since: new Date().toISOString(),
-  runs: { total: 6, ok: 4, quiet: 0, failed: 0 },
+  runs: { total: 6, ok: 4, quiet: 0, failed: 0, skipped: 0 },
   costUsd: 0.2,
   unpricedRuns: 0,
   avgMs: 1000,

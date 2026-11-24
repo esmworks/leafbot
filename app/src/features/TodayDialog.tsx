@@ -8,7 +8,6 @@ import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { useBots, useRoutineHealth, useSummaries } from '@/lib/queries';
 import { useUi } from '@/lib/store';
-import { needsAttention } from './RoutineHealth';
 import { RoutineSuggestionsSection } from './RoutineSuggestions';
 import { SkillSuggestionsSection } from './SkillSuggestions';
 import { SecondYesSection } from './SecondYes';
@@ -40,7 +39,8 @@ export function TodayDialog() {
   const byId = new Map(bots.map((b) => [b.id, b]));
   const waiting = summaries.filter((s) => s.waiting);
   const { data: health = [] } = useRoutineHealth(open);
-  const attention = health.filter(needsAttention).length;
+  // Only what is wrong: something to gain, or a routine not used, waits for Settings → Routines.
+  const attention = health.filter((h) => h.status === 'problem').length;
   const go = (botId: string, threadId?: string | null) => {
     const ui = useUi.getState();
     ui.openChat(botId);

@@ -3047,7 +3047,7 @@ export class RoutineService {
     try {
       [restarted] = await this.ctx.db
         .update(schema.routineRuns)
-        .set({ status: 'running', reason: null, finishedAt: null, failedByBot: false })
+        .set({ status: 'running', reason: null, finishedAt: null, failedByBot: false, outcome: null })
         .where(
           and(eq(schema.routineRuns.id, runId), inArray(schema.routineRuns.status, ['error', 'stopped'])),
         )

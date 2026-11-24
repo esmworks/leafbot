@@ -69,11 +69,13 @@ export const RoutineHealth = z.object({
   /** When the oldest run with a known ending in the window started; null when there is none. */
   since: z.string().nullable(),
   runs: z.object({
-    /** Every run in the window, however it ended. */
+    /** Every run in the window that started, however it ended; the skipped are counted apart. */
     total: z.number().int(),
     ok: z.number().int(),
     quiet: z.number().int(),
     failed: z.number().int(),
+    /** Slots passed over without running (a condition that did not hold, a sign-in, a busy run). */
+    skipped: z.number().int(),
   }),
   /** What the runs in the window cost, with those that had a turn of unknown price left out. */
   costUsd: z.number(),
@@ -94,7 +96,10 @@ export interface HealthRun {
   id: string;
   startedAt: Date;
   finishedAt: Date | null;
+  /** How it ended; null for one still going or held at a step, whatever an earlier step said. */
   outcome: 'ok' | 'quiet' | 'failed' | null;
+  /** A slot passed over without running. */
+  skipped: boolean;
   /** What its turns and its pre-check cost; null when one of its turns had no known price. */
   costUsd: number | null;
 }
@@ -105,6 +110,12 @@ export interface HealthStepRun {
   position: number;
   kind: string;
   status: string;
+  /**
+   * The step as the run had it: its id, and how long it waited. A step that was changed, moved or
+   * replaced since is not the routine's step at that position any more, so its endings do not count.
+   */
+  stepId?: string;
+  timeoutDays?: number;
 }
 
 export interface HealthInput {
@@ -146,13 +157,18 @@ export function healthFindings(input: HealthInput): RoutineHealthFinding[] {
     }
   }
 
-  // A step after the instruction that ended in error in several runs.
+  // A step after the instruction that ended in error in several runs, as the routine has it now.
   const steps = routine.steps ?? [];
   const errorsAt = new Map<number, Set<string>>();
   const timeoutsAt = new Map<number, Set<string>>();
   for (const s of input.steps) {
-    if (s.position < 1 || s.status !== 'error') continue;
-    const into = s.kind === 'approval' || s.kind === 'wait' ? timeoutsAt : errorsAt;
+    const step = steps[s.position - 1];
+    if (s.position < 1 || s.status !== 'error' || !step) continue;
+    if (s.stepId !== undefined && s.stepId !== step.id) continue;
+    const waits = step.kind === 'approval' || step.kind === 'wait';
+    // Waits that ran out under a shorter limit say nothing about the limit it has now.
+    if (waits && s.timeoutDays !== undefined && s.timeoutDays !== step.timeoutDays) continue;
+    const into = waits ? timeoutsAt : errorsAt;
     const set = into.get(s.position) ?? new Set<string>();
     set.add(s.runId);
     into.set(s.position, set);
@@ -183,12 +199,12 @@ export function healthFindings(input: HealthInput): RoutineHealthFinding[] {
     });
   }
 
-  // Nothing ran for the whole window, for a routine older than it.
+  // Nothing ran for the whole window, for a routine older than it; slots passed over do not count.
   const since = now.getTime() - ROUTINE_HEALTH_DAYS * DAY_MS;
   const last = routine.lastRunAt ? Date.parse(routine.lastRunAt) : null;
   if (
     Date.parse(routine.createdAt) <= since &&
-    !runs.length &&
+    !runs.some((r) => !r.skipped) &&
     (last === null || last < since) &&
     routine.pausedReason !== 'failures'
   )
@@ -228,6 +244,7 @@ export function routineHealth(
   }
   const measured = input.runs.filter((r) => r.outcome);
   const timed = measured.filter((r) => r.finishedAt);
+  const skipped = input.runs.filter((r) => r.skipped).length;
   const priced = input.runs.filter((r) => r.costUsd !== null);
   const rank: Record<RoutineHealthStatus, number> = {
     problem: 0,
@@ -244,10 +261,11 @@ export function routineHealth(
     status,
     since: oldest?.toISOString() ?? null,
     runs: {
-      total: input.runs.length,
+      total: input.runs.length - skipped,
       ok: measured.filter((r) => r.outcome === 'ok').length,
       quiet: measured.filter((r) => r.outcome === 'quiet').length,
       failed: measured.filter((r) => r.outcome === 'failed').length,
+      skipped,
     },
     costUsd: priced.reduce((a, r) => a + (r.costUsd ?? 0), 0),
     unpricedRuns: input.runs.length - priced.length,

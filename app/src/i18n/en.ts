@@ -2157,6 +2157,14 @@ export const en: Catalog<MessageKey> = {
   'health.status.unknown': 'Too early to say',
   'health.window': 'Last 30 days',
   'health.runs': 'Runs: {total} · done {ok} · nothing to report {quiet} · failed {failed}',
+  'health.skipped': {
+    one: '{count} passed over as its condition did not hold',
+    other: '{count} passed over as their condition did not hold',
+  },
+  'health.open': {
+    one: '{count} with no known ending yet',
+    other: '{count} with no known ending yet',
+  },
   'health.cost': 'Spent {cost}',
   'health.unpriced': {
     one: 'leaving out {count} run of unknown price',
@@ -2983,8 +2991,8 @@ export const en: Catalog<MessageKey> = {
     other: '{count} things bots could not find',
   },
   'today.routineHealth': {
-    one: '{count} routine needing attention',
-    other: '{count} routines needing attention',
+    one: '{count} routine with a problem',
+    other: '{count} routines with a problem',
   },
   'today.routineHealthOpen': 'Look',
   'today.pendingSkills': {

@@ -215,8 +215,12 @@ export function RoutineHealthBlock({ routine, locked }: { routine: Routine; lock
   const { data } = useRoutineHealth();
   const h = data?.find((x) => x.routineId === routine.id);
   if (!h) return null;
+  const open = h.runs.total - h.runs.ok - h.runs.quiet - h.runs.failed;
   const facts = [
     t('health.runs', { total: h.runs.total, ok: h.runs.ok, quiet: h.runs.quiet, failed: h.runs.failed }),
+    // Runs still going or held, and those a usage limit stopped, have no ending to count yet.
+    ...(open > 0 ? [t('health.open', { count: open })] : []),
+    ...(h.runs.skipped > 0 ? [t('health.skipped', { count: h.runs.skipped })] : []),
     t('health.cost', { cost: usd(h.costUsd) }) +
       (h.unpricedRuns ? ` (${t('health.unpriced', { count: h.unpricedRuns })})` : ''),
     ...(h.avgMs !== null ? [t('health.avg', { time: duration(h.avgMs, t) })] : []),

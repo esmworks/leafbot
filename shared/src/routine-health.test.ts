@@ -7,7 +7,14 @@ const day = (n: number) => new Date(NOW.getTime() - n * 86_400_000);
 
 function run(i: number, outcome: HealthRun['outcome'], costUsd: number | null = 0.01): HealthRun {
   const startedAt = new Date(day(1).getTime() - i * 3_600_000);
-  return { id: `r${i}`, startedAt, finishedAt: new Date(startedAt.getTime() + 60_000), outcome, costUsd };
+  return {
+    id: `r${i}`,
+    startedAt,
+    finishedAt: new Date(startedAt.getTime() + 60_000),
+    outcome,
+    skipped: false,
+    costUsd,
+  };
 }
 
 function input(
@@ -42,7 +49,7 @@ describe('routine health', () => {
   it('calls a routine with few known endings too early to say', () => {
     const h = routineHealth('x', input({ runs: [run(0, 'ok'), run(1, null)] }));
     expect(h.status).toBe('unknown');
-    expect(h.runs).toEqual({ total: 2, ok: 1, quiet: 0, failed: 0 });
+    expect(h.runs).toEqual({ total: 2, ok: 1, quiet: 0, failed: 0, skipped: 0 });
   });
 
   it('is healthy with enough runs and nothing found', () => {
@@ -87,6 +94,37 @@ describe('routine health', () => {
       { runId, position: 2, kind: 'wait', status: 'error' },
     ]);
     expect(ids(input({ routine: { steps }, steps: stepRuns }))).not.toContain('waitTimeouts');
+  });
+
+  it('counts a step’s endings only while the step is the one the runs had', () => {
+    const steps: RoutineStep[] = [
+      { id: 'a', kind: 'agent', prompt: 'x', model: '' },
+      { id: 'b', kind: 'approval', question: 'ok?', timeoutDays: 14 },
+    ];
+    const ran = (stepId: string, timeoutDays?: number) =>
+      ['r0', 'r1', 'r2'].flatMap((runId) => [
+        { runId, position: 1, kind: 'agent', status: 'error', stepId: 'gone' },
+        { runId, position: 2, kind: 'approval', status: 'error', stepId, timeoutDays },
+      ]);
+    // Waited 7 days then; 14 now: the limit was raised since, so those say nothing about it.
+    expect(ids(input({ routine: { steps }, steps: ran('b', 7) }))).not.toContain('waitTimeouts');
+    expect(ids(input({ routine: { steps }, steps: ran('b', 14) }))).toContain('waitTimeouts');
+    // Another step stood at those places then.
+    const moved = ids(input({ routine: { steps }, steps: ran('other', 14) }));
+    expect(moved).not.toContain('waitTimeouts');
+    // The first place held a step since removed: its errors are not the current step's.
+    expect(ids(input({ routine: { steps }, steps: ran('b', 14) }))).not.toContain('stepFails');
+  });
+
+  it('counts slots passed over apart, and calls a routine with only those not in use', () => {
+    const skipped = (i: number): HealthRun => ({ ...run(i, null), skipped: true });
+    const h = routineHealth(
+      'x',
+      input({ runs: [skipped(0), skipped(1), run(2, 'ok')], routine: { lastRunAt: day(1).toISOString() } }),
+    );
+    expect(h.runs).toMatchObject({ total: 1, ok: 1, skipped: 2 });
+    const onlySkips = input({ runs: [skipped(0)], routine: { lastRunAt: day(40).toISOString() } });
+    expect(ids(onlySkips)).toContain('idle');
   });
 
   it('finds runs that mostly report nothing, with what they cost, only when nothing is looked at first', () => {
