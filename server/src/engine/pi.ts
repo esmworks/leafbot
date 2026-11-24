@@ -514,7 +514,10 @@ export class PiEngine implements Engine {
     const files = toolless
       ? []
       : [
-          ...fileTools(req.sandbox, t, { seesImages: model.input.includes('image') }),
+          ...fileTools(req.sandbox, t, {
+            seesImages: model.input.includes('image'),
+            pictures: MAX_CONTEXT_IMAGES,
+          }),
           ...(shell.run ? [shell.run.tool] : []),
           ...web,
         ].filter((f) => req.pickTool?.(f.permissionName) ?? true);

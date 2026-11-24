@@ -244,7 +244,7 @@ export function BoardDialog() {
                   dimmed={people.length > 0 && !people.includes(b.id)}
                   onClick={() => togglePerson(b.id)}
                 >
-                  <BotAvatar avatar={b.avatar} color={b.color} seed={b.id} size={26} />
+                  <BotAvatar avatar={b.avatar} material={b.material} color={b.color} seed={b.id} size={26} />
                 </FaceButton>
               ))}
               {hasUnassigned && (

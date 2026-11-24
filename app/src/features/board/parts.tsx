@@ -164,7 +164,7 @@ export function useAuthor() {
 
 export function AuthorAvatar({ bot, size = 24 }: { bot: Bot | null; size?: number }) {
   return bot ? (
-    <BotAvatar avatar={bot.avatar} color={bot.color} seed={bot.id} size={size} />
+    <BotAvatar avatar={bot.avatar} material={bot.material} color={bot.color} seed={bot.id} size={size} />
   ) : (
     <PersonBadge size={size} />
   );
@@ -258,7 +258,7 @@ export function AssigneeSelect({
         </SelectItem>
         {listed.map((b) => (
           <SelectItem key={b.id} value={b.id}>
-            <BotAvatar avatar={b.avatar} color={b.color} seed={b.id} size={18} />
+            <BotAvatar avatar={b.avatar} material={b.material} color={b.color} seed={b.id} size={18} />
             <span className="truncate">{b.name}</span>
           </SelectItem>
         ))}

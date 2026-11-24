@@ -768,6 +768,36 @@ describe('WhatsApp: rutinlerin okuduğu sohbetler', () => {
       return rows.some((d) => d.status === 'dropped');
     });
     expect(wa.sent.filter((x) => x.jid === `${CUSTOMER}@s.whatsapp.net`)).toHaveLength(1);
+    await t.services.turns.idle();
+
+    // Words written on the card in place of a button do not send it; the bot reads them and goes on.
+    wa.chat(`${CUSTOMER}@s.whatsapp.net`, { conversation: 'Yarın arayabilir misiniz?' }, {}, 'Ahmet');
+    const third = await waitFor(async () => {
+      const list = (await t.api<Approval[]>('GET', '/api/approvals')).body;
+      return list.find(
+        (a) =>
+          a.toolName === 'whatsapp_send' && ![card.id, second.id].includes(a.id) && a.status === 'pending',
+      );
+    });
+    await t.services.turns.idle();
+    const asked = t.engine.requests.length;
+    await t.api('POST', `/api/approvals/${third.id}`, {
+      decision: 'allow',
+      answer: 'Saat erken değil mi, 15:30 gibi sorsak?',
+    });
+    await waitFor(async () => t.engine.requests.length > asked);
+    await t.services.turns.idle();
+    const prompt = t.engine.requests.at(-1)!.prompt;
+    expect(prompt).toContain('Saat erken değil mi, 15:30 gibi sorsak?');
+    expect(prompt).toContain('Teklifimiz 120.000 TL');
+    expect(wa.sent.filter((x) => x.jid === `${CUSTOMER}@s.whatsapp.net`)).toHaveLength(1);
+    // The bot's reply to the person is not drafted to the customer.
+    const pending = (await t.api<Approval[]>('GET', '/api/approvals')).body.filter(
+      (a) => a.toolName === 'whatsapp_send' && a.status === 'pending',
+    );
+    expect(pending).toHaveLength(0);
+    const notes = (await t.messages(third.threadId!)).map((m) => m.text);
+    expect(notes.some((m) => m.includes('kendi sözlerinle cevap verdin'))).toBe(true);
   });
 
   it('kod gibi görünen mesaj saklanmaz ama atlandığı söylenir; bilinmeyen numaradan gelen iz bırakmaz', async () => {
@@ -1679,6 +1709,43 @@ describe('WhatsApp: rutinlerin okuduğu sohbetler', () => {
     // A save that leaves routes out keeps them.
     await answerers(asistan.id, {});
     expect((await t.api<WhatsAppStatus>('GET', '/api/whatsapp')).body.routes).toHaveLength(1);
+  });
+
+  it('öneri kartına kendi sözleriyle verilen cevap sohbeti bir bota vermez; karşılama botu onu okur, cevabı kişiye gitmez', async () => {
+    const { wa, asistan } = await setUp('separate');
+    const kapi = await t.bot({ name: 'Kapı' });
+    await t.bot({ name: 'Satış' });
+    const STRANGER = `${CUSTOMER}@s.whatsapp.net`;
+    await answerers(asistan.id, { door: { botId: kapi.id, mode: 'auto' } });
+    wa.chat(
+      STRANGER,
+      {
+        conversation: `Teklif istiyorum [araç:whatsapp_suggest_route {"bot":"Satış","reason":"Teklif istiyor"}]`,
+      },
+      {},
+      'Ahmet',
+    );
+    const door = await contactThread(STRANGER, `door:${kapi.id}`);
+    const [suggestion] = await waitFor(async () => {
+      const found = await cards('whatsapp_route');
+      return found.length ? found : undefined;
+    });
+    await t.services.turns.idle();
+    expect(wa.sent.filter((x) => x.jid === STRANGER)).toHaveLength(1);
+
+    await t.api('POST', `/api/approvals/${suggestion!.id}`, {
+      decision: 'allow',
+      answer: 'Satış değil, Muhasebe’ye ver',
+    });
+    await waitFor(async () => requestsIn(door).length === 2);
+    await t.services.turns.idle();
+    const [, asked] = requestsIn(door);
+    expect(asked!.prompt).toContain('Satış değil, Muhasebe’ye ver');
+    // Still the front door: its one tool, and its reply stays with the owner.
+    expect(asked!.tools.map((x) => x.name)).toEqual(['whatsapp_suggest_route']);
+    expect((await t.api<WhatsAppStatus>('GET', '/api/whatsapp')).body.routes).toHaveLength(0);
+    expect(wa.sent.filter((x) => x.jid === STRANGER)).toHaveLength(1);
+    expect(await cards()).toHaveLength(0);
   });
 
   it('bota verilen sohbet: Otomatik hemen gönderir; sessiz ya da yarım kalan cevap ve elle yazılmış sohbet gönderilmez; kişinin aracı yoktur', async () => {

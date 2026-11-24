@@ -929,7 +929,7 @@ const tr = {
   'tool.credentialSavedForGit':
     'Anahtar ekibin anahtarı olarak "{key}" adıyla kaydedildi. Bilgisayarındaki git, kişinin kendi anahtarı olmayan her işte GitHub isteklerine bunu ekler; api_request ile {origin} adresine de kullanabilirsin.',
   'tool.credentialSavedOwnGit':
-    'Anahtar "{key}" adıyla kişinin kendi anahtarı olarak kaydedildi. Bu kişinin kendi konuşmasındaki işte api_request ile {origin} adresine kullanabilirsin; kişinin kendi mesajıyla istediği işte bilgisayarında çalıştırdığın komutların git’i de bunu ekler. Ekip konuşmalarında, rutinlerde, başka bir botun devrettiği işte ve başkalarının işinde git onu kullanmaz.',
+    'Anahtar "{key}" adıyla kişinin kendi anahtarı olarak kaydedildi. Bu kişinin kendi konuşmasındaki işte api_request ile {origin} adresine kullanabilirsin; kişinin kendi mesajıyla istediği işte bilgisayarında çalıştırdığın komutların git’i de bunu ekler. Kişinin kendi mesajından başka bir botun devrettiği iş de buna dahildir, yeter ki o zincirde dışarıdan bir metin (e-posta, web sayfası, webhook, iletilmiş mesaj) okunmamış olsun. Ekip konuşmalarında, rutinlerde, dışarıdan metin okunmuş bir zincirden gelen işte ve başkalarının işinde git onu kullanmaz.',
   'tool.apiRedirect': 'Yönlendirme: {location} (izlenmedi; anahtar oraya gitmez)',
   'tool.apiCut': '(Yanıt uzun olduğu için kesildi.)',
   'tool.apiRefused.noKey':
@@ -1331,7 +1331,7 @@ const tr = {
   'tool.command_status':
     'run_command ile arka planda başlatılan komutun durumunu ve son çıktısını sor (kimliğiyle). wait_seconds kadar bitmesini bekleyebilir.',
   'tool.run_command':
-    'Kendi bilgisayarının terminalinde bir bash komutu çalıştır (çalışma klasöründe). python3, openpyxl, python-docx, LibreOffice (soffice --headless --convert-to pdf), git ve node (pnpm ile yarn corepack üzerinden) kurulu. Git GitHub’a sunucu üzerinden çıkar ve özel bir depo için GitHub kimliğini sunucu isteklere kendisi ekler; sen değeri görmezsin. Bir kişinin kendi konuşmasında kendi mesajıyla istediği işte, o kişinin origin’i https://github.com olan kendi anahtarını ya da sana açık kendi GitHub uygulamasını yalnız o komut için ekler; kişinin kendisininki yoksa ve ekip konuşmalarında, rutinlerde, başka bir botun devrettiği işte ekibinkini ekler. Hiçbiri yoksa credential_request ile anahtar iste (origin: https://github.com; ör. key: github_git, label: depoya Contents okuma/yazma izni olan fine-grained GitHub tokenı); sunucuyu yöneten biri kartta onu ekibin anahtarı olarak kaydedebilir. Deponun varsayılan dalına push reddedilir: bir dala push et, pull request’i GitHub uygulamasıyla aç. Git kullanıcı adı okuyamadığını söylerse anahtar yoktur ya da o depoya erişimi yoktur. Çıktı ve çıkış kodu döner; uzun işler için timeout_seconds ver. 10 dakikadan uzun sürebilecek işlerde (derleme, kurulum) background: true ver ve command_status ile izle.',
+    'Kendi bilgisayarının terminalinde bir bash komutu çalıştır (çalışma klasöründe). python3, openpyxl, python-docx, LibreOffice (soffice --headless --convert-to pdf), git ve node (pnpm ile yarn corepack üzerinden) kurulu. Git GitHub’a sunucu üzerinden çıkar ve özel bir depo için GitHub kimliğini sunucu isteklere kendisi ekler; sen değeri görmezsin. Bir kişinin kendi konuşmasında kendi mesajıyla istediği işte, ve başka bir botun böyle bir mesajdan devrettiği, zincirde dışarıdan metin (e-posta, web sayfası, webhook, iletilmiş mesaj) okunmamış işte, o kişinin origin’i https://github.com olan kendi anahtarını ya da sana açık kendi GitHub uygulamasını yalnız o komut için ekler; kişinin kendisininki yoksa ve ekip konuşmalarında, rutinlerde, dışarıdan metin okunmuş bir zincirden devredilen işte ekibinkini ekler. Hiçbiri yoksa credential_request ile anahtar iste (origin: https://github.com; ör. key: github_git, label: depoya Contents okuma/yazma izni olan fine-grained GitHub tokenı; .github/workflows dosyalarını değiştiren bir push için Workflows izni de gerekir); sunucuyu yöneten biri kartta onu ekibin anahtarı olarak kaydedebilir. Deponun varsayılan dalına push reddedilir: bir dala push et, pull request’i GitHub uygulamasıyla aç. Git kullanıcı adı okuyamadığını söylerse anahtar yoktur ya da o depoya erişimi yoktur. Çıktı ve çıkış kodu döner; uzun işler için timeout_seconds ver. 10 dakikadan uzun sürebilecek işlerde (derleme, kurulum) background: true ver ve command_status ile izle.',
   'tool.person_computer_screenshot':
     "Kişinin kendi Mac'inin ana ekranının görüntüsünü al. Bu senin bilgisayarın değil, onun gerçek bilgisayarı: açık uygulamaları, dosyaları ve oturumları onun. Yalnızca istediği iş için kullan. Koordinatlar bu görüntüdeki piksel (soldan, üstten).",
   'tool.person_computer_click':
@@ -1351,6 +1351,8 @@ const tr = {
   'tool.questionTimedOut':
     'Kullanıcı başında değildi ve soru zamanında yanıtlanmadı. Cevapsız yapabildiğini yap ve sonunda neyi soramadığını yaz.',
   'tool.questionSkipped': 'Kullanıcı soruyu geçti.',
+  'tool.questionTyped':
+    'Kullanıcı kartı cevaplamadı; onun yerine sohbete yazdı, mesajı hemen ardından geliyor. Sorduklarını onun sözlerine göre ele al; gerekirse yeniden sor.',
   'tool.emptyAnswer': '(boş)',
   'tool.secretAnswer':
     '{answer} (gizli cevap: yalnızca gereken yerde kullan, sohbete ya da bir dosyaya yazma)',
@@ -1689,6 +1691,8 @@ const tr = {
   'tool.changeEngine': 'motoru ve modeli',
   'tool.changePermissions': 'izinleri',
   'tool.changeDenied': 'Kullanıcı bu değişikliği onaylamadı; değişiklik yapılmadı.',
+  'tool.changeAnswered':
+    'Kullanıcı kartta bir seçenek seçmek yerine kendi sözleriyle şunu yazdı; buna göre devam et:\n<<<\n{answer}\n>>>',
   'tool.skillOnSummary': '{manager}, {target} botuna “{skill}” becerisini açmak istiyor',
   'tool.skillOffSummary': '{manager}, {target} botunda “{skill}” becerisini kapatmak istiyor',
   'tool.updated': '{name} güncellendi.',
@@ -1728,8 +1732,10 @@ const tr = {
   'web.searchStatus': 'Arama hizmeti yanıt vermedi (HTTP {status})',
   'web.searchNoJson':
     'Arama hizmeti JSON vermiyor; SearXNG ayarlarında search.formats listesine json eklenmeli',
-  'files.read': 'Bir metin dosyasını okur. offset/limit satır numarasıyla (1 tabanlı) bir bölüm seçer.',
+  'files.read':
+    'Bir dosyayı okur. Metin dosyasında offset/limit satır numarasıyla (1 tabanlı) bir bölüm seçer. Bir görüntüyü gösterir. Bir PDF’in her sayfasının yazısını ve sayfanın kendisini görüntü olarak verir, böylece taranmış sayfalar da okunur; uzun bir PDF’i pages ile parça parça oku; bir çağrıda kaç sayfa okunacağını pages anlatır.',
   'files.readPath': 'Dosya yolu; çalışma klasörüne göre ya da mutlak',
+  'files.readPages': 'Yalnızca PDF için sayfa aralığı, ör. "3" ya da "1-5"; bir çağrıda en çok {max} sayfa',
   'files.write': 'Bir dosyayı verilen içerikle oluşturur ya da tamamen değiştirir.',
   'files.edit':
     'Dosyadaki bir metni değiştirir. old_text dosyada tam olarak bir kez geçmelidir (replace_all yoksa).',
@@ -1755,6 +1761,22 @@ const tr = {
     'Önceki kısımdan tam ifade, sayı, kimlik ya da verilmiş bir karar gerekirse tahmin etme: conversations_search ile ara, message_read ile oku.',
   'files.image': '{path} görüntüsü aşağıda.',
   'files.imageUnseen': 'Bu bir görüntü dosyası; kullanılan model görüntü göremiyor.',
+  'files.pdf': '{path}: {count} sayfanın {from}-{to}. sayfaları aşağıda.',
+  'files.pdfOne': '{path}: {count} sayfanın {page}. sayfası aşağıda.',
+  'files.pdfPage': '--- Sayfa {page} ---',
+  'files.pdfNoText': '(Bu sayfada yazı katmanı yok; taranmış bir sayfa olabilir.)',
+  'files.pdfPictures':
+    'Her sayfanın görüntüsü sırayla ekte; yazı katmanı olmayan bir sayfayı görüntüsünden oku.',
+  'files.pdfUnseen':
+    'Yazı katmanı olmayan sayfaların yalnızca görüntüsü var ve kullanılan model görüntü göremiyor; bu sayfalar bu modelle okunamaz.',
+  'files.pdfTooLong':
+    'Bu PDF {count} sayfa: pages ile bir aralık ver (ör. "1-{max}"), bir çağrıda en çok {max} sayfa.',
+  'files.pdfBadRange':
+    'Geçersiz sayfa aralığı "{pages}": PDF {count} sayfa. "3" ya da "1-{max}" gibi ver, bir çağrıda en çok {max} sayfa.',
+  'files.pdfNoPoppler':
+    'Bu sunucuda PDF okuyan poppler-utils (pdfinfo, pdftotext, pdftoppm) kurulu değil; sunucuyu yöneten birinin kurması gerekir.',
+  'files.pdfLocked': 'PDF parolayla korunuyor; parolasız bir kopyası gerekir.',
+  'files.pdfBroken': 'PDF açılamadı; dosya bozuk ya da PDF değil.',
   'files.written': 'Yazıldı: {path}',
   'files.notFoundText': 'old_text dosyada bulunamadı',
   'files.ambiguous': 'old_text {count} kez geçiyor; daha uzun bir parça verin ya da replace_all kullanın',
@@ -1815,12 +1837,21 @@ const tr = {
   'whatsapp.routeWho': '{number} (kendine “{name}” diyor)',
   'whatsapp.routeYes': 'Bu bota ver',
   'whatsapp.routeNo': 'Verme',
+  'whatsapp.routeAnsweredPrompt':
+    'WhatsApp numarasının sahibi, bu sohbeti bir bota verme önerinin kartında iki seçenekten birini seçmedi; kendi sözleriyle şunu yazdı, bu yüzden sohbet hiçbir bota verilmedi:\n<<<\n{answer}\n>>>\n\nYazdığına göre devam et: başka bir bot istiyorsa onu öner; bir soruysa sahibine cevap ver. Bu cevabın burada, sahibine kalır; WhatsApp’taki kişiye gitmez.',
   'whatsapp.routeCard':
     'Karşılama botu bu WhatsApp sohbetini bir bota vermeyi öneriyor.\n\nKişi: {who}\nBot: {bot}\nGerekçe (karşılama botu, karşıdakinin sözlerinden yazdı): {reason}\n\nVerirsen bu kişinin mesajlarına artık {bot} cevap verir; cevapları önce senin onayına gelir.',
   'whatsapp.hidden':
     '[Bir mesaj atlandı: kod, şifre ya da giriş bağlantısı içeriyor gibi görünüyor; içeriği saklanmadı.]',
   'whatsapp.draftDropped': '{to} kişisine WhatsApp mesajı gönderilmedi (kartta onaylanmadı):\n\n{text}',
+  'whatsapp.draftAnswered':
+    '{to} kişisine WhatsApp mesajı gönderilmedi; kartında kendi sözlerinle cevap verdin, bot onu okuyor:\n\n{text}',
+  'whatsapp.statusAnswered':
+    'WhatsApp Durum paylaşılmadı; kartında kendi sözlerinle cevap verdin, bot onu okuyor.',
+  'whatsapp.draftAnsweredPrompt':
+    'Kullanıcı, hazırladığın WhatsApp taslağının ({to}) kartında Gönder ya da Gönderme seçmedi; kendi sözleriyle şunu yazdı, bu yüzden taslak gönderilmedi:\n<<<\n{answer}\n>>>\n\nTaslak şuydu:\n<<<\n{text}\n>>>\n\nYazdığına göre devam et: bir soruysa cevapla; değişiklik ya da başka bir zaman istiyorsa ona göre yap (gerekirse taslağı yeniden hazırla ya da takip kur). Kullanıcı onaylamadan hiçbir şey gönderme.',
   'whatsapp.statusDropped': 'WhatsApp Durum paylaşılmadı.',
+  'whatsapp.statusName': 'WhatsApp Durum paylaşımı',
   'tool.whatsappNoGroupReply': 'WhatsApp gruplarına yazılmaz; gruplar yalnızca okunur.',
   'whatsapp.draftSent': '{to} kişisine WhatsApp mesajı gönderildi:\n\n{text}',
   'whatsapp.statusPosted': 'WhatsApp Durum paylaşıldı.',
@@ -2907,7 +2938,7 @@ const en: Catalog<ServerKey> = {
   'tool.credentialSavedForGit':
     'The key was saved as the team\'s key "{key}". Git on your computer adds it to its GitHub requests in all work without a key of the person\'s own; you can also use it for {origin} with api_request.',
   'tool.credentialSavedOwnGit':
-    "The key was saved as \"{key}\", the person's own. In work in this person's own conversation you can use it for {origin} with api_request, and in work they ask for with their own message, git in the commands you run on your computer adds it too. Git does not use it in team conversations, routines, work another bot handed on or anyone else's work.",
+    "The key was saved as \"{key}\", the person's own. In work in this person's own conversation you can use it for {origin} with api_request, and in work they ask for with their own message, git in the commands you run on your computer adds it too. So does work another bot handed on from such a message, as long as no outside text (a mail, a web page, a webhook, a forwarded message) was read along the way. Git does not use it in team conversations, routines, work handed on from a chain that read outside text, or anyone else's work.",
   'tool.apiRedirect': 'Redirect: {location} (not followed; the key does not go there)',
   'tool.apiCut': '(The response was cut because it is long.)',
   'tool.apiRefused.noKey':
@@ -3308,7 +3339,7 @@ const en: Catalog<ServerKey> = {
   'tool.command_status':
     'Ask for the state and latest output of a command started in the background with run_command (by its id). It can wait wait_seconds for it to end.',
   'tool.run_command':
-    "Run a bash command in your own computer's terminal (in the work folder). python3, openpyxl, python-docx, LibreOffice (soffice --headless --convert-to pdf), git and node (pnpm and yarn through corepack) are installed. Git reaches GitHub through the server, which adds a GitHub identity to the requests of a private repository itself; you never see the value. In work a person asked for with their own message in their own conversation it adds, for that command alone, their own key whose origin is https://github.com or their own GitHub app open to you; without one of theirs, and in team conversations, routines and work another bot handed on, it adds the team's. If there is none, ask for a key with credential_request (origin: https://github.com; e.g. key: github_git, label: a fine-grained GitHub token with Contents read/write on the repository); someone who looks after the server can save it as the team's key on the card. A push to the repository's default branch is refused: push a branch and open the pull request with the GitHub app. If git says it cannot read a username, there is no key or it has no access to that repository. Returns the output and the exit code; give timeout_seconds for long jobs. For work that may take longer than 10 minutes (a build, an install), give background: true and follow it with command_status.",
+    "Run a bash command in your own computer's terminal (in the work folder). python3, openpyxl, python-docx, LibreOffice (soffice --headless --convert-to pdf), git and node (pnpm and yarn through corepack) are installed. Git reaches GitHub through the server, which adds a GitHub identity to the requests of a private repository itself; you never see the value. In work a person asked for with their own message in their own conversation, and in work another bot handed on from such a message with no outside text (a mail, a web page, a webhook, a forwarded message) read along the way, it adds, for that command alone, their own key whose origin is https://github.com or their own GitHub app open to you; without one of theirs, and in team conversations, routines and work handed on from a chain that read outside text, it adds the team's. If there is none, ask for a key with credential_request (origin: https://github.com; e.g. key: github_git, label: a fine-grained GitHub token with Contents read/write on the repository; a push that changes .github/workflows also needs the Workflows permission); someone who looks after the server can save it as the team's key on the card. A push to the repository's default branch is refused: push a branch and open the pull request with the GitHub app. If git says it cannot read a username, there is no key or it has no access to that repository. Returns the output and the exit code; give timeout_seconds for long jobs. For work that may take longer than 10 minutes (a build, an install), give background: true and follow it with command_status.",
   'tool.person_computer_screenshot':
     "Take a picture of the main screen of the person's own Mac. This is not your computer but their real one: the open apps, files and sign-ins are theirs. Use it only for the work they asked for. Coordinates are pixels in this picture (from the left and the top).",
   'tool.person_computer_click':
@@ -3328,6 +3359,8 @@ const en: Catalog<ServerKey> = {
   'tool.questionTimedOut':
     'The user was not there and the question was not answered in time. Do what you can without the answer and say at the end what you could not ask.',
   'tool.questionSkipped': 'The user skipped the question.',
+  'tool.questionTyped':
+    'The user did not answer the card; they wrote in the chat instead, and their message comes right after this. Go on from their words; ask again if you still need to.',
   'tool.emptyAnswer': '(empty)',
   'tool.secretAnswer':
     '{answer} (secret answer: use it only where it is needed; never write it in the chat or a file)',
@@ -3673,6 +3706,8 @@ const en: Catalog<ServerKey> = {
   'tool.changeEngine': 'engine and model',
   'tool.changePermissions': 'permissions',
   'tool.changeDenied': 'The user did not approve this change; nothing was changed.',
+  'tool.changeAnswered':
+    'Instead of picking an option, the user wrote this on the card in their own words; go on from it:\n<<<\n{answer}\n>>>',
   'tool.skillOnSummary': '{manager} wants to turn on the skill “{skill}” for {target}',
   'tool.skillOffSummary': '{manager} wants to turn off the skill “{skill}” for {target}',
   'tool.updated': '{name} updated.',
@@ -3710,8 +3745,10 @@ const en: Catalog<ServerKey> = {
   'web.searchUnreachable': 'The search service could not be reached',
   'web.searchStatus': 'The search service did not answer (HTTP {status})',
   'web.searchNoJson': 'The search service gives no JSON; add json to search.formats in the SearXNG settings',
-  'files.read': 'Reads a text file. offset/limit pick a section by line number (1-based).',
+  'files.read':
+    'Reads a file. For a text file, offset/limit pick a section by line number (1-based). Shows a picture. Gives each page of a PDF as its text and as a picture of the page, so scanned pages can be read too; read a long PDF a part at a time with pages, which says how many pages a call takes.',
   'files.readPath': 'File path, relative to the working folder or absolute',
+  'files.readPages': 'For a PDF only, the pages to read, e.g. "3" or "1-5"; at most {max} pages a call',
   'files.write': 'Creates a file with the given content, or replaces it entirely.',
   'files.edit': 'Replaces text in a file. old_text must occur exactly once in the file (unless replace_all).',
   'files.list': 'Lists the files in a folder; with recursive it also goes into subfolders.',
@@ -3737,6 +3774,22 @@ const en: Catalog<ServerKey> = {
     'When you need exact wording, a number, an id or a decision from the earlier part, do not guess: find it with conversations_search and read it with message_read.',
   'files.image': 'The picture {path} is below.',
   'files.imageUnseen': 'This is a picture; the model in use cannot see pictures.',
+  'files.pdf': 'Pages {from}-{to} of the {count} of {path} are below.',
+  'files.pdfOne': 'Page {page} of the {count} of {path} is below.',
+  'files.pdfPage': '--- Page {page} ---',
+  'files.pdfNoText': '(This page has no text layer; it may be scanned.)',
+  'files.pdfPictures':
+    'A picture of each page follows in order; read a page with no text layer from its picture.',
+  'files.pdfUnseen':
+    'Pages with no text layer exist only as pictures, and the model in use cannot see pictures; those pages cannot be read with this model.',
+  'files.pdfTooLong':
+    'This PDF has {count} pages: give a range with pages (e.g. "1-{max}"), at most {max} pages a call.',
+  'files.pdfBadRange':
+    'The page range "{pages}" is not valid: the PDF has {count} pages. Give one like "3" or "1-{max}", at most {max} pages a call.',
+  'files.pdfNoPoppler':
+    'poppler-utils (pdfinfo, pdftotext, pdftoppm), which reads PDFs, is not installed on this server; someone who looks after the server needs to install it.',
+  'files.pdfLocked': 'The PDF is protected by a password; an unprotected copy is needed.',
+  'files.pdfBroken': 'The PDF could not be opened; the file is damaged or not a PDF.',
   'files.written': 'Written: {path}',
   'files.notFoundText': 'old_text was not found in the file',
   'files.ambiguous': 'old_text occurs {count} times; give a longer piece or use replace_all',
@@ -3796,12 +3849,21 @@ const en: Catalog<ServerKey> = {
   'whatsapp.routeWho': '{number} (calls themselves “{name}”)',
   'whatsapp.routeYes': 'Give it to this bot',
   'whatsapp.routeNo': 'Don’t',
+  'whatsapp.routeAnsweredPrompt':
+    'On the card of your suggestion to give this chat to a bot, the owner of the WhatsApp number picked neither option; they wrote this in their own words instead, so the chat was not given to any bot:\n<<<\n{answer}\n>>>\n\nGo on from what they wrote: if they want another bot, suggest that one; if it is a question, answer the owner. This reply stays here, for the owner; it does not go to the person on WhatsApp.',
   'whatsapp.routeCard':
     'The front door suggests giving this WhatsApp chat to a bot.\n\nPerson: {who}\nBot: {bot}\nReason (written by the front door from what they said): {reason}\n\nIf you do, {bot} answers this person’s messages from now on; its answers come to you for approval first.',
   'whatsapp.hidden':
     '[A message was left out: it looks like it holds a code, a password or a sign-in link; its content was not kept.]',
   'whatsapp.draftDropped': 'The WhatsApp message to {to} was not sent (not approved on its card):\n\n{text}',
+  'whatsapp.draftAnswered':
+    'The WhatsApp message to {to} was not sent; you answered its card in your own words, and the bot is reading them:\n\n{text}',
+  'whatsapp.statusAnswered':
+    'The WhatsApp Status was not posted; you answered its card in your own words, and the bot is reading them.',
+  'whatsapp.draftAnsweredPrompt':
+    'On the card of the WhatsApp draft you made ({to}), the user picked neither Send nor Don’t send; they wrote this in their own words instead, so the draft was not sent:\n<<<\n{answer}\n>>>\n\nThe draft was:\n<<<\n{text}\n>>>\n\nGo on from what they wrote: answer it if it is a question; if they want it changed or at another time, do that (draft it again or set a follow-up if needed). Send nothing without their approval.',
   'whatsapp.statusDropped': 'The WhatsApp Status was not posted.',
+  'whatsapp.statusName': 'WhatsApp Status post',
   'tool.whatsappNoGroupReply': 'WhatsApp groups are never written to; they are only read.',
   'whatsapp.draftSent': 'The WhatsApp message to {to} was sent:\n\n{text}',
   'whatsapp.statusPosted': 'The WhatsApp Status was posted.',

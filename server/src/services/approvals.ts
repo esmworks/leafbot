@@ -566,10 +566,11 @@ export class ApprovalService {
   }
 
   /**
-   * The open one-question card a bot is waiting on in a conversation, which a typed message can
-   * answer in words; null when there is none, or it asks for a secret or several things at once.
+   * The open question card a bot is waiting on in a conversation. A typed message answers it in
+   * words when it asks one thing and no secret (`typedAnswerable`); otherwise the card steps aside
+   * (`stepAside`) and the bot reads the message.
    */
-  async typedAnswerable(threadId: string): Promise<Approval | null> {
+  async waitingQuestion(threadId: string): Promise<Approval | null> {
     const rows = await this.ctx.db
       .select()
       .from(schema.approvals)
@@ -584,9 +585,30 @@ export class ApprovalService {
       .orderBy(desc(schema.approvals.createdAt))
       .limit(1);
     const card = rows[0] ? toApproval(rows[0]) : null;
-    if (!card || !this.waiters.has(card.id)) return null;
+    return card && this.waiters.has(card.id) ? card : null;
+  }
+
+  /** Whether a typed message can be the answer to a question card: one question, no secret. */
+  typedAnswerable(card: Approval): boolean {
     const { items } = questionItems(card);
-    return items.length === 1 && !items[0]!.secret ? card : null;
+    return items.length === 1 && !items[0]!.secret;
+  }
+
+  /**
+   * Closes a question card the person wrote in the chat beside instead of answering: the bot stops
+   * waiting on it and reads their message. Their words are not kept on the card, which may have
+   * asked for a secret.
+   */
+  async stepAside(id: string, by: string | null = null) {
+    const [row] = await this.ctx.db
+      .update(schema.approvals)
+      .set({ status: 'denied', answer: null, decidedBy: 'typed', decidedByUserId: by, decidedAt: new Date() })
+      .where(and(eq(schema.approvals.id, id), eq(schema.approvals.status, 'pending')))
+      .returning();
+    if (!row) return;
+    this.waiters.get(id)?.resolve({ status: 'denied', answer: null, typed: true });
+    this.waiters.delete(id);
+    this.ctx.bus.refresh({ scope: 'approvals' });
   }
 
   /**

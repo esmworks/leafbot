@@ -843,7 +843,8 @@ function MessageActions({ m, onReply }: { m: Message; onReply?(m: Message): void
       )}
       <div
         className={cn(
-          'flex items-center gap-0.5 transition-opacity',
+          // A backing of its own: the grey icons sit straight on the chat, where a picture swallows them.
+          'wallpaper-chip flex items-center gap-0.5 rounded-lg transition-opacity',
           'opacity-0 group-focus-within/message:opacity-100 group-hover/message:opacity-100 [@media(hover:none)]:opacity-100',
           (picking || copied) && 'opacity-100',
         )}
@@ -998,7 +999,8 @@ function OwnMessageActions({ m }: { m: Message }) {
   const remove = useDeleteMessage(m);
   const [copied, setCopied] = useState(false);
   return (
-    <div className="flex h-7 items-center gap-0.5 opacity-0 transition-opacity group-focus-within/own:opacity-100 group-hover/own:opacity-100 [@media(hover:none)]:opacity-100">
+    // A backing of its own, as under the bot's messages: grey icons on a picture are lost.
+    <div className="wallpaper-chip flex h-7 items-center gap-0.5 rounded-lg opacity-0 transition-opacity group-focus-within/own:opacity-100 group-hover/own:opacity-100 [@media(hover:none)]:opacity-100">
       {m.text && (
         <ActionButton
           label={copied ? t('message.copied') : t('message.copy')}
@@ -1254,14 +1256,18 @@ export function Working({
     <div className="flex items-center gap-2.5 py-1 text-sm text-muted-foreground" role="status">
       <BotAvatar
         avatar={bot.avatar}
+        material={bot.material}
         color={bot.color}
         seed={bot.id}
         size={28}
         activity={activity}
         motion="always"
       />
-      <span>{doing ?? t(`activity.${activity}`)}</span>
-      <Elapsed key={doing ?? activity} />
+      {/* Its own backing, as the line sits straight on the chat, where a picture swallows grey text. */}
+      <span className="wallpaper-chip flex items-center gap-1 rounded-lg px-2 py-0.5">
+        <span>{doing ?? t(`activity.${activity}`)}</span>
+        <Elapsed key={doing ?? activity} />
+      </span>
       {activity === 'browsing' && (
         <Button
           type="button"
@@ -1305,7 +1311,7 @@ function IncomingBot({ m, bot }: { m: Message; bot: Bot }) {
   return (
     <div className="max-w-(--bubble-width) space-y-2">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <BotAvatar avatar={bot.avatar} color={bot.color} seed={bot.id} size={20} />
+        <BotAvatar avatar={bot.avatar} material={bot.material} color={bot.color} seed={bot.id} size={20} />
         <span className="font-medium text-foreground">{bot.name}</span> {t('message.wrote')}
       </div>
       {typeof m.props.openedFrom === 'string' && <OpenedFrom threadId={m.props.openedFrom} />}
@@ -1467,7 +1473,15 @@ function Marker({ m, bots }: { m: Message; bots: Map<string, Bot> }) {
       >
         <span>{t('message.count', { count: said || props.count || 1 })}</span>
         <span>·</span>
-        {peer && <BotAvatar avatar={peer.avatar} color={peer.color} seed={peer.id} size={18} />}
+        {peer && (
+          <BotAvatar
+            avatar={peer.avatar}
+            material={peer.material}
+            color={peer.color}
+            seed={peer.id}
+            size={18}
+          />
+        )}
         <span className="font-medium">{peer?.name ?? t('common.bot')}</span>
         {waiting > 0 ? (
           <span
@@ -1499,7 +1513,15 @@ function Marker({ m, bots }: { m: Message; bots: Map<string, Bot> }) {
                   return (
                     <div key={x.id} className="space-y-1">
                       <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {who && <BotAvatar avatar={who.avatar} color={who.color} seed={who.id} size={16} />}
+                        {who && (
+                          <BotAvatar
+                            avatar={who.avatar}
+                            material={who.material}
+                            color={who.color}
+                            seed={who.id}
+                            size={16}
+                          />
+                        )}
                         <span className="font-medium">{who?.name ?? t('common.bot')}</span>
                       </div>
                       <div className="ps-6 text-sm">

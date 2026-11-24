@@ -7,6 +7,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A bot's object avatar can wear a coat of fur: pick "Fluffy" under Surface in the bot's window, beside the shapes
+  and colours. The choice is kept per bot and shows wherever the bot appears in the app. The phone, and a browser
+  without WebGL2, keep drawing the body smooth. The server migrates its database on start.
 - A routine can be set to "Only tell me": it looks and reports, and whatever the bot may do elsewhere, it changes
   nothing in those runs. A step that would change something (sending, clicking or typing in a page, writing a file,
   a connected app that writes, handing work to a looser bot) is refused, not asked, and the bot is told to write what
@@ -46,6 +49,15 @@ version is 0.x, a minor release may change the data format or the API; the serve
 - On Linux, a bot on an API-key model can run commands again when the server is installed under the home folder;
   every command failed with "No such file or directory", because the sandbox's own helper was hidden with the home
   folder.
+- Words you write on a WhatsApp draft's card instead of picking Send or Don't send now reach the bot: the message is
+  still not sent, and the bot reads what you wrote and answers it or redoes the draft. Before, such an answer counted
+  as a plain "no" and the bot never saw it. The same goes for the front door's card suggesting a bot for a chat: words
+  written there leave the chat with no bot, and the front door reads them (to suggest another bot, or answer you).
+  And on a manager bot's card asking to change another bot, words written instead of Approve or Decline reach the
+  manager with the refusal.
+- A message you write in the chat while the bot waits on a card of several questions, or one asking for a secret, now
+  reaches the bot at once: the card closes as skipped and the bot reads your words in the same turn. Before, the
+  message waited until the card was answered. A card of one question still takes what you write as its answer.
 - WhatsApp no longer wipes its link when the server's secret key changes; it says the saved keys cannot be read and
   asks you to link again. Telegram, Slack, Discord and Teams show as not connected, with a reason, when their saved
   tokens can no longer be read, instead of showing as connected while doing nothing.

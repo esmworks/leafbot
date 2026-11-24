@@ -86,7 +86,7 @@ function RoomFace({ members, size = 22 }: { members: Bot[]; size?: number }) {
     <span className="flex items-center">
       {shown.map((b, i) => (
         <span key={b.id} className={cn(i > 0 && '-ms-2')} style={{ zIndex: shown.length - i }}>
-          <BotAvatar avatar={b.avatar} color={b.color} seed={b.id} size={size} />
+          <BotAvatar avatar={b.avatar} material={b.material} color={b.color} seed={b.id} size={size} />
         </span>
       ))}
     </span>
@@ -138,7 +138,7 @@ function RoomCluster({ members, box }: { members: Bot[]; box: number }) {
             className="absolute flex"
             style={{ left: box * x, top: box * y, zIndex: shown.length - i }}
           >
-            <BotAvatar avatar={b.avatar} color={b.color} seed={b.id} size={size} />
+            <BotAvatar avatar={b.avatar} material={b.material} color={b.color} seed={b.id} size={size} />
           </span>
         );
       })}
@@ -381,7 +381,13 @@ function RoomForm({ room, onDone }: { room?: Room; onDone(): void }) {
                       at >= 0 && 'bg-accent/70',
                     )}
                   >
-                    <BotAvatar avatar={b.avatar} color={b.color} seed={b.id} size={28} />
+                    <BotAvatar
+                      avatar={b.avatar}
+                      material={b.material}
+                      color={b.color}
+                      seed={b.id}
+                      size={28}
+                    />
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{b.name}</span>
                       {b.description && (
@@ -644,7 +650,7 @@ function SpeakerLine({ bot }: { bot?: Bot }) {
   return (
     <div className="-mb-2 flex items-center gap-2 pt-1 text-sm">
       {bot ? (
-        <BotAvatar avatar={bot.avatar} color={bot.color} seed={bot.id} size={22} />
+        <BotAvatar avatar={bot.avatar} material={bot.material} color={bot.color} seed={bot.id} size={22} />
       ) : (
         <span className="size-[22px] rounded-full bg-secondary" />
       )}
@@ -857,7 +863,7 @@ function RoomComposer({
                 aria-label={t('room.mention', { name: b.name })}
                 className="flex items-center gap-1.5 rounded-xl px-2 py-1 text-sm hover:bg-accent"
               >
-                <BotAvatar avatar={b.avatar} color={b.color} seed={b.id} size={20} />
+                <BotAvatar avatar={b.avatar} material={b.material} color={b.color} seed={b.id} size={20} />
                 {b.name}
               </button>
             ))}

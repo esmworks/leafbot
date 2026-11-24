@@ -691,6 +691,7 @@ function RailItem({ bot, summary }: { bot: Bot; summary?: BotSummary }) {
             >
               <BotAvatar
                 avatar={bot.avatar}
+                material={bot.material}
                 color={bot.color}
                 seed={bot.id}
                 size={42}
@@ -728,6 +729,7 @@ function PinnedTile({ bot, summary }: { bot: Bot; summary?: BotSummary }) {
         >
           <BotAvatar
             avatar={bot.avatar}
+            material={bot.material}
             color={bot.color}
             seed={bot.id}
             size={68}
@@ -777,6 +779,7 @@ function BotRow({ bot, summary }: { bot: Bot; summary?: BotSummary }) {
           <span className="shrink-0">
             <BotAvatar
               avatar={bot.avatar}
+              material={bot.material}
               color={bot.color}
               seed={bot.id}
               size={compact ? 26 : 38}
