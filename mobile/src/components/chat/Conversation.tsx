@@ -24,6 +24,7 @@ import { locale, t } from '@/i18n';
 import { ApiError } from '@/lib/api';
 import { useTapToDismiss } from '@/lib/dismiss';
 import { formatters, needsDivider } from '@/lib/format';
+import { foldRoutineRuns } from '@leafbot/app/src/features/routineRuns';
 import { nav } from '@/lib/nav';
 import { endWorkSeen, showWork, useLiveActivityChoice } from '@/lib/liveActivity';
 import { useLiveCards } from '@/lib/liveCards';
@@ -196,8 +197,10 @@ export function Conversation({
         ? null
         : (messages.find((m, i) => i > 0 && m.role === 'assistant' && m.createdAt > readUntil)?.id ?? null);
     const out: Row[] = [];
-    shown.forEach((m, i) => {
-      if (needsDivider(shown[i - 1], m))
+    // Finished runs of a routine that follow each other fold into one line.
+    const folded = foldRoutineRuns(shown, firstNew);
+    folded.forEach((m, i) => {
+      if (needsDivider(folded[i - 1], m))
         out.push({ kind: 'divider', key: `d-${m.id}`, label: fmt.dayLabel(m.createdAt) });
       if (m.id === firstNew) out.push({ kind: 'new', key: `n-${m.id}` });
       // A message keeps its row from the moment it is sent until the server's copy replaces it.

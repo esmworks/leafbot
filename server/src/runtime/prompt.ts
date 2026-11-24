@@ -293,7 +293,7 @@ export function handoffPrompt(opts: {
     role: string;
     author: string;
     text: string;
-    props?: { kind?: unknown; posted?: unknown; routineName?: unknown };
+    props?: { kind?: unknown; posted?: unknown; routineName?: unknown; routineQuiet?: unknown };
   }[];
   prompt: string;
   /** The summary of the talk before these messages, which the session that held it had written. */
@@ -308,9 +308,11 @@ export function handoffPrompt(opts: {
   const recall = opts.recall !== false;
   // A conversation the person started fresh hands over nothing from before that point.
   const reset = opts.messages.findLastIndex((m) => m.props?.kind === 'contextReset');
+  // A routine's run that found nothing to report stays in the conversation as its line; its
+  // instruction, with no answer under it, tells a new session nothing.
   const talk = opts.messages
     .slice(reset + 1)
-    .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.text.trim());
+    .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.text.trim() && !m.props?.routineQuiet);
   while (talk.length && talk.at(-1)!.role === 'user') talk.pop();
   const lines: string[] = [];
   let size = 0;

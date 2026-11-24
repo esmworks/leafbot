@@ -148,6 +148,8 @@ function refresh(qc: QueryClient, e: RefreshScope) {
       inv('routine-rehearsals');
       inv('routine-replayable');
       inv('summaries');
+      // A run's line in a conversation shows how the run stands.
+      inv('messages');
       break;
     case 'promises':
       inv('promises');

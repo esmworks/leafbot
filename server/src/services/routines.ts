@@ -110,6 +110,9 @@ const REPORT_MAX = 4000;
  */
 const QUIET_LOOKBACK = 50;
 
+/** The most of what a quiet run wrote of why that its line in the main conversation keeps. */
+const QUIET_NOTE_MAX = 2000;
+
 /** A write that is part of a larger one, so they succeed or fail together. */
 type Tx = Parameters<Parameters<Ctx['db']['transaction']>[0]>[0];
 type RoutineRow = typeof schema.routines.$inferSelect;
@@ -2810,12 +2813,14 @@ export class RoutineService {
   }
 
   /**
-   * A run in the person's main conversation that found nothing to report leaves nothing there: its
-   * instruction alone, with no answer under it, would only crowd the conversation they read. A run
-   * that left anything else there, such as a card or an earlier step's answer, keeps its
-   * instructions over it. A routine's own conversation is the record of its runs and keeps them.
+   * A run in the person's main conversation that found nothing to report stays there as its line,
+   * marked quiet: drawn closed, with what the bot wrote of why under it, and folded with the quiet
+   * runs of the same routine next to it. Taking the line away again after it showed while the run
+   * worked looked like the run had vanished. A run that left anything else there, such as a card or
+   * an earlier step's answer, is not quiet. A routine's own conversation is the record of its runs
+   * and keeps them as they are.
    */
-  private async clearQuietRun(runId: string, routineId: string, threadId: string) {
+  private async settleQuietRun(runId: string, routineId: string, threadId: string, note?: string) {
     const thread = await this.services.threads.row(threadId).catch(() => null);
     if (thread?.kind !== 'user') return;
     // Props are sealed, so the run's instructions are told apart after they are read.
@@ -2836,7 +2841,12 @@ export class RoutineService {
       .where(and(eq(schema.messages.threadId, threadId), eq(schema.turns.routineRunId, runId)))
       .limit(1);
     if (left) return;
-    for (const m of own) await this.services.threads.removeMessage(m.id);
+    const shown = note?.trim() ? cutAt(note.trim(), QUIET_NOTE_MAX) : '';
+    for (const m of own)
+      await this.services.threads.mergeProps(m.id, {
+        routineQuiet: true,
+        ...(shown && { quietNote: shown }),
+      });
   }
 
   /**
@@ -2896,7 +2906,12 @@ export class RoutineService {
     await endStep({ status: 'done', output: outcome.text.trim() || null });
     await this.countRun(run.routineId, 'ok');
     if (isSilentReply(outcome.text) || (outcome.ok && outcome.quiet)) {
-      await this.clearQuietRun(runId, run.routineId, turn.threadId);
+      await this.settleQuietRun(
+        runId,
+        run.routineId,
+        turn.threadId,
+        outcome.ok ? outcome.quietNote : undefined,
+      );
       const t = await this.services.settings.translator();
       const rest = position < steps.length;
       await endRun({
@@ -3226,7 +3241,7 @@ export class RoutineService {
       });
     }
     if (run && outcome.ok && !run.failedByBot && (!outcome.text.trim() || isSilentReply(outcome.text))) {
-      await this.clearQuietRun(turn.routineRunId, run.routineId, turn.threadId);
+      await this.settleQuietRun(turn.routineRunId, run.routineId, turn.threadId, outcome.quietNote);
     }
     // The person's stop is an ending they chose, not a failure, and is not tried again.
     const stopped = !outcome.ok && outcome.kind === 'interrupted' && outcome.byPerson === true;

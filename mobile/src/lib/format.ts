@@ -37,6 +37,11 @@ export function formatters(locale: Locale, t: Translate<MessageKey>) {
       return calendar.format(new Date(`${key}T00:00:00Z`));
     },
 
+    /** The time of day alone: "09:00". */
+    clock(iso: string): string {
+      return time.format(new Date(iso));
+    },
+
     /** Beside a bot in the list: the time today, "Dün", a weekday this week, else the day. */
     shortTime(iso: string, now = new Date()): string {
       const d = new Date(iso);

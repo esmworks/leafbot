@@ -324,6 +324,12 @@ export type TurnOutcome = (
        * to report, and `text` holds what it wrote above, for the run's own record.
        */
       quiet?: boolean;
+      /**
+       * A routine's turn in the person's own conversation ended with the silent reply under some
+       * text: `text` is the silent reply alone, and this holds what it wrote above, which the run's
+       * line there shows when opened.
+       */
+      quietNote?: string;
     }
   | {
       ok: false;

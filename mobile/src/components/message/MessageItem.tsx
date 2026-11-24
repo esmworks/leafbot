@@ -17,14 +17,16 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-na
 import { Avatar } from '@/components/Avatar';
 import { confirm, toast, toastError } from '@/components/overlay';
 import { PillButton, Sheet, type SheetItem } from '@/components/page';
-import { t } from '@/i18n';
+import { locale, t } from '@/i18n';
 import { mixWithBlack } from '@/lib/color';
+import { formatters } from '@/lib/format';
 import { nav } from '@/lib/nav';
 import { useConnections, useTurnChanges } from '@/lib/queries';
 import { useLiveTool } from '@/lib/realtime';
 import { useApi, useServer } from '@/lib/server';
 import { newClientId } from '@/lib/stream';
 import { useColors, type Colors } from '@/lib/theme';
+import { foldedRuns, isRoutineRunLine } from '@leafbot/app/src/features/routineRuns';
 import { Body } from './Body';
 import {
   AppSuggestion,
@@ -127,6 +129,11 @@ function MessageBody({
   switch (m.role) {
     case 'user':
       if (authorBot) return <IncomingBot m={m} bot={authorBot} find={find} />;
+      {
+        const runs = foldedRuns(m);
+        if (runs) return <RoutineRunGroup runs={runs} botId={bot?.id} />;
+        if (isRoutineRunLine(m)) return <RoutineRunLine m={m} botId={bot?.id} />;
+      }
       return <UserRow m={m} bot={bot} find={find} room={room} onJump={onJump} />;
     case 'assistant':
       return <AssistantRow m={m} bot={bot} page={page} onReply={onReply} find={find} room={room} />;
@@ -744,9 +751,8 @@ function AssistantRow({
     );
   return (
     <View style={styles.assistantCol}>
-      {m.props.routineReport === true || m.props.routineInMain === true ? (
-        <RoutineReportLine m={m} botId={bot?.id} />
-      ) : null}
+      {/* A run in this conversation has its line right above its report, which names the routine. */}
+      {m.props.routineReport === true ? <RoutineReportLine m={m} botId={bot?.id} /> : null}
       {!page && files.length ? (
         // Files the bot sent with send_file, with its note if it wrote one.
         <View style={styles.assistantFiles}>
@@ -767,6 +773,121 @@ function AssistantRow({
           <Text style={styles.reactionText}>{reaction}</Text>
         </Pressable>
       ) : null}
+    </View>
+  );
+}
+
+const fmt = formatters(locale, t);
+
+/** How a run stands, as the icon at the head of its line. */
+function runIcon(status: unknown): keyof typeof Feather.glyphMap {
+  if (status === 'running') return 'loader';
+  if (status === 'done') return 'check-circle';
+  if (status === 'error') return 'alert-circle';
+  if (status === 'stopped') return 'slash';
+  return 'clock';
+}
+
+/**
+ * A routine's run in a conversation: one line with the routine, when it ran and how it stands,
+ * which stays when the run ends. Tapped, it opens to what the run was told and, for a run that
+ * found nothing to report, what the bot wrote of why; its report, if any, follows as a message.
+ */
+function RoutineRunLine({ m, botId }: { m: Message; botId?: string }) {
+  const c = useColors();
+  const [open, setOpen] = useState(false);
+  const status = m.props.routineRunStatus;
+  const name = typeof m.props.routineName === 'string' ? m.props.routineName : '';
+  const note = typeof m.props.quietNote === 'string' ? m.props.quietNote : '';
+  const state =
+    status === 'running'
+      ? t('message.routineRunning')
+      : status === 'waiting' || status === 'paused' || status === 'queued'
+        ? t('message.routineWaiting')
+        : status === 'error'
+          ? t('message.routineFailed')
+          : status === 'stopped'
+            ? t('message.routineStopped')
+            : m.props.routineQuiet === true
+              ? t('message.routineQuiet')
+              : null;
+  const parts = [
+    name ? t('message.routineNamed', { name }) : t('message.routine'),
+    ...(typeof m.props.routineStep === 'number'
+      ? [t('message.routineStep', { step: String(m.props.routineStep + 1) })]
+      : []),
+    fmt.clock(m.createdAt),
+    ...(state ? [state] : []),
+  ];
+  return (
+    <View style={styles.runCol}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={`${parts.join(' · ')}. ${t(open ? 'message.routineHide' : 'message.routineShow')}`}
+        onPress={() => setOpen(!open)}
+        style={styles.runLine}
+      >
+        <Feather
+          name={runIcon(status)}
+          size={12}
+          color={status === 'error' ? c.destructive : c.mutedForeground}
+        />
+        <Text style={[styles.runText, { color: c.mutedForeground }]}>{parts.join(' · ')}</Text>
+        <Feather name={open ? 'chevron-up' : 'chevron-down'} size={12} color={c.mutedForeground} />
+      </Pressable>
+      {open ? (
+        <View style={[styles.runBody, { backgroundColor: c.muted }]}>
+          <Body text={m.text} palette={bubblePalette(c)} breaks />
+          {note ? (
+            <View style={[styles.runNote, { borderTopColor: c.border }]}>
+              <Body text={note} palette={bubblePalette(c)} />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
+      {botId && open ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => nav.routine({ botId, routineId: m.author.slice('routine:'.length) })}
+          style={styles.runLine}
+        >
+          <Text style={[styles.runText, styles.underline, { color: c.mutedForeground }]}>
+            {t('message.openRoutine')}
+          </Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+/** Finished runs of one routine that followed each other with nothing between, as one line. */
+function RoutineRunGroup({ runs, botId }: { runs: Message[]; botId?: string }) {
+  const c = useColors();
+  const [open, setOpen] = useState(false);
+  const first = runs[0]!;
+  const last = runs.at(-1)!;
+  const name = typeof last.props.routineName === 'string' ? last.props.routineName : '';
+  const count = new Set(runs.map((r) => r.props.routineRunId)).size;
+  const parts = [
+    name ? t('message.routineNamed', { name }) : t('message.routine'),
+    t('message.routineRuns', { count }),
+    `${fmt.clock(first.createdAt)}–${fmt.clock(last.createdAt)}`,
+  ];
+  return (
+    <View style={styles.runCol}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={`${parts.join(' · ')}. ${t(open ? 'message.routineRunsHide' : 'message.routineRunsShow')}`}
+        onPress={() => setOpen(!open)}
+        style={styles.runLine}
+      >
+        <Feather name="check-circle" size={12} color={c.mutedForeground} />
+        <Text style={[styles.runText, { color: c.mutedForeground }]}>{parts.join(' · ')}</Text>
+        <Feather name={open ? 'chevron-up' : 'chevron-down'} size={12} color={c.mutedForeground} />
+      </Pressable>
+      {open ? runs.map((r) => <RoutineRunLine key={r.id} m={r} botId={botId} />) : null}
     </View>
   );
 }
@@ -1059,6 +1180,11 @@ const styles = StyleSheet.create({
   withReaction: { marginBottom: 16 },
   routine: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8 },
   routineReport: { alignSelf: 'flex-start', paddingBottom: 4 },
+  runCol: { alignItems: 'center', gap: 6 },
+  runLine: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  runText: { fontSize: 13, lineHeight: 18, flexShrink: 1, textAlign: 'center' },
+  runBody: { alignSelf: 'stretch', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 10, gap: 8 },
+  runNote: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 8 },
   reaction: {
     position: 'absolute',
     bottom: -16,
