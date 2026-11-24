@@ -1,5 +1,5 @@
 import { posix } from 'node:path';
-import { DESKTOP_SIZE, type DesktopStart } from '@leafbot/shared';
+import { DESKTOP_SIZE, type DesktopStart, type GitAuthor } from '@leafbot/shared';
 
 /** Where a session sees its own control directory. */
 export const CTL_IN_SANDBOX = '/run/ctl';
@@ -76,6 +76,21 @@ export function commandGitEnv(relay: unknown): Record<string, string> | null {
   if (typeof relay !== 'string' || !/^http:\/\/127\.0\.0\.1:\d{1,5}\/[a-f0-9]{64}\/$/.test(relay))
     return null;
   return gitEnv(relay);
+}
+
+/**
+ * Who one command's commits are written by, as git's own variables: they hold over the user.name
+ * and user.email of any configuration, `git -c` included, so a bot's commits carry the account
+ * whose key pushes them and not a name the bot made up. None when the server sent no author.
+ */
+export function authorEnv(author: GitAuthor | undefined): Record<string, string> {
+  if (!author) return {};
+  return {
+    GIT_AUTHOR_NAME: author.name,
+    GIT_AUTHOR_EMAIL: author.email,
+    GIT_COMMITTER_NAME: author.name,
+    GIT_COMMITTER_EMAIL: author.email,
+  };
 }
 
 /** The environment of everything in the session. Nothing else from the controller leaks in. */

@@ -197,11 +197,12 @@ export function computerTools(opts: {
       },
       async (a) =>
         guard(async (c) => {
-          // Only for this command: the desktop goes on with the team's key for everyone else.
-          const own = await opts.own?.();
-          const git = own ? await computer.personGit(bot.id, own) : undefined;
+          // Only for this command: the desktop goes on with the team's key for everyone else. Its
+          // commits are written by the account of the key it uses.
+          const own = (await opts.own?.()) ?? null;
+          const by = await computer.commandGit(bot.id, own);
           if (a.background) {
-            const job = await c.startJob(bot.id, { command: a.command, cwd, ...(git && { git }) });
+            const job = await c.startJob(bot.id, { command: a.command, cwd, ...by });
             computer.keepAwake(bot.id, BACKGROUND_MAX_MS);
             return t('computer.jobStarted', { id: job.id });
           }
@@ -209,7 +210,7 @@ export function computerTools(opts: {
             command: a.command,
             cwd,
             timeoutMs: a.timeout_seconds * 1000,
-            ...(git && { git }),
+            ...by,
           });
           const notes = [
             r.timedOut ? t('computer.timedOut', { seconds: a.timeout_seconds }) : null,
