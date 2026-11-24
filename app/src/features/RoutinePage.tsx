@@ -84,7 +84,7 @@ const stepWhen = z
   })
   .nullable()
   .optional();
-/** Where the run goes after the step: empty, the step after it; `end`, or a later step's id. */
+/** Where the run goes after the step: empty, the step after it; `end`, or another step's id. */
 const stepNext = z.string().optional();
 
 export const Form = z.object({
@@ -110,6 +110,7 @@ export const Form = z.object({
           timeoutDays: z.number().int().min(1).max(ROUTINE_APPROVAL_MAX_DAYS),
           when: stepWhen,
           next: stepNext,
+          onReject: z.string().optional(),
         }),
         z.object({
           id: z.string(),
@@ -153,11 +154,12 @@ export const Form = z.object({
         }),
       ]),
     )
-    // A way to a step that is not after its own (moved before it, or taken out) is shown on that step.
+    // A way to a step the routine no longer has (taken out) is shown on that step.
     .superRefine((steps, ctx) => {
       for (const r of stepRoutes(steps)) {
         if (r.field === 'next' && r.to === ROUTINE_STEP_END) continue;
-        if (steps.findIndex((x) => x.id === r.to) > r.from) continue;
+        const at = steps.findIndex((x) => x.id === r.to);
+        if (at >= 0 && at !== r.from) continue;
         ctx.addIssue({
           code: 'custom',
           path: [r.from, r.field === 'otherwise' ? 'when' : r.field],
@@ -270,6 +272,7 @@ export function fromRoutine(r?: Routine): Form {
               timeoutDays: x.timeoutDays,
               when: x.when ?? null,
               next: x.next ?? '',
+              onReject: x.onReject ?? '',
             }
           : { ...x, next: x.next ?? '' },
     ),
@@ -475,6 +478,7 @@ export function RoutinePage({
           when?: { message?: string };
           next?: { message?: string };
           onError?: { message?: string };
+          onReject?: { message?: string };
         }
       | undefined;
     return (
@@ -484,7 +488,8 @@ export function RoutinePage({
       e?.fields?.message ??
       e?.when?.message ??
       e?.next?.message ??
-      e?.onError?.message
+      e?.onError?.message ??
+      e?.onReject?.message
     );
   });
 

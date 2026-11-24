@@ -7,6 +7,13 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A routine's ways can go back to an earlier step, so a run can read a page every half hour until what it waits for
+  is there, or have a step write a draft again when the step checking it does not like it. What the step the way
+  leaves hands on reaches the step it goes back to. A run goes back 20 times at most; one that never comes out of
+  its loop stops there as failed. An approval step can also have a way for a "no": the run goes on at that step
+  with what the person turned down (a step that writes it again, a note to someone) instead of stopping. A bot that
+  sets or changes that way asks on a card first, since a "no" could lead where a "yes" does. The flow view draws
+  each way with an arrow at its end, so one that goes back reads as such.
 - Each routine shows its health: how its runs of the last 30 days ended (done, nothing to report, failed), what they
   cost and how long they took, worked out from the runs with no AI. It points out a routine that keeps failing, that
   switched itself off, that waits for a sign-in, a step that keeps failing, a wait that keeps running out, runs that

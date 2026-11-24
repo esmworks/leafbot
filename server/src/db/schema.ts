@@ -671,6 +671,8 @@ export const routineRuns = pgTable(
     promptSnapshot: text('prompt_snapshot').notNull(),
     /** The bot itself said the run could not do its task. */
     failedByBot: boolean('failed_by_bot').notNull().default(false),
+    /** How many times the run went back to an earlier step, kept under `ROUTINE_BACK_MAX`. */
+    backs: integer('backs').notNull().default(0),
     /**
      * How the run ended for the routine's health: `ok` did its work, `quiet` found nothing to
      * report, `failed` really failed. Null for every other ending (a wait, a skip, the person's

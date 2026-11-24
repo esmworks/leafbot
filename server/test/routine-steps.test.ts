@@ -364,7 +364,7 @@ describe('a routine with steps', () => {
     expect(await reports(bot.id)).toHaveLength(0);
   });
 
-  it('turns away a way that goes back, to itself, nowhere, or a step named end', async () => {
+  it('takes a way that goes back, and turns away one to itself, nowhere, or a step named end', async () => {
     const bot = await t.bot();
     const tryIt = (steps: unknown[]) =>
       t.api('POST', '/api/routines', {
@@ -378,7 +378,7 @@ describe('a routine with steps', () => {
       { id: 'a', kind: 'agent', prompt: 'bir' },
       { id: 'b', kind: 'agent', prompt: 'iki', next: 'a' },
     ]);
-    expect(back.status).toBe(400);
+    expect(back.status).toBe(200);
     expect((await tryIt([{ id: 'a', kind: 'agent', prompt: 'bir', onError: 'a' }])).status).toBe(400);
     expect(
       (await tryIt([{ id: 'a', kind: 'agent', prompt: 'bir', when: { otherwise: 'goto', goto: 'yok' } }]))
