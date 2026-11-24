@@ -5,17 +5,21 @@
 <h1 align="center">Leaf Bot</h1>
 
 <p align="center">
-  A self-hosted, single-person AI assistant: a server runs your bots, and a desktop or web app talks to them.
+  A self-hosted, single-person AI assistant: a server runs your bots, and a desktop, web or phone app talks to them.
 </p>
 
 ---
 
 Leaf Bot lets you build a small team of AI bots, each with its own instructions, memory, files, schedule and
 permissions. Bots run on a server you control — on your own computer through the desktop app, or on a Linux host in
-Docker — and you chat with them from the desktop app or a browser.
+Docker — and you chat with them from the desktop app, a browser, the phone app or a chat app you already use.
 
-The interface is available in English, Turkish and German. Messages the server writes, such as error messages and
-approval sentences, are in English or Turkish.
+The interface is available in fifteen languages: English, Turkish, German, Arabic, Spanish, French, Hindi, Indonesian,
+Italian, Polish, Portuguese (Brazil), Russian, Ukrainian, Vietnamese and Simplified Chinese, with Arabic laid out right
+to left. Turkish and English are the reference pair; the other thirteen were drafted from the English texts and still
+want a native speaker's read. Bots answer in the language you pick. Messages the server writes, such as error messages
+and approval sentences, are in English or Turkish. The phone app shows English for Arabic for now, because its layout
+cannot turn right to left without a restart. [docs/i18n.md](docs/i18n.md) covers how a language is added.
 
 <p align="center">
   <img src="docs/screenshots/chat.png" alt="Chatting with a research bot that compares standing desks in a table" width="900">
@@ -41,16 +45,24 @@ approval sentences, are in English or Turkish.
 - **Engines** — Claude through the Claude Agent SDK (with a Claude subscription token or an Anthropic API key), or
   models from other providers through the Pi engine: with your own key, or by signing in with your ChatGPT or GitHub
   Copilot plan. In the desktop app a bot can also run on a coding agent installed on your computer (Gemini CLI, Codex,
-  OpenCode, Kimi Code) over the Agent Client Protocol, for your own messages only.
+  OpenCode, Kimi Code) over the Agent Client Protocol, for your own messages only. Claude and Pi bots can hand the
+  independent pieces of a task to helper agents that run side by side, shown together on one card.
 - **Live chat** — streamed replies, file attachments, stop at any time, and turns that pick up where they left off
   after a server restart. Unread marks, find in a conversation (⌘F), `/` commands, quick replies, a goal per
-  conversation, branching from a reply, Markdown export, sortable tables, Mermaid diagrams, speaking a message
-  instead of typing it, and a voice call where you talk and the bot answers aloud.
+  conversation, branching from a reply, Markdown export, sortable tables, Mermaid diagrams, link previews, emoji,
+  drawing on a picture before sending it, speaking a message instead of typing it, and a voice call where you talk and
+  the bot answers aloud. ⌘K (Ctrl+K) finds and does things across the app. Light and dark themes come in three color
+  tones, and you can put a picture of your own behind the chat (web and desktop, kept per device).
+- **Cards and questions** — instead of a wall of text a bot can ask with a card: a pick from a few options, a day or
+  time, a form filled in beforehand, or a status it updates in place. Pressing it answers as your next message. A
+  question can take one option or several; in chat apps you answer with the option numbers, such as 1, 3.
 - **People** — the owner and admins add people, each with their own password and role (admin or member). A bot is
   shared with everyone or some people, to talk with or to change; each person's conversations, profile, notes,
   connections and vault entries are theirs alone, admins included, and a bot works with what belongs to the person it
   works for.
-- **Approvals** — bots ask before using tools you have not allowed; you can remember a decision per bot.
+- **Approvals** — bots ask before using tools you have not allowed; you can remember a decision per bot. A rule can
+  ask a second person too, a bot's turn can be taken back with what it changed listed first, and trip-wires stop a
+  turn when text the bot read (a page, a mail, another bot) shows signs of steering it.
 - **Meeting minutes** — a room asks whether a talk is a meeting, writes its minutes when it ends, and once you approve
   them each bot you pick keeps the decisions and its own tasks in memory.
 - **Memory and routines** — bots keep notes across chats on their own, without asking (or work without memory), and
@@ -62,7 +74,9 @@ approval sentences, are in English or Turkish.
   GitLab, Stripe, Shopify, Linear, Sentry, Calendly, Typeform, each with its signature checked), when a row of a bot's table
   is ready, or only when a watched page or a connected app's answer changes; they can build on their last report, and
   they run in the bot's main conversation unless they read WhatsApp, wait for the person or are started by outside text. A routine's steps can be laid out as boxes on a canvas, edited in place, with each
-  box showing how the latest run went there. A routine whose runs fail ten times in a row switches itself off and tells the person. A routine set to "Only tell me" only looks and reports: a step that would change something is refused, never asked.
+  box showing how the latest run went there. A new or changed routine can be rehearsed before it runs for real. A
+  routine whose runs fail ten times in a row switches itself off and tells the person. A routine set to "Only tell me"
+  only looks and reports: a step that would change something is refused, never asked.
 - **Follow-ups** — each bot keeps its own calendar apart from the routines: whatever it learns is coming up (a visit
   in a mail, a deadline said in the chat, a promise) it keeps track of by itself, without asking and without filling
   the list of routines, and brings it up the morning before, with the calendar checked, also in Telegram or WhatsApp.
@@ -80,11 +94,22 @@ approval sentences, are in English or Turkish.
   in, or only the members of chosen roles, mentions it in a channel to start a team conversation; a reply to its post
   goes on with it. They have no account here, so their requests use only what the team shares and change nothing
   without a card.
+- **Microsoft Teams** — an Azure Bot for one Microsoft 365 organization. People there link their Teams account with a
+  code and write to their bots in a one-to-one chat; a step that asks first comes as a card with buttons. Teams sends
+  messages to the server, so it needs a public HTTPS address.
+- **Mail** — with Gmail connected, bots read, send, reply to and forward mail, open its attachments, and move mail to
+  the trash or spam or change its labels; a mail about to go out shows as the mail itself, with Send and Cancel. Bots
+  can also have mail addresses of their own under your domain, delivered by a relay such as Cloudflare Email Routing.
+- **Documents, pictures and video** — bots make PowerPoint slide decks on the server, pictures with your OpenAI or
+  xAI key, and short videos with your xAI key.
+- **Board and tables** — bots put work that takes more than one reply on a shared board of tickets and hand
+  follow-ups to each other there; a bot's table can serve as a list of jobs a routine picks up.
 - **A bot as an API** — call a bot from a script with the access key and get its reply.
 - **Connections** — connect remote MCP servers (Notion, GitHub, Linear, Google Workspace, Slack and many more) once and
   choose which bots may use them.
 - **A browser per bot** — each bot drives its own Chromium profile; you can watch it live and take control for sign-ins
-  or verification codes.
+  or verification codes. A bot can also join a Jitsi, Google Meet or Teams call there and write out what is said,
+  once you agree on a card.
 - **Password vault** — when a site needs a login, you type the credentials into a card and the server fills them in;
   the bot never sees the password. Stored secrets are encrypted with AES-256-GCM.
 - **A computer per bot** (Docker) — an optional sandboxed Linux desktop for each bot with a browser, terminal, file
@@ -102,10 +127,12 @@ approval sentences, are in English or Turkish.
 app/        React + Vite web UI, served by the server or loaded by the desktop app
 server/     Fastify API, Socket.IO events, bot runtime, Drizzle ORM (PostgreSQL or embedded PGlite)
 desktop/    Electron shell: starts a local server or connects to a remote one
+mobile/     Expo app for iOS and Android that draws the phone layout natively
 computer/   Optional service that gives each bot its own sandboxed Linux desktop
 shared/     Schemas, events and translations used by every package
 client/     The server's endpoints for the web and phone apps; each app brings its own way of sending a request
 docker/     Compose setup, seccomp and AppArmor profiles, firewall script
+docs/       Notes on languages, screenshots and social images
 ```
 
 The server stores everything in PostgreSQL. With `DATABASE_URL` unset it uses embedded PGlite under the data folder,
@@ -147,7 +174,7 @@ On a Mac with a Developer ID certificate in the keychain the app is signed; it i
 `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID` are set.
 
 Pushing a version tag (`v` and the version in `desktop/package.json`) runs the Release workflow, which builds both
-installers and attaches them to a draft release for that tag. It signs and notarizes the macOS app with these
+installers for macOS, Windows and Linux and attaches them to a draft release for that tag. It signs and notarizes the macOS app with these
 repository secrets: `MAC_CERTIFICATE` (the Developer ID Application certificate exported as `.p12`, base64-encoded),
 `MAC_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` and `APPLE_TEAM_ID`. The Windows installer is not
 signed yet, so Windows shows a SmartScreen warning before it runs. To sign it, add a code signing certificate as the
@@ -237,8 +264,10 @@ bots' folders, into one password-sealed file that restores on another server.
 `mobile/` holds the app for iOS and Android, built with Expo. It talks to the server's API and socket directly and draws
 every screen of the web app's phone layout natively: the bot list with groups, rooms and the cards that wait,
 conversations with live replies, attachments, approval and question cards, the side panel with the bot's files and
-browser, rooms, Today, search, the bot and routine editors, apps, every settings section and the first-run setup.
-The live screen of the bot's own desktop and picking an avatar image are still only in the web app. Run it in the iOS
+browser, the live screen of the bot's own desktop (with taking control), rooms, Today, search, the bot and routine
+editors, apps, every settings section and the first-run setup. Bots' cards are drawn with native views. Picking an
+avatar image and a picture behind the chat are still only in the web app. It follows the phone's language, in every
+language the web app has except Arabic, which shows in English. Run it in the iOS
 Simulator or on a phone with Expo Go:
 
 ```bash
@@ -315,8 +344,12 @@ pnpm build && pnpm test
 Build before testing: the desktop tests start the built server. Database migrations live in `server/drizzle`; after
 changing `server/src/db/schema.ts`, run `pnpm --filter @leafbot/server db:generate`.
 
-User-visible text goes through the translation tables in `shared/src/i18n.ts`, `server/src/i18n.ts` and
-`desktop/src/i18n.ts`; a test fails on hard-coded strings.
+User-visible text goes through the translation catalogs: the interface's in `app/src/i18n` (one file per language),
+the shared ones in `shared/src/i18n.ts`, the bot's own texts in `server/src/i18n.ts`, and the phone and desktop apps'
+few texts of their own in `mobile/src/i18n` and `desktop/src/i18n.ts`. A test fails on hard-coded strings. Add new
+text in English and Turkish at least; other languages show it in English until it is translated, and
+`pnpm i18n:coverage` lists what each one still lacks. [docs/i18n.md](docs/i18n.md) covers plural forms, right to left
+and adding a language.
 
 ## Opening a chat from outside the app
 
@@ -370,6 +403,7 @@ The server reads these environment variables:
 | `LEAFBOT_BROWSER_SANDBOX`       | `1`                 | `0` turns off Chromium's own sandbox where it cannot start              |
 | `LEAFBOT_MAX_BROWSERS`          | `3`                 | Browsers open at once                                                   |
 | `LEAFBOT_BROWSER_LOCAL_HOSTS`   | —                   | Private-network hosts the bots' browsers may reach (comma-separated)    |
+| `LEAFBOT_EGRESS_PROXY`          | —                   | Proxy the bots' browsers go out through, such as `socks5://host:1080`   |
 | `LEAFBOT_COMPUTER_URL`          | —                   | URL of the computer service; unset means no per-bot desktops            |
 | `LEAFBOT_COMPUTER_TOKEN`        | —                   | Shared secret with the computer service (at least 32 characters)        |
 | `LEAFBOT_COMPUTER_IDLE_MINUTES` | `15`                | An unwatched, unused desktop goes to sleep after this long              |
