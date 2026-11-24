@@ -487,42 +487,78 @@
 
 /*
  * With a picture of the person's own behind the window (lib/wallpaper.ts), the chat lets it through
- * and the sidebar frosts it; everything else (pills, dialogs) keeps its own fill. Whatever holds
- * text in the chat (bubbles, cards, notices) is frosted glass: mostly filled and blurred behind, so
- * the picture comes through as colour and never as shapes or letters that fight the text. A
- * notice's own tint (`--frost-tint`) is laid over the frost, so a warning still looks like one.
- * A bubble's outline is drawn inside, so it keeps its size. The person's own bubble, in the bot's
- * colour, lets only a little through, so its white text still reads over a bright picture. Small
- * lines written straight on the chat (a routine's name, a quoted reply, the day, the plan meter)
- * get a frosted backing of their own, or a bright picture swallows their grey text; a hovered
- * button keeps its own hover fill.
+ * and the side panels frost it; everything else (pills, dialogs) keeps its own fill. Whatever holds
+ * text in the chat (bubbles, cards, notices) is frosted glass too, filled more than the panels and
+ * blurred harder: its text is longer and sits over the middle of the picture, where a bold shape
+ * would otherwise show through as a blot behind the letters. A notice's own tint (`--frost-tint`) is
+ * laid over the frost, so a warning still looks like one. A bubble's outline is drawn inside, so it
+ * keeps its size. The person's own bubble lets the least through, as its white text loses out first
+ * over a bright picture. Small lines written straight on the chat (a routine's name, a quoted reply,
+ * the day, the plan meter) get a backing of their own, or a bright picture swallows their grey
+ * text; a hovered button keeps its own hover fill.
+ *
+ * Two choices of the person's change this. With blur off (`data-wallpaper-sharp`) the picture shows
+ * sharp behind thinner fills, for a picture they want to see; the dimming slider is then what keeps
+ * text readable. With solid bubbles (`data-wallpaper-solid`) their own bubbles keep their full
+ * colour, so their text reads over any picture.
  */
+:root[data-wallpaper] {
+  --wp-panel-fill: 55%;
+  --wp-panel-blur: blur(16px) saturate(1.2);
+  --wp-frost-fill: 70%;
+  --wp-frost-blur: blur(24px) saturate(1.2);
+  --wp-own-fill: 75%;
+  --wp-own-blur: blur(24px) saturate(1.2);
+  --wp-chip-fill: 75%;
+  --wp-chip-blur: blur(12px) saturate(1.2);
+}
+:root[data-wallpaper][data-wallpaper-sharp] {
+  --wp-panel-fill: 40%;
+  --wp-panel-blur: none;
+  --wp-frost-fill: 55%;
+  --wp-frost-blur: none;
+  --wp-own-fill: 75%;
+  --wp-own-blur: none;
+  --wp-chip-fill: 60%;
+  --wp-chip-blur: none;
+}
 :root[data-wallpaper] .wallpaper-clear {
   background-color: transparent;
 }
 :root[data-wallpaper] .wallpaper-glass {
-  background-color: color-mix(in oklab, var(--sidebar) 55%, transparent);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
-  backdrop-filter: blur(24px) saturate(1.2);
+  background-color: color-mix(in oklab, var(--sidebar) var(--wp-panel-fill), transparent);
+  -webkit-backdrop-filter: var(--wp-panel-blur);
+  backdrop-filter: var(--wp-panel-blur);
 }
 :root[data-wallpaper] :is(.wallpaper-bubble, .wallpaper-frost) {
-  background-color: color-mix(in oklab, var(--card) 80%, transparent);
+  background-color: color-mix(in oklab, var(--card) var(--wp-frost-fill), transparent);
   background-image: linear-gradient(var(--frost-tint, transparent), var(--frost-tint, transparent));
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
-  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: var(--wp-frost-blur);
+  backdrop-filter: var(--wp-frost-blur);
 }
 :root[data-wallpaper] .wallpaper-bubble {
   box-shadow: inset 0 0 0 1px var(--color-border);
 }
-:root[data-wallpaper] .wallpaper-tint {
-  background-color: color-mix(in oklab, var(--tint-fill) 80%, transparent);
-  -webkit-backdrop-filter: blur(20px) saturate(1.2);
-  backdrop-filter: blur(20px) saturate(1.2);
+:root[data-wallpaper] .wallpaper-mine {
+  background-color: color-mix(in oklab, var(--secondary) var(--wp-own-fill), transparent);
+  -webkit-backdrop-filter: var(--wp-own-blur);
+  backdrop-filter: var(--wp-own-blur);
+}
+:root[data-wallpaper] .wallpaper-mine.wallpaper-tint {
+  background-color: color-mix(in oklab, var(--tint-fill) var(--wp-own-fill), transparent);
+}
+:root[data-wallpaper][data-wallpaper-solid] .wallpaper-mine {
+  background-color: var(--secondary);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-wallpaper][data-wallpaper-solid] .wallpaper-mine.wallpaper-tint {
+  background-color: var(--tint-fill);
 }
 :root[data-wallpaper] .wallpaper-chip:not(:hover) {
-  background-color: color-mix(in oklab, var(--background) 75%, transparent);
-  -webkit-backdrop-filter: blur(12px) saturate(1.2);
-  backdrop-filter: blur(12px) saturate(1.2);
+  background-color: color-mix(in oklab, var(--background) var(--wp-chip-fill), transparent);
+  -webkit-backdrop-filter: var(--wp-chip-blur);
+  backdrop-filter: var(--wp-chip-blur);
 }
 :root[data-wallpaper] .wallpaper-fade {
   background-image: none;

@@ -8,6 +8,8 @@ async function load() {
 beforeEach(() => {
   localStorage.clear();
   document.documentElement.removeAttribute('data-wallpaper');
+  document.documentElement.removeAttribute('data-wallpaper-sharp');
+  document.documentElement.removeAttribute('data-wallpaper-solid');
   document.documentElement.style.removeProperty('--wallpaper-dim');
 });
 
@@ -60,6 +62,39 @@ describe('useWallpaper', () => {
     localStorage.setItem('leafbot.wallpaper.dim', 'dark');
     const { useWallpaper, DIM_DEFAULT } = await load();
     expect(useWallpaper.getState().dim).toBe(DIM_DEFAULT);
+  });
+
+  it("blurs the picture and frosts the person's own bubbles until told otherwise", async () => {
+    const { useWallpaper } = await load();
+    expect(useWallpaper.getState().blur).toBe(true);
+    expect(useWallpaper.getState().ownBubble).toBe('glass');
+    expect(document.documentElement.hasAttribute('data-wallpaper-sharp')).toBe(false);
+    expect(document.documentElement.hasAttribute('data-wallpaper-solid')).toBe(false);
+  });
+
+  it('keeps blur and the bubble choice on this device and applies them', async () => {
+    const first = await load();
+    first.useWallpaper.getState().setBlur(false);
+    first.useWallpaper.getState().setOwnBubble('solid');
+    expect(document.documentElement.hasAttribute('data-wallpaper-sharp')).toBe(true);
+    expect(document.documentElement.hasAttribute('data-wallpaper-solid')).toBe(true);
+    document.documentElement.removeAttribute('data-wallpaper-sharp');
+    document.documentElement.removeAttribute('data-wallpaper-solid');
+    const again = await load();
+    expect(again.useWallpaper.getState().blur).toBe(false);
+    expect(again.useWallpaper.getState().ownBubble).toBe('solid');
+    expect(document.documentElement.hasAttribute('data-wallpaper-sharp')).toBe(true);
+    expect(document.documentElement.hasAttribute('data-wallpaper-solid')).toBe(true);
+    again.useWallpaper.getState().setBlur(true);
+    expect(document.documentElement.hasAttribute('data-wallpaper-sharp')).toBe(false);
+  });
+
+  it('falls back to blur and glass for stored values it does not understand', async () => {
+    localStorage.setItem('leafbot.wallpaper.blur', 'maybe');
+    localStorage.setItem('leafbot.wallpaper.ownBubble', 'neon');
+    const { useWallpaper } = await load();
+    expect(useWallpaper.getState().blur).toBe(true);
+    expect(useWallpaper.getState().ownBubble).toBe('glass');
   });
 
   it('refuses a file too large to be a photo before reading it', async () => {

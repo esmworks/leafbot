@@ -102,7 +102,7 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { useSendKey, type SendKey } from '@/lib/sendKey';
 import { TONES, useTheme, type ThemeChoice, type ToneChoice } from '@/lib/theme';
-import { DIM_MAX, DIM_MIN, useWallpaper, WallpaperError } from '@/lib/wallpaper';
+import { DIM_MAX, DIM_MIN, type OwnBubble, useWallpaper, WallpaperError } from '@/lib/wallpaper';
 import {
   useChatWidth,
   useDensity,
@@ -546,7 +546,9 @@ function WallpaperRows() {
   const t = useT();
   const url = useWallpaper((s) => s.url);
   const dim = useWallpaper((s) => s.dim);
-  const { choose, remove, setDim } = useWallpaper.getState();
+  const blur = useWallpaper((s) => s.blur);
+  const ownBubble = useWallpaper((s) => s.ownBubble);
+  const { choose, remove, setDim, setBlur, setOwnBubble } = useWallpaper.getState();
   const file = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const pick = async (picked: File) => {
@@ -617,6 +619,24 @@ function WallpaperRows() {
             />
             <span className="w-12 shrink-0 text-end text-sm tabular-nums text-muted-foreground">{`${dim}%`}</span>
           </div>
+        </Row>
+      )}
+      {url && (
+        <Row label={t('general.wallpaperBlur')} hint={t('general.wallpaperBlurHint')}>
+          <Switch checked={blur} onCheckedChange={setBlur} aria-label={t('general.wallpaperBlur')} />
+        </Row>
+      )}
+      {url && (
+        <Row label={t('general.wallpaperOwnBubble')} hint={t('general.wallpaperOwnBubbleHint')}>
+          <Select value={ownBubble} onValueChange={(v) => setOwnBubble(v as OwnBubble)}>
+            <SelectTrigger className="w-44 rounded-full" aria-label={t('general.wallpaperOwnBubble')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="glass">{t('general.wallpaperOwnBubble.glass')}</SelectItem>
+              <SelectItem value="solid">{t('general.wallpaperOwnBubble.solid')}</SelectItem>
+            </SelectContent>
+          </Select>
         </Row>
       )}
     </>
