@@ -832,7 +832,8 @@ export class ConnectionService {
    * of the same owner: a person who connected GitHub need not make a token for git as well. With
    * `owner`, that person's own app, for a command of a step that works for them; without, the
    * team's (see `ApiCredentialService.gitToken`). With several, the one changed last. Only the
-   * computer service's relay gets it, and sends it to github.com alone.
+   * computer service's relay gets it, and sends it to github.com alone; the server asks GitHub's API
+   * once with it which account it is, for the author of the commits pushed with it.
    */
   async gitToken(botId: string, owner: string | null = null): Promise<string | null> {
     const github = catalogEntry(GITHUB_CATALOG_ID);

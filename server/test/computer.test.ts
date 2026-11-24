@@ -337,20 +337,24 @@ describe('botun bilgisayarı', () => {
       return execs().at(-1)!.body;
     };
 
-    // In the person's own conversation, each command brings their key, a background one too.
+    // In the person's own conversation, each command brings their key, a background one too, and
+    // its commits are written by that key's account.
     const mine = await main(bot.id);
-    expect((await run(mine.id, { command: 'git fetch' })).git).toEqual({
-      token: 'github_pat_benim_0123456789',
-    });
-    expect((await run(mine.id, { command: 'git clone x', background: true })).git).toEqual({
-      token: 'github_pat_benim_0123456789',
-    });
+    const theirs = { name: 'acct-benim', email: '1+acct-benim@users.noreply.github.com' };
+    const fetched = await run(mine.id, { command: 'git fetch' });
+    expect(fetched.git).toEqual({ token: 'github_pat_benim_0123456789' });
+    expect(fetched.author).toEqual(theirs);
+    const cloned = await run(mine.id, { command: 'git clone x', background: true });
+    expect(cloned.git).toEqual({ token: 'github_pat_benim_0123456789' });
+    expect(cloned.author).toEqual(theirs);
     // The desktop itself keeps the team's, for everything else that runs on it.
     expect(gits().at(-1)).toBe('github_pat_ekibin_0123456789');
 
-    // A team conversation brings none, so its git goes with the team's.
+    // A team conversation brings none, so its git goes with the team's, and so do its commits.
     const team = await t.services.threads.create(bot.id, { kind: 'team', userId: null, title: 'Ekip' });
-    expect((await run(team.id, { command: 'git pull' })).git).toBeUndefined();
+    const pulled = await run(team.id, { command: 'git pull' });
+    expect(pulled.git).toBeUndefined();
+    expect(pulled.author).toEqual({ name: 'acct-ekibin', email: '1+acct-ekibin@users.noreply.github.com' });
 
     // Nor does a bot's turn that no request chain from the person's own message started.
     await t.services.turns.enqueue({
@@ -363,6 +367,7 @@ describe('botun bilgisayarı', () => {
     const handed = execs().at(-1)!.body;
     expect(handed.command).toBe('git push');
     expect(handed.git).toBeUndefined();
+    expect(handed.author).toEqual({ name: 'acct-ekibin', email: '1+acct-ekibin@users.noreply.github.com' });
   });
 
   it('kişinin kendi mesajından başka botun devrettiği işte onun anahtarını verir; zincirde dışarıdan okunan bir şey varsa vermez', async () => {

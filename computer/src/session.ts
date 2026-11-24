@@ -10,9 +10,16 @@ import type { Writable } from 'node:stream';
 import { StringDecoder } from 'node:string_decoder';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
-import { DESKTOP_SIZE, DesktopAction, DesktopExec, DesktopJobQuery, DesktopJobStart } from '@leafbot/shared';
+import {
+  DESKTOP_SIZE,
+  DesktopAction,
+  DesktopExec,
+  DesktopJobQuery,
+  DesktopJobStart,
+  type GitAuthor,
+} from '@leafbot/shared';
 import { clearForeignProfileLock, isOpenableUrl, Jobs, pngSize, TailBuffer, xdotoolArgs } from './lib';
-import { commandGitEnv } from './sandbox';
+import { authorEnv, commandGitEnv } from './sandbox';
 
 const CTL = process.env.LEAFBOT_CTL ?? '/run/ctl';
 const HOME = process.env.HOME ?? '/tmp';
@@ -88,11 +95,13 @@ function readBody(req: IncomingMessage): Promise<string> {
 
 /**
  * The environment of one command: the session's, with git sent to the command's own relay address
- * when the computer service gave one (a key brought by the person the step works for).
+ * when the computer service gave one (a key brought by the person the step works for), and the
+ * commits written by the account of the key the command's git uses, when the server named it.
  */
-function commandEnv(body: unknown): NodeJS.ProcessEnv | undefined {
+function commandEnv(body: unknown, author: GitAuthor | undefined): NodeJS.ProcessEnv | undefined {
   const git = commandGitEnv((body as { gitRelay?: unknown } | null)?.gitRelay);
-  return git ? { ...process.env, ...git } : undefined;
+  const by = authorEnv(author);
+  return git || author ? { ...process.env, ...git, ...by } : undefined;
 }
 
 function runCommand(command: string, cwd: string, timeoutMs: number, env?: NodeJS.ProcessEnv) {
@@ -247,13 +256,21 @@ const http = createHttpServer(async (req, res) => {
     if (path === '/exec') {
       const p = DesktopExec.safeParse(json);
       if (!p.success) return fail(res, 400, 'badRequest', p.error.message);
-      return send(res, 200, await runCommand(p.data.command, p.data.cwd, p.data.timeoutMs, commandEnv(json)));
+      return send(
+        res,
+        200,
+        await runCommand(p.data.command, p.data.cwd, p.data.timeoutMs, commandEnv(json, p.data.author)),
+      );
     }
     if (path === '/jobs/start') {
       const p = DesktopJobStart.safeParse(json);
       if (!p.success) return fail(res, 400, 'badRequest', p.error.message);
       try {
-        return send(res, 200, await jobs.status(jobs.run(p.data.command, p.data.cwd, commandEnv(json))));
+        return send(
+          res,
+          200,
+          await jobs.status(jobs.run(p.data.command, p.data.cwd, commandEnv(json, p.data.author))),
+        );
       } catch (e) {
         return fail(res, 409, 'failed', e instanceof Error ? e.message : String(e));
       }

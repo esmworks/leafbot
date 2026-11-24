@@ -63,6 +63,25 @@ export const DesktopGit = z.object({
 });
 export type DesktopGit = z.infer<typeof DesktopGit>;
 
+/** Text git writes into a commit's author line as it is: no control characters, no `<` or `>`. */
+const authorText = /^[^\p{Cc}<>]+$/u;
+
+/**
+ * Who a command's commits are written by: the GitHub account whose key its git uses. Left to
+ * itself git on the desktop has no name, and a bot that fills one in makes one up, whose address
+ * GitHub then credits to whatever account happens to own it.
+ */
+export const GitAuthor = z.object({
+  name: z.string().min(1).max(100).regex(authorText),
+  email: z
+    .string()
+    .min(3)
+    .max(200)
+    .regex(authorText)
+    .regex(/^\S+@\S+$/),
+});
+export type GitAuthor = z.infer<typeof GitAuthor>;
+
 export const DesktopExec = z.object({
   command: z.string().min(1).max(100_000),
   cwd: z.string().startsWith('/').max(500),
@@ -73,6 +92,8 @@ export const DesktopExec = z.object({
    * session.
    */
   git: DesktopGit.optional(),
+  /** Who the command's commits are written by: the account of the key its git uses. */
+  author: GitAuthor.optional(),
 });
 export type DesktopExec = z.input<typeof DesktopExec>;
 
@@ -91,6 +112,8 @@ export const DesktopJobStart = z.object({
   cwd: z.string().startsWith('/').max(500),
   /** As for `DesktopExec`: held until the background command ends. */
   git: DesktopGit.optional(),
+  /** As for `DesktopExec`. */
+  author: GitAuthor.optional(),
 });
 export type DesktopJobStart = z.infer<typeof DesktopJobStart>;
 

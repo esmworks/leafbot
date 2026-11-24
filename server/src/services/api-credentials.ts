@@ -452,7 +452,8 @@ export class ApiCredentialService {
    * With `owner`, that person's own key alone, for a command of a step that works for them; without,
    * the team's, which the desktop keeps for everything else (the desktop is the bot's, and everyone
    * who talks with it works on it). Only the computer service's relay gets it, and sends it to
-   * GitHub alone, the origin it was saved for.
+   * GitHub alone, the origin it was saved for; the server asks GitHub's API once with it which
+   * account it is, so the commits pushed with it carry that account (see github-author.ts).
    */
   async gitToken(botId: string, owner: string | null = null): Promise<string | null> {
     await this.ready();

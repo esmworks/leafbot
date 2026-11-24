@@ -1,4 +1,4 @@
-import type { ComputerState, DesktopStart } from '@leafbot/shared';
+import type { ComputerState, DesktopStart, GitAuthor } from '@leafbot/shared';
 import { ComputerClient, ComputerError } from './client';
 
 /** How long a desktop start is waited for: the computer service's own 90 s, and a few more. */
@@ -41,6 +41,8 @@ export interface ComputerOptions {
    * team's; with `owner`, that person's own alone.
    */
   gitToken?(botId: string, owner?: string | null): Promise<string | null>;
+  /** The account a GitHub key belongs to, as the author of the commits pushed with it. */
+  gitAuthor?(token: string): Promise<GitAuthor | null>;
 }
 
 /**
@@ -322,18 +324,26 @@ export class ComputerService {
   }
 
   /**
-   * The GitHub key a command brings for the person its step works for: their own key or GitHub
-   * app. Undefined when they have none, and the command's git uses the desktop's (the team's).
+   * What a command's git brings: the GitHub key of the person its step works for (`userId`), their
+   * own key or GitHub app, and who its commits are written by, the account of the key its git will
+   * use: theirs, or the desktop's (the team's) when they have none. Each is left out when unknown;
+   * without a key git uses the desktop's, and without an author its own settings.
    */
-  async personGit(botId: string, userId: string): Promise<{ token: string } | undefined> {
-    if (!this.opts.gitToken) return undefined;
-    try {
-      const token = await this.opts.gitToken(botId, userId);
-      return token ? { token } : undefined;
-    } catch (err) {
-      console.warn('computer git key', err instanceof Error ? err.message : err);
-      return undefined;
-    }
+  async commandGit(
+    botId: string,
+    userId: string | null,
+  ): Promise<{ git?: { token: string }; author?: GitAuthor }> {
+    const get = this.opts.gitToken;
+    if (!get) return {};
+    const key = (owner: string | null) =>
+      get(botId, owner).catch((err: unknown) => {
+        console.warn('computer git key', err instanceof Error ? err.message : err);
+        return null;
+      });
+    const own = userId ? await key(userId) : null;
+    const token = own ?? (await key(null));
+    const author = token && this.opts.gitAuthor ? await this.opts.gitAuthor(token).catch(() => null) : null;
+    return { ...(own && { git: { token: own } }), ...(author && { author }) };
   }
 
   /** A GitHub key was added, changed or removed: every running desktop gets its bot's key now. */

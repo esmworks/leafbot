@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DesktopStart } from '@leafbot/shared';
 import {
+  authorEnv,
   bwrapArgs,
   checkSessionPath,
   collectBinds,
@@ -202,5 +203,19 @@ describe('gitEnv', () => {
     expect(commandGitEnv('https://evil.example/' + 'b'.repeat(64) + '/')).toBeNull();
     expect(commandGitEnv(`http://127.0.0.1:4322/${'b'.repeat(64)}/x`)).toBeNull();
     expect(commandGitEnv(undefined)).toBeNull();
+  });
+});
+
+describe('authorEnv', () => {
+  it("writes a command's commits as the account the server named, over any user.name or user.email", () => {
+    const author = { name: 'erhanerbas', email: '208078507+erhanerbas@users.noreply.github.com' };
+    expect(authorEnv(author)).toEqual({
+      GIT_AUTHOR_NAME: 'erhanerbas',
+      GIT_AUTHOR_EMAIL: '208078507+erhanerbas@users.noreply.github.com',
+      GIT_COMMITTER_NAME: 'erhanerbas',
+      GIT_COMMITTER_EMAIL: '208078507+erhanerbas@users.noreply.github.com',
+    });
+    // Without one, git keeps its own settings.
+    expect(authorEnv(undefined)).toEqual({});
   });
 });
