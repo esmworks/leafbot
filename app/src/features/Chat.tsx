@@ -118,6 +118,7 @@ import {
 } from './Attachments';
 import { FindBar } from './FindBar';
 import { AssistantCard, CardDock, ExchangeCards, MessageItem, replyExcerpt, Working } from './MessageItem';
+import { foldRoutineRuns } from './routineRuns';
 
 export function Chat({ bot }: { bot: Bot }) {
   const selectedThread = useUi((s) => s.threadId);
@@ -873,7 +874,9 @@ function Conversation({
   const waiting = new Set(shown.map((m) => m.clientId));
   const streamDone = stream && messages.some((m) => m.turnId === stream.turnId && m.role === 'assistant');
   // A card asked while the reply streams in goes inside it, where it was asked.
-  const { rows, parts } = useLiveCards(all, stream, !!streamDone);
+  const { rows: liveRows, parts } = useLiveCards(all, stream, !!streamDone);
+  // Finished runs of a routine that follow each other fold into one line.
+  const rows = useMemo(() => foldRoutineRuns(liveRows, firstNew), [liveRows, firstNew]);
   const busy = state === 'running' || state === 'queued';
   const activity = useThreadActivity(bot.id, threadId, state);
 

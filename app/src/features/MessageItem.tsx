@@ -80,7 +80,8 @@ import { Switch } from '@/components/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useLocale, useT, type T } from '@/i18n';
 import { api } from '@/lib/api';
-import { newClientId } from '@/lib/format';
+import { newClientId, useFormat } from '@/lib/format';
+import { foldedRuns, isRoutineRunLine } from './routineRuns';
 import type { BotActivity } from '@/lib/botActivity';
 import {
   useApprovals,
@@ -137,6 +138,11 @@ export function MessageItem({
   switch (m.role) {
     case 'user':
       if (authorBot) return <IncomingBot m={m} bot={authorBot} />;
+      {
+        const runs = foldedRuns(m);
+        if (runs) return <RoutineRunGroup runs={runs} botId={botId} />;
+        if (isRoutineRunLine(m)) return <RoutineRunLine m={m} botId={botId} />;
+      }
       return (
         <div className="group/own flex flex-col items-end gap-1" data-message-id={m.id}>
           {quote && <QuoteLine quote={quote} threadId={m.threadId} />}
@@ -199,7 +205,8 @@ export function MessageItem({
           data-message-id={m.id}
           data-reply-start={m.turnId ?? m.id}
         >
-          {(m.props.routineReport === true || m.props.routineInMain === true) && <RoutineReportLine m={m} />}
+          {/* A run in this conversation has its line right above its report, which names the routine. */}
+          {m.props.routineReport === true && <RoutineReportLine m={m} />}
           {m.props.card ? (
             <ChatCard m={m} />
           ) : page ? (
@@ -1318,6 +1325,131 @@ function IncomingBot({ m, bot }: { m: Message; bot: Bot }) {
       <div className="rounded-3xl border bg-background px-5 py-4">
         <Markdown text={m.text} />
       </div>
+    </div>
+  );
+}
+
+/** The routine a run's line belongs to; it opens the routine. */
+function RoutineName({ m, botId }: { m: Message; botId?: string }) {
+  const t = useT();
+  const name = typeof m.props.routineName === 'string' ? m.props.routineName : '';
+  const label = name ? t('message.routineNamed', { name }) : t('message.routine');
+  if (!botId) return <span className="font-medium">{label}</span>;
+  return (
+    <button
+      type="button"
+      onClick={() => useUi.getState().openRoutine({ botId, routineId: m.author.slice('routine:'.length) })}
+      title={t('message.openRoutine')}
+      className="font-medium hover:text-foreground hover:underline"
+    >
+      {label}
+    </button>
+  );
+}
+
+/** How a run stands, as the icon at the head of its line. */
+function RunIcon({ status }: { status: unknown }) {
+  if (status === 'running') return <LoaderCircle className="size-3.5 animate-spin" />;
+  if (status === 'done') return <CircleCheck className="size-3.5" />;
+  if (status === 'error') return <AlertCircle className="size-3.5 text-destructive" />;
+  if (status === 'stopped') return <Ban className="size-3.5" />;
+  return <Clock className="size-3.5" />;
+}
+
+/**
+ * A routine's run in a conversation: one line with the routine, when it ran and how it stands,
+ * which stays when the run ends. It opens to what the run was told and, for a run that found
+ * nothing to report, what the bot wrote of why; its report, if any, follows it as a message.
+ */
+function RoutineRunLine({ m, botId }: { m: Message; botId?: string }) {
+  const t = useT();
+  const { clock } = useFormat();
+  const [open, setOpen] = useState(false);
+  const status = m.props.routineRunStatus;
+  const quiet = m.props.routineQuiet === true;
+  const note = typeof m.props.quietNote === 'string' ? m.props.quietNote : '';
+  const state =
+    status === 'running'
+      ? t('message.routineRunning')
+      : status === 'waiting' || status === 'paused' || status === 'queued'
+        ? t('message.routineWaiting')
+        : status === 'error'
+          ? t('message.routineFailed')
+          : status === 'stopped'
+            ? t('message.routineStopped')
+            : quiet
+              ? t('message.routineQuiet')
+              : null;
+  return (
+    <div className="flex flex-col items-center gap-2" data-message-id={m.id}>
+      <div className="wallpaper-chip flex max-w-full flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 rounded-lg px-2.5 py-1 text-xs text-muted-foreground">
+        <RunIcon status={status} />
+        <RoutineName m={m} botId={botId} />
+        {typeof m.props.routineStep === 'number' && (
+          <span>· {t('message.routineStep', { step: String(m.props.routineStep + 1) })}</span>
+        )}
+        <span className="tabular-nums">· {clock(m.createdAt)}</span>
+        {state && <span>· {state}</span>}
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          aria-label={t(open ? 'message.routineHide' : 'message.routineShow')}
+          title={t(open ? 'message.routineHide' : 'message.routineShow')}
+          className="rounded p-0.5 hover:bg-accent hover:text-foreground"
+        >
+          <ChevronDown className={cn('size-3.5 transition-transform', open && 'rotate-180')} />
+        </button>
+      </div>
+      {open && (
+        <div className="wallpaper-bubble flex w-full max-w-(--bubble-width) flex-col gap-2 rounded-2xl bg-secondary/60 px-4 py-3 text-sm">
+          <Markdown text={m.text} breaks className="prose-chat leading-relaxed break-words" />
+          {note && (
+            <div className="border-t border-border/60 pt-2 text-muted-foreground">
+              <Markdown text={note} className="prose-chat leading-relaxed break-words" />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Finished runs of one routine that followed each other with nothing between, as one line. */
+function RoutineRunGroup({ runs, botId }: { runs: Message[]; botId?: string }) {
+  const t = useT();
+  const { clock } = useFormat();
+  const [open, setOpen] = useState(false);
+  const first = runs[0]!;
+  const last = runs.at(-1)!;
+  const count = new Set(runs.map((r) => r.props.routineRunId)).size;
+  return (
+    <div className="flex flex-col items-center gap-2" data-message-id={first.id}>
+      <div className="wallpaper-chip flex max-w-full flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 rounded-lg px-2.5 py-1 text-xs text-muted-foreground">
+        <CircleCheck className="size-3.5" />
+        <RoutineName m={last} botId={botId} />
+        <span>· {t('message.routineRuns', { count })}</span>
+        <span className="tabular-nums">
+          · {clock(first.createdAt)}–{clock(last.createdAt)}
+        </span>
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          aria-label={t(open ? 'message.routineRunsHide' : 'message.routineRunsShow')}
+          title={t(open ? 'message.routineRunsHide' : 'message.routineRunsShow')}
+          className="rounded p-0.5 hover:bg-accent hover:text-foreground"
+        >
+          <ChevronDown className={cn('size-3.5 transition-transform', open && 'rotate-180')} />
+        </button>
+      </div>
+      {open && (
+        <div className="flex w-full flex-col gap-2">
+          {runs.map((r) => (
+            <RoutineRunLine key={r.id} m={r} botId={botId} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

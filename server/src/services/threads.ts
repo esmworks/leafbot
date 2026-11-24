@@ -665,7 +665,32 @@ export class ThreadService {
       )
       .orderBy(desc(schema.messages.createdAt), desc(schema.messages.id))
       .limit(limit);
-    return rows.reverse().map(toMessage);
+    return this.withRunStatus(rows.reverse().map(toMessage));
+  }
+
+  /**
+   * A routine's instruction is drawn as its run's line, which shows how the run stands: the run's
+   * status goes with it as `routineRunStatus`, read when the messages are, so a run that ended in
+   * any way is drawn so without each ending having to write it there.
+   */
+  private async withRunStatus(messages: Message[]): Promise<Message[]> {
+    const ids = [
+      ...new Set(
+        messages
+          .filter((m) => m.author.startsWith('routine:') && typeof m.props.routineRunId === 'string')
+          .map((m) => m.props.routineRunId as string),
+      ),
+    ];
+    if (!ids.length) return messages;
+    const runs = await this.ctx.db
+      .select({ id: schema.routineRuns.id, status: schema.routineRuns.status })
+      .from(schema.routineRuns)
+      .where(inArray(schema.routineRuns.id, ids));
+    const status = new Map(runs.map((r) => [r.id, r.status]));
+    return messages.map((m) => {
+      const s = typeof m.props.routineRunId === 'string' ? status.get(m.props.routineRunId) : undefined;
+      return s && m.author.startsWith('routine:') ? { ...m, props: { ...m.props, routineRunStatus: s } } : m;
+    });
   }
 
   /** Up to `limit` messages right after `id` in its conversation, oldest first. */
@@ -687,7 +712,7 @@ export class ThreadService {
       )
       .orderBy(asc(schema.messages.createdAt), asc(schema.messages.id))
       .limit(limit);
-    return rows.map(toMessage);
+    return this.withRunStatus(rows.map(toMessage));
   }
 
   async message(id: string): Promise<Message> {

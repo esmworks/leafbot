@@ -733,7 +733,7 @@ describe('rutinler', () => {
     });
   });
 
-  it('ana sohbette sessiz biten rutin çalışması talimatını orada bırakmaz', async () => {
+  it('ana sohbette sessiz biten rutin çalışması orada kapalı satırı olarak kalır', async () => {
     const a = await t.bot({ name: 'Ali' });
     const main = (await t.api<Thread>('GET', `/api/bots/${a.id}/main-thread`)).body;
     await t.send(main.id, 'merhaba');
@@ -744,13 +744,30 @@ describe('rutinler', () => {
     const run = (await t.api<RoutineRun>('POST', `/api/routines/${r.id}/run`, {})).body;
     await t.services.turns.idle();
     expect(run.threadId).toBe(main.id);
-    expect(await t.messages(main.id)).toEqual(before);
     expect((await runs(r.id)).find((x) => x.id === run.id)?.status).toBe('done');
+    // The run's line stays, marked quiet, with what the bot wrote of why and how the run ended; no
+    // answer goes under it.
+    const listed = await t.messages(main.id);
+    expect(listed).toHaveLength(before.length + 1);
+    expect(listed.at(-1)).toMatchObject({
+      role: 'user',
+      author: `routine:${r.id}`,
+      props: {
+        routineRunId: run.id,
+        routineQuiet: true,
+        quietNote: 'Değişiklik yok.',
+        routineRunStatus: 'done',
+      },
+    });
 
+    // The silent reply alone leaves a quiet line too, with nothing written of why.
     await t.api('PATCH', `/api/routines/${r.id}`, { prompt: '[sessiz]' });
-    await runAgain(r.id);
+    const second = (await runAgain(r.id))!;
     await t.services.turns.idle();
-    expect(await t.messages(main.id)).toEqual(before);
+    const after = await t.messages(main.id);
+    expect(after).toHaveLength(before.length + 2);
+    expect(after.at(-1)!.props).toMatchObject({ routineRunId: second.id, routineQuiet: true });
+    expect(after.at(-1)!.props.quietNote).toBeUndefined();
   });
 
   it('ana sohbetten kendi sohbetine dönen rutin ana sohbeti kendi sohbeti saymaz', async () => {

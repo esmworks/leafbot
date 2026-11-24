@@ -357,6 +357,8 @@ function refresh(origin: string, e: RefreshScope, inv: (...key: unknown[]) => vo
       inv('routine-rehearsals', origin);
       inv('routine-replayable', origin);
       inv('summaries', origin);
+      // A run's line in a conversation shows how the run stands.
+      inv('messages', origin);
       break;
     case 'rules':
       inv('rules', origin);

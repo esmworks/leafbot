@@ -2543,9 +2543,15 @@ export class TurnManager {
     // nothing, as a run that wrote only the silent reply does.
     if (outcome.ok && endsSilent(outcome.text)) {
       // A follow-up the bot finds nothing new to say about leaves nothing either.
+      // A routine's run there keeps what the bot wrote above it on the run's line, closed, for the
+      // person who wants to see why nothing came.
       outcome =
         (turn.source === 'routine' || turn.source === 'followup') && kind === 'user'
-          ? { ...outcome, text: SILENT_REPLY }
+          ? {
+              ...outcome,
+              text: SILENT_REPLY,
+              ...(turn.source === 'routine' && { quietNote: withoutSilentEnd(outcome.text) }),
+            }
           : {
               ...outcome,
               text: withoutSilentEnd(outcome.text),
