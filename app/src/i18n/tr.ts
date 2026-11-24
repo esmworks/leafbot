@@ -319,6 +319,7 @@ export const tr = {
   'usage.background.title': 'Sohbet başlıkları',
   'usage.background.minutes': 'Toplantı tutanakları',
   'usage.background.followUps': 'Yaklaşan işleri takibe alma',
+  'usage.background.review': 'Denetçinin kartlara bakması',
   'usage.background.line': '{count} çağrı; maliyeti {cost}',
   'usage.offers': 'İş önerileri',
   'usage.offers.checks': '{count} sohbete bakıldı; maliyeti {cost}; yapılan öneri: {found}',
@@ -365,6 +366,11 @@ export const tr = {
   'bot.toolsExclude': 'Hiç almayacağı araçlar',
   'bot.toolsInvalid': 'Her satıra bir ad: harf, rakam, _ . - ve en fazla sonda bir *',
   'bot.memory': 'Hafıza',
+  'bot.reviewer': 'Denetçi',
+  'bot.reviewerHint':
+    'Bir mail gitmek ya da veri dışarı çıkmak üzereyken, kart beklerken başka bir model ona bakar; bir şey ters görünürse karta bir satır ekler. Hiçbir zaman karar vermez, botu bekletmez. Botun kendisinden farklı aileden bir model daha çok şey yakalar. Her bakış kısa bir mesaj kadar ücretlenir.',
+  'bot.reviewerOff': 'Yok',
+  'bot.reviewerClaude': 'Claude (küçük model)',
   'bot.memoryHint':
     'Kapalıyken bot not okumaz ve tutmaz, ortak notlarınızı da görmez: her sohbet kendi başınadır.',
   'chat.newSince': 'Yeni mesajlar',
@@ -503,6 +509,7 @@ export const tr = {
   'pin.jump': 'Sabitlenen mesajı göster',
   'pin.remove': 'Sabitlemeyi kaldır',
   'approval.reviewReason': 'Otomatik inceleme sana bıraktı: {reason}',
+  'approval.reviewNote': 'Denetçi: {note}',
   'approval.heldBy': 'Bot kendi başına ilerleyebilir, ama “{rule}” kuralınız önce sormasını istiyor.',
   'approval.resembles':
     'Dikkat: bu adres {site} değil, ona benzeyen başka bir site olabilir. Kopya siteler giriş bilgilerini ve ödemeleri çalmak için yapılır.',

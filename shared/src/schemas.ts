@@ -131,6 +131,12 @@ export const Bot = z.object({
    * only where the server runs on that Mac. Missing on older servers.
    */
   personComputer: z.boolean().optional(),
+  /**
+   * A second model that reads a mail about to go out, or data about to leave, while its card waits,
+   * and adds a line to the card when something looks wrong: `claude`, or `provider/model` from a
+   * connected provider. Null is none. Missing on older servers.
+   */
+  reviewer: z.string().nullable().optional(),
   projectDir: z.string().nullable(),
   /** Whether the bot reads and keeps memory; off, it sees none and gets no memory tools. */
   memory: z.boolean(),
@@ -262,6 +268,13 @@ export const BotCreate = z.object({
   permissionMode: PermissionMode.default('auto'),
   internet: z.boolean().default(true),
   personComputer: z.boolean().default(false),
+  reviewer: z
+    .string()
+    .trim()
+    .max(200)
+    .regex(/^(?:claude|[^/\s]+\/\S+)$/)
+    .nullable()
+    .default(null),
   projectDir: z.string().max(1000).nullable().default(null),
   memory: z.boolean().default(true),
   effort: z.union([z.enum(['low', 'medium', 'high', 'xhigh', 'max']), z.literal('')]).default(''),
@@ -1730,7 +1743,7 @@ export const UsageReport = z.object({
   background: z
     .array(
       z.object({
-        kind: z.enum(['memoryReview', 'title', 'minutes', 'followUps']),
+        kind: z.enum(['memoryReview', 'title', 'minutes', 'followUps', 'review']),
         calls: z.number().int(),
         costUsd: z.number(),
       }),

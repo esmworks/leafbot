@@ -63,6 +63,8 @@ export const bots = pgTable('bots', {
   internet: boolean('internet').notNull().default(true),
   /** Whether the bot may use the person's own Mac in their own work. */
   personComputer: boolean('person_computer').notNull().default(false),
+  /** The second model that reads outgoing mail and data on a card: `claude` or `provider/model`; null is none. */
+  reviewer: text('reviewer'),
   projectDir: text('project_dir'),
   /** Whether the bot reads and keeps memory; off, it works from each conversation alone. */
   memory: boolean('memory').notNull().default(true),
@@ -2009,12 +2011,12 @@ export const memoryTidyChecks = pgTable(
 );
 
 /** The kinds of background call kept in `background_calls`. */
-export const BACKGROUND_CALLS = ['memoryReview', 'title', 'minutes', 'followUps'] as const;
+export const BACKGROUND_CALLS = ['memoryReview', 'title', 'minutes', 'followUps', 'review'] as const;
 
 /**
  * One call the server made to a bot's model in the background that has no table of its own: the
  * memory review of a conversation, a conversation's title, a meeting's minutes, the reading of a
- * turn for what is coming up (follow-ups). What it cost, so it
+ * turn for what is coming up (follow-ups), the reviewer's look at a card. What it cost, so it
  * shows on the usage page and counts toward the spending limits.
  */
 export const backgroundCalls = pgTable(

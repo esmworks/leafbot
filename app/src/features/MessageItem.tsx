@@ -241,6 +241,7 @@ export function MessageItem({
           bots={bots}
           heldBy={typeof m.props.heldBy === 'string' ? m.props.heldBy : undefined}
           reviewReason={typeof m.props.reviewReason === 'string' ? m.props.reviewReason : undefined}
+          reviewNote={typeof m.props.reviewNote === 'string' ? m.props.reviewNote : undefined}
           resembles={typeof m.props.resembles === 'string' ? m.props.resembles : undefined}
           askRule={typeof m.props.askRule === 'string' ? m.props.askRule : undefined}
           outside={outsideTrigger(m.props.outside)}
@@ -1683,6 +1684,7 @@ function ApprovalCard({
   noAlways,
   onAnswerLate,
   reviewReason,
+  reviewNote,
   resembles,
 }: {
   approvalId: string;
@@ -1700,6 +1702,8 @@ function ApprovalCard({
   onAnswerLate?(): void;
   /** Why the automatic review left this step to the person. */
   reviewReason?: string;
+  /** What the bot's reviewer, a second model, found worth a look before the person answers. */
+  reviewNote?: string;
   /** The site the page address imitates: the card warns, and offers no "always allow". */
   resembles?: string;
 }) {
@@ -1750,11 +1754,22 @@ function ApprovalCard({
   if (a.kind === 'login' && a.status === 'pending') return <LoginCard a={a} />;
   // A step that needs two people's yes, and has the first: it waits for the second.
   const waitingSecond = a.needsSecond && a.status === 'pending' && !!a.firstAt;
-  const notes = (heldBy || reviewReason || askRule || outside || resembles || a.needsSecond) && (
+  const notes = (heldBy ||
+    reviewReason ||
+    reviewNote ||
+    askRule ||
+    outside ||
+    resembles ||
+    a.needsSecond) && (
     <>
       {resembles && (
         <div className="text-sm font-medium text-destructive">
           {t('approval.resembles', { site: resembles })}
+        </div>
+      )}
+      {reviewNote && (
+        <div className="text-sm text-amber-600 dark:text-amber-400">
+          {t('approval.reviewNote', { note: reviewNote })}
         </div>
       )}
       {heldBy && (

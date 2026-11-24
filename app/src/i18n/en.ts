@@ -336,6 +336,7 @@ export const en: Catalog<MessageKey> = {
   'usage.background.title': 'Conversation titles',
   'usage.background.minutes': 'Meeting minutes',
   'usage.background.followUps': 'Keeping track of what is coming up',
+  'usage.background.review': 'Reviewer looking at cards',
   'usage.background.line': {
     one: '1 call; it cost {cost}',
     other: '{count} calls; they cost {cost}',
@@ -388,6 +389,11 @@ export const en: Catalog<MessageKey> = {
   'bot.toolsExclude': 'Tools it never gets',
   'bot.toolsInvalid': 'One name per line: letters, digits, _ . -, and one * at the end at most',
   'bot.memory': 'Memory',
+  'bot.reviewer': 'Reviewer',
+  'bot.reviewerHint':
+    'Another model reads a mail about to go out, or data about to leave, while its card waits, and adds a line to the card when something looks wrong. It never decides and never holds the bot up. A model of another family than the bot\'s own catches more. Each look is billed like a short message.',
+  'bot.reviewerOff': 'None',
+  'bot.reviewerClaude': 'Claude (small model)',
   'bot.memoryHint':
     'Off, the bot neither reads nor keeps notes, not even your shared ones: each conversation stands alone.',
   'chat.newSince': 'New messages',
@@ -537,6 +543,7 @@ export const en: Catalog<MessageKey> = {
   'pin.jump': 'Show the pinned message',
   'pin.remove': 'Unpin',
   'approval.reviewReason': 'The automatic review left this to you: {reason}',
+  'approval.reviewNote': 'Reviewer: {note}',
   'approval.heldBy': 'The bot may go ahead by itself, but your rule “{rule}” asks first.',
   'approval.resembles':
     'Careful: this address is not {site}, but may be another site made to look like it. Copies are made to take sign-ins and payments.',

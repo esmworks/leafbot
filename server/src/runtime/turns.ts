@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import {
   describeAction,
+  emailPreview,
   INTL_LOCALE,
   LOCALES,
   selectsTools,
@@ -52,7 +53,7 @@ import type { PlanItem } from '../engine/types';
 import { isUniqueViolation, newId, readableError, truncate } from '../util';
 import { submitsOnMac } from '../computer/person';
 import { refusingEngine } from '../engine/acp';
-import { markedOutside, outsideRead, outsideSource, resembledSite } from './outside';
+import { markedOutside, outsideRead, outsideSource, reachesOut, resembledSite } from './outside';
 import { MAX_SOURCES } from '../services/canary';
 import { ownerWords, requestedBy } from './owner-words';
 import { elicitContent, elicitQuestions } from '../connections/elicit';
@@ -1971,7 +1972,7 @@ export class TurnManager {
         outside: locked || capped || !!copied || onMac || onPhone || onCall || agentAct,
         second,
         onCreated: async (a) => {
-          await threads.addMessage({
+          const { message: card } = await threads.addMessage({
             threadId: thread.id,
             role: 'approval',
             author: `bot:${bot.id}`,
@@ -1986,6 +1987,22 @@ export class TurnManager {
             turnId: turn.id,
           });
           this.emitState(thread.id, bot.id);
+          // A mail going out or data leaving gets a second model's look while the card waits; it
+          // never holds the step up, and writes a line on the card only when something looks wrong.
+          const mail = emailPreview(ask.toolName, ask.input);
+          if (
+            bot.reviewer &&
+            !turn.rehearsalId &&
+            ((mail && mail.kind !== 'draft') || reachesOut(ask.toolName, ask.input, appTool))
+          ) {
+            this.services.reviewer.review({
+              bot,
+              messageId: card.id,
+              step: { toolName: ask.toolName, input: ask.input, summary: a.summary, request: turn.prompt },
+              locale,
+              signal: controller.signal,
+            });
+          }
         },
       });
       this.emitState(thread.id, bot.id);
