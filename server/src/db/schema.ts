@@ -2138,6 +2138,8 @@ export const routineRehearsals = pgTable(
     draft: boolean('draft').notNull().default(false),
     /** The run whose input was replayed; null when none was. */
     replayRunId: text('replay_run_id'),
+    /** Rehearsals started together on the routine's last real inputs share it; null for one alone. */
+    batchId: text('batch_id'),
     /** The instruction as it was rehearsed. */
     prompt: sealedText('prompt').notNull(),
     status: text('status', { enum: ['running', 'done', 'error', 'stopped'] })

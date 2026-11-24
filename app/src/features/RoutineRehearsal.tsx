@@ -64,11 +64,13 @@ export function RoutineRehearsal({
   const typed = prompt.trim();
   const draft = typed !== routine.prompt;
 
+  // Rehearsing on the last real inputs at once: each is a run of its own, one after another.
+  const lastCount = Math.min(replayable.length, REPLAY_LAST_MAX);
   const start = useMutation({
-    mutationFn: () =>
+    mutationFn: (last?: number) =>
       api.rehearseRoutine(routine.id, {
         ...(typed ? { prompt: typed } : {}),
-        ...(picked !== NONE ? { replayRunId: picked } : {}),
+        ...(last ? { replayLast: last } : picked !== NONE ? { replayRunId: picked } : {}),
       }),
     onSuccess: (r) => {
       setChosen(r.id);
@@ -130,10 +132,27 @@ export function RoutineRehearsal({
             size="sm"
             className="rounded-full"
             disabled={!typed || start.isPending || running}
-            onClick={() => start.mutate()}
+            onClick={() => start.mutate(undefined)}
           >
             <FlaskConical className="size-3.5" /> {running ? t('rehearsal.running') : t('rehearsal.run')}
           </Button>
+          {offersReplay && lastCount >= 2 && (
+            <div className="space-y-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="rounded-full"
+                disabled={!typed || start.isPending || running}
+                onClick={() => start.mutate(lastCount)}
+              >
+                <FlaskConical className="size-3.5" /> {t('rehearsal.runLast', { count: lastCount })}
+              </Button>
+              <p className="text-xs text-muted-foreground">
+                {t('rehearsal.runLastHint', { count: lastCount })}
+              </p>
+            </div>
+          )}
           {rehearsals.length > 1 && (
             <ul className="flex flex-wrap gap-1.5" aria-label={t('rehearsal.earlier')}>
               {rehearsals.map((r) => (
@@ -152,10 +171,91 @@ export function RoutineRehearsal({
               ))}
             </ul>
           )}
+          {shown?.batchId && (
+            <Batch
+              rehearsals={rehearsals.filter((r) => r.batchId === shown.batchId)}
+              shown={shown.id}
+              onPick={setChosen}
+            />
+          )}
           {shown && <Result rehearsal={shown} />}
           <p className="text-xs text-muted-foreground">{t('rehearsal.kept')}</p>
         </div>
       )}
+    </div>
+  );
+}
+
+/** The most of a routine's last real inputs rehearsed at once (the server keeps the last five runs). */
+const REPLAY_LAST_MAX = 5;
+
+/**
+ * Rehearsals on the routine's last real inputs, side by side: for each input, what the bot would
+ * have changed or sent. One with steps it would take stands out; a click shows it in full below.
+ */
+function Batch({
+  rehearsals,
+  shown,
+  onPick,
+}: {
+  rehearsals: Rehearsal[];
+  shown: string;
+  onPick(id: string): void;
+}) {
+  const t = useT();
+  const f = useFormat();
+  // Oldest input first, as they happened.
+  const list = [...rehearsals].sort((a, b) =>
+    (a.replay?.startedAt ?? a.startedAt).localeCompare(b.replay?.startedAt ?? b.startedAt),
+  );
+  const would = list.reduce((n, r) => n + r.steps.filter((s) => s.kind === 'would').length, 0);
+  return (
+    <div className="space-y-2 border-t pt-3">
+      <div className="text-xs font-medium text-muted-foreground">
+        {t('rehearsal.batchTitle', { count: list.length, would })}
+      </div>
+      <ul className="space-y-1.5">
+        {list.map((r) => {
+          const steps = r.steps.filter((s) => s.kind === 'would');
+          return (
+            <li key={r.id}>
+              <button
+                type="button"
+                onClick={() => onPick(r.id)}
+                className={cn(
+                  'w-full rounded-xl px-2.5 py-1.5 text-start hover:bg-accent',
+                  r.id === shown && 'bg-accent',
+                )}
+              >
+                <div className="flex flex-wrap items-baseline justify-between gap-x-2 text-xs">
+                  <span className="font-medium">
+                    {t('rehearsal.batchInput', { when: f.dayLabel(r.replay?.startedAt ?? r.startedAt) })}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {r.status === 'running'
+                      ? t('rehearsal.status.running')
+                      : t('rehearsal.batchWould', { count: steps.length })}
+                  </span>
+                </div>
+                {steps.length > 0 && (
+                  <ul className="mt-0.5 space-y-0.5 text-sm">
+                    {steps.slice(0, 3).map((s, i) => (
+                      <li key={`${s.at}-${i}`} className="line-clamp-1 break-words">
+                        {s.summary}
+                      </li>
+                    ))}
+                    {steps.length > 3 && (
+                      <li className="text-xs text-muted-foreground">
+                        {t('rehearsal.batchMore', { count: steps.length - 3 })}
+                      </li>
+                    )}
+                  </ul>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

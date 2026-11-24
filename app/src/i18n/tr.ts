@@ -3031,6 +3031,13 @@ export const tr = {
   'rehearsal.draftNote': 'Formdaki talimat denenir; henüz kaydedilmedi.',
   'rehearsal.savedNote': 'Kayıtlı talimat denenir.',
   'rehearsal.run': 'Prova et',
+  'rehearsal.runLast': 'Son {count} girdiyle prova et',
+  'rehearsal.runLastHint':
+    'Rutini son {count} çalışmasını başlatan girdilerle sırayla dener ve her birinde neyi değiştireceğini ya da göndereceğini listeler. Her biri bir çalışma gibi ücretlenir.',
+  'rehearsal.batchTitle': '{count} girdi, toplam {would} atılacak adım',
+  'rehearsal.batchInput': '{when} girdisi',
+  'rehearsal.batchWould': '{count} adım atardı',
+  'rehearsal.batchMore': 've {count} tane daha',
   'rehearsal.running': 'Prova sürüyor…',
   'rehearsal.replay': 'Şu çalıştırmayı tetikleyen girdi yeniden oynatılsın',
   'rehearsal.replayNone': 'Hiçbiri',

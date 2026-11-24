@@ -7,6 +7,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A routine started by something (a mail, a webhook, a watched page) can be rehearsed on the inputs of its last runs at
+  once: up to five, one after another, with a list of what it would have changed or sent for each input. Nothing is
+  done; each rehearsal is billed like a run, and the button says how many it starts.
 - Each conversation has an action log (in the conversation's menu): the turns that changed or sent something, newest
   first, each listing what can still be taken back, what was, and what no one can take back, such as a mail that went
   out or a call to another service. A turn can be taken back from there.

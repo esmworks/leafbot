@@ -3086,6 +3086,13 @@ export const en: Catalog<MessageKey> = {
   'rehearsal.draftNote': 'The instruction in the form is tried; it is not saved yet.',
   'rehearsal.savedNote': 'The saved instruction is tried.',
   'rehearsal.run': 'Rehearse',
+  'rehearsal.runLast': 'Rehearse on the last {count} inputs',
+  'rehearsal.runLastHint':
+    'Tries the routine on what started each of its last {count} runs, one after another, and lists what it would have changed or sent each time. Each is billed like a run.',
+  'rehearsal.batchTitle': '{count} inputs, {would} steps it would have taken in all',
+  'rehearsal.batchInput': 'Input of {when}',
+  'rehearsal.batchWould': '{count} steps it would take',
+  'rehearsal.batchMore': 'and {count} more',
   'rehearsal.running': 'Rehearsing…',
   'rehearsal.replay': 'Replay what started this run',
   'rehearsal.replayNone': 'Nothing',
