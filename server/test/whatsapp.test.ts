@@ -3,6 +3,7 @@ import { Readable } from 'node:stream';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Approval, Routine, RoutineRun, Thread, WhatsAppStatus } from '@leafbot/shared';
+import { localStamp } from '@leafbot/shared';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -800,6 +801,53 @@ describe('WhatsApp: rutinlerin okuduğu sohbetler', () => {
     expect(notes.some((m) => m.includes('kendi sözlerinle cevap verdin'))).toBe(true);
   });
 
+  it('aynı kişiye yeni taslak gelince bekleyen eskisi notla kapanır; ikisi birden gitmez', async () => {
+    // A reminder drafted at 15:30 still waited when the contact answered and a newer one came: both
+    // on cards, approving both asked the contact again about what they had answered.
+    const { wa, asistan } = await setUp();
+    const r = await routine(asistan.id, {
+      whatsappPeople: true,
+      prompt: `Hatırlat. [araç:whatsapp_send {"chat":"${CUSTOMER}@s.whatsapp.net","text":"Dönüş bekliyorum"}]`,
+    });
+    await waitFor(async () => reads().people);
+    const pending = async () =>
+      (await t.api<Approval[]>('GET', '/api/approvals')).body.filter(
+        (a) => a.toolName === 'whatsapp_send' && a.status === 'pending',
+      );
+    wa.chat(`${CUSTOMER}@s.whatsapp.net`, { conversation: 'Birini aradım' }, {}, 'Ahmet');
+    const [first] = await waitFor(async () => {
+      const list = await pending();
+      return list.length === 1 ? list : null;
+    });
+    await runs(r.id);
+    await t.services.turns.idle();
+    wa.chat(`${CUSTOMER}@s.whatsapp.net`, { conversation: 'İkincisini de aradım' }, {}, 'Ahmet');
+    const [second] = await waitFor(async () => {
+      const list = await pending();
+      return list.length === 1 && list[0]!.id !== first!.id ? list : null;
+    });
+    await t.services.turns.idle();
+    expect((await t.services.approvals.get(first!.id)).status).toBe('expired');
+    const drafts = await t.db.db.select().from(schema.whatsappDrafts);
+    expect(drafts.find((d) => d.approvalId === first!.id)!.status).toBe('dropped');
+    const notes = (await t.messages(first!.threadId!)).map((m) => m.text);
+    expect(notes.some((m) => m.includes('yerine aynı kişiye daha yeni bir taslak'))).toBe(true);
+    // Not a "no": the bot is not told the person turned it down.
+    expect(notes.some((m) => m.includes('kartta onaylanmadı'))).toBe(false);
+    // No turn waits on a draft's card: answering it still tells the conversation it waits no more,
+    // or "waiting for your approval" stayed on until a run happened to start there.
+    const states: string[] = [];
+    const off = t.services.ctx.bus.on('turn', (e) => {
+      if (e.threadId === second!.threadId) states.push(e.state);
+    });
+    await t.api('POST', `/api/approvals/${second!.id}`, { decision: 'allow', answer: 'Gönder' });
+    await waitFor(async () => wa.sent.some((x) => x.jid === `${CUSTOMER}@s.whatsapp.net`));
+    await t.services.turns.idle();
+    await waitFor(async () => states.at(-1) === 'idle');
+    off();
+    expect(wa.sent.filter((x) => x.jid === `${CUSTOMER}@s.whatsapp.net`)).toHaveLength(1);
+  });
+
   it('kod gibi görünen mesaj saklanmaz ama atlandığı söylenir; bilinmeyen numaradan gelen iz bırakmaz', async () => {
     const { wa, asistan } = await setUp();
     const r = await routine(asistan.id, { whatsappPeople: true });
@@ -941,6 +989,23 @@ describe('WhatsApp: rutinlerin okuduğu sohbetler', () => {
     expect(await wa_.knownChat(`${CUSTOMER}@s.whatsapp.net`, ofFinans)).toBeNull();
     const ofAsistan = await t.services.routines.whatsappReadsOf(asistan.id);
     expect((await wa_.chats(10, ofAsistan)).map((c) => c.jid)).toEqual([`${CUSTOMER}@s.whatsapp.net`]);
+  });
+
+  it('sohbet satırlarının saati sunucunun saat diliminde, ofsetiyle yazılır', async () => {
+    // A bot shown UTC repeated 12:13Z as the time a message came in Istanbul, three hours early.
+    const { wa, asistan } = await setUp();
+    await routine(asistan.id, { whatsappPeople: true });
+    await waitFor(async () => reads().people);
+    wa.chat(`${CUSTOMER}@s.whatsapp.net`, { conversation: 'Buzsan aradım' }, {}, 'Ahmet');
+    await waitFor(async () => (await t.db.db.select().from(schema.whatsappMessages)).length === 1);
+    const [kept] = await t.db.db.select().from(schema.whatsappMessages);
+    const ofAsistan = await t.services.routines.whatsappReadsOf(asistan.id);
+    const text = await t.services.whatsapp.history(`${CUSTOMER}@s.whatsapp.net`, 10, asistan.id, ofAsistan);
+    expect(text).toContain(
+      `[${localStamp(kept!.at, 'Europe/Istanbul')}] Ahmet (+${CUSTOMER}): Buzsan aradım`,
+    );
+    expect(text).toContain('+03:00]');
+    expect(text).not.toContain(kept!.at.toISOString());
   });
 
   it('sohbetten bir grubu takibe alır; tam erişimde de önce kart sorar, "Hayır" bir şey değiştirmez', async () => {
@@ -1268,10 +1333,15 @@ describe('WhatsApp: rutinlerin okuduğu sohbetler', () => {
       prompt: `[araç:whatsapp_history {"chat":"${CUSTOMER}@s.whatsapp.net"}] [araç:whatsapp_send {"chat":"${OTHER}","text":"rutinden"}]`,
     });
     await t.api('POST', `/api/routines/${r.id}/run`);
-    await runs(r.id);
+    const [run] = await runs(r.id);
     await t.services.turns.idle();
     expect(sentTo(OTHER)).toBe(0);
     expect(await pending()).toHaveLength(1);
+    // The bot is told why, so it does not promise the person the next one goes without a card,
+    // nor send them after a button WhatsApp cards do not have.
+    const told = (await t.messages(run!.threadId!)).map((m) => m.text).join('\n');
+    expect(told).toContain('kimse izlemezken dışarıdan gelen bir metinle');
+    expect(told).toContain('"sormadan gönder" seçeneği yoktur');
 
     // A first message to a number goes on a card even when the person asks.
     const main = (await t.api<Thread>('GET', `/api/bots/${pasa.id}/main-thread`)).body;
@@ -1279,6 +1349,9 @@ describe('WhatsApp: rutinlerin okuduğu sohbetler', () => {
     await t.services.turns.idle();
     expect(sentTo('905003334455')).toBe(0);
     expect(await pending()).toHaveLength(2);
+    expect((await t.messages(main.id)).map((m) => m.text).join('\n')).toContain(
+      'bu numaraya daha önce hiç yazılmadı',
+    );
 
     // Someone answered the chat by hand: the woken bot does not talk over them.
     await t.send(main.id, `[araç:whatsapp_send {"chat":"${CUSTOMER}@s.whatsapp.net","text":"Sipariş?"}]`);
