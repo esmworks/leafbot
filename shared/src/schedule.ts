@@ -531,6 +531,24 @@ export function wallClock(date: Date, tz: string): WallClock {
   };
 }
 
+/**
+ * A moment as ISO 8601 in `tz`'s wall time with its offset, such as `2026-11-24T15:13:56+03:00`.
+ * A bot shown UTC (`…T12:13:56Z`) tends to repeat 12:13 as the local time, three hours off.
+ */
+export function localStamp(date: Date, tz: string): string {
+  const w = wallClock(date, tz);
+  const minute = Math.floor(date.getTime() / MINUTE) * MINUTE;
+  const offset = Math.round((Date.UTC(w.year, w.month - 1, w.day, w.hour, w.minute) - minute) / MINUTE);
+  const two = (n: number) => String(n).padStart(2, '0');
+  const sign = offset < 0 ? '-' : '+';
+  const abs = Math.abs(offset);
+  const seconds = two(Math.floor((date.getTime() - minute) / 1000));
+  return (
+    `${w.year}-${two(w.month)}-${two(w.day)}T${two(w.hour)}:${two(w.minute)}:${seconds}` +
+    `${sign}${two(Math.floor(abs / 60))}:${two(abs % 60)}`
+  );
+}
+
 function parseTime(t: string): [number, number] {
   const [h, m] = t.split(':').map(Number);
   return [h ?? 0, m ?? 0];

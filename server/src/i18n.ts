@@ -1844,6 +1844,8 @@ const tr = {
   'whatsapp.hidden':
     '[Bir mesaj atlandı: kod, şifre ya da giriş bağlantısı içeriyor gibi görünüyor; içeriği saklanmadı.]',
   'whatsapp.draftDropped': '{to} kişisine WhatsApp mesajı gönderilmedi (kartta onaylanmadı):\n\n{text}',
+  'whatsapp.draftReplaced':
+    '{to} kişisine bu WhatsApp mesajı gönderilmedi; yerine aynı kişiye daha yeni bir taslak kartla sunuldu:\n\n{text}',
   'whatsapp.draftAnswered':
     '{to} kişisine WhatsApp mesajı gönderilmedi; kartında kendi sözlerinle cevap verdin, bot onu okuyor:\n\n{text}',
   'whatsapp.statusAnswered':
@@ -1923,6 +1925,19 @@ const tr = {
   'tool.whatsappEmpty': 'Gönderilecek bir metin ya da dosya yok.',
   'tool.whatsappDrafted':
     'Taslak kişiye kartla sunuldu; onaylarsa gönderilecek ve sonucu bu sohbetteki bir sonraki mesajla sana söylenecek. Kartın sonucunu bekleme. Gönderildikten sonra bir hafta içinde gelen yanıt sana kendiliğinden gelir; bunun için rutin kurmaya gerek yok.',
+  'tool.whatsappDraftedWhy':
+    'Taslak kişiye kartla sunuldu; onaylarsa gönderilecek ve sonucu bu sohbetteki bir sonraki mesajla sana söylenecek. Kartın sonucunu bekleme. Kartla gitmesinin nedeni: {why} WhatsApp kartlarında "her zaman izin ver" ya da "sormadan gönder" seçeneği yoktur; kişiye böyle bir seçenek önerme, bu nedeni de başka bir şeymiş gibi anlatma.',
+  'tool.whatsappCardWhy.level': 'bot tam erişimde değil.',
+  'tool.whatsappCardWhy.setting':
+    'WhatsApp ayarlarında "Botlar onay sormadan gönderebilsin" kapalı; açıp açmamak kişinin kararı.',
+  'tool.whatsappCardWhy.woken':
+    'bu çalışma başka bir sohbetin yanıtıyla başladı ya da kişi bu sohbete kendisi yazdı.',
+  'tool.whatsappCardWhy.outside':
+    'bu çalışma kimse izlemezken dışarıdan gelen bir metinle (bir WhatsApp mesajı, e-posta, sayfa) başladı ya da böyle bir metni okudu. Bir sohbetteki yazı botu mesaj göndermeye yöneltemesin diye böyle çalışmalar her zaman kartla gönderir; hiçbir ayar bunu değiştirmez, kişiye kartsız gideceğini söyleme.',
+  'tool.whatsappCardWhy.file': 'mesajla birlikte dosya gidiyor.',
+  'tool.whatsappCardWhy.fresh': 'bu numaraya daha önce hiç yazılmadı.',
+  'tool.whatsappCardWhy.limit':
+    'WhatsApp şu an bağlı değil ya da bu sohbete bu saat içinde kartsız gidebilecek mesaj sınırı doldu.',
   'tool.whatsappNoAudience': 'Durum’u görecek kimse yok: henüz saklanan bir kişi sohbeti yok.',
   'outside.whatsapp': 'bir WhatsApp sohbeti',
   'whatsapp.groupYou': 'Siz',
@@ -3856,6 +3871,8 @@ const en: Catalog<ServerKey> = {
   'whatsapp.hidden':
     '[A message was left out: it looks like it holds a code, a password or a sign-in link; its content was not kept.]',
   'whatsapp.draftDropped': 'The WhatsApp message to {to} was not sent (not approved on its card):\n\n{text}',
+  'whatsapp.draftReplaced':
+    'This WhatsApp message to {to} was not sent; a newer draft to the same person is on a card in its place:\n\n{text}',
   'whatsapp.draftAnswered':
     'The WhatsApp message to {to} was not sent; you answered its card in your own words, and the bot is reading them:\n\n{text}',
   'whatsapp.statusAnswered':
@@ -3936,6 +3953,19 @@ const en: Catalog<ServerKey> = {
   'tool.whatsappEmpty': 'There is no text or file to send.',
   'tool.whatsappDrafted':
     'The draft is on a card for the person; it goes if they approve, and you are told what became of it with the next message here. Do not wait for the card. A reply within a week of it going out comes to you by itself; no routine is needed for it.',
+  'tool.whatsappDraftedWhy':
+    'The draft is on a card for the person; it goes if they approve, and you are told what became of it with the next message here. Do not wait for the card. It went on a card because {why} WhatsApp cards have no "always allow" or "send without asking" choice; do not point the person to one, nor give them another reason than this one.',
+  'tool.whatsappCardWhy.level': 'the bot is not at full access.',
+  'tool.whatsappCardWhy.setting':
+    '"Let the bots send without asking" is off in the WhatsApp settings; turning it on is the person\'s call.',
+  'tool.whatsappCardWhy.woken':
+    "this run started from another chat's answer, or the person wrote in this chat themselves.",
+  'tool.whatsappCardWhy.outside':
+    'this run started from, or read, text from outside (a WhatsApp message, a mail, a page) with nobody watching. Such runs always send on a card, so that what someone writes in a chat cannot get the bot to send a message; no setting changes that, so do not tell the person it will go without one.',
+  'tool.whatsappCardWhy.file': 'a file goes with the message.',
+  'tool.whatsappCardWhy.fresh': 'this number was never written to before.',
+  'tool.whatsappCardWhy.limit':
+    'WhatsApp is not connected right now, or this chat had its share of messages without a card this hour.',
   'tool.whatsappNoAudience': 'Nobody would see the Status: no person’s chat is kept yet.',
   'outside.whatsapp': 'a WhatsApp chat',
   'whatsapp.groupYou': 'You',

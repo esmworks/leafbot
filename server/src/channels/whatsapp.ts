@@ -3,6 +3,7 @@ import { copyFile, mkdir, readdir, rm, stat } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Readable } from 'node:stream';
 import {
+  localStamp,
   questionItems,
   type Bot,
   type Message,
@@ -1612,6 +1613,7 @@ export class WhatsAppChannel {
         ),
       )) as [{ n: number }];
     if (n >= CONTACT_TURNS_MAX) return;
+    const zone = await this.zone();
     // In a group, the lines before the mention say what it is about.
     const before =
       wait.kind === 'group'
@@ -1626,7 +1628,7 @@ export class WhatsAppChannel {
               .limit(MENTION_CONTEXT)
           )
             .reverse()
-            .map((r) => `[${r.at.toISOString()}] ${r.writer}: ${r.text}`)
+            .map((r) => `[${localStamp(r.at, zone)}] ${r.writer}: ${r.text}`)
         : [];
     const lead =
       wait.kind === 'group'
@@ -1777,22 +1779,7 @@ export class WhatsAppChannel {
       if (sent !== 'card') return;
     }
     const t = await this.services.settings.translator();
-    // One answer waits at a time: a newer one takes the place of the one not yet answered.
-    const open = await this.ctx.db
-      .select({ approvalId: schema.whatsappDrafts.approvalId })
-      .from(schema.whatsappDrafts)
-      .where(
-        and(
-          eq(schema.whatsappDrafts.chat, contact.chat),
-          eq(schema.whatsappDrafts.threadId, turn.threadId),
-          eq(schema.whatsappDrafts.status, 'pending'),
-        ),
-      );
-    for (const d of open) {
-      await this.services.approvals
-        .answer(d.approvalId, { decision: 'deny', remember: false })
-        .catch((err: unknown) => console.warn('whatsapp draft', errorText(err)));
-    }
+    // One answer waits at a time: the new card takes the place of the one not yet answered.
     const known = await this.knownChat(contact.chat);
     const number = contact.chat.replace(/@.*$/, '');
     await this.putOnCard({
@@ -1808,6 +1795,7 @@ export class WhatsAppChannel {
       }),
       approve: t('whatsapp.send'),
       reject: t('whatsapp.dontSend'),
+      replace: true,
     });
   }
 
@@ -1825,6 +1813,8 @@ export class WhatsAppChannel {
     summary: string;
     approve: string;
     reject: string;
+    /** It takes the place of the bot's drafts to the chat still waiting in the conversation. */
+    replace?: boolean;
   }): Promise<void> {
     let made!: () => void;
     const created = new Promise<void>((done) => (made = done));
@@ -1862,6 +1852,37 @@ export class WhatsAppChannel {
     });
     void asked.catch((err: unknown) => console.warn('whatsapp draft card', err));
     await Promise.race([created, asked.then(() => undefined)]);
+    if (d.replace && d.kind === 'message' && d.chat)
+      await this.replaceOlderDrafts(d.botId, d.threadId, d.chat, id);
+  }
+
+  /**
+   * A new draft to a chat takes the place of the bot's drafts to it still waiting in that
+   * conversation: a reminder run again found the earlier one out of date, and approving both sent
+   * the contact two messages, the older one asking about what they had already answered. Their
+   * cards close with a note, not as "not approved", which would read to the bot as the person's no.
+   */
+  private async replaceOlderDrafts(botId: string, threadId: string, chat: string, keep: string) {
+    const replaced = await this.ctx.db
+      .update(schema.whatsappDrafts)
+      .set({ status: 'dropped' })
+      .where(
+        and(
+          eq(schema.whatsappDrafts.botId, botId),
+          eq(schema.whatsappDrafts.threadId, threadId),
+          eq(schema.whatsappDrafts.chat, chat),
+          eq(schema.whatsappDrafts.kind, 'message'),
+          eq(schema.whatsappDrafts.status, 'pending'),
+          ne(schema.whatsappDrafts.id, keep),
+        ),
+      )
+      .returning();
+    for (const draft of replaced) {
+      if (draft.approvalId) await this.services.approvals.expire(draft.approvalId);
+      await this.answerNote(draft, 'replaced').catch((err: unknown) =>
+        console.warn('whatsapp draft note', errorText(err)),
+      );
+    }
   }
 
   /**
@@ -2251,7 +2272,7 @@ export class WhatsAppChannel {
     if (!stored) return;
     // An answer from someone a bot wrote to reaches that bot, whether or not a routine reads the chat.
     if (!m.key.fromMe && !hidden) {
-      const said = `[${at.toISOString()}] ${writer}: ${quote}${truncate(text, CHAT_TEXT_MAX)}`;
+      const said = `[${localStamp(at, await this.zone())}] ${writer}: ${quote}${truncate(text, CHAT_TEXT_MAX)}`;
       const line = media ? `${said}\n  ${t('whatsapp.fileNotKept')}` : said;
       // The bot that wrote to the person lately has their answer; else the bot the chat is given
       // to, or the front door. In a group, only a message to the account.
@@ -2338,8 +2359,13 @@ export class WhatsAppChannel {
   }
 
   /** One message of a chat as a bot reads it, with its file in that bot's own folder. */
-  private chatLine(row: typeof schema.whatsappMessages.$inferSelect, botId: string, t: T): string {
-    const head = `[${row.at.toISOString()}] ${row.writer}: ${row.text}`.trimEnd();
+  private chatLine(
+    row: typeof schema.whatsappMessages.$inferSelect,
+    botId: string,
+    t: T,
+    zone: string,
+  ): string {
+    const head = `[${localStamp(row.at, zone)}] ${row.writer}: ${row.text}`.trimEnd();
     const file = row.file;
     if (!file) return head;
     if ('failed' in file) return `${head}\n  ${t(file.failed as ServerKey, { name: '' }).trim()}`;
@@ -2399,6 +2425,7 @@ export class WhatsAppChannel {
       true,
     ).reverse();
     const t = await this.services.settings.translator();
+    const zone = await this.zone();
     const label = shownName(row);
     const title = label ? (row.kind === 'person' ? `${label} (+${numberOf(chat) ?? chat})` : label) : chat;
     const payloadFor = (botId: string) =>
@@ -2406,11 +2433,11 @@ export class WhatsAppChannel {
         t(row.kind === 'group' ? 'whatsapp.groupHeader' : 'whatsapp.chatHeader', { name: title }),
         t('whatsapp.chatId', { chat }),
         ...(before.length
-          ? ['', t('whatsapp.chatBefore'), ...before.map((r) => this.chatLine(r, botId, t))]
+          ? ['', t('whatsapp.chatBefore'), ...before.map((r) => this.chatLine(r, botId, t, zone))]
           : []),
         '',
         t('whatsapp.chatNew'),
-        ...batch.map((r) => this.chatLine(r, botId, t)),
+        ...batch.map((r) => this.chatLine(r, botId, t, zone)),
       ].join('\n');
     const handed = await this.services.routines.runFromWhatsApp(
       { jid: chat, kind: row.kind, name: shownName(row) || chat, threads: row.threads },
@@ -2468,8 +2495,9 @@ export class WhatsAppChannel {
       false,
     );
     const t = await this.services.settings.translator();
+    const zone = await this.zone();
     for (const { message: r, kind } of rows) {
-      const said = `[${r.at.toISOString()}] ${r.writer}: ${r.text}`;
+      const said = `[${localStamp(r.at, zone)}] ${r.writer}: ${r.text}`;
       const line = r.file ? `${said}\n  ${t('whatsapp.fileNotKept')}` : said;
       if (!(kind === 'person' && (await this.queueReply(r.chat, line, r.seq, t))))
         await this.queueContact(r.chat, kind, line, r.seq);
@@ -2578,12 +2606,13 @@ export class WhatsAppChannel {
         .limit(limit)
     ).reverse();
     const t = await this.services.settings.translator();
+    const zone = await this.zone();
     const title = shownName(row) || chat;
     return [
       t(row.kind === 'group' ? 'whatsapp.groupHeader' : 'whatsapp.chatHeader', { name: title }),
       t('whatsapp.chatId', { chat }),
       '',
-      ...rows.map((r) => this.chatLine(r, botId, t)),
+      ...rows.map((r) => this.chatLine(r, botId, t, zone)),
     ].join('\n');
   }
 
@@ -2686,7 +2715,7 @@ export class WhatsAppChannel {
    */
   private async answerNote(
     draft: typeof schema.whatsappDrafts.$inferSelect,
-    outcome: 'sent' | 'dropped' | 'answered' | 'failed',
+    outcome: 'sent' | 'dropped' | 'answered' | 'replaced' | 'failed',
     error = '',
   ) {
     const write = () => this.draftNote(draft, outcome, error);
@@ -2735,7 +2764,7 @@ export class WhatsAppChannel {
    */
   async draftNote(
     draft: typeof schema.whatsappDrafts.$inferSelect,
-    outcome: 'sent' | 'dropped' | 'answered' | 'failed',
+    outcome: 'sent' | 'dropped' | 'answered' | 'replaced' | 'failed',
     error = '',
   ) {
     const t = await this.services.settings.translator();
@@ -2744,7 +2773,7 @@ export class WhatsAppChannel {
       text =
         outcome === 'sent'
           ? t('whatsapp.statusPosted')
-          : outcome === 'dropped'
+          : outcome === 'dropped' || outcome === 'replaced'
             ? t('whatsapp.statusDropped')
             : outcome === 'answered'
               ? t('whatsapp.statusAnswered')
@@ -2757,9 +2786,11 @@ export class WhatsAppChannel {
           ? t('whatsapp.draftSent', { to, text: said })
           : outcome === 'dropped'
             ? t('whatsapp.draftDropped', { to, text: said })
-            : outcome === 'answered'
-              ? t('whatsapp.draftAnswered', { to, text: said })
-              : t('whatsapp.draftFailedTo', { to, text: said, message: error });
+            : outcome === 'replaced'
+              ? t('whatsapp.draftReplaced', { to, text: said })
+              : outcome === 'answered'
+                ? t('whatsapp.draftAnswered', { to, text: said })
+                : t('whatsapp.draftFailedTo', { to, text: said, message: error });
     }
     await this.services.threads.addMessage({
       threadId: draft.threadId,
@@ -3353,6 +3384,14 @@ export class WhatsAppChannel {
   }
 
   // Records
+
+  /**
+   * The server's time zone, in which chat lines show their time: a bot shown UTC repeats it as the
+   * local time.
+   */
+  private async zone(): Promise<string> {
+    return (await this.services.settings.all()).timezone;
+  }
 
   private async row(): Promise<Row | null> {
     const [row] = await this.ctx.db

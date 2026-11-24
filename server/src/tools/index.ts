@@ -1857,6 +1857,7 @@ export class ToolFactory {
                 ? Promise.resolve(false)
                 : requestedBy(this.ctx, turn).then((x) => x !== null)),
           woken: () => s.whatsapp.wokenBy(turn),
+          unattended: !attended(turn.source),
           unwatched: () => !attended(turn.source) && !!reads(),
           // Reading someone's chats starts only on the person's own word, whatever the bot's level.
           askOpen: async () => {

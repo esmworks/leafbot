@@ -3,6 +3,7 @@ import { BotCreate, BotUpdate } from './schemas';
 import {
   cronTooOften,
   describeSchedule,
+  localStamp,
   nextRun,
   occurrenceKey,
   RoutineUpdate,
@@ -149,5 +150,19 @@ describe('PATCH şemaları', () => {
     expect(nextRun(once, 'Europe/Istanbul', new Date('2026-11-21T00:00:00Z'), at)).toBeNull();
     expect(describeSchedule(once, 'en')).toBe('Once, on Nov 20, 2026 at 09:30');
     expect(Schedule.safeParse({ type: 'once', date: '20.11.2026', time: '09:30' }).success).toBe(false);
+  });
+});
+
+describe('localStamp', () => {
+  it('anı saat dilimindeki duvar saatiyle ve ofsetiyle yazar', () => {
+    // A bot shown 12:13Z repeated it as the local time; Istanbul read it at 15:13.
+    expect(localStamp(new Date('2026-11-24T12:13:56Z'), 'Europe/Istanbul')).toBe('2026-11-24T15:13:56+03:00');
+    // Past midnight UTC-wise the local day is the next one.
+    expect(localStamp(new Date('2026-11-24T22:30:05Z'), 'Europe/Istanbul')).toBe('2026-11-25T01:30:05+03:00');
+    expect(localStamp(new Date('2026-01-10T15:00:00Z'), 'America/New_York')).toBe(
+      '2026-01-10T10:00:00-05:00',
+    );
+    expect(localStamp(new Date('2026-07-01T10:00:00Z'), 'Asia/Kolkata')).toBe('2026-07-01T15:30:00+05:30');
+    expect(localStamp(new Date('2026-07-01T10:00:00Z'), 'UTC')).toBe('2026-07-01T10:00:00+00:00');
   });
 });
