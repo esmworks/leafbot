@@ -371,17 +371,27 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
           ? [`connect a new server named "${bot}"`, `connect "${bot}"`, 'connect new servers']
           : ['connect a new server', 'connect this server', 'connect new servers'],
       };
-    case 'routine_create':
+    case 'routine_create': {
+      // `bot` names the bot a manager sets it up for, so the routine's own name is read apart.
+      const routine = str(input.name);
+      const owner = str(input.bot);
+      const trOwner = owner ? `"${owner}" botuna ` : '';
+      const enOwner = owner ? ` for "${owner}"` : '';
       return {
         tr: [
-          bot ? `"${bot}" adında bir rutin` : 'bir rutin',
-          bot ? `"${bot}" rutinini` : 'bu rutini',
+          routine ? `${trOwner}"${routine}" adında bir rutin` : `${trOwner}bir rutin`,
+          routine ? `${trOwner}"${routine}" rutinini` : `${trOwner}bu rutini`,
           SET_UP,
         ],
-        en: bot
-          ? [`set up a routine named "${bot}"`, `set up the routine "${bot}"`, 'set up routines']
-          : ['set up a routine', 'set up this routine', 'set up routines'],
+        en: routine
+          ? [
+              `set up a routine named "${routine}"${enOwner}`,
+              `set up the routine "${routine}"${enOwner}`,
+              'set up routines',
+            ]
+          : [`set up a routine${enOwner}`, `set up this routine${enOwner}`, 'set up routines'],
       };
+    }
     case 'routine_update':
     case 'routine_delete':
     case 'routine_run': {
