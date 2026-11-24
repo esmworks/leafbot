@@ -1,13 +1,15 @@
 import type { Rehearsal, ReplayableRun, Routine } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FlaskConical } from 'lucide-react';
+import { FlaskConical, Scale } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useT, type MessageKey } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
+import { useBots, useClaudeModels } from '@/lib/queries';
 import { clock, rehearsalSeconds, startedBySomething, triggerKey } from '@/lib/rehearsal';
 import { cn } from '@/lib/utils';
 
@@ -63,14 +65,24 @@ export function RoutineRehearsal({
   const running = rehearsals.some((r) => r.status === 'running');
   const typed = prompt.trim();
   const draft = typed !== routine.prompt;
+  // Two models to compare on the same input, the routine's own first.
+  const { data: bots = [] } = useBots();
+  const bot = bots.find((b) => b.id === routine.botId);
+  const claude = bot?.engine !== 'pi';
+  const { data: claudeModels = [] } = useClaudeModels(open && claude);
+  const [compare, setCompare] = useState(false);
+  const [models, setModels] = useState<[string, string]>(['', '']);
+  const pair: [string, string] = [models[0].trim() || routine.model || bot?.model || '', models[1].trim()];
+  const comparable = !!pair[0] && !!pair[1] && pair[0] !== pair[1];
 
   // Rehearsing on the last real inputs at once: each is a run of its own, one after another.
   const lastCount = Math.min(replayable.length, REPLAY_LAST_MAX);
   const start = useMutation({
-    mutationFn: (last?: number) =>
+    mutationFn: ({ last, compared }: { last?: number; compared?: boolean }) =>
       api.rehearseRoutine(routine.id, {
         ...(typed ? { prompt: typed } : {}),
         ...(last ? { replayLast: last } : picked !== NONE ? { replayRunId: picked } : {}),
+        ...(compared ? { models: pair } : {}),
       }),
     onSuccess: (r) => {
       setChosen(r.id);
@@ -132,7 +144,7 @@ export function RoutineRehearsal({
             size="sm"
             className="rounded-full"
             disabled={!typed || start.isPending || running}
-            onClick={() => start.mutate(undefined)}
+            onClick={() => start.mutate({})}
           >
             <FlaskConical className="size-3.5" /> {running ? t('rehearsal.running') : t('rehearsal.run')}
           </Button>
@@ -144,7 +156,7 @@ export function RoutineRehearsal({
                 variant="secondary"
                 className="rounded-full"
                 disabled={!typed || start.isPending || running}
-                onClick={() => start.mutate(lastCount)}
+                onClick={() => start.mutate({ last: lastCount })}
               >
                 <FlaskConical className="size-3.5" /> {t('rehearsal.runLast', { count: lastCount })}
               </Button>
@@ -153,6 +165,70 @@ export function RoutineRehearsal({
               </p>
             </div>
           )}
+          <div className="space-y-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-7 rounded-full px-2 text-xs"
+              onClick={() => setCompare(!compare)}
+              aria-expanded={compare}
+            >
+              <Scale className="size-3.5" /> {t('rehearsal.compare')}
+            </Button>
+            {compare && (
+              <div className="space-y-2 rounded-xl bg-muted/40 p-2.5">
+                <p className="text-xs text-muted-foreground">{t('rehearsal.compareHint')}</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {([0, 1] as const).map((i) => (
+                    <Input
+                      key={i}
+                      value={models[i]}
+                      onChange={(e) =>
+                        setModels((m) => (i === 0 ? [e.target.value, m[1]] : [m[0], e.target.value]))
+                      }
+                      list="rehearsal-model-options"
+                      placeholder={i === 0 && pair[0] ? pair[0] : t('rehearsal.compareModel', { n: i + 1 })}
+                      aria-label={t('rehearsal.compareModel', { n: i + 1 })}
+                      className="h-8 rounded-xl text-sm"
+                    />
+                  ))}
+                  <datalist id="rehearsal-model-options">
+                    {claudeModels
+                      .filter((m) => m.value !== 'default')
+                      .map((m) => (
+                        <option key={m.value} value={m.value} label={m.name || undefined} />
+                      ))}
+                  </datalist>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="rounded-full"
+                    disabled={!typed || !comparable || start.isPending || running}
+                    onClick={() => start.mutate({ compared: true })}
+                  >
+                    <Scale className="size-3.5" /> {t('rehearsal.compareRun')}
+                  </Button>
+                  {offersReplay && lastCount >= 2 && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="rounded-full"
+                      disabled={!typed || !comparable || start.isPending || running}
+                      onClick={() => start.mutate({ last: lastCount, compared: true })}
+                    >
+                      <Scale className="size-3.5" />{' '}
+                      {t('rehearsal.compareLast', { count: lastCount, total: lastCount * 2 })}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           {rehearsals.length > 1 && (
             <ul className="flex flex-wrap gap-1.5" aria-label={t('rehearsal.earlier')}>
               {rehearsals.map((r) => (
@@ -171,13 +247,20 @@ export function RoutineRehearsal({
               ))}
             </ul>
           )}
-          {shown?.batchId && (
-            <Batch
-              rehearsals={rehearsals.filter((r) => r.batchId === shown.batchId)}
-              shown={shown.id}
-              onPick={setChosen}
-            />
-          )}
+          {shown?.batchId &&
+            (shown.model ? (
+              <Comparison
+                rehearsals={rehearsals.filter((r) => r.batchId === shown.batchId)}
+                shown={shown.id}
+                onPick={setChosen}
+              />
+            ) : (
+              <Batch
+                rehearsals={rehearsals.filter((r) => r.batchId === shown.batchId)}
+                shown={shown.id}
+                onPick={setChosen}
+              />
+            ))}
           {shown && <Result rehearsal={shown} />}
           <p className="text-xs text-muted-foreground">{t('rehearsal.kept')}</p>
         </div>
@@ -263,6 +346,113 @@ function Batch({
   );
 }
 
+/**
+ * The same inputs on two models, side by side: for each input, each model's status, real cost and
+ * time, the steps it would have taken and the start of its report, with each model's totals. It
+ * shows what happened, not a score: which answer is better is for the person to read.
+ */
+function Comparison({
+  rehearsals,
+  shown,
+  onPick,
+}: {
+  rehearsals: Rehearsal[];
+  shown: string;
+  onPick(id: string): void;
+}) {
+  const t = useT();
+  const f = useFormat();
+  // The models in the order they were asked, and the inputs oldest first.
+  const ordered = [...rehearsals].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  const models = [...new Set(ordered.map((r) => r.model ?? ''))];
+  const inputs = new Map<string, Rehearsal[]>();
+  for (const r of ordered) {
+    const key = r.replay?.runId ?? '';
+    inputs.set(key, [...(inputs.get(key) ?? []), r]);
+  }
+  const rows = [...inputs.values()].sort((a, b) =>
+    (a[0]!.replay?.startedAt ?? '').localeCompare(b[0]!.replay?.startedAt ?? ''),
+  );
+  const totals = models.map((m) => {
+    const of = ordered.filter((r) => (r.model ?? '') === m);
+    const priced = of.filter((r) => r.costUsd !== null);
+    return {
+      model: m,
+      cost: priced.reduce((n, r) => n + r.costUsd!, 0),
+      unpriced: of.length - priced.length,
+      seconds: of.reduce((n, r) => n + (rehearsalSeconds(r) ?? 0), 0),
+      would: of.reduce((n, r) => n + r.steps.filter((s) => s.kind === 'would').length, 0),
+    };
+  });
+  return (
+    <div className="space-y-2 border-t pt-3">
+      <div className="text-xs font-medium text-muted-foreground">
+        {t('rehearsal.compareTitle', { count: rows.length })}
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        {totals.map((x) => (
+          <div key={x.model} className="min-w-0 rounded-xl bg-muted/40 px-2.5 py-1.5 text-xs">
+            <div className="truncate font-medium text-foreground">{x.model}</div>
+            <div className="text-muted-foreground">
+              {t('rehearsal.compareTotal', {
+                cost: f.usd(x.cost),
+                time: clock(x.seconds),
+                would: x.would,
+              })}
+              {x.unpriced > 0 && ` · ${t('rehearsal.compareUnpriced', { count: x.unpriced })}`}
+            </div>
+          </div>
+        ))}
+      </div>
+      <ul className="space-y-2">
+        {rows.map((row) => {
+          const first = row[0]!;
+          return (
+            <li key={first.replay?.runId ?? 'none'} className="space-y-1">
+              <div className="text-xs text-muted-foreground">
+                {first.replay
+                  ? t('rehearsal.batchInput', { when: f.dayLabel(first.replay.startedAt) })
+                  : t('rehearsal.compareNoInput')}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {models.map((m) => {
+                  const r = row.find((x) => (x.model ?? '') === m);
+                  if (!r) return <div key={m} />;
+                  const took = rehearsalSeconds(r);
+                  const would = r.steps.filter((s) => s.kind === 'would').length;
+                  return (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => onPick(r.id)}
+                      className={cn(
+                        'min-w-0 rounded-xl border px-2.5 py-1.5 text-start hover:bg-accent',
+                        r.id === shown && 'bg-accent',
+                      )}
+                    >
+                      <div className="flex flex-wrap gap-x-2 text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          {t(`rehearsal.status.${r.status}` as MessageKey)}
+                        </span>
+                        {took !== null && <span>{clock(took)}</span>}
+                        {r.costUsd !== null && <span>{f.usd(r.costUsd)}</span>}
+                        <span>{t('rehearsal.batchWould', { count: would })}</span>
+                      </div>
+                      <p className="mt-0.5 line-clamp-3 text-sm break-words">
+                        {r.error ?? (r.report.trim() || t('rehearsal.noReport'))}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function Result({ rehearsal: r }: { rehearsal: Rehearsal }) {
   const t = useT();
   const f = useFormat();
@@ -274,6 +464,7 @@ function Result({ rehearsal: r }: { rehearsal: Rehearsal }) {
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
         <span className="font-medium text-foreground">{t(`rehearsal.status.${r.status}` as MessageKey)}</span>
         {r.draft && <span>{t('rehearsal.draftTag')}</span>}
+        {r.model && <span>{t('rehearsal.modelTag', { model: r.model })}</span>}
         {took !== null && <span>{t('rehearsal.duration', { time: clock(took) })}</span>}
         {r.costUsd !== null && <span>{t('rehearsal.cost', { cost: f.usd(r.costUsd) })}</span>}
       </div>

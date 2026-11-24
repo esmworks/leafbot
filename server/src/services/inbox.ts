@@ -209,15 +209,35 @@ export class Inbox {
       for (const c of waiting) await s.approvals.redirect(c.id, input.text, input.userId ?? null);
       return { message, created: true };
     }
+    // A reply a routine's run waits for: the run takes it, and it starts no turn of its own.
+    const answersRun = answered?.props.routineRunId;
+    const taken =
+      !input.guest &&
+      !forwarded &&
+      (await s.routines.takeChatReply({
+        threadId,
+        botId: bot.id,
+        text,
+        userId: input.userId ?? null,
+        via: typeof extra.via === 'string' ? extra.via : null,
+        outside: chatAnswer ? 'whatsapp' : null,
+        answersRun: typeof answersRun === 'string' ? answersRun : null,
+        inMain: thread.kind === 'user' && !!input.userId && thread.userId === input.userId,
+        from:
+          typeof extra.whatsappReply === 'string'
+            ? extra.whatsappReply
+            : input.author?.trim() || (input.userId ? await this.nameOf(input.userId) : ''),
+      }));
     const { message, created } = await s.threads.addMessage({
       ...plain,
       props: {
         ...extra,
         ...(files.length ? { files } : {}),
         ...(answered ? { replyTo: replyQuote(answered) } : {}),
-        ...(queued ? { queued: true } : {}),
+        ...(queued && !taken ? { queued: true } : {}),
       },
     });
+    if (taken) return { message, created };
     if (!created) return { message, created };
     // A conversation is named after the words its first message opens with.
     if (!thread.title) await s.threads.rename(threadId, titleFrom(text) || files[0]!.name.slice(0, 60), true);

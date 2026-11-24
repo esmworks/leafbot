@@ -53,7 +53,7 @@ export type StepForm = (
   | {
       id: string;
       kind: 'wait';
-      on: 'time' | 'webhook' | 'email';
+      on: 'time' | 'webhook' | 'email' | 'chat';
       minutes: number;
       filter: string;
       timeoutDays: number;
@@ -62,7 +62,7 @@ export type StepForm = (
   | { id: string; kind: 'extract'; fields: string; onError?: string }
 ) & { when?: RoutineStepWhen | null; next?: string };
 
-const WAIT_ON = ['time', 'webhook', 'email'] as const;
+const WAIT_ON = ['time', 'webhook', 'email', 'chat'] as const;
 
 /** A whole number typed into a field, kept between `min` and `max`. */
 const clamp = (raw: string, min: number, max: number) =>
@@ -851,12 +851,24 @@ function WaitFields({
             value={step.filter}
             onChange={(e) => onChange({ ...step, filter: e.target.value })}
             rows={2}
-            placeholder={t(step.on === 'webhook' ? 'routine.waitFilterHook' : 'routine.waitFilterMail')}
+            placeholder={t(
+              step.on === 'webhook'
+                ? 'routine.waitFilterHook'
+                : step.on === 'chat'
+                  ? 'routine.waitFilterChat'
+                  : 'routine.waitFilterMail',
+            )}
             className="scroll-thin max-h-40 overflow-y-auto rounded-xl text-sm"
             aria-label={t('routine.waitFilter')}
           />
           <p className="text-xs text-muted-foreground">
-            {t(step.on === 'webhook' ? 'routine.waitHookHint' : 'routine.waitMailHint')}
+            {t(
+              step.on === 'webhook'
+                ? 'routine.waitHookHint'
+                : step.on === 'chat'
+                  ? 'routine.waitChatHint'
+                  : 'routine.waitMailHint',
+            )}
           </p>
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
             <span className="flex-1">{t('routine.stepTimeoutDays')}</span>
