@@ -123,10 +123,7 @@ describe('rutin talimat geçmişi', () => {
     await runTimes(r.id, 1);
     const [now, before] = (await t.api<RoutineRevision[]>('GET', `/api/routines/${r.id}/revisions`)).body;
     // The fake engine's replies cost nothing; each run's turn is priced here instead.
-    await t.db.db
-      .update(schema.turns)
-      .set({ costUsd: 0.01 })
-      .where(isNotNull(schema.turns.routineRunId));
+    await t.db.db.update(schema.turns).set({ costUsd: 0.01 }).where(isNotNull(schema.turns.routineRunId));
     const v = await versions(r.id);
     expect(v.versions[before!.id]).toMatchObject({ total: 2, ok: 2, failed: 0, unpricedRuns: 0 });
     expect(v.versions[before!.id]!.costUsd).toBeCloseTo(0.02);
