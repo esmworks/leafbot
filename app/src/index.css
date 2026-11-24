@@ -490,7 +490,10 @@
  * and the sidebar frosts it; everything else (cards, pills, dialogs) keeps its own fill. A bot's
  * bubbles let the picture show through as its cards do, so the chat reads as one surface; the
  * outline is drawn inside, so the bubble keeps its size. The person's own bubble, in the bot's
- * colour, lets only a little through, so its white text still reads over a bright picture.
+ * colour, lets only a little through, so its white text still reads over a bright picture. Small
+ * lines written straight on the chat (a routine's name, a quoted reply, the day, the plan meter)
+ * get a frosted backing of their own, or a bright picture swallows their grey text; a hovered
+ * button keeps its own hover fill.
  */
 :root[data-wallpaper] .wallpaper-clear {
   background-color: transparent;
@@ -506,6 +509,11 @@
 }
 :root[data-wallpaper] .wallpaper-tint {
   background-color: color-mix(in oklab, var(--tint-fill) 80%, transparent);
+}
+:root[data-wallpaper] .wallpaper-chip:not(:hover) {
+  background-color: color-mix(in oklab, var(--background) 75%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(12px) saturate(1.2);
 }
 :root[data-wallpaper] .wallpaper-fade {
   background-image: none;

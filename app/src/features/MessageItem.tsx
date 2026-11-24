@@ -141,13 +141,13 @@ export function MessageItem({
         <div className="group/own flex flex-col items-end gap-1" data-message-id={m.id}>
           {quote && <QuoteLine quote={quote} threadId={m.threadId} />}
           {m.author.startsWith('ticket:') && (
-            <span className="flex items-center gap-1 px-2 text-xs text-muted-foreground">
+            <span className="wallpaper-chip flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs text-muted-foreground">
               <KanbanSquare className="size-3" />
               {t('message.ticketNamed', { number: String(m.props.ticketNumber ?? '') })}
             </span>
           )}
           {m.author.startsWith('routine:') && (
-            <span className="flex items-center gap-1 px-2 text-xs text-muted-foreground">
+            <span className="wallpaper-chip flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs text-muted-foreground">
               <Clock className="size-3" />
               {typeof m.props.routineName === 'string'
                 ? t('message.routineNamed', { name: m.props.routineName })
@@ -736,7 +736,7 @@ function QuoteLine({ quote, threadId }: { quote: ReplyQuote; threadId: string })
       type="button"
       onClick={jump}
       aria-label={t('message.replyTo', { text: quote.text })}
-      className="flex max-w-[80%] items-start gap-1.5 rounded-2xl px-3 py-1 text-start text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      className="wallpaper-chip flex max-w-[80%] items-start gap-1.5 rounded-2xl px-3 py-1 text-start text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
     >
       <Reply className="mt-0.5 size-3.5 shrink-0" />
       <span className="line-clamp-2 [overflow-wrap:anywhere]">{quote.text}</span>
@@ -1324,13 +1324,17 @@ function RoutineReportLine({ m }: { m: Message }) {
     </>
   );
   if (!run)
-    return <span className="mb-1 flex items-center gap-1 text-xs text-muted-foreground">{inner}</span>;
+    return (
+      <span className="wallpaper-chip -mx-2 mb-1 flex w-fit items-center gap-1 rounded-lg px-2 py-0.5 text-xs text-muted-foreground">
+        {inner}
+      </span>
+    );
   return (
     <button
       type="button"
       onClick={() => useUi.getState().selectThread(run)}
       title={t('message.openRoutineRun')}
-      className="mb-1 flex w-fit items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+      className="wallpaper-chip -mx-2 mb-1 flex w-fit items-center gap-1 rounded-lg px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground"
     >
       {inner}
     </button>
@@ -1455,7 +1459,7 @@ function Marker({ m, bots }: { m: Message; bots: Map<string, Bot> }) {
     <div className="flex flex-col items-center">
       <button
         onClick={() => setChosen(!open)}
-        className="flex items-center gap-2 rounded-full px-3 py-1 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        className="wallpaper-chip flex items-center gap-2 rounded-full px-3 py-1 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       >
         <span>{t('message.count', { count: said || props.count || 1 })}</span>
         <span>·</span>
