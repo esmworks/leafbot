@@ -137,6 +137,12 @@ describe('a routine that goes back, or on after a no', () => {
       },
       { id: 'bekle', kind: 'wait', on: 'time', minutes: 30, next: 'oku' },
     ]);
+    // The routine's own schedule is kept off the clock here: a slot that came round while this run
+    // waited would read the page too, and whether it does depends on the moment it starts.
+    await t.db.db
+      .update(schema.routines)
+      .set({ nextRunAt: new Date(t.now.value.getTime() + 7 * 86_400_000) })
+      .where(eq(schema.routines.id, r.id));
     const run = await runOnce(r);
     expect(run.status).toBe('waiting');
     for (let i = 0; i < 2; i++) {
@@ -144,7 +150,6 @@ describe('a routine that goes back, or on after a no', () => {
       await t.services.routines.tick();
       await settle();
     }
-    // The routine's own schedule came round meanwhile; this run is the one that waited.
     const done = (await runs(r.id)).find((x) => x.id === run.id);
     expect(done!.status).toBe('done');
     expect(web.asked).toBe(3);
