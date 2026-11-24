@@ -1,10 +1,10 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Routine, RoutineRun, Thread } from '@leafbot/shared';
+import type { Approval, Routine, RoutineRun, Thread } from '@leafbot/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
 import { patternRegex, toolAnswerHolds } from '../src/services/routine-conditions';
-import { testServer, type TestServer } from './helpers';
+import { testServer, waitFor, type TestServer } from './helpers';
 
 /** A routine that starts only when something holds, looked at with no AI before each scheduled run. */
 describe('routine condition', () => {
@@ -117,6 +117,10 @@ describe('routine condition', () => {
     await tick();
     expect((await t.messages((await main(bot.id)).id)).length).toBe(before);
     expect((await runs(r.id))[0]).toMatchObject({ status: 'error' });
+    // A source that cannot be read is not the routine's own failure: it is not switched off.
+    for (let i = 0; i < 11; i++) await tick();
+    expect((await t.services.routines.get(r.id)).enabled).toBe(true);
+    expect(await runs(r.id)).toHaveLength(1);
   });
 
   it('looks again until its time the same day, then keeps to its schedule', async () => {
@@ -146,6 +150,11 @@ describe('routine condition', () => {
   it('is left aside by a run started by hand, and refuses a source nothing collects', async () => {
     const bot = await t.bot();
     const r = await make(bot.id, { condition: { checks: [{ kind: 'files', pattern: '*.pdf' }] } });
+    // A change that does not name the condition, as the phone sends it, keeps it.
+    expect((await t.api('PATCH', `/api/routines/${r.id}`, { name: 'Brifing 2' })).status).toBe(200);
+    expect((await t.services.routines.get(r.id)).condition).toMatchObject({
+      checks: [{ kind: 'files', pattern: '*.pdf' }],
+    });
     const asked = t.engine.requests.length;
     await t.api('POST', `/api/routines/${r.id}/run`);
     await t.services.turns.idle();
@@ -219,6 +228,31 @@ describe('routine condition', () => {
     expect(texts).toContain('şimdi çalışmaya başladı');
     expect(t.engine.requests.length).toBeGreaterThan(asked + 1);
     expect((await runs(r.id))[0]).toMatchObject({ status: 'done' });
+  });
+
+  it('asks the person on a card before a bot sets a condition that reads WhatsApp', async () => {
+    const bot = await t.bot({ permissionMode: 'auto' });
+    const thread = await main(bot.id);
+    await t.send(
+      thread.id,
+      `[araç:routine_create ${JSON.stringify({
+        name: 'Sipariş',
+        prompt: 'Siparişleri topla',
+        schedule: { type: 'daily', time: '09:00' },
+        condition: { checks: [{ kind: 'whatsapp', filter: 'text~=sipariş' }] },
+      })}]`,
+    );
+    const card = await waitFor(async () =>
+      (await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body.find(
+        (a) => a.kind === 'question',
+      ),
+    );
+    expect(card.summary).toContain('WhatsApp');
+    expect(card.summary).toContain('text~=sipariş');
+    await t.api('POST', `/api/approvals/${card.id}`, { decision: 'allow', answer: 'Reddet' });
+    await t.services.turns.idle();
+    expect((await t.messages(thread.id)).at(-1)!.text).toContain('izin verilmedi');
+    expect(await t.services.routines.list(bot.id)).toHaveLength(0);
   });
 
   it('reads file patterns and app answers as a person means them', () => {

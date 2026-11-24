@@ -112,6 +112,20 @@ describe('routine tools with steps', () => {
       'opsu kullanılabilir',
     );
     expect((await mine(bot.id)).model).toBe('claude-haiku-5-5');
+    // A longer id is left to the engine, and a step it already runs on never blocks a change.
+    await t.services.routines.update((await mine(bot.id)).id, {
+      steps: [{ id: 'a', kind: 'agent', prompt: 'Derle', model: 'eskimodel' } as never],
+    });
+    expect(
+      await ask(thread.id, 'routine_update', {
+        routine: 'Brifing',
+        model: 'sonnet[1m]',
+        steps: [
+          { id: 'a', kind: 'agent', prompt: 'Derle', model: 'eskimodel' },
+          { kind: 'agent', prompt: 'Gözden geçir', model: 'us.anthropic.claude-sonnet-5-5' },
+        ],
+      }),
+    ).toContain('rutini güncellendi');
   });
 
   it('asks the person before an approval step is taken out, even at full access', async () => {

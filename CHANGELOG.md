@@ -13,8 +13,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
   condition does not hold, no model is asked: the run is shown as skipped, a row of such slots stays one line, and an
   optional note you wrote is posted as it is. It can look again every few minutes until a time of day, then keeps to
   its schedule. When a check cannot be read (an app down, a table gone), the run is an error and the note is not
-  sent, so a failure never reads as "nothing came". A run you start by hand does not wait. Set it in the routine's
-  window under "Only when something holds", or ask the bot. The server migrates its database on start.
+  sent, so a failure never reads as "nothing came". A run you start by hand, or one an event starts (a mail, a
+  webhook, a table row), does not wait. Set it in the routine's window under "Only when something holds", or ask the
+  bot; a bot asks you on a card before a condition reads WhatsApp. The server migrates its database on start.
 - A bot can start one of its routines at once, or rehearse it, when you ask it to try a routine.
 - A bot that is asked to connect an app you already connected, but that is not open to it, asks you on a card to
   open it to that bot too instead of connecting it again; it works with your sign-in. A team connection is opened

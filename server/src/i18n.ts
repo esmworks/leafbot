@@ -1187,6 +1187,10 @@ const tr = {
   'tool.routineReadRuns': 'Son çalışmalar:',
   'tool.routineReadRun': '- {status} ({at}), neden: {reason}; adımlar: {steps}',
   'tool.routineBadStep': '{n}. adım kurulamadı: {issues}',
+  'tool.routineConditionWhatsappAsk':
+    '"{name}" rutini, zamanlanmış her çalışmadan önce yapay zekâsız olarak bütün WhatsApp mesajlarında şuna bakacak: {filter}. İzin veriyor musun?',
+  'tool.routineConditionWhatsappNo':
+    "WhatsApp'a bakan koşula izin verilmedi; rutin kurulmadı ya da değişmedi.",
   'tool.routineBadCondition': 'Koşul kurulamadı: {issues}',
   'tool.routineReadCondition': 'Koşul şu an (yapay zekâsız bakıldı): {outcome}; {lines}',
   'tool.routineCondition_holds': 'tutuyor',
@@ -3245,6 +3249,10 @@ const en: Catalog<ServerKey> = {
   'tool.routineReadRuns': 'Latest runs:',
   'tool.routineReadRun': '- {status} ({at}), reason: {reason}; steps: {steps}',
   'tool.routineBadStep': 'Step {n} could not be set up: {issues}',
+  'tool.routineConditionWhatsappAsk':
+    'Before each scheduled run, the routine "{name}" will look through all WhatsApp messages with no AI for: {filter}. Do you allow it?',
+  'tool.routineConditionWhatsappNo':
+    'A condition that reads WhatsApp was not allowed; the routine was not set up or changed.',
   'tool.routineBadCondition': 'The condition could not be set up: {issues}',
   'tool.routineReadCondition': 'The condition now (looked at with no AI): {outcome}; {lines}',
   'tool.routineCondition_holds': 'holds',

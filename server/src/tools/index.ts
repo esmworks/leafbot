@@ -193,11 +193,18 @@ const slackReaction = (raw: string): string | null => {
 };
 
 /** Whether a step of the routine waits for its webhook to be called. */
+/** The short model names the Claude engine takes. */
+const CLAUDE_NAMES = new Set(['default', 'best', 'opus', 'sonnet', 'haiku', 'fable', 'opusplan']);
 /**
- * A model the Claude engine takes: one of its names, or a full model id, either with the `[1m]`
- * long-context mark it allows.
+ * Whether the Claude engine may take this model. A single word must be one of its names, which
+ * catches a misspelt one; a longer id (a full model id, a cloud provider's) is left to the engine,
+ * since a list here would turn away a new release. A `provider/model` is Pi's, not Claude's.
  */
-const CLAUDE_MODEL = /^(?:opus|sonnet|haiku|default|opusplan|claude-[a-z0-9.-]+)(?:\[1m\])?$/i;
+const claudeModelOk = (model: string) => {
+  if (model.includes('/')) return false;
+  const bare = model.replace(/\[1m\]$/i, '');
+  return !/^[a-z]+$/i.test(bare) || CLAUDE_NAMES.has(bare.toLowerCase());
+};
 /** The models a routine's agent steps name. */
 const stepModels = (steps: readonly RoutineStep[]) =>
   steps.flatMap((x) => (x.kind === 'agent' && x.model ? [x.model] : []));
@@ -766,7 +773,7 @@ export class ToolFactory {
       if (owner.engine === 'acp') return null;
       for (const model of named) {
         if (owner.engine === 'claude') {
-          if (!CLAUDE_MODEL.test(model)) return t('tool.unknownModel', { model });
+          if (!claudeModelOk(model)) return t('tool.unknownModel', { model });
           continue;
         }
         const cut = model.indexOf('/');
@@ -784,6 +791,8 @@ export class ToolFactory {
     const conditionFrom = async (
       c: z.infer<typeof ConditionInput>,
       botId: string,
+      name: string,
+      before: RoutineCondition | null = null,
     ): Promise<RoutineCondition | null | string> => {
       if (!c.checks.length) return null;
       const checks: Record<string, unknown>[] = [];
@@ -815,7 +824,28 @@ export class ToolFactory {
         recheckUntil: c.recheck_until,
         otherwise: c.otherwise,
       });
-      if (parsed.success) return parsed.data;
+      if (parsed.success) {
+        // WhatsApp messages are read only with the person's yes on a card, as whatsapp_follow
+        // asks it; a check that reads them anew is asked about whatever the bot may do alone.
+        const read = (x: RoutineCondition | null) =>
+          (x?.checks ?? []).flatMap((k) => (k.kind === 'whatsapp' ? [`${k.filter}\n${k.withinHours}`] : []));
+        const had = new Set(read(before));
+        const fresh = parsed.data.checks.filter(
+          (k) => k.kind === 'whatsapp' && !had.has(`${k.filter}\n${k.withinHours}`),
+        );
+        if (fresh.length) {
+          const filters = fresh.map(
+            (k) => (k.kind === 'whatsapp' && k.filter.trim().replace(/\n/g, ', ')) || '*',
+          );
+          const ok = await askOnCard(
+            t('tool.routineConditionWhatsappAsk', { name, filter: filters.join('; ') }),
+            { routine: name, condition: c },
+            'routine_update',
+          );
+          if (ok !== true) return refusedOnCard(t('tool.routineConditionWhatsappNo'), ok);
+        }
+        return parsed.data;
+      }
       const issues = parsed.error.issues.map(
         (i) => `${i.path.join('.')}: ${isServerKey(i.message) ? t(i.message) : i.message}`,
       );
@@ -968,7 +998,9 @@ export class ToolFactory {
           if (there.some((c) => c.allBots || c.botIds.includes(bot.id)))
             return t('tool.appConnected', { app: entry.name });
           // Connected already but closed to this bot: a second sign-in would only duplicate it.
-          const closed = there.find((c) => c.url);
+          // Pointed to app_add only when app_add may open it, as it would otherwise just say so.
+          const manages = managesServer((await s.access.viewerOf(person)).role);
+          const closed = !team && there.find((c) => c.url && (c.userId ? c.userId === person : manages));
           if (closed) return t('tool.appClosed', { app: entry.name, url: closed.url });
           await s.threads.addMessage({
             threadId: thread.id,
@@ -1133,7 +1165,7 @@ export class ToolFactory {
           if (wrongModel) return wrongModel;
           const reaction = slackReaction(a.slack_reaction ?? '');
           if (reaction === null) return t('tool.routineBadReaction', { reaction: a.slack_reaction ?? '' });
-          const condition = a.condition ? await conditionFrom(a.condition, bot.id) : null;
+          const condition = a.condition ? await conditionFrom(a.condition, bot.id, a.name.trim()) : null;
           if (typeof condition === 'string') return condition;
           const settings = await s.settings.all();
           const r = await s.routines.create(
@@ -1353,13 +1385,20 @@ export class ToolFactory {
           if (typeof watched === 'string') return watched;
           const steps = a.steps ? stepsFrom(a.steps, t) : undefined;
           if (typeof steps === 'string') return steps;
-          // Only the models this change sends are looked at; the routine's own was taken before.
-          const wrongModel = await routineModelProblem(r.botId, [a.model ?? '', ...stepModels(steps ?? [])]);
+          // Only a model the routine does not have yet is looked at: one it runs on already stays
+          // usable, so a step kept as it was never blocks a change to another one.
+          const had = new Set([r.model, ...stepModels(r.steps ?? [])]);
+          const wrongModel = await routineModelProblem(
+            r.botId,
+            [a.model ?? '', ...stepModels(steps ?? [])].filter((m) => !had.has(m)),
+          );
           if (wrongModel) return wrongModel;
           const reaction = a.slack_reaction === undefined ? undefined : slackReaction(a.slack_reaction);
           if (reaction === null) return t('tool.routineBadReaction', { reaction: a.slack_reaction ?? '' });
           // The condition reads the routine's own bot's tables and apps, which may be another one for a manager.
-          const condition = a.condition ? await conditionFrom(a.condition, r.botId) : undefined;
+          const condition = a.condition
+            ? await conditionFrom(a.condition, r.botId, r.name, r.condition ?? null)
+            : undefined;
           if (typeof condition === 'string') return condition;
           if (a.webhook === false && waitsOnHook(steps ?? r.steps ?? [])) return t('tool.routineHookNeeded');
           // A step that asks the person is their hold on what the routine does: one taken away or
