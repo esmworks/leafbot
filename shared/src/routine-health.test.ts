@@ -82,6 +82,8 @@ describe('routine health', () => {
     const found = healthFindings(input({ routine: { steps }, runs: many(3, 'failed'), steps: stepRuns }));
     expect(found).toContainEqual({ id: 'stepFails', step: 1, count: 3 });
     expect(found).toContainEqual({ id: 'waitTimeouts', step: 2, count: 3 });
+    const handled: RoutineStep[] = [{ ...steps[0], onError: 'b' } as RoutineStep, steps[1]!];
+    expect(ids(input({ routine: { steps: handled }, steps: stepRuns }))).not.toContain('stepFails');
   });
 
   it('leaves out a wait already at its longest, and a wait for a time', () => {

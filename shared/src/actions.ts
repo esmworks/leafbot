@@ -50,6 +50,11 @@ function stepsText(raw: unknown, locale: Locale): string | null {
         return `${n} ${String(x.kind)}`;
     }
   };
+  // A step the run goes on at, by its number on the card; a name the steps do not have, as written.
+  const place = (id: unknown) => {
+    const at = raw.findIndex((y) => y && typeof y === 'object' && (y as Record<string, unknown>).id === id);
+    return at >= 0 ? `${at + 1}.` : `"${cut(String(id ?? ''))}"`;
+  };
   // What a step's condition looks for, after its line: the person sees when it is passed over.
   const when = (x: Record<string, unknown>) => {
     const w = x.when && typeof x.when === 'object' ? (x.when as Record<string, unknown>) : null;
@@ -67,15 +72,44 @@ function stepsText(raw: unknown, locale: Locale): string | null {
         : no
           ? 'if nothing comes from the step before'
           : 'if something comes from the step before';
-    const end = w.otherwise === 'end' ? (tr ? '; yoksa çalışma biter' : '; otherwise the run ends') : '';
+    const end =
+      w.otherwise === 'end'
+        ? tr
+          ? '; yoksa çalışma biter'
+          : '; otherwise the run ends'
+        : w.otherwise === 'goto'
+          ? tr
+            ? `; yoksa ${place(w.goto)} adıma geçer`
+            : `; otherwise on to step ${place(w.goto)}`
+          : '';
     return ` (${tr ? 'yalnız ' : 'only '}${test}${end})`;
+  };
+  // Where the run goes after the step and when it fails, so the person sees each branch.
+  const ways = (x: Record<string, unknown>) => {
+    const next = str(x.next);
+    const failed = str(x.on_error);
+    const after = !next
+      ? ''
+      : next === 'end'
+        ? tr
+          ? ' → sonra çalışma biter'
+          : ' → then the run ends'
+        : tr
+          ? ` → sonra ${place(next)} adım`
+          : ` → then step ${place(next)}`;
+    const onError = failed
+      ? tr
+        ? ` → olmazsa ${place(failed)} adım`
+        : ` → if it fails, step ${place(failed)}`
+      : '';
+    return after + onError;
   };
   const head = tr ? 'Adımlar:' : 'Steps:';
   return [
     head,
     ...raw.map((x, i) => {
       const step = x && typeof x === 'object' ? (x as Record<string, unknown>) : {};
-      return line(step, i) + when(step);
+      return line(step, i) + when(step) + ways(step);
     }),
   ].join('\n');
 }

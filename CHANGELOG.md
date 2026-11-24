@@ -16,6 +16,14 @@ version is 0.x, a minor release may change the data format or the API; the serve
   only as far as its permissions allow. A finding you hide comes back only when the runs after that meet it again.
   Settings → Routines shows each routine's health and can list only those needing attention, and Today says how many
   have a problem.
+- A routine's steps can branch. When a step's condition does not hold, the run can go on at a later step instead
+  of only skipping it or ending; after a step ends, the run can end there or go on at a later step, so a "yes"
+  branch does not run into the "no" branch after it; and when a bot step really fails, or the bot says it could not
+  do it, the run can go on at a later step with why it failed (a backup source, or a note that it did not work)
+  instead of stopping. Ways only go forward. Steps a run goes past show as not on its way, and the flow draws each
+  way as a labelled line, with the way the latest run took in colour. Set them on each step in the routine's window,
+  in the list or the flow, or ask the bot; the approval card lists them, and a new way past an approval step is
+  asked about. A failure the routine handles this way does not count toward switching it off.
 - A bot can delete finished tickets (done or won't do) from the board when you ask; open work stays until it is
   set to won't do. Taking the bot's turn back puts the tickets back with their comments.
 - A routine's step can run only when what the step before ended with has (or lacks) a text, passes a JSON filter,

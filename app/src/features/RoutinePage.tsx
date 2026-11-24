@@ -7,8 +7,10 @@ import {
   nextRun,
   parseCron,
   ROUTINE_APPROVAL_MAX_DAYS,
+  ROUTINE_STEP_END,
   ROUTINE_WAIT_MAX_MINUTES,
   SHORT_DAY_NAMES,
+  stepRoutes,
   type FlowLayout,
   type Routine,
   type RoutineCondition,
@@ -74,49 +76,70 @@ const stepWhen = z
     contains: z.string().max(500),
     filter: z.string().max(2000),
     absent: z.boolean(),
-    otherwise: z.enum(['skip', 'end']),
+    otherwise: z.enum(['skip', 'end', 'goto']),
+    goto: z.string().optional(),
   })
   .nullable()
   .optional();
+/** Where the run goes after the step: empty, the step after it; `end`, or a later step's id. */
+const stepNext = z.string().optional();
 
-const Form = z.object({
+export const Form = z.object({
   name: z.string().trim().min(1, 'routine.nameRequired').max(80),
   prompt: z.string().trim().min(1, 'routine.promptRequired').max(20_000),
   /** What it does after its instruction, in order. */
-  steps: z.array(
-    z.discriminatedUnion('kind', [
-      z.object({
-        id: z.string(),
-        kind: z.literal('agent'),
-        prompt: z.string().trim().min(1, 'routine.stepPromptRequired').max(20_000),
-        model: z.string().max(200),
-        when: stepWhen,
-      }),
-      z.object({
-        id: z.string(),
-        kind: z.literal('approval'),
-        question: z.string().trim().min(1, 'routine.stepQuestionRequired').max(2000),
-        timeoutDays: z.number().int().min(1).max(ROUTINE_APPROVAL_MAX_DAYS),
-        when: stepWhen,
-      }),
-      z.object({
-        id: z.string(),
-        kind: z.literal('notify'),
-        text: z.string().max(4000),
-        withBefore: z.boolean(),
-        when: stepWhen,
-      }),
-      z.object({
-        id: z.string(),
-        kind: z.literal('wait'),
-        on: z.enum(['time', 'webhook', 'email']),
-        minutes: z.number().int().min(1).max(ROUTINE_WAIT_MAX_MINUTES),
-        filter: z.string().max(2000),
-        timeoutDays: z.number().int().min(1).max(ROUTINE_APPROVAL_MAX_DAYS),
-        when: stepWhen,
-      }),
-    ]),
-  ),
+  steps: z
+    .array(
+      z.discriminatedUnion('kind', [
+        z.object({
+          id: z.string(),
+          kind: z.literal('agent'),
+          prompt: z.string().trim().min(1, 'routine.stepPromptRequired').max(20_000),
+          model: z.string().max(200),
+          when: stepWhen,
+          next: stepNext,
+          onError: z.string().optional(),
+        }),
+        z.object({
+          id: z.string(),
+          kind: z.literal('approval'),
+          question: z.string().trim().min(1, 'routine.stepQuestionRequired').max(2000),
+          timeoutDays: z.number().int().min(1).max(ROUTINE_APPROVAL_MAX_DAYS),
+          when: stepWhen,
+          next: stepNext,
+        }),
+        z.object({
+          id: z.string(),
+          kind: z.literal('notify'),
+          text: z.string().max(4000),
+          withBefore: z.boolean(),
+          when: stepWhen,
+          next: stepNext,
+        }),
+        z.object({
+          id: z.string(),
+          kind: z.literal('wait'),
+          on: z.enum(['time', 'webhook', 'email']),
+          minutes: z.number().int().min(1).max(ROUTINE_WAIT_MAX_MINUTES),
+          filter: z.string().max(2000),
+          timeoutDays: z.number().int().min(1).max(ROUTINE_APPROVAL_MAX_DAYS),
+          when: stepWhen,
+          next: stepNext,
+        }),
+      ]),
+    )
+    // A way to a step that is not after its own (moved before it, or taken out) is shown on that step.
+    .superRefine((steps, ctx) => {
+      for (const r of stepRoutes(steps)) {
+        if (r.field === 'next' && r.to === ROUTINE_STEP_END) continue;
+        if (steps.findIndex((x) => x.id === r.to) > r.from) continue;
+        ctx.addIssue({
+          code: 'custom',
+          path: [r.from, r.field === 'otherwise' ? 'when' : r.field],
+          message: 'routine.stepWayInvalid',
+        });
+      }
+    }),
   type: z.enum(['hourly', 'daily', 'weekdays', 'weekly', 'monthly', 'interval', 'cron', 'once']),
   expr: z
     .string()
@@ -198,17 +221,32 @@ function tomorrow(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function fromRoutine(r?: Routine): Form {
+export function fromRoutine(r?: Routine): Form {
   const s = r?.schedule;
   return {
     name: r?.name ?? '',
     prompt: r?.prompt ?? '',
     steps: (r?.steps ?? []).map((x): StepForm =>
       x.kind === 'agent'
-        ? { id: x.id, kind: x.kind, prompt: x.prompt, model: x.model ?? '', when: x.when ?? null }
+        ? {
+            id: x.id,
+            kind: x.kind,
+            prompt: x.prompt,
+            model: x.model ?? '',
+            when: x.when ?? null,
+            next: x.next ?? '',
+            onError: x.onError ?? '',
+          }
         : x.kind === 'approval'
-          ? { id: x.id, kind: x.kind, question: x.question, timeoutDays: x.timeoutDays, when: x.when ?? null }
-          : { ...x },
+          ? {
+              id: x.id,
+              kind: x.kind,
+              question: x.question,
+              timeoutDays: x.timeoutDays,
+              when: x.when ?? null,
+              next: x.next ?? '',
+            }
+          : { ...x, next: x.next ?? '' },
     ),
     type: s?.type ?? 'weekdays',
     time: s && 'time' in s ? s.time : '09:00',
@@ -400,8 +438,21 @@ export function RoutinePage({
   })();
   const stepErrors = (values.steps ?? []).map((_, i) => {
     const e = err.steps?.[i] as
-      { prompt?: { message?: string }; question?: { message?: string } } | undefined;
-    return e?.prompt?.message ?? e?.question?.message;
+      | {
+          prompt?: { message?: string };
+          question?: { message?: string };
+          when?: { message?: string };
+          next?: { message?: string };
+          onError?: { message?: string };
+        }
+      | undefined;
+    return (
+      e?.prompt?.message ??
+      e?.question?.message ??
+      e?.when?.message ??
+      e?.next?.message ??
+      e?.onError?.message
+    );
   });
 
   /**

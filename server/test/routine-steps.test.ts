@@ -1,5 +1,7 @@
 import type { Message, Routine, RoutineRun, Thread } from '@leafbot/shared';
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { schema } from '../src/db';
 import { testServer, waitFor, type TestServer } from './helpers';
 
 describe('a routine with steps', () => {
@@ -236,6 +238,155 @@ describe('a routine with steps', () => {
     expect(sent).toHaveLength(1);
     expect(sent[0]!.text).toContain('ilk iş');
     expect(sent[0]!.text).not.toContain('bitti');
+  });
+
+  it('goes on at the step a failed condition names, passing over the ones in between', async () => {
+    const bot = await t.bot();
+    const r = await make(bot.id, 'ilk iş', [
+      {
+        id: 'evet',
+        kind: 'agent',
+        prompt: 'evet kolu',
+        when: { contains: 'olmayan söz', otherwise: 'goto', goto: 'hayir' },
+        next: 'end',
+      },
+      { id: 'ara', kind: 'agent', prompt: 'ara iş' },
+      { id: 'hayir', kind: 'agent', prompt: 'hayır kolu' },
+    ]);
+    expect(r.steps?.[0]).toMatchObject({ next: 'end', when: { otherwise: 'goto', goto: 'hayir' } });
+    await t.api('POST', `/api/routines/${r.id}/run`);
+    await t.services.turns.idle();
+    const [run] = await runs(r.id);
+    expect(run!.status).toBe('done');
+    expect(run!.steps?.map((s) => s.status)).toEqual(['done', 'skipped', 'skipped', 'done']);
+    expect(run!.steps?.[2]?.reason).toContain('yolda değildi');
+    const asked = t.engine.requests.filter((q) => q.prompt.includes('Akış'));
+    expect(asked).toHaveLength(2);
+    // The step it went on at reads what reached the passed-over step: the instruction's answer.
+    expect(asked[1]!.prompt).toContain('hayır kolu');
+    expect(asked[1]!.prompt).toContain('ilk iş');
+    expect(asked.some((q) => q.prompt.includes('ara iş'))).toBe(false);
+    const sent = await reports(bot.id);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text).toContain('hayır kolu');
+  });
+
+  it('ends the run after a step whose way is to end, reporting what it ended with', async () => {
+    const bot = await t.bot();
+    const r = await make(bot.id, 'ilk iş', [
+      { id: 'evet', kind: 'agent', prompt: 'evet kolu', when: { contains: 'ilk' }, next: 'end' },
+      { id: 'hayir', kind: 'agent', prompt: 'hayır kolu' },
+    ]);
+    await t.api('POST', `/api/routines/${r.id}/run`);
+    await t.services.turns.idle();
+    const [run] = await runs(r.id);
+    expect(run!.status).toBe('done');
+    expect(run!.steps?.map((s) => s.status)).toEqual(['done', 'done', 'skipped']);
+    expect(t.engine.requests.some((q) => q.prompt.includes('hayır kolu'))).toBe(false);
+    const sent = await reports(bot.id);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text).toContain('evet kolu');
+  });
+
+  it('goes on at a later step after one ends, with what it ended with', async () => {
+    const bot = await t.bot();
+    const r = await make(bot.id, 'ilk iş', [
+      { id: 'a', kind: 'agent', prompt: 'ikinci iş', next: 'c' },
+      { id: 'b', kind: 'notify', text: 'atlanan bildirim' },
+      { id: 'c', kind: 'agent', prompt: 'son iş' },
+    ]);
+    await t.api('POST', `/api/routines/${r.id}/run`);
+    await t.services.turns.idle();
+    const [run] = await runs(r.id);
+    expect(run!.steps?.map((s) => s.status)).toEqual(['done', 'done', 'skipped', 'done']);
+    const last = t.engine.requests.filter((q) => q.prompt.includes('Akış')).at(-1)!;
+    expect(last.prompt).toContain('son iş');
+    expect(last.prompt).toContain('ikinci iş');
+    const sent = await reports(bot.id);
+    expect(sent.map((m) => m.text).join('\n')).not.toContain('atlanan bildirim');
+  });
+
+  it('goes on at the step for failures when a bot step fails, with why it failed', async () => {
+    const bot = await t.bot();
+    const r = await make(bot.id, 'ilk iş', [
+      { id: 'a', kind: 'agent', prompt: '[hata] ikinci iş', onError: 'c' },
+      { id: 'b', kind: 'agent', prompt: 'ara iş' },
+      { id: 'c', kind: 'agent', prompt: 'kurtarma işi' },
+    ]);
+    await t.api('POST', `/api/routines/${r.id}/run`);
+    await t.services.turns.idle();
+    const [run] = await runs(r.id);
+    expect(run!.status).toBe('done');
+    expect(run!.reason).toBeNull();
+    expect(run!.steps?.map((s) => s.status)).toEqual(['done', 'error', 'skipped', 'done']);
+    const last = t.engine.requests.filter((q) => q.prompt.includes('Akış')).at(-1)!;
+    expect(last.prompt).toContain('kurtarma işi');
+    expect(last.prompt).toContain('2. adım başarısız oldu');
+    expect(t.engine.requests.some((q) => q.prompt.includes('ara iş'))).toBe(false);
+    expect(await reports(bot.id)).toHaveLength(1);
+    // The failure was handled where the routine said: it does not count toward switching it off.
+    const [row] = await t.services.ctx.db
+      .select({ streak: schema.routines.failureStreak })
+      .from(schema.routines)
+      .where(eq(schema.routines.id, r.id));
+    expect(row!.streak).toBe(0);
+  });
+
+  it('takes the way for failures when the bot says it could not do the step', async () => {
+    const bot = await t.bot();
+    const r = await make(bot.id, 'ilk iş', [
+      { id: 'a', kind: 'agent', prompt: '[araç:routine_failed {"reason":"Sayfa değişmiş"}]', onError: 'b' },
+      { id: 'b', kind: 'notify', text: 'yedek yol' },
+    ]);
+    await t.api('POST', `/api/routines/${r.id}/run`);
+    await t.services.turns.idle();
+    const [run] = await runs(r.id);
+    expect(run!.status).toBe('done');
+    expect(run!.steps?.map((s) => s.status)).toEqual(['done', 'error', 'done']);
+    expect(run!.steps?.[1]?.reason).toContain('Sayfa değişmiş');
+    const sent = await reports(bot.id);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.text).toContain('yedek yol');
+    expect(sent[0]!.text).toContain('Sayfa değişmiş');
+  });
+
+  it('does not take the way for failures when the account is out of usage', async () => {
+    const bot = await t.bot();
+    const r = await make(bot.id, 'ilk iş', [
+      { id: 'a', kind: 'agent', prompt: '[sınır] ikinci iş', onError: 'b' },
+      { id: 'b', kind: 'notify', text: 'yedek yol' },
+    ]);
+    await t.api('POST', `/api/routines/${r.id}/run`);
+    await t.services.turns.idle();
+    const [run] = await runs(r.id);
+    expect(run!.status).toBe('error');
+    expect(run!.steps?.map((s) => s.status)).toEqual(['done', 'error', 'skipped']);
+    expect(await reports(bot.id)).toHaveLength(0);
+  });
+
+  it('turns away a way that goes back, to itself, nowhere, or a step named end', async () => {
+    const bot = await t.bot();
+    const tryIt = (steps: unknown[]) =>
+      t.api('POST', '/api/routines', {
+        botId: bot.id,
+        name: 'Akış',
+        prompt: 'ilk iş',
+        steps,
+        schedule: { type: 'interval', minutes: 30 },
+      });
+    const back = await tryIt([
+      { id: 'a', kind: 'agent', prompt: 'bir' },
+      { id: 'b', kind: 'agent', prompt: 'iki', next: 'a' },
+    ]);
+    expect(back.status).toBe(400);
+    expect((await tryIt([{ id: 'a', kind: 'agent', prompt: 'bir', onError: 'a' }])).status).toBe(400);
+    expect(
+      (await tryIt([{ id: 'a', kind: 'agent', prompt: 'bir', when: { otherwise: 'goto', goto: 'yok' } }]))
+        .status,
+    ).toBe(400);
+    expect((await tryIt([{ id: 'end', kind: 'agent', prompt: 'bir' }])).status).toBe(400);
+    // Ending after a step is a way of its own, and takes no step.
+    expect((await tryIt([{ id: 'a', kind: 'agent', prompt: 'bir', next: 'end' }])).status).toBe(200);
   });
 
   it('turns away two steps with the same id', async () => {

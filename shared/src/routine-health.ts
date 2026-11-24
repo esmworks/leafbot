@@ -174,7 +174,10 @@ export function healthFindings(input: HealthInput): RoutineHealthFinding[] {
     into.set(s.position, set);
   }
   for (const [position, ids] of [...errorsAt].sort((a, b) => a[0] - b[0])) {
-    if (ids.size >= 3 && steps[position - 1]?.kind === 'agent')
+    const step = steps[position - 1];
+    // A step with a way to go on failure has its failures handled already, often on purpose (a
+    // backup source, a routine that watches for something going down).
+    if (ids.size >= 3 && step?.kind === 'agent' && !step.onError)
       out.push({ id: 'stepFails', step: position, count: ids.size });
   }
   for (const [position, ids] of [...timeoutsAt].sort((a, b) => a[0] - b[0])) {
