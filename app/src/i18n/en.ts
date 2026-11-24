@@ -391,7 +391,7 @@ export const en: Catalog<MessageKey> = {
   'bot.memory': 'Memory',
   'bot.reviewer': 'Reviewer',
   'bot.reviewerHint':
-    'Another model reads a mail about to go out, or data about to leave, while its card waits, and adds a line to the card when something looks wrong. It never decides and never holds the bot up. A model of another family than the bot\'s own catches more. Each look is billed like a short message.',
+    "Another model reads a mail about to go out, or data about to leave, while its card waits, and adds a line to the card when something looks wrong. It never decides and never holds the bot up. A model of another family than the bot's own catches more. Each look is billed like a short message.",
   'bot.reviewerOff': 'None',
   'bot.reviewerClaude': 'Claude (small model)',
   'bot.memoryHint':
@@ -490,6 +490,19 @@ export const en: Catalog<MessageKey> = {
   'shortcuts.newThread': 'New conversation with this bot',
   'message.fork': 'Branch a new conversation from here',
   'message.undoTurn': 'Undo this turn',
+  'actionLog.title': 'Action log',
+  'actionLog.intro':
+    'What the bot did for you in this conversation, newest first: what can still be taken back, what was, and what no one can take back, such as a mail that went out. Kept for 30 days.',
+  'actionLog.empty': 'Nothing changed or sent in this conversation yet.',
+  'actionLog.undo': 'Take back',
+  'actionLog.can': 'Can be taken back',
+  'actionLog.done': 'Taken back',
+  'actionLog.cannot': 'Cannot be taken back',
+  'actionLog.outcome.restored': 'put back',
+  'actionLog.outcome.later': 'changed again since, left as it is',
+  'actionLog.outcome.needsOwner': 'its owner has to put it back',
+  'actionLog.outcome.notUndoable': 'could not be put back',
+  'actionLog.outcome.failed': 'putting it back failed',
   'undo.title': 'Undo this turn',
   'undo.intro': 'This puts back what the bot changed in this turn, newest first.',
   'undo.running': 'The turn is still working. You can take it back once it is done.',

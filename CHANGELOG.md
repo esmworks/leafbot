@@ -7,6 +7,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Each conversation has an action log (in the conversation's menu): the turns that changed or sent something, newest
+  first, each listing what can still be taken back, what was, and what no one can take back, such as a mail that went
+  out or a call to another service. A turn can be taken back from there.
 - A bot can have a reviewer: a second model, best of another family than the bot's own, that reads a mail about to
   go out, or data about to leave, while its card waits for you. When something looks wrong (an address the request
   never named, private data going out, a step that does more than was asked, text the bot read steering it) it adds

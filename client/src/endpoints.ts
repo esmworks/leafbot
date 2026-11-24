@@ -6,6 +6,7 @@ import type {
   PersonComputerState,
   AcpAgentState,
   TurnChanges,
+  TurnLogEntry,
   RoutineSuggestion,
   RoutineSuggestionAccept,
   SkillSuggestion,
@@ -716,6 +717,7 @@ export function endpoints(send: Transport, base = '') {
     turnChangesPending: (threadId: string) =>
       http.get<Record<string, number>>(`/api/threads/${threadId}/turn-changes`),
     turnChanges: (turnId: string) => http.get<TurnChanges>(`/api/turns/${turnId}/changes`),
+    actionLog: (threadId: string) => http.get<TurnLogEntry[]>(`/api/threads/${threadId}/action-log`),
     undoTurn: (turnId: string) => http.post<TurnChanges>(`/api/turns/${turnId}/undo`, {}),
     canaryAlarmSeen: (id: string) => http.post<{ ok: true }>(`/api/canary-alarms/${id}/seen`, {}),
     importApiKeys: (input: ApiKeyImport) => http.post<ApiKeyImportResult>('/api/api-keys/import', input),

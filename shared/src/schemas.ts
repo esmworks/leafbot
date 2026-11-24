@@ -1910,6 +1910,14 @@ export const TurnChanges = z.object({
 });
 export type TurnChanges = z.infer<typeof TurnChanges>;
 
+/** One turn in a conversation's action log: what it changed and reached, and when it was asked. */
+export const TurnLogEntry = TurnChanges.extend({
+  at: z.string(),
+  /** The start of what the turn was asked. */
+  request: z.string(),
+});
+export type TurnLogEntry = z.infer<typeof TurnLogEntry>;
+
 /**
  * A routine proposed because the person keeps asking a bot for the same thing by hand. Only the
  * person it was written from sees it.

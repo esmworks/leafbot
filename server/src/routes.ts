@@ -849,6 +849,9 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.get('/api/threads/:id/turn-changes', async (req) =>
     s.changes.pending(IdParams.parse(req.params).id, me(req).userId),
   );
+  app.get('/api/threads/:id/action-log', async (req) =>
+    s.changes.log(IdParams.parse(req.params).id, me(req).userId),
+  );
   app.get('/api/turns/:id/changes', async (req) =>
     s.changes.preview(IdParams.parse(req.params).id, me(req).userId),
   );

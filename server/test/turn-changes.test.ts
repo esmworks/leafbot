@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Thread, TurnChanges } from '@leafbot/shared';
+import type { Thread, TurnChanges, TurnLogEntry } from '@leafbot/shared';
 import { desc, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
@@ -316,6 +316,33 @@ describe('taking back what one turn changed', () => {
     const said = (await t.messages(thread.id)).find((m) => m.props.kind === 'turnUndo')!;
     expect(res.body.outside).toHaveLength(1);
     expect(said.text).toContain('curl');
+  });
+
+  it('keeps an action log of the turns that changed or sent something, newest first', async () => {
+    const { thread, dir } = await setup();
+    await say(thread.id, write(join(dir, 'a.txt'), 'x'));
+    const first = await lastTurn(thread.id);
+    await say(thread.id, 'hello');
+    await say(
+      thread.id,
+      `${write(join(dir, 'b.txt'), 'y')} [izin:Bash {"command":"curl https://example.com"}]`,
+    );
+    const second = await lastTurn(thread.id);
+    expect((await undo(first)).status).toBe(200);
+    const log = (await t.api<TurnLogEntry[]>('GET', `/api/threads/${thread.id}/action-log`)).body;
+    // The turn that only said hello changed nothing and is left out.
+    expect(log.map((e) => e.turnId)).toEqual([second, first]);
+    expect(log[0]).toMatchObject({
+      undone: false,
+      items: [expect.objectContaining({ label: 'b.txt', outcome: null })],
+      outside: [expect.objectContaining({ summary: expect.stringContaining('curl') })],
+    });
+    expect(log[0]!.request).toContain('b.txt');
+    expect(log[1]).toMatchObject({ undone: true, items: [expect.objectContaining({ outcome: 'restored' })] });
+    // Another person sees none of it.
+    const other = await t.person('someone-else');
+    const theirs = await other.api<TurnLogEntry[]>('GET', `/api/threads/${thread.id}/action-log`);
+    expect(theirs.status >= 400 || theirs.body.length === 0).toBe(true);
   });
 
   it('does not offer a turn that changed nothing, and refuses another person', async () => {
