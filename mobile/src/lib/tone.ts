@@ -3,14 +3,18 @@
  * color keeps its lightness in OKLCH and takes the tone's hue at a low chroma, so text reads as
  * well in every tone. The words, the main button, red, amber and the brand color are left alone.
  */
-export type ToneChoice = 'neutral' | 'slate' | 'leaf';
-export const TONES: readonly ToneChoice[] = ['neutral', 'slate', 'leaf'];
+export type ToneChoice = 'neutral' | 'slate' | 'leaf' | 'rose' | 'lavender' | 'peach' | 'sand';
+export const TONES: readonly ToneChoice[] = ['neutral', 'slate', 'leaf', 'rose', 'lavender', 'peach', 'sand'];
 export const TONE_KEY = 'leafbot.tone';
 
 /** The tint of each tone as chroma and hue, a little stronger on dark surfaces to show at all. */
 export const TINTS: Record<Exclude<ToneChoice, 'neutral'>, { light: number; dark: number; hue: number }> = {
   slate: { light: 0.015, dark: 0.018, hue: 255 },
   leaf: { light: 0.015, dark: 0.016, hue: 160 },
+  rose: { light: 0.022, dark: 0.024, hue: 350 },
+  lavender: { light: 0.02, dark: 0.022, hue: 300 },
+  peach: { light: 0.02, dark: 0.02, hue: 50 },
+  sand: { light: 0.018, dark: 0.018, hue: 85 },
 };
 
 /** The keys a tone tints: the gray surfaces and the muted words, as on the web. */

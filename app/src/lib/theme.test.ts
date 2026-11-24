@@ -1,4 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 vi.stubGlobal('matchMedia', () => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
 
@@ -22,6 +25,13 @@ describe('color tone', () => {
     expect(localStorage.getItem('leafbot.tone')).toBe('slate');
     useTheme.getState().setTone('neutral');
     expect(document.documentElement.dataset.tone).toBeUndefined();
+  });
+
+  it('has a tint in the stylesheet for every tone offered, or picking it would change nothing', async () => {
+    const { TONES } = await import('./theme');
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', 'index.css'), 'utf8');
+    for (const tone of TONES.filter((t) => t !== 'neutral'))
+      expect(css).toContain(`:root[data-tone='${tone}']`);
   });
 
   it('takes the saved tone at start and ignores one it does not know', async () => {

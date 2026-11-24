@@ -306,18 +306,18 @@ export function SettingsPage() {
         <nav className="scroll-thin flex shrink-0 flex-col gap-1 overflow-y-auto bg-sidebar px-3 pb-3 phone:min-h-0 phone:flex-1 roomy:w-64 roomy:border-e">
           {/* Room for the window buttons; empty in a browser. */}
           <div className="window-drag h-12 shrink-0 phone:hidden" />
-          <div className="flex shrink-0 items-center gap-1 pb-3 phone:pt-1">
+          {/* The title goes back as well as the arrow: it is the larger mark, and where a hand reaches for. */}
+          <h1 className="flex shrink-0 pb-3 phone:pt-1">
             <Button
               variant="ghost"
-              size="icon"
               onClick={close}
-              aria-label={t('settings.close')}
               title={t('settings.close')}
+              className="h-9 gap-1 ps-2 pe-3 text-base font-semibold phone:text-lg"
             >
               <ChevronLeft className="size-5 rtl:-scale-x-100" />
+              {t('settings.title')}
             </Button>
-            <h1 className="text-base font-semibold phone:text-lg">{t('settings.title')}</h1>
-          </div>
+          </h1>
           <Input
             ref={searchRef}
             value={find}
@@ -366,11 +366,18 @@ export function SettingsPage() {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {phone ? (
             // The section's own title bar, with the way back to the list.
-            <div className="flex h-14 shrink-0 items-center gap-1 border-b bg-sidebar px-1">
-              <Button variant="ghost" size="icon" onClick={toList} aria-label={t('settings.back')}>
-                <ChevronLeft className="size-5 rtl:-scale-x-100" />
-              </Button>
-              <h1 className="truncate text-lg font-semibold">{t(`settings.tab.${current.id}`)}</h1>
+            <div className="flex h-14 shrink-0 items-center border-b bg-sidebar px-1">
+              <h1 className="flex min-w-0">
+                <Button
+                  variant="ghost"
+                  onClick={toList}
+                  title={t('settings.back')}
+                  className="h-10 min-w-0 gap-1 ps-2 pe-3 text-lg font-semibold"
+                >
+                  <ChevronLeft className="size-5 rtl:-scale-x-100" />
+                  <span className="truncate">{t(`settings.tab.${current.id}`)}</span>
+                </Button>
+              </h1>
             </div>
           ) : (
             <div className="window-drag h-12 shrink-0" />

@@ -98,12 +98,35 @@
   --tone-c: 0.015;
   --tone-h: 160;
 }
+/* The warmer tones carry a little more chroma: at the same amount a pale pink reads as gray. */
+:root[data-tone='rose'] {
+  --tone-c: 0.022;
+  --tone-h: 350;
+}
+:root[data-tone='lavender'] {
+  --tone-c: 0.02;
+  --tone-h: 300;
+}
+:root[data-tone='peach'] {
+  --tone-c: 0.02;
+  --tone-h: 50;
+}
+:root[data-tone='sand'] {
+  --tone-c: 0.018;
+  --tone-h: 85;
+}
 /* Dark surfaces need a little more of the tint to show it; these come later to win over the above. */
 .dark[data-tone='slate'] {
   --tone-c: 0.018;
 }
 .dark[data-tone='leaf'] {
   --tone-c: 0.016;
+}
+.dark[data-tone='rose'] {
+  --tone-c: 0.024;
+}
+.dark[data-tone='lavender'] {
+  --tone-c: 0.022;
 }
 
 @theme inline {
