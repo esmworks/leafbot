@@ -1261,8 +1261,11 @@ function Empty({ bot }: { bot: Bot }) {
         activity="idle"
         motion="always"
       />
-      <div className="text-xl font-semibold">{bot.name}</div>
-      <p className="max-w-md text-sm text-muted-foreground">{bot.description || t('chat.emptyHint')}</p>
+      {/* A backing of its own, as on the other lines written straight on the chat over a picture. */}
+      <div className="wallpaper-chip flex max-w-md flex-col items-center gap-1 rounded-2xl px-4 py-2">
+        <div className="text-xl font-semibold">{bot.name}</div>
+        <p className="text-sm text-muted-foreground">{bot.description || t('chat.emptyHint')}</p>
+      </div>
     </div>
   );
 }
