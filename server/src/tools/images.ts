@@ -41,9 +41,11 @@ export function imageTool(opts: {
       made++;
       // The provider the bot already runs on goes first, so the person pays a single account.
       const prefer = bot.engine === 'pi' ? bot.model.split('/')[0] : undefined;
+      // The model chosen for pictures in the settings comes before that.
+      const { imageModel } = await services.settings.all();
       let image;
       try {
-        image = await services.images.create(prompt, { shape, prefer, signal });
+        image = await services.images.create(prompt, { shape, model: imageModel, prefer, signal });
       } catch (err) {
         if (!(err instanceof ImageError)) throw err;
         if (err.reason === 'noKey') {

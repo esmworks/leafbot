@@ -64,6 +64,20 @@ export const Settings = z.object({
     ])
     .default(''),
   /**
+   * `provider/model` that makes pictures (a bot's `image_create`, an avatar from a description);
+   * empty picks one from the saved keys, starting with the bot's own provider.
+   */
+  imageModel: z
+    .union([
+      z.literal(''),
+      z
+        .string()
+        .trim()
+        .max(100)
+        .regex(/^[a-z0-9._-]+\/\S+$/i),
+    ])
+    .default(''),
+  /**
    * The conversation size, in tokens, at which a Claude bot folds the older part into a summary; 0
    * leaves it to Claude for each model, which for a model of a million-token window is near the
    * million. Smaller folds sooner: turns stay quick and cheap, and fewer details stay word for word.

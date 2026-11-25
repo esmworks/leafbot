@@ -146,6 +146,7 @@ import { clientMetadata, clientMetadataUrlFor, OAUTH_CLIENT_PATH } from './conne
 import { OAUTH_CALLBACK_PATH, oauthRedirectUrl } from './services/connections';
 import { fetchSkillFile, privateHost } from './services/skill-link';
 import { readGrokLink } from './services/grok-link';
+import { avatarPrompt, ImageError } from './services/images';
 import { isPersonal, serverLocale, Settings } from './services/settings';
 import { EMOJI } from './tools';
 import { attachedFiles, cancelStagedUpload, saveStagedUpload, stagingDir } from './uploads';
@@ -567,6 +568,35 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.delete('/api/push/apns', async () => {
     await s.push.clearApns();
     return s.push.apnsStatus();
+  });
+
+  // Pictures through a provider key already saved: the models on offer (the chosen one is a setting),
+  // and an avatar made from what the person says the bot looks like. The image goes back to the form
+  // and is kept only once the bot is saved.
+  app.get('/api/images/models', async () => ({ models: await s.images.models() }));
+  app.post('/api/images/avatar', async (req) => {
+    const { description, model } = z
+      .object({
+        description: z.string().trim().min(1).max(1000),
+        model: z.string().max(100).optional(),
+      })
+      .parse(req.body);
+    let image;
+    try {
+      image = await s.images.create(avatarPrompt(description), {
+        shape: 'square',
+        model: model || (await s.settings.all()).imageModel,
+      });
+    } catch (err) {
+      if (!(err instanceof ImageError)) throw err;
+      if (err.reason === 'noKey') throw new HttpError(409, 'error.imageNoKey');
+      throw new HttpError(502, `tool.imageFailed.${err.reason}`, {
+        provider: err.provider,
+        message: err.message,
+      });
+    }
+    const type = image.ext === 'jpg' ? 'jpeg' : image.ext;
+    return { image: `data:image/${type};base64,${image.data.toString('base64')}`, model: image.model };
   });
 
   app.get('/api/providers', async () => s.keys.list());

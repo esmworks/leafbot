@@ -35,6 +35,7 @@ import { splitPiModel } from '@/lib/new-bot';
 import {
   useBots,
   useClaudeAuth,
+  useImageModels,
   useInfo,
   useProviderModelInfo,
   useProviders,
@@ -163,10 +164,13 @@ function ProviderList() {
   const connectedShown = connected.filter((p) => matches(connectionName(p), p.id));
   return (
     <>
-      {(settings?.defaultEngine !== undefined || settings?.backupModel !== undefined) && (
+      {(settings?.defaultEngine !== undefined ||
+        settings?.backupModel !== undefined ||
+        settings?.imageModel !== undefined) && (
         <Card title={t('providers.defaults')}>
           {settings.defaultEngine !== undefined && <NewBotsRow />}
           {settings.backupModel !== undefined && <BackupModel />}
+          {settings.imageModel !== undefined && <ImageModelRow />}
         </Card>
       )}
       <section className="mb-6">
@@ -635,6 +639,60 @@ function MoveExistingBots() {
         {t('model.moveButton')}
       </Button>
     </div>
+  );
+}
+
+/** Select items cannot carry an empty value, so "pick one from the saved keys" travels under this one. */
+const IMAGE_AUTO = 'auto';
+
+/**
+ * The model that makes pictures, for a bot's pictures and an avatar from a description, chosen among
+ * the providers with a saved key; automatic leaves it to the saved keys and the bot's own provider.
+ */
+function ImageModelRow() {
+  const t = useT();
+  const { data: settings } = useSettings();
+  const { data } = useImageModels();
+  const save = useSaveSettings();
+  if (!data) return null;
+  const stored = settings?.imageModel ?? '';
+  const models = data.models;
+  // A model chosen earlier whose key is gone stays listed, so the box never shows empty.
+  const gone = stored && !models.some((m) => m.ref === stored);
+  const chosen = models.find((m) => m.ref === stored);
+  return (
+    <Row
+      label={t('model.image')}
+      hint={
+        !models.length
+          ? t('model.imageNoKey')
+          : gone
+            ? t('model.imageGone')
+            : chosen
+              ? t('model.imageChosenHint')
+              : t('model.imageAutoHint')
+      }
+    >
+      {(models.length > 0 || gone) && (
+        <Select
+          value={stored || IMAGE_AUTO}
+          onValueChange={(v) => save.mutate({ imageModel: v === IMAGE_AUTO ? '' : v })}
+        >
+          <SelectTrigger className="w-56 rounded-full" aria-label={t('model.image')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={IMAGE_AUTO}>{t('model.imageAuto')}</SelectItem>
+            {gone && <SelectItem value={stored}>{stored}</SelectItem>}
+            {models.map((m) => (
+              <SelectItem key={m.ref} value={m.ref}>
+                {t('model.imageOption', { provider: providerName(m.provider), model: m.name })}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </Row>
   );
 }
 

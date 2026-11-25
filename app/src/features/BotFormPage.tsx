@@ -15,7 +15,7 @@ import {
 } from '@leafbot/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, ChevronDown, ChevronLeft, Upload } from 'lucide-react';
+import { Archive, ChevronDown, ChevronLeft, Loader2, Sparkles, Upload } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -38,6 +38,7 @@ import {
   useBots,
   useClaudeModels,
   useGroups,
+  useImageModels,
   useInfo,
   useProviderModelInfo,
   useProviders,
@@ -50,7 +51,7 @@ import { InstructionsDocStatus } from './InstructionsDoc';
 import { availableStarters, starterBot, type StarterId } from './onboarding/profile';
 import { MissingApps } from './MissingApps';
 import { Field } from './RoutinePage';
-import { connectionName, ModelSearch, type ModelOption } from './ProviderConnect';
+import { connectionName, ModelSearch, providerName, type ModelOption } from './ProviderConnect';
 
 export const COLORS = [
   BRAND_COLOR,
@@ -929,6 +930,9 @@ function AvatarEditor({
           <TabsTrigger value="upload" className="rounded-full">
             {t('bot.upload')}
           </TabsTrigger>
+          <TabsTrigger value="describe" className="rounded-full">
+            {t('bot.describe')}
+          </TabsTrigger>
         </TabsList>
         <TabsContent value="object" className="space-y-3">
           <div className="grid grid-cols-7 gap-1.5">
@@ -987,9 +991,109 @@ function AvatarEditor({
           <p className="text-xs text-muted-foreground">{t('bot.imageHint')}</p>
           <ColorRow color={color} onColor={onColor} />
         </TabsContent>
+        <TabsContent value="describe" className="space-y-3">
+          <DescribeAvatar onAvatar={onAvatar} />
+        </TabsContent>
       </Tabs>
     </div>
   );
+}
+
+/** Select items cannot carry an empty value, so "the model chosen in the settings" travels under this one. */
+const IMAGE_SETTING = 'setting';
+
+/**
+ * An avatar made from what the person says the bot looks like, by a picture model reached through a
+ * provider key already saved. Each picture is paid for on that account, so one is made per click.
+ */
+function DescribeAvatar({ onAvatar }: { onAvatar(a: string): void }) {
+  const t = useT();
+  const { data } = useImageModels();
+  const { data: settings } = useSettings();
+  const openSettings = useUi((s) => s.openSettings);
+  const [text, setText] = useState('');
+  const [model, setModel] = useState(IMAGE_SETTING);
+  const make = useMutation({
+    mutationFn: async () => {
+      const { image } = await api.makeAvatar(text.trim(), model === IMAGE_SETTING ? undefined : model);
+      return downscale(dataUrlBlob(image), 256);
+    },
+    onSuccess: onAvatar,
+    onError: (e) => toast.error((e as Error).message),
+  });
+  // A server older than avatars from a description says nothing of picture models.
+  if (data === null) return <p className="text-sm text-muted-foreground">{t('bot.describeUnavailable')}</p>;
+  const models = data?.models ?? [];
+  if (data && !models.length) {
+    return (
+      <div className="space-y-2">
+        <p className="text-sm text-muted-foreground">{t('bot.describeNoKey')}</p>
+        <Button
+          type="button"
+          variant="secondary"
+          className="rounded-full"
+          onClick={() => openSettings('providers')}
+        >
+          {t('bot.describeAddKey')}
+        </Button>
+      </div>
+    );
+  }
+  const chosen = models.find((m) => m.ref === settings?.imageModel);
+  const label = (m: { provider: string; name: string }) =>
+    t('model.imageOption', { provider: providerName(m.provider), model: m.name });
+  return (
+    <div className="space-y-3">
+      <Textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        maxLength={1000}
+        rows={3}
+        placeholder={t('bot.describePlaceholder')}
+        aria-label={t('bot.describe')}
+        disabled={make.isPending}
+      />
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          className="rounded-full"
+          onClick={() => make.mutate()}
+          disabled={!text.trim() || make.isPending || !data}
+        >
+          {make.isPending ? <Loader2 className="animate-spin" /> : <Sparkles />}
+          {make.isPending ? t('bot.describeMaking') : t('bot.describeMake')}
+        </Button>
+        {models.length > 1 && (
+          <Select value={model} onValueChange={setModel} disabled={make.isPending}>
+            <SelectTrigger className="w-56 rounded-full" aria-label={t('model.image')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={IMAGE_SETTING}>{chosen ? label(chosen) : t('model.imageAuto')}</SelectItem>
+              {models
+                .filter((m) => m.ref !== chosen?.ref)
+                .map((m) => (
+                  <SelectItem key={m.ref} value={m.ref}>
+                    {label(m)}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground">{t('bot.describeHint')}</p>
+    </div>
+  );
+}
+
+/** The picture in a data URL, as the file it would be. */
+function dataUrlBlob(url: string): Blob {
+  const [head = '', data = ''] = url.split(',', 2);
+  const type = /^data:([^;]+)/.exec(head)?.[1] ?? 'image/png';
+  const bin = atob(data);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type });
 }
 
 /**
@@ -1053,7 +1157,7 @@ function ColorRow({ color, onColor }: { color: string; onColor(c: string): void 
   );
 }
 
-async function downscale(f: File, size: number): Promise<string> {
+async function downscale(f: Blob, size: number): Promise<string> {
   const bitmap = await createImageBitmap(f);
   const canvas = document.createElement('canvas');
   canvas.width = size;

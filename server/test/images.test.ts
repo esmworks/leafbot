@@ -213,6 +213,78 @@ describe('botun resim oluşturması', () => {
     expect(sent).toHaveLength(1);
   });
 
+  it('uses the image model chosen in the settings, for the bot and for avatars', async () => {
+    await t.services.keys.set('openai', 'sk-test-image-1234');
+    await t.services.keys.set('xai', 'xai-test-image-1234');
+    await t.services.settings.update({ imageModel: 'openai/gpt-image-1-mini' });
+    useProvider(() => b64());
+    const bot = await t.bot({ permissionMode: 'auto' });
+    await create((await main(bot.id)).id, { prompt: 'Bir kedi' });
+    const avatar = await t.api<{ image: string; model: string }>('POST', '/api/images/avatar', {
+      description: 'a small green robot',
+    });
+
+    expect(sent.map((x) => x.body?.model)).toEqual(['gpt-image-1-mini', 'gpt-image-1-mini']);
+    expect(avatar.status).toBe(200);
+    expect(avatar.body).toEqual({
+      image: `data:image/png;base64,${PNG.toString('base64')}`,
+      model: 'openai/gpt-image-1-mini',
+    });
+    expect(sent[1]!.body).toMatchObject({ size: '1024x1024' });
+    expect(sent[1]!.body!.prompt).toContain('a small green robot');
+  });
+
+  it('an avatar may ask for another offered model than the one in the settings', async () => {
+    await t.services.keys.set('openai', 'sk-test-image-1234');
+    await t.services.keys.set('xai', 'xai-test-image-1234');
+    useProvider(() => b64());
+    const r = await t.api('POST', '/api/images/avatar', {
+      description: 'a lighthouse',
+      model: 'xai/grok-imagine-image-2.0',
+    });
+    expect(r.status).toBe(200);
+    expect(sent[0]).toMatchObject({
+      url: 'https://api.x.ai/v1/images/generations',
+      body: { model: 'grok-imagine-image-2.0', aspect_ratio: '1:1' },
+    });
+  });
+
+  it('falls back to a saved key when the chosen model has none, and to the first model for an unknown one', async () => {
+    await t.services.keys.set('xai', 'xai-test-image-1234');
+    useProvider(() => b64());
+    await t.services.images.create('bir şey', { model: 'openai/gpt-image-1.5' });
+    await t.services.images.create('bir şey', { model: 'xai/not-a-picture-model' });
+    expect(sent.map((x) => x.body?.model)).toEqual(['grok-imagine-image-2.0', 'grok-imagine-image-2.0']);
+  });
+
+  it('offers only the models of providers with a saved key', async () => {
+    const none = await t.api<{ models: { ref: string }[] }>('GET', '/api/images/models');
+    expect(none.body.models).toEqual([]);
+    await t.services.keys.set('openai', 'sk-test-image-1234');
+    const some = await t.api<{ models: { ref: string }[] }>('GET', '/api/images/models');
+    expect(some.body.models.map((m) => m.ref)).toEqual([
+      'openai/gpt-image-2',
+      'openai/gpt-image-1.5',
+      'openai/gpt-image-1-mini',
+    ]);
+  });
+
+  it('tells the person where to add a key when an avatar cannot be made, and passes on a refusal', async () => {
+    useProvider(
+      () => new Response(JSON.stringify({ error: { message: 'Invalid credential' } }), { status: 401 }),
+    );
+    const noKey = await t.api<{ error: string }>('POST', '/api/images/avatar', { description: 'a cat' });
+    expect(noKey.status).toBe(409);
+    expect(noKey.body.error).toContain('Sağlayıcılar');
+    expect(sent).toHaveLength(0);
+
+    await t.services.keys.set('openai', 'sk-test-image-1234');
+    const refused = await t.api<{ error: string }>('POST', '/api/images/avatar', { description: 'a cat' });
+    expect(refused.status).toBe(502);
+    expect(refused.body.error).toContain('Invalid credential');
+    expect(refused.body.error).not.toContain('sk-test-image-1234');
+  });
+
   it('resmin biçimini ilk baytlarından tanır', () => {
     expect(imageType(PNG)).toBe('png');
     expect(imageType(Buffer.from([0xff, 0xd8, 0xff, 0xe0]))).toBe('jpg');
