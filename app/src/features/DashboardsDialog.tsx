@@ -177,9 +177,9 @@ function Page({ page, className }: { page: DashboardSummary; className?: string 
     },
     onError: (err: Error) => toast.error(err.message),
   });
-  const tiles = view?.tiles ?? [];
   const scroller = useRef<HTMLElement>(null);
-  const { itemProps, ghost } = useTileDrag(page.id, scroller);
+  const grid = useRef<HTMLDivElement>(null);
+  const { tiles, itemProps, air, liftRef } = useTileDrag(page.id, view?.tiles ?? [], scroller, grid);
   const { data: bots = [] } = useBots();
   return (
     <section
@@ -208,7 +208,7 @@ function Page({ page, className }: { page: DashboardSummary; className?: string 
       {/* Rows that wrap and grow rather than a grid: a wide tile that does not fit beside the ones
           before it would leave an empty column at the end of their row; here they stretch over it,
           and the tiles in a row share its height. */}
-      <div data-tile-grid className="flex flex-wrap items-stretch gap-4 px-5 pb-6 phone:px-4">
+      <div ref={grid} className="relative flex flex-wrap items-stretch gap-4 px-5 pb-6 phone:px-4">
         {tiles.map((tile, i) => (
           <Tile
             key={tile.id}
@@ -216,12 +216,21 @@ function Page({ page, className }: { page: DashboardSummary; className?: string 
             first={i === 0}
             last={i === tiles.length - 1}
             onChanged={refresh}
-            // Moving a tile takes being allowed to change its bot; others only show where it lands.
+            // Moving a tile takes being allowed to change its bot; others only make room.
             drag={itemProps(tile, (bots.find((b) => b.id === tile.botId)?.yourLevel ?? 'edit') === 'edit')}
           />
         ))}
       </div>
-      {ghost}
+      {air?.tile && (
+        <div
+          ref={liftRef}
+          aria-hidden
+          style={air.style}
+          className="pointer-events-none fixed top-0 left-0 z-50 flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-2xl ring-1 ring-primary/25 will-change-transform"
+        >
+          <TileFace tile={air.tile} menu={<MoreHorizontal className="m-1.5 size-4" />} />
+        </div>
+      )}
       <Dialog open={asking} onOpenChange={setAsking}>
         <DialogContent className="rounded-2xl sm:max-w-sm">
           <DialogHeader>
@@ -256,9 +265,6 @@ function Tile({
   drag: ReturnType<ReturnType<typeof useTileDrag>['itemProps']>;
 }) {
   const t = useT();
-  const intl = useLocale((s) => s.intl);
-  const { data: bots = [] } = useBots();
-  const bot = bots.find((b) => b.id === tile.botId);
   const fail = (err: Error) => toast.error(err.message);
   const remove = useMutation({
     mutationFn: () => api.removeDashboardTile(tile.id),
@@ -270,20 +276,63 @@ function Tile({
     onSuccess: onChanged,
     onError: fail,
   });
+  return (
+    <article
+      data-tile-id={drag['data-tile-id']}
+      aria-label={tile.title}
+      onPointerDown={drag.onPointerDown}
+      className={cn(
+        'flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4',
+        tile.wide ? 'grow-[2] basis-[min(100%,38rem)]' : 'grow basis-[min(100%,20rem)]',
+        // A tile that moves shows it by the hand; what is pressed inside it keeps its own pointer.
+        drag.onPointerDown && 'cursor-grab [&_:is(button,a,input,select,textarea,[role=button])]:cursor-auto',
+        // Where the lifted tile will land: its own size, outlined, with nothing in it.
+        drag.placeholder &&
+          'border-transparent bg-primary/[0.04] outline-2 -outline-offset-2 outline-primary/50 outline-dashed [&>*]:invisible',
+      )}
+    >
+      <TileFace
+        tile={tile}
+        menu={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="size-7" aria-label={t('dashboards.tileMenu')}>
+                <MoreHorizontal />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {!first && (
+                <DropdownMenuItem onSelect={() => move.mutate('earlier')}>
+                  {t('dashboards.moveEarlier')}
+                </DropdownMenuItem>
+              )}
+              {!last && (
+                <DropdownMenuItem onSelect={() => move.mutate('later')}>
+                  {t('dashboards.moveLater')}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem variant="destructive" onSelect={() => remove.mutate()}>
+                {t('dashboards.removeTile')}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />
+    </article>
+  );
+}
+
+/** What a tile shows, in its place and while it is lifted: its card, or why it has none, and whose it is. */
+function TileFace({ tile, menu }: { tile: DashboardTileView; menu: React.ReactNode }) {
+  const t = useT();
+  const intl = useLocale((s) => s.intl);
+  const { data: bots = [] } = useBots();
+  const bot = bots.find((b) => b.id === tile.botId);
   const when = new Intl.DateTimeFormat(intl, { dateStyle: 'short', timeStyle: 'short' }).format(
     new Date(tile.updatedAt),
   );
   return (
-    <article
-      {...drag.item}
-      aria-label={tile.title}
-      onPointerDown={drag.onPointerDown}
-      className={cn(
-        'relative flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4',
-        drag.dragging && 'opacity-40',
-        tile.wide ? 'grow-[2] basis-[min(100%,38rem)]' : 'grow basis-[min(100%,20rem)]',
-      )}
-    >
+    <>
       {tile.card ? (
         <ShownCard card={tile.card} id={tile.id} />
       ) : (
@@ -307,30 +356,8 @@ function Tile({
             .filter(Boolean)
             .join(' · ')}
         </span>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="size-7" aria-label={t('dashboards.tileMenu')}>
-              <MoreHorizontal />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            {!first && (
-              <DropdownMenuItem onSelect={() => move.mutate('earlier')}>
-                {t('dashboards.moveEarlier')}
-              </DropdownMenuItem>
-            )}
-            {!last && (
-              <DropdownMenuItem onSelect={() => move.mutate('later')}>
-                {t('dashboards.moveLater')}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuItem variant="destructive" onSelect={() => remove.mutate()}>
-              {t('dashboards.removeTile')}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {menu}
       </footer>
-      {drag.indicator}
-    </article>
+    </>
   );
 }
