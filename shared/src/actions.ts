@@ -425,8 +425,8 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
           DELETE,
         ],
         en: list
-          ? [`delete ticket ${list}`, `delete ticket ${list}`, 'delete finished tickets']
-          : ['delete finished tickets', 'delete these tickets', 'delete finished tickets'],
+          ? [`delete task ${list}`, `delete task ${list}`, 'delete finished tasks']
+          : ['delete finished tasks', 'delete these tasks', 'delete finished tasks'],
       };
     }
     case 'memory_forget':
