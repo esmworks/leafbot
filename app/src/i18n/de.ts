@@ -487,7 +487,7 @@ export const de: Partial<Catalog<MessageKey>> = {
   'sidebarMenu.markGroupRead': 'Gruppe als gelesen markieren',
   'chat.apiThreads': 'Über die API',
   'chat.teamThreads': 'Team (Slack, Discord)',
-  'chat.ticketThreads': 'Board-Arbeit',
+  'chat.ticketThreads': 'Tickets',
   'activity.watch': 'Beobachten',
   'shortcuts.newThread': 'Neuer Chat mit diesem Bot',
   'message.fork': 'Ab hier einen neuen Chat abzweigen',
@@ -700,12 +700,12 @@ export const de: Partial<Catalog<MessageKey>> = {
   'replay.askBotButton': '{bot} fertigmachen lassen',
   'replay.askBot':
     'Ich habe den Skill „{name}“ ohne KI abgespielt; er ist bei Schritt {step} stehen geblieben: {reason} Sieh dir die Seite an und beende die Aufgabe von dort aus.',
-  'board.title': 'Board',
+  'board.title': 'Tickets',
   'board.description': 'Tickets, mit denen du und deine Bots arbeitet, in Spalten nach Status.',
   'board.new': 'Neues Ticket',
   'board.newDescription': 'Schreibe Titel und Details des Tickets, an wen es geht und wie dringend es ist.',
   'board.create': 'Ticket erstellen',
-  'board.emptyTitle': 'Das Board ist leer',
+  'board.emptyTitle': 'Noch keine Tickets',
   'board.empty':
     'Füge ein Ticket hinzu und gib es einem Bot: Er legt los und meldet sich hier zurück. Auch Bots können Tickets eröffnen.',
   'board.openCount': { one: '1 offen', other: '{count} offen' },
@@ -753,7 +753,7 @@ export const de: Partial<Catalog<MessageKey>> = {
   'board.editDescription': 'Beschreibung bearbeiten',
   'board.startsHint':
     '{name} legt sofort los, in einem eigenen Chat für das Ticket, und meldet sich hier zurück.',
-  'board.unassignedHint': 'Gib es einem Bot, und er legt sofort los; sonst wartet es auf dem Board.',
+  'board.unassignedHint': 'Gib es einem Bot, und er legt sofort los; sonst wartet es hier.',
   'board.startHint':
     'Wenn du es nach „In Arbeit“ verschiebst oder einen Kommentar schreibst, nimmt der Bot es wieder auf.',
   'board.openedByLabel': 'Eröffnet von',

@@ -490,7 +490,7 @@ export const fr: Partial<Catalog<MessageKey>> = {
   'sidebarMenu.markGroupRead': 'Marquer le groupe comme lu',
   'chat.apiThreads': 'Par l’API',
   'chat.teamThreads': 'Équipe (Slack, Discord)',
-  'chat.ticketThreads': 'Travail du tableau',
+  'chat.ticketThreads': 'Tickets',
   'activity.watch': 'Surveiller',
   'shortcuts.newThread': 'Nouvelle conversation avec ce bot',
   'message.fork': 'Créer une nouvelle conversation à partir d’ici',
@@ -705,12 +705,12 @@ export const fr: Partial<Catalog<MessageKey>> = {
   'replay.askBotButton': 'Laisser {bot} terminer',
   'replay.askBot':
     'J’ai rejoué la compétence « {name} » sans IA ; elle s’est arrêtée à l’étape {step} : {reason} Regardez la page et terminez la tâche à partir de là.',
-  'board.title': 'Tableau',
+  'board.title': 'Tickets',
   'board.description': 'Les tickets sur lesquels vous et vos bots travaillez, en colonnes par statut.',
   'board.new': 'Nouveau ticket',
   'board.newDescription': 'Indiquez le titre et les détails du ticket, à qui il revient et son urgence.',
   'board.create': 'Créer le ticket',
-  'board.emptyTitle': 'Le tableau est vide',
+  'board.emptyTitle': 'Aucun ticket pour l’instant',
   'board.empty':
     'Ajoutez un ticket et donnez-le à un bot : il s’y met et rend compte ici. Les bots peuvent aussi ouvrir des tickets.',
   'board.openCount': { one: '1 ouvert', other: '{count} ouverts' },
@@ -758,8 +758,7 @@ export const fr: Partial<Catalog<MessageKey>> = {
   'board.editDescription': 'Modifier la description',
   'board.startsHint':
     '{name} s’y met tout de suite, dans une conversation propre au ticket, et rend compte ici.',
-  'board.unassignedHint':
-    'Confiez-le à un bot et il démarre tout de suite ; sinon, il attend sur le tableau.',
+  'board.unassignedHint': 'Confiez-le à un bot et il démarre tout de suite ; sinon, il attend ici.',
   'board.startHint': 'Le passer dans En cours ou écrire un commentaire relance le bot dessus.',
   'board.openedByLabel': 'Ouvert par',
   'board.updated': 'Mis à jour',

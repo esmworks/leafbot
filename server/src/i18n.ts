@@ -2433,7 +2433,7 @@ const en: Catalog<ServerKey> = {
   'teach.step.forward': 'Go forward.',
   'teach.step.reload': 'Reload the page.',
   'ticket.prompt':
-    'Ticket #{number} of the board was assigned to you.\nTitle: {title}\nPriority: {priority}\n\nDescription:\n{description}\n\nComments:\n{comments}\n\nDo the work. When done, write briefly what you did and the result; what you write is added to the ticket as a comment and the ticket moves to review. If you cannot go on, set its status to blocked with ticket_update and say why in a comment; ask the user if you need something from them.',
+    'Ticket #{number} was assigned to you.\nTitle: {title}\nPriority: {priority}\n\nDescription:\n{description}\n\nComments:\n{comments}\n\nDo the work. When done, write briefly what you did and the result; what you write is added to the ticket as a comment and the ticket moves to review. If you cannot go on, set its status to blocked with ticket_update and say why in a comment; ask the user if you need something from them.',
   'ticket.commentPrompt':
     'The user commented on ticket #{number}:\n\n{comment}\n\nGo on with the work accordingly and write the result briefly.',
   'ticket.noDescription': '(no description)',
@@ -3168,10 +3168,10 @@ const en: Catalog<ServerKey> = {
   'prompt.peersHow':
     "To give a bot work, use the `bot_send` tool; its reply comes to you as a new message, so you don't need to wait. See the state of the requests you sent with `bot_requests`.",
   'prompt.peersBoard':
-    '`bot_send` is for a quick question or a short request whose answer you need now. Give a bot work whose result should be followed through the board: `ticket_create` with `assign_to`.',
-  'prompt.board': '## Board',
+    '`bot_send` is for a quick question or a short request whose answer you need now. Give a bot work whose result should be followed as a ticket: `ticket_create` with `assign_to`.',
+  'prompt.board': '## Tickets',
   'prompt.boardHow':
-    'The board is where the user follows the work done for them: tickets in columns by status (to do, in progress, in review, blocked, done). The user sees it in the app; you use it with `tickets_list`, `ticket_read`, `ticket_create` and `ticket_update`, and when the user asks, you delete finished tickets with `ticket_delete`.\n- When the user asks for work that will not be finished in this reply (it takes several steps or a while, waits on someone, or should be followed up), or says "add it to the list" or "put it on the board", open a ticket with `ticket_create`. Before you open one, check `tickets_list` for a ticket about the same work.\n- When you give a bot work whose result should be followed, open the ticket with `assign_to`: that bot starts at once in the ticket\'s own conversation, and its result is written on the ticket.\n- When you work on a ticket outside its own conversation, keep it current with `ticket_update`: its status as it changes, and a short comment on what was done or what is missing. In a ticket\'s own conversation your last reply is written on it and it moves to review by itself; do not set it to done. If you cannot go on, set it to blocked and say why.\n- Your own to-do list inside a reply is for the steps of that reply only; the user does not see it on the board.\n- A question you answer at once, or work done in one step, needs no ticket.',
+    'Tickets are where the user follows the work done for them: tickets in columns by status (to do, in progress, in review, blocked, done). The user sees it in the app; you use it with `tickets_list`, `ticket_read`, `ticket_create` and `ticket_update`, and when the user asks, you delete finished tickets with `ticket_delete`.\n- When the user asks for work that will not be finished in this reply (it takes several steps or a while, waits on someone, or should be followed up), or says "add it to the list" or "open a ticket", open a ticket with `ticket_create`. Before you open one, check `tickets_list` for a ticket about the same work.\n- When you give a bot work whose result should be followed, open the ticket with `assign_to`: that bot starts at once in the ticket\'s own conversation, and its result is written on the ticket.\n- When you work on a ticket outside its own conversation, keep it current with `ticket_update`: its status as it changes, and a short comment on what was done or what is missing. In a ticket\'s own conversation your last reply is written on it and it moves to review by itself; do not set it to done. If you cannot go on, set it to blocked and say why.\n- Your own to-do list inside a reply is for the steps of that reply only; the user does not see it among the tickets.\n- A question you answer at once, or work done in one step, needs no ticket.',
   'prompt.boardOpen': 'Open tickets given to you (read one with `ticket_read`):',
   'prompt.boardMore': '…and {count} more; list them all with `tickets_list` and mine: true.',
   'prompt.room': '## Room',
@@ -3241,7 +3241,7 @@ const en: Catalog<ServerKey> = {
   'prompt.ruleChecklist':
     "- When a message asks for more than one thing, write each of them into your to-do list before you start and mark each one as you finish it. Before you end your reply, read the user's request again from the start, along with anything they added during this turn, and make sure every item is done. When an item is not done, because you could not do it or chose to leave it, name it and say why in your reply; never skip one silently.",
   'prompt.ruleChecklistBoard':
-    "- When an item is left that you could not finish in this turn and that still has to be done later (it waits on someone, takes a while, or needs the user's decision), do not only say so in your reply: open a ticket for it on the board with `ticket_create`, after checking `tickets_list` for a ticket about the same work.",
+    "- When an item is left that you could not finish in this turn and that still has to be done later (it waits on someone, takes a while, or needs the user's decision), do not only say so in your reply: open a ticket for it with `ticket_create`, after checking `tickets_list` for a ticket about the same work.",
   'prompt.ruleFacts':
     "- Give the answer first, then details if needed. Do not invent facts or sources; say when you are not sure. Check a task's result before you call it done.",
   'prompt.ruleStatus':
@@ -3351,10 +3351,10 @@ const en: Catalog<ServerKey> = {
   'tool.apiParams': 'parameters',
   'tool.apiOperationsMore': '…and {count} more operations; narrow with query.',
   'tool.tickets_list':
-    'List the tickets of the board: number, status, title, priority and who has it. Filter by status (todo, in_progress, in_review, blocked, done, wont_do); mine: true lists only yours. Before opening a ticket, look here for one about the same work.',
+    'List the tickets: number, status, title, priority and who has it. Filter by status (todo, in_progress, in_review, blocked, done, wont_do); mine: true lists only yours. Before opening a ticket, look here for one about the same work.',
   'tool.ticket_read': 'Read a ticket with its description and comments (ticket: its number, e.g. 12).',
   'tool.ticket_create':
-    "Add a ticket to the board, for work that will not be finished in this reply or should be followed: title, description, priority (low, normal, high, urgent), assign_to (a bot's name; if given, that bot starts on it at once in the ticket's own conversation and its result is written on the ticket; this is how to give a bot work whose result should be followed). The user sees it on the board.",
+    "Open a ticket, for work that will not be finished in this reply or should be followed: title, description, priority (low, normal, high, urgent), assign_to (a bot's name; if given, that bot starts on it at once in the ticket's own conversation and its result is written on the ticket; this is how to give a bot work whose result should be followed). The user sees it under Tickets.",
   'tool.ticket_update':
     'Update a ticket as its work moves (ticket: its number): status, comment (a comment on it: what was done or what is missing), assign_to (a bot\'s name; "" to clear), priority, title, description. Give only the fields that change.',
   'tool.tables_list':
@@ -3387,9 +3387,9 @@ const en: Catalog<ServerKey> = {
   'tool.tableType.bool': 'yes/no',
   'tool.tableType.url': 'link',
   'tool.dashboards':
-    "Read dashboards. These are this app's own dashboards, not the ticket board (ticket_*) or another app's boards. Without name you get the list of dashboards you see. With name you get each tile on that dashboard as it stands now, as text, other bots' tiles included.",
+    "Read dashboards. These are this app's own dashboards, not the tickets (ticket_*) or another app's boards. Without name you get the list of dashboards you see. With name you get each tile on that dashboard as it stands now, as text, other bots' tiles included.",
   'tool.dashboard_define':
-    "Put tiles on one of this app's dashboards. The person follows it live from the Dashboards button in the sidebar. This is not the ticket board (ticket_*) and not another app's boards. When the person asks for a dashboard or a board of figures without naming another app, use this tool. name: the dashboard's name; it is started if there is none, and bots using the same name fill the same dashboard. tiles: each with a title and show. A tile worked out from a table is worked out again from the table's current rows each time it is looked at, so it updates by itself as you add rows. For one, give table (one of your tables) and show. show is one of: number (one figure; with a period, with its change against the same span before), bar, line or area (a chart: over time with bucket day/week/month, by a column's values with group_by; with both, each group becomes its own series), progress (towards goal; ring: true draws a ring), rows (the latest rows; columns up to 6, limit up to 20). measure: count (default), sum, avg, min or max; all but count need column naming a number column. period: today, 7d, 30d, 90d, month, quarter, year or all. A row's day comes from date_column (a date column) if given, otherwise from the day the row was written. filter: one condition per line, such as Status=open, Status!=closed, Note~=urgent, or just Column (filled in). For data not in your tables (a CRM, email, another app) give show: card and card. card is the same ChatKit tree as show_card, but it only shows: no form, button or field. To keep it current, write it again under the same title from a routine. wide: true draws the tile two columns wide. A tile written under a title it already has is replaced in place. remove: titles of your own tiles to take off. If any tile has a problem, none is written.",
+    "Put tiles on one of this app's dashboards. The person follows it live from the Dashboards button in the sidebar. This is not the tickets (ticket_*) and not another app's boards. When the person asks for a dashboard or a board of figures without naming another app, use this tool. name: the dashboard's name; it is started if there is none, and bots using the same name fill the same dashboard. tiles: each with a title and show. A tile worked out from a table is worked out again from the table's current rows each time it is looked at, so it updates by itself as you add rows. For one, give table (one of your tables) and show. show is one of: number (one figure; with a period, with its change against the same span before), bar, line or area (a chart: over time with bucket day/week/month, by a column's values with group_by; with both, each group becomes its own series), progress (towards goal; ring: true draws a ring), rows (the latest rows; columns up to 6, limit up to 20). measure: count (default), sum, avg, min or max; all but count need column naming a number column. period: today, 7d, 30d, 90d, month, quarter, year or all. A row's day comes from date_column (a date column) if given, otherwise from the day the row was written. filter: one condition per line, such as Status=open, Status!=closed, Note~=urgent, or just Column (filled in). For data not in your tables (a CRM, email, another app) give show: card and card. card is the same ChatKit tree as show_card, but it only shows: no form, button or field. To keep it current, write it again under the same title from a routine. wide: true draws the tile two columns wide. A tile written under a title it already has is replaced in place. remove: titles of your own tiles to take off. If any tile has a problem, none is written.",
   'tool.dashboardsNone': 'There is no dashboard you can see yet; set one up with dashboard_define.',
   'tool.dashboardMissing': 'There is no dashboard called “{name}”. The ones you see: {names}',
   'tool.dashboardLine': '- {name}: {count} tiles',
@@ -3433,15 +3433,15 @@ const en: Catalog<ServerKey> = {
   'dashboard.tooMany': 'There can be at most {max} dashboards.',
   'dashboard.notAllYours':
     "This dashboard has tiles of bots you cannot change; you can take off only your own bots' tiles.",
-  'tool.ticketsNone': 'No such tickets on the board.',
+  'tool.ticketsNone': 'No such tickets.',
   'tool.ticketMissing': 'There is no ticket #{ticket}.',
-  'tool.ticketCreated': 'Ticket #{number} was added to the board.',
+  'tool.ticketCreated': 'Ticket #{number} was opened.',
   'tool.ticketCreatedWaiting':
-    'Ticket #{number} was added to the board; since it was opened during ticket work, its bot waits until the user starts it.',
+    'Ticket #{number} was opened; since it was opened during ticket work, its bot waits until the user starts it.',
   'tool.ticketUpdated': 'Ticket #{number} was updated.',
   'tool.ticket_delete':
-    'Delete finished tickets from the board (tickets: their numbers, e.g. [12, 13]). Only tickets whose status is done or wont_do are deleted; to drop work that is still open, set it to wont_do first. A ticket goes with its comments; the user can bring it back by taking the turn back.',
-  'tool.ticketsDeleted': 'Deleted from the board: {list}.',
+    'Delete finished tickets (tickets: their numbers, e.g. [12, 13]). Only tickets whose status is done or wont_do are deleted; to drop work that is still open, set it to wont_do first. A ticket goes with its comments; the user can bring it back by taking the turn back.',
+  'tool.ticketsDeleted': 'Deleted tickets: {list}.',
   'tool.ticketNotClosed':
     'Ticket #{number} was not deleted: its status is "{status}"; only finished tickets are deleted.',
   'tool.ticketDeleteSelf': 'Ticket #{number} was not deleted: this conversation is working on it.',

@@ -518,7 +518,7 @@ export const uk: Partial<Catalog<MessageKey>> = {
   'sidebarMenu.markGroupRead': 'Позначити групу прочитаною',
   'chat.apiThreads': 'Через API',
   'chat.teamThreads': 'Команда (Slack, Discord)',
-  'chat.ticketThreads': 'Робота за дошкою',
+  'chat.ticketThreads': 'Заявки',
   'activity.watch': 'Стежити',
   'shortcuts.newThread': 'Новий чат із цим ботом',
   'message.fork': 'Створити новий чат звідси',
@@ -734,12 +734,12 @@ export const uk: Partial<Catalog<MessageKey>> = {
   'replay.askBotButton': 'Дозволити {bot} завершити',
   'replay.askBot':
     'Я відтворив навичку «{name}» без ШІ; вона зупинилася на кроці {step}: {reason} Погляньте на сторінку й завершіть завдання звідти.',
-  'board.title': 'Дошка',
+  'board.title': 'Заявки',
   'board.description': 'Заявки, за якими працюєте ви та ваші боти, у стовпцях за статусом.',
   'board.new': 'Нова заявка',
   'board.newDescription': 'Вкажіть назву й подробиці заявки, кому вона йде і наскільки вона термінова.',
   'board.create': 'Створити заявку',
-  'board.emptyTitle': 'Дошка порожня',
+  'board.emptyTitle': 'Заявок поки немає',
   'board.empty':
     'Додайте заявку й віддайте її боту: він почне роботу й повідомить тут. Боти також можуть відкривати заявки.',
   'board.openCount': {
@@ -796,7 +796,7 @@ export const uk: Partial<Catalog<MessageKey>> = {
   'board.addDescription': 'Додати опис…',
   'board.editDescription': 'Редагувати опис',
   'board.startsHint': '{name} одразу почне над ним працювати в окремому чаті цього тікета й повідомить тут.',
-  'board.unassignedHint': 'Призначте його ботові — і робота почнеться одразу; інакше тікет чекає на дошці.',
+  'board.unassignedHint': 'Призначте її ботові — і робота почнеться одразу; інакше заявка чекає тут.',
   'board.startHint': 'Переміщення до «У роботі» або новий коментар знову запускають бота на ньому.',
   'board.openedByLabel': 'Відкрив',
   'board.updated': 'Оновлено',

@@ -517,7 +517,7 @@ export const pl: Partial<Catalog<MessageKey>> = {
   'sidebarMenu.markGroupRead': 'Oznacz grupę jako przeczytaną',
   'chat.apiThreads': 'Przez API',
   'chat.teamThreads': 'Zespół (Slack, Discord)',
-  'chat.ticketThreads': 'Praca z tablicy',
+  'chat.ticketThreads': 'Zgłoszenia',
   'activity.watch': 'Obserwuj',
   'shortcuts.newThread': 'Nowa rozmowa z tym botem',
   'message.fork': 'Utwórz nową rozmowę od tego miejsca',
@@ -731,12 +731,12 @@ export const pl: Partial<Catalog<MessageKey>> = {
   'replay.askBotButton': 'Pozwól {bot} dokończyć',
   'replay.askBot':
     'Odtworzyłem umiejętność „{name}” bez AI; zatrzymała się na kroku {step}: {reason} Spójrz na stronę i dokończ zadanie od tego miejsca.',
-  'board.title': 'Tablica',
+  'board.title': 'Zgłoszenia',
   'board.description': 'Zgłoszenia, z których pracujesz Ty i Twoje boty, w kolumnach według statusu.',
   'board.new': 'Nowe zgłoszenie',
   'board.newDescription': 'Podaj tytuł i szczegóły zgłoszenia, do kogo trafia i jak pilne jest.',
   'board.create': 'Utwórz zgłoszenie',
-  'board.emptyTitle': 'Tablica jest pusta',
+  'board.emptyTitle': 'Nie ma jeszcze zgłoszeń',
   'board.empty':
     'Dodaj zgłoszenie i przydziel je botowi: zacznie pracę i zda relację tutaj. Boty też mogą otwierać zgłoszenia.',
   'board.openCount': {
@@ -794,7 +794,7 @@ export const pl: Partial<Catalog<MessageKey>> = {
   'board.editDescription': 'Edytuj opis',
   'board.startsHint':
     '{name} od razu zacznie nad nim pracować, we własnej rozmowie zgłoszenia, i zda raport tutaj.',
-  'board.unassignedHint': 'Przydziel je botowi, a od razu zacznie; inaczej czeka na tablicy.',
+  'board.unassignedHint': 'Przydziel je botowi, a od razu zacznie; inaczej czeka tutaj.',
   'board.startHint': 'Przeniesienie do „W toku” lub napisanie komentarza ponownie uruchomi przy nim bota.',
   'board.openedByLabel': 'Otwarte przez',
   'board.updated': 'Zaktualizowane',

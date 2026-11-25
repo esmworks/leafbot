@@ -492,7 +492,7 @@ export const es: Partial<Catalog<MessageKey>> = {
   'sidebarMenu.markGroupRead': 'Marcar el grupo como leído',
   'chat.apiThreads': 'Por la API',
   'chat.teamThreads': 'Equipo (Slack, Discord)',
-  'chat.ticketThreads': 'Trabajo del tablero',
+  'chat.ticketThreads': 'Tickets',
   'activity.watch': 'Vigilancia',
   'shortcuts.newThread': 'Nueva conversación con este bot',
   'message.fork': 'Crear una conversación nueva desde aquí',
@@ -708,12 +708,12 @@ export const es: Partial<Catalog<MessageKey>> = {
   'replay.askBotButton': 'Dejar que {bot} termine',
   'replay.askBot':
     'Repetí la habilidad «{name}» sin IA; se detuvo en el paso {step}: {reason} Mira la página y termina la tarea desde ahí.',
-  'board.title': 'Tablero',
+  'board.title': 'Tickets',
   'board.description': 'Tickets con los que trabajan tú y tus bots, en columnas por estado.',
   'board.new': 'Nuevo ticket',
   'board.newDescription': 'Escribe el título y los detalles del ticket, para quién es y cuánto urge.',
   'board.create': 'Crear ticket',
-  'board.emptyTitle': 'El tablero está vacío',
+  'board.emptyTitle': 'Aún no hay tickets',
   'board.empty':
     'Añade un ticket y dáselo a un bot: empezará a trabajar y te informará aquí. Los bots también pueden abrir tickets.',
   'board.openCount': { one: '{count} abierto', many: '{count} abiertos', other: '{count} abiertos' },
@@ -765,7 +765,7 @@ export const es: Partial<Catalog<MessageKey>> = {
   'board.editDescription': 'Editar la descripción',
   'board.startsHint':
     '{name} empieza de inmediato, en una conversación propia del ticket, y te informa aquí.',
-  'board.unassignedHint': 'Si se lo das a un bot, empieza de inmediato; si no, espera en el tablero.',
+  'board.unassignedHint': 'Si se lo das a un bot, empieza de inmediato; si no, espera aquí.',
   'board.startHint': 'Si lo pasas a «En curso» o escribes un comentario, el bot vuelve a trabajar en él.',
   'board.openedByLabel': 'Abierto por',
   'board.updated': 'Actualizado',
