@@ -2,7 +2,7 @@ import type { BotTable, DashboardSummary, DashboardView, Thread } from '@leafbot
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { testServer, type TestServer } from './helpers';
 
-describe('gösterge panelleri', () => {
+describe('panolar', () => {
   let t: TestServer;
   beforeEach(async () => {
     t = await testServer();
@@ -63,7 +63,7 @@ describe('gösterge panelleri', () => {
         ],
       }),
     );
-    expect(reply).toContain('“3E Satış” gösterge paneli güncellendi');
+    expect(reply).toContain('“3E Satış” panosu güncellendi');
     const [page] = await pages();
     expect(page).toMatchObject({ name: '3E Satış', botIds: [bot.id], tileCount: 4 });
     let v = await view(page!.id);
@@ -99,7 +99,7 @@ describe('gösterge panelleri', () => {
         ],
       }),
     );
-    expect(reply).toContain('Gösterge paneline hiçbir şey yazılmadı');
+    expect(reply).toContain('Panoya hiçbir şey yazılmadı');
     expect(reply).toContain('“Firma” bir sayı sütunu değil');
     expect(reply).toContain('form, düğme ya da alan içeremez');
     expect(reply).toContain('Tabloların: Teklifler');

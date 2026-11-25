@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mcpServers } from '../src/engine/claude';
 import { testServer, waitFor, type TestServer } from './helpers';
 
-describe('görev panosu', () => {
+describe('görevler', () => {
   let t: TestServer;
   beforeEach(async () => {
     t = await testServer();
@@ -154,7 +154,7 @@ describe('görev panosu', () => {
     expect((await t.api<Ticket[]>('GET', '/api/tickets')).body).toHaveLength(0);
   });
 
-  it('istem panoyu ve botun açık görevlerini anlatır; pano araçları araç aramasının ardında kalmaz', async () => {
+  it('istem görevleri ve botun açık görevlerini anlatır; görev araçları araç aramasının ardında kalmaz', async () => {
     const bot = await t.bot({ name: 'Yazar' });
     const thread = (await t.api<Thread>('GET', `/api/bots/${bot.id}/main-thread`)).body;
     const blocked = (
@@ -169,7 +169,7 @@ describe('görev panosu', () => {
     await t.send(thread.id, 'merhaba');
     await t.services.turns.idle();
     const req = t.engine.requests.at(-1)!;
-    expect(req.systemPrompt).toContain('## Pano');
+    expect(req.systemPrompt).toContain('## Görevler');
     expect(req.systemPrompt).toContain('görevi `assign_to` ile aç');
     // The open ticket is listed; one waiting for review is not the bot's to do.
     expect(req.systemPrompt).toContain(`#${blocked.number} Fiyatları topla`);
@@ -204,6 +204,6 @@ describe('görev panosu', () => {
     });
     await t.send(thread.id, 'yine merhaba');
     await t.services.turns.idle();
-    expect(t.engine.requests.at(-1)!.systemPrompt).not.toContain('## Pano');
+    expect(t.engine.requests.at(-1)!.systemPrompt).not.toContain('## Görevler');
   });
 });
