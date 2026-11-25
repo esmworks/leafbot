@@ -252,6 +252,23 @@ describe('botun bilgisayarı', () => {
     expect(await tool('computer_click').gated!({ x: 1, y: 1 })).toBe(false);
   });
 
+  it('sunucudaki Bash masaüstündekiyle aynı kurallarla sorar ve masaüstünü açmaz', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    // A plain read of its own folder needs no card; a command reaching a host asks, as Bash.
+    await t.send(thread.id, '[izin:Bash {"command":"ls"}]');
+    await t.services.turns.idle();
+    expect((await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body).toEqual([]);
+    await t.send(thread.id, '[izin:Bash {"command":"curl -s https://ornek.test"}]');
+    const card = await waitFor(
+      async () => (await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body[0],
+    );
+    expect(card).toMatchObject({ toolName: 'Bash', input: { command: 'curl -s https://ornek.test' } });
+    await t.api('POST', `/api/approvals/${card.id}`, { decision: 'allow' });
+    await t.services.turns.idle();
+    expect(fake.starts).toHaveLength(0);
+  });
+
   it('sunucu kabuğu burada açılamıyorsa komutlar masaüstünde çalışır', async () => {
     t.services.ctx.shellUnavailable = () => true;
     const bot = await t.bot();
