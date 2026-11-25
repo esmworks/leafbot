@@ -23,8 +23,11 @@ const CARD_EVERY_MS = 10_000;
 const LOST_AFTER_MS = MAC_JOB_MAX_MS + 10 * 60_000;
 /** How long the answer to a run may take beyond the wait: the computer may first ask its person. */
 const RUN_SLACK_MS = 60_000;
-/** What a computer answers when it will not start a command; anything else may have started it. */
-const REFUSALS = new Set(['refused', 'tooMany', 'noFolder', 'commandsOff', 'badRequest']);
+/**
+ * What a computer answers when it did not start a command (`failed`: its handler threw before the
+ * command was spawned). No answer at all may mean it did.
+ */
+const REFUSALS = new Set(['refused', 'tooMany', 'noFolder', 'commandsOff', 'badRequest', 'failed']);
 
 /** What starting a command came to. */
 export type JobStart =
@@ -146,11 +149,13 @@ export class PersonJobService {
     if (r.ok !== true && !REFUSALS.has(error)) {
       // No answer: the computer may well be running it. The card stays and the bot is woken when
       // the computer, back again, tells how it ended or that it has no such job.
-      await this.ctx.db
+      const [waiting] = await this.ctx.db
         .update(schema.personJobs)
         .set({ wake: true })
-        .where(and(eq(schema.personJobs.id, id), eq(schema.personJobs.status, 'running')));
-      return { id, running: true, output: '', unsure: true };
+        .where(and(eq(schema.personJobs.id, id), eq(schema.personJobs.status, 'running')))
+        .returning({ id: schema.personJobs.id });
+      if (waiting) return { id, running: true, output: '', unsure: true };
+      return this.ended(id, o.userId, '');
     }
     if (r.ok !== true) {
       // The computer said no: it never started, the card says so and nothing wakes for it.
@@ -176,18 +181,21 @@ export class PersonJobService {
       .set({ wake: true })
       .where(and(eq(schema.personJobs.id, id), eq(schema.personJobs.status, 'running')))
       .returning({ id: schema.personJobs.id });
-    if (!waking) {
-      const ended = await this.get(id, o.userId);
-      return {
-        id,
-        running: false,
-        exitCode: ended?.exitCode ?? null,
-        stopped: ended?.status === 'stopped',
-        output: ended?.tail ?? output,
-        truncated: true,
-      };
-    }
+    if (!waking) return this.ended(id, o.userId, output);
     return { id, running: true, output };
+  }
+
+  /** A job that ended while its start waited for an answer, told by an event. */
+  private async ended(id: string, userId: string, output: string): Promise<JobStart> {
+    const row = await this.get(id, userId);
+    return {
+      id,
+      running: false,
+      exitCode: row?.exitCode ?? null,
+      stopped: row?.status === 'stopped',
+      output: row?.tail || output,
+      truncated: true,
+    };
   }
 
   /**

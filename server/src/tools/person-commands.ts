@@ -59,8 +59,8 @@ export function personCommandTools(o: {
     if (ask?.secondPerson) return { card: false, refused: t('personJob.secondPerson') };
     if (ask || secret) return { card: true };
     // The person allowed this very command in this very folder: it runs even after outside text,
-    // which can only make it run again what they already let run there. New rules wait for a turn
-    // that read none (see the card below).
+    // which can only make it run again what they already let run there. Only their own yes on a
+    // card makes such a rule; the rules routes cannot name a person.
     const pattern = commandRulePattern(command, cwd);
     const allowed = rules.some(
       (r) =>
