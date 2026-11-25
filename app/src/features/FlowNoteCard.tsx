@@ -129,11 +129,18 @@ export function FlowNoteCard({
       aria-label={t('flow.note')}
       style={{ left: shown.x, top: shown.y, width: shown.w, height: shown.h }}
       className={cn(
-        'group absolute flex flex-col rounded-xl border shadow-xs',
-        NOTE_TINT[note.color].paper,
+        // On the card's colour first: a tint alone would let the lines under it show through.
+        'group absolute flex flex-col rounded-xl border border-transparent bg-card shadow-xs',
         held && 'z-10 shadow-lg',
       )}
     >
+      <span
+        className={cn(
+          'pointer-events-none absolute -inset-px rounded-[inherit] border',
+          NOTE_TINT[note.color].paper,
+        )}
+        aria-hidden
+      />
       <div
         onPointerDown={hold('move')}
         title={t('flow.noteDrag')}

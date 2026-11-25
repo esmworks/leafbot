@@ -1128,6 +1128,10 @@ export function RoutineFlow({
                     );
                   })}
                 </svg>
+                {/* Under the boxes: a box moved onto a line covers its button, not the other way round. */}
+                {ids.slice(2).map((id, k) => addMenu(k, link(spots[ids[k + 1]!]!, spots[id]!).mid))}
+                {addMenu(steps.length, { x: last.x + BOX_W + 28, y: last.y + PORT_Y })}
+                {/* Over the lines and their buttons, under the boxes: a note may be laid over a line. */}
                 {notes.map((n) => (
                   <FlowNoteCard
                     key={n.id}
@@ -1138,9 +1142,6 @@ export function RoutineFlow({
                     onRemove={() => onNotes?.(notes.filter((x) => x.id !== n.id))}
                   />
                 ))}
-                {/* Under the boxes: a box moved onto a line covers its button, not the other way round. */}
-                {ids.slice(2).map((id, k) => addMenu(k, link(spots[ids[k + 1]!]!, spots[id]!).mid))}
-                {addMenu(steps.length, { x: last.x + BOX_W + 28, y: last.y + PORT_Y })}
 
                 {box({
                   id: 'start',
