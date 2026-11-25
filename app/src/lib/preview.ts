@@ -1,5 +1,6 @@
 /** How a file can be shown without downloading it, or null when it cannot. */
-export type PreviewKind = 'image' | 'pdf' | 'audio' | 'video' | 'markdown' | 'table' | 'html' | 'text';
+export type PreviewKind =
+  'image' | 'pdf' | 'audio' | 'video' | 'markdown' | 'table' | 'workbook' | 'html' | 'text';
 
 const IMAGE = /\.(png|jpe?g|gif|webp|svg)$/i;
 const MARKDOWN = /\.(md|markdown)$/i;
@@ -20,6 +21,8 @@ export function previewKind(name: string): PreviewKind | null {
   if (VIDEO.test(name)) return 'video';
   if (MARKDOWN.test(name)) return 'markdown';
   if (/\.(csv|tsv)$/i.test(name)) return 'table';
+  // An Excel workbook, read in the browser (see readWorkbook); the older binary .xls is not.
+  if (/\.(xlsx|xlsm)$/i.test(name)) return 'workbook';
   if (/\.html?$/i.test(name)) return 'html';
   if (TEXT.test(name) || TEXT_NAMES.test(name)) return 'text';
   return null;
@@ -73,6 +76,45 @@ export function htmlPreviewDocument(source: string): string {
 
 /** The most text a preview reads; past it the rest is cut, and the file can still be downloaded. */
 export const TEXT_PREVIEW_BYTES = 1024 * 1024;
+
+/** The largest workbook the preview reads; a bigger one is downloaded to open. */
+export const WORKBOOK_PREVIEW_BYTES = 25 * 1024 * 1024;
+
+export class TooLargeError extends Error {}
+
+/** Reads a whole file as bytes, giving up once it passes `max` so a huge one is not loaded. */
+export async function readBytes(
+  url: string,
+  max: number,
+  signal?: AbortSignal,
+): Promise<Uint8Array<ArrayBuffer>> {
+  const res = await fetch(url, { credentials: 'same-origin', signal });
+  if (!res.ok || !res.body) throw new Error(String(res.status));
+  if (Number(res.headers.get('content-length') ?? 0) > max) {
+    await res.body.cancel();
+    throw new TooLargeError();
+  }
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel();
+      throw new TooLargeError();
+    }
+    chunks.push(value);
+  }
+  const bytes = new Uint8Array(size);
+  let at = 0;
+  for (const c of chunks) {
+    bytes.set(c, at);
+    at += c.byteLength;
+  }
+  return bytes;
+}
 
 /**
  * Reads at most `max` bytes of a file as UTF-8 text and stops there, so a large log does not load

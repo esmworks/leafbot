@@ -1,4 +1,3 @@
-import { previewKind } from '@leafbot/app/src/lib/preview';
 import { useLocalSearchParams } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
 import { useMemo, useState } from 'react';
@@ -14,7 +13,7 @@ import {
   WebFile,
   useFileText,
 } from '@/components/panel/Preview';
-import { fileSize, shareFile } from '@/components/panel/files';
+import { fileSize, phonePreviewKind, shareFile } from '@/components/panel/files';
 import { t } from '@/i18n';
 import { useLibrary } from '@/lib/queries';
 import { useApi } from '@/lib/server';
@@ -56,7 +55,7 @@ export default function FileScreen() {
     setCurrent(list[(at + by + list.length) % list.length]!);
   };
   const name = nameOf(current);
-  const kind = previewKind(name);
+  const kind = phonePreviewKind(name);
   const size = library?.find((f) => f.path === current)?.size ?? -1;
   const download = api.fileUrl(botId, current);
   const inline = api.fileUrl(botId, current, { inline: true });

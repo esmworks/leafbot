@@ -1,11 +1,20 @@
 import { INTL_LOCALE } from '@leafbot/shared/i18n';
-import { TEXT_PREVIEW_BYTES } from '@leafbot/app/src/lib/preview';
+import { previewKind, TEXT_PREVIEW_BYTES } from '@leafbot/app/src/lib/preview';
 import { Directory, File, Paths } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { locale, t } from '@/i18n';
 import { toast, toastError } from '@/components/overlay';
 
 const decimal = new Intl.NumberFormat(INTL_LOCALE[locale], { maximumFractionDigits: 1 });
+
+/**
+ * How the phone shows a file, or null to share it instead. A workbook is left out: the web app
+ * reads it with browser parts (DOMParser, DecompressionStream) the phone does not have.
+ */
+export function phonePreviewKind(name: string) {
+  const kind = previewKind(name);
+  return kind === 'workbook' ? null : kind;
+}
 
 export function fileSize(n: number): string {
   if (n < 1024) return `${n} B`;

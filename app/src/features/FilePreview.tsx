@@ -1,3 +1,4 @@
+import { INTL_LOCALE } from '@leafbot/shared';
 import { useQuery } from '@tanstack/react-query';
 import {
   ChevronLeft,
@@ -17,14 +18,22 @@ import { create } from 'zustand';
 import { Markdown } from '@/components/Markdown';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { useT } from '@/i18n';
+import { useLocale, useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { copyText } from '@/lib/clipboard';
 import { parseCsv } from '@/lib/csv';
 import { libraryKey } from '@/lib/fileLink';
-import { htmlPreviewDocument, previewKind, readTextStart } from '@/lib/preview';
+import {
+  htmlPreviewDocument,
+  previewKind,
+  readBytes,
+  readTextStart,
+  TooLargeError,
+  WORKBOOK_PREVIEW_BYTES,
+} from '@/lib/preview';
 import { cn } from '@/lib/utils';
+import { columnName, readWorkbook, type DateFormat } from '@/lib/xlsx';
 
 /** A bot's file: one in its library, or one sent in a message. */
 export interface PreviewFile {
@@ -49,7 +58,10 @@ export const usePreview = create<{
 /** Whether a file opens in the preview rather than downloading. */
 export const canPreview = (name: string) => previewKind(name) !== null;
 
-/** A file shown in place: an image, a PDF in the browser's viewer, Markdown, or plain text. */
+/**
+ * A file shown in place: an image, a PDF in the browser's viewer, a table or workbook, Markdown, or
+ * plain text.
+ */
 export function FilePreview() {
   const t = useT();
   const file = usePreview((s) => s.file);
@@ -168,6 +180,8 @@ function PreviewBody({ file }: { file: PreviewFile }) {
           <iframe src={inline} title={file.name} className="size-full bg-white" />
         ) : kind === 'table' ? (
           <TablePreview file={file} />
+        ) : kind === 'workbook' ? (
+          <WorkbookPreview file={file} />
         ) : kind ? (
           <TextPreview file={file} markdown={kind === 'markdown'} html={kind === 'html'} />
         ) : (
@@ -272,6 +286,117 @@ function TablePreview({ file }: { file: PreviewFile }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+/**
+ * An Excel workbook as a grid with column letters and row numbers, one sheet at a time, its sheets
+ * as tabs below as Excel has them. Values only: no colours, merged cells or charts.
+ */
+function WorkbookPreview({ file }: { file: PreviewFile }) {
+  const t = useT();
+  const locale = useLocale((s) => s.locale);
+  const [at, setAt] = useState(0);
+  const formatDate = useMemo<DateFormat>(() => {
+    const tag = INTL_LOCALE[locale];
+    // Serial dates carry no time zone: shown in UTC so the day is the one written in the file.
+    const date = new Intl.DateTimeFormat(tag, { dateStyle: 'short', timeZone: 'UTC' });
+    const time = new Intl.DateTimeFormat(tag, { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
+    return (ms, show) =>
+      show === 'date'
+        ? date.format(ms)
+        : show === 'time'
+          ? time.format(ms)
+          : `${date.format(ms)} ${time.format(ms)}`;
+  }, [locale]);
+  const { data, isPending, error } = useQuery({
+    queryKey: ['file-workbook', file.botId, file.path, locale],
+    queryFn: async ({ signal }) =>
+      readWorkbook(await readBytes(api.fileUrl(file.botId, file.path), WORKBOOK_PREVIEW_BYTES, signal), {
+        formatDate,
+      }),
+    staleTime: 30_000,
+    retry: false,
+  });
+  if (isPending)
+    return (
+      <Note>
+        <Loader2 className="size-5 animate-spin" />
+      </Note>
+    );
+  if (error instanceof TooLargeError) return <Note>{t('preview.tooLarge')}</Note>;
+  if (error || !data?.length) return <Note>{t('preview.failed')}</Note>;
+  const sheet = data[Math.min(at, data.length - 1)]!;
+  const width = sheet.rows[0]?.length ?? 0;
+  return (
+    <div className="flex size-full flex-col">
+      <div className="scroll-thin min-h-0 flex-1 overflow-auto bg-background">
+        {sheet.cut && (
+          <p className="sticky top-0 start-0 z-20 border-b bg-amber-500/10 px-4 py-2 text-xs text-amber-700 backdrop-blur dark:text-amber-300">
+            {t('preview.sheetCut')}
+          </p>
+        )}
+        {sheet.rows.length ? (
+          <table className="w-max min-w-full border-collapse text-[13px]">
+            <thead className="sticky top-0 z-10 bg-secondary text-xs text-muted-foreground">
+              <tr>
+                <th className="sticky start-0 border-b border-e bg-secondary px-2 py-1" />
+                {Array.from({ length: width }, (_, i) => (
+                  <th key={i} className="min-w-16 border-b border-e px-3 py-1 text-center font-normal">
+                    {columnName(i)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sheet.rows.map((r, i) => (
+                <tr key={i}>
+                  <th className="sticky start-0 border-b border-e bg-secondary px-2 py-1 text-end text-xs font-normal text-muted-foreground tabular-nums">
+                    {i + 1}
+                  </th>
+                  {r.map((c, j) => (
+                    <td
+                      key={j}
+                      className="max-w-96 truncate border-b border-e px-3 py-1 align-top"
+                      title={c || undefined}
+                    >
+                      {c}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <Note>{t('preview.sheetEmpty')}</Note>
+        )}
+      </div>
+      {data.length > 1 && (
+        <div
+          role="tablist"
+          aria-label={t('preview.sheets')}
+          className="scroll-thin flex shrink-0 gap-1 overflow-x-auto border-t bg-secondary/60 p-1.5"
+        >
+          {data.map((s, i) => (
+            <button
+              key={i}
+              type="button"
+              role="tab"
+              aria-selected={i === at}
+              onClick={() => setAt(i)}
+              className={cn(
+                'shrink-0 rounded-lg px-3 py-1 text-sm whitespace-nowrap transition-colors',
+                i === at
+                  ? 'bg-background font-medium text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:bg-background/60 hover:text-foreground',
+              )}
+            >
+              {s.name}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

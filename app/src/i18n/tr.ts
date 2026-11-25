@@ -1042,6 +1042,10 @@ export const tr = {
   'preview.failed':
     'Dosya açılamadı. Taşınmış ya da silinmiş olabilir; indirmeyi dene ya da bottan yeniden göndermesini iste.',
   'preview.cut': "Dosya çok uzun; yalnızca ilk 1 MB'ı gösteriliyor. Tamamı için indirin.",
+  'preview.tooLarge': 'Bu dosya burada gösterilemeyecek kadar büyük; indirip açabilirsiniz.',
+  'preview.sheetCut': 'Sayfanın bir kısmı gösteriliyor; tamamı için dosyayı indirin.',
+  'preview.sheetEmpty': 'Bu sayfa boş.',
+  'preview.sheets': 'Sayfalar',
   'message.reaction': 'Tepki: {emoji}',
   'message.copy': 'Kopyala',
   'message.copied': 'Kopyalandı',

@@ -19,8 +19,10 @@ describe('file preview', () => {
     expect(previewKind('fatura.eml')).toBe('text');
     expect(previewKind('kayit.MP3')).toBe('audio');
     expect(previewKind('klip.webm')).toBe('video');
-    for (const name of ['sunum.pptx', 'tablo.xlsx', 'arsiv.zip', 'adsiz'])
-      expect(previewKind(name)).toBeNull();
+    expect(previewKind('tablo.xlsx')).toBe('workbook');
+    expect(previewKind('makrolu.XLSM')).toBe('workbook');
+    // The older binary format is not read.
+    for (const name of ['eski.xls', 'sunum.pptx', 'arsiv.zip', 'adsiz']) expect(previewKind(name)).toBeNull();
   });
 
   it('names the family a file belongs to, for its card', () => {
