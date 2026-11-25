@@ -95,6 +95,8 @@ const NUDGE = 16;
 /** The overview's size, and how tall it draws a box. */
 const MAP_W = 180;
 const MAP_H = 112;
+/** A canvas narrower than this has no room for the overview beside the view's bar: it goes above. */
+const MAP_BESIDE_MIN = 560;
 const MAP_BOX_H = 120;
 
 /** What the window over the canvas shows when it is the routine's settings rather than a box. */
@@ -906,7 +908,10 @@ export function RoutineFlow({
       aria-label={t('flow.overview')}
       width={mapW * m}
       height={mapH * m}
-      className="absolute end-2 bottom-2 z-10 cursor-pointer touch-none rounded-xl border bg-background/90 shadow-xs backdrop-blur"
+      className={cn(
+        'absolute end-2 z-10 cursor-pointer touch-none rounded-xl border bg-background/90 shadow-xs backdrop-blur',
+        port.width < MAP_BESIDE_MIN ? 'bottom-12' : 'bottom-2',
+      )}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
         lookAt(e);
