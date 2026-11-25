@@ -1,5 +1,6 @@
 import type { SlashCommand } from '@leafbot/app/src/lib/slash';
-import { streamParts, type Bot, type Message, type Thread } from '@leafbot/shared';
+import { cardPlace, streamParts, type Bot, type Message, type Room, type Thread } from '@leafbot/shared';
+import Feather from '@expo/vector-icons/Feather';
 import { useQueryClient } from '@tanstack/react-query';
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
@@ -28,7 +29,7 @@ import { foldRoutineRuns } from '@leafbot/app/src/features/routineRuns';
 import { nav } from '@/lib/nav';
 import { endWorkSeen, showWork, useLiveActivityChoice } from '@/lib/liveActivity';
 import { useLiveCards } from '@/lib/liveCards';
-import { useApprovals, useMessages } from '@/lib/queries';
+import { useApprovals, useMessages, useRooms } from '@/lib/queries';
 import { useLiveCatchUp, useLiveState, useStream } from '@/lib/realtime';
 import { sendWithRetry } from '@/lib/sendRetry';
 import { useApi, useServer } from '@/lib/server';
@@ -38,10 +39,12 @@ import { GoalBar, MessageBoundary, PinnedBar, QuickReplies, ToBottom } from './B
 import { Composer, type SendExtra } from './Composer';
 import { FindBar } from './FindBar';
 import { excerpt, MESSAGE_PAGE } from './text';
-import type { ThreadActions } from './threads';
+import { useThreadName, type ThreadActions } from './threads';
 
 const fmt = formatters(locale, t);
 const NONE: Message[] = [];
+const NO_THREADS: Thread[] = [];
+const NO_ROOMS: Room[] = [];
 
 type Row =
   | { kind: 'divider'; key: string; label: string }
@@ -50,7 +53,9 @@ type Row =
   | { kind: 'part'; key: string; text: string }
   | { kind: 'live'; key: string; from: number }
   | { kind: 'waiting'; key: string }
-  | { kind: 'replies'; key: string; options: string[] };
+  | { kind: 'replies'; key: string; options: string[] }
+  /** Above a card from another of the bot's conversations: where it was asked, to go there. */
+  | { kind: 'cardFrom'; key: string; place: string; to: { roomId?: string; threadId?: string } };
 
 /** One conversation of a bot: its messages, the reply being written, and the box to write in. */
 export function Conversation({
@@ -62,6 +67,8 @@ export function Conversation({
   find,
   actions,
   elsewhere,
+  mainId,
+  threads = NO_THREADS,
 }: {
   bot: Bot;
   threadId: string;
@@ -74,6 +81,9 @@ export function Conversation({
   find: string | undefined;
   actions: ThreadActions;
   elsewhere: ReactNode;
+  /** The bot's main conversation: it shows the cards waiting in the bot's other ones at its end. */
+  mainId?: string;
+  threads?: Thread[];
 }) {
   const c = useColors();
   const api = useApi();
@@ -191,6 +201,50 @@ export function Conversation({
         })),
     [approvals, threadId],
   );
+  // In the bot's main chat, the cards waiting in its other conversations (a ticket's, a routine's), at
+  // its end: the person answers them here as well as there, and the work goes on where it was asked.
+  const { data: rooms = NO_ROOMS } = useRooms();
+  const threadName = useThreadName(mainId);
+  const awayCards = useMemo(() => {
+    if (!mainId || threadId !== mainId) return [];
+    return (
+      (approvals ?? [])
+        .filter((a) => {
+          const place = cardPlace(a);
+          return a.status === 'pending' && place.botId === bot.id && place.threadId !== threadId;
+        })
+        // Oldest first, as they were asked.
+        .reverse()
+        .flatMap((a): Row[] => {
+          const placeId = cardPlace(a).threadId;
+          const room = rooms.find((r) => r.id === placeId);
+          const th = threads.find((x) => x.id === placeId);
+          const m: Message = {
+            id: `away-${a.id}`,
+            threadId,
+            role: 'approval',
+            author: `bot:${a.botId}`,
+            text: a.summary,
+            // A card away from its line offers what its line does (no "always allow" where it says so).
+            props: { approvalId: a.id, ...(a.answerIn?.props ?? a.line ?? {}) },
+            clientId: null,
+            turnId: null,
+            createdAt: a.createdAt,
+          };
+          return [
+            {
+              kind: 'cardFrom',
+              key: `from-${a.id}`,
+              place: room?.title || (th ? threadName(th) : t('chat.newThread')),
+              to: room ? { roomId: placeId } : { threadId: placeId },
+            },
+            { kind: 'message', key: m.id, m },
+          ];
+        })
+    );
+    // `threadName` is made afresh each render; the names it gives follow `threads`.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [approvals, bot.id, mainId, threadId, rooms, threads]);
   const rows = useMemo(() => {
     const firstNew =
       readUntil == null
@@ -215,6 +269,7 @@ export function Conversation({
     out.reverse();
     // Newest at the bottom, above what the bot is doing now (the list is drawn upside down).
     for (const m of [...exchangeCards].reverse()) out.unshift({ kind: 'message', key: m.id, m });
+    out.unshift(...[...awayCards].reverse());
     const held = cards.length > 0 && !tail && state === 'waiting';
     if (!streamDone && (hasText || working) && !held) out.unshift({ kind: 'live', key: 'live', from: end });
     // A turn held on the person's answer says so under the card that asks.
@@ -225,6 +280,7 @@ export function Conversation({
   }, [
     shown,
     exchangeCards,
+    awayCards,
     cards,
     head,
     end,
@@ -393,6 +449,23 @@ export function Conversation({
           return <Working bot={bot} activity="waiting" threadId={threadId} />;
         case 'replies':
           return <QuickReplies options={item.options} onPick={quick} />;
+        case 'cardFrom':
+          return (
+            <Pressable
+              accessibilityRole="button"
+              hitSlop={6}
+              onPress={() =>
+                // A card waiting in a room is answered there too.
+                item.to.roomId ? nav.room(item.to.roomId) : nav.chat(bot.id, { threadId: item.to.threadId })
+              }
+              style={styles.cardFrom}
+            >
+              <Feather name="shield" size={14} color={c.amber} />
+              <Text style={[styles.cardFromText, { color: c.mutedForeground }]} numberOfLines={1}>
+                {t('chat.cardFrom', { place: item.place })}
+              </Text>
+            </Pressable>
+          );
         case 'message':
           return (
             <MessageRow
@@ -605,6 +678,14 @@ const MessageRow = memo(function MessageRow({
 });
 
 const styles = StyleSheet.create({
+  cardFrom: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 16,
+  },
+  cardFromText: { fontSize: 13, flexShrink: 1 },
   bars: { paddingHorizontal: 12, paddingBottom: 6, gap: 6 },
   list: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 12 },

@@ -1,6 +1,11 @@
 import {
   describeSchedule,
+  fillInputs,
+  filterVars,
   parseCron,
+  parseFields,
+  ROUTINE_VAR_MAX,
+  ROUTINE_VARS_MAX,
   SHORT_DAY_NAMES,
   type Routine,
   type RoutineRun,
@@ -8,6 +13,7 @@ import {
 } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
+import Feather from '@expo/vector-icons/Feather';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AreaBox, FormField, SaveButton, TextBox } from '@/components/dialogs/common';
@@ -15,7 +21,7 @@ import { Rehearsal } from '@/components/dialogs/Rehearsal';
 import { RoutineHealthSection } from '@/components/dialogs/RoutineHealthSection';
 import { isLoopback, runCommand, TIME, tomorrow } from '@/components/dialogs/model';
 import { confirm, toast, toastError } from '@/components/overlay';
-import { Empty, Loading, PillButton, Page, Row, Section, SwitchRow, back } from '@/components/page';
+import { Empty, Loading, Note, PillButton, Page, Row, Section, SwitchRow, back } from '@/components/page';
 import { Chip, ChipRow, ChoiceRow, Hint, Pad, Rows } from '@/components/settings/common/controls';
 import { locale, t, type MessageKey } from '@/i18n';
 import { formatters } from '@/lib/format';
@@ -62,7 +68,13 @@ interface Form {
   limited: boolean;
   from: string;
   to: string;
+  /** Its inputs as rows: a name its texts write as {{name}}, and the value a run takes by default. */
+  inputs: InputRow[];
 }
+
+type InputRow = { name: string; value: string };
+
+const INPUT_NAME = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 
 const int = (s: string, min: number, max: number, fallback: number) => {
   const n = Math.round(Number(s));
@@ -119,7 +131,58 @@ function fromRoutine(r?: Routine): Form {
     webhookFilter: r?.webhookFilter ?? '',
     webhookPost: r?.webhookPost ?? false,
     model: r?.model ?? '',
+    inputs: Object.entries(r?.inputs ?? {}).map(([name, value]) => ({ name, value })),
   };
+}
+
+/** What each of the routine's steps writes, where `{{name}}` may stand. */
+function stepTexts(s: NonNullable<Routine['steps']>[number]): string[] {
+  switch (s.kind) {
+    case 'agent':
+      return [s.prompt];
+    case 'approval':
+      return [s.question];
+    case 'notify':
+      return [s.text];
+    case 'wait':
+      return [s.filter ?? ''];
+    case 'fetch':
+      return [s.url];
+    default:
+      return [];
+  }
+}
+
+/**
+ * The names the instruction and the steps write as `{{name}}` that nothing gives yet: neither an
+ * input nor a step before that takes values from JSON. Offered for adding as inputs.
+ */
+function namesWanted(prompt: string, steps: Routine['steps'], inputs: readonly InputRow[]): string[] {
+  const have = new Set(inputs.map((i) => i.name.trim()));
+  const wanted: string[] = [];
+  const add = (text: string) => {
+    for (const n of filterVars(text)) if (!have.has(n) && !wanted.includes(n)) wanted.push(n);
+  };
+  add(prompt);
+  for (const s of steps ?? []) {
+    for (const text of stepTexts(s)) add(text);
+    if (s.kind === 'extract') for (const f of parseFields(s.fields) ?? []) have.add(f.name);
+  }
+  return wanted;
+}
+
+/** The parts of a routine set in the app on the computer, which this page shows but does not change. */
+function setElsewhere(r: Routine): string[] {
+  const parts: string[] = [];
+  if (r.steps?.length) parts.push(`${t('routine.steps')} (${r.steps.length})`);
+  if (r.condition) parts.push(t('routine.condition'));
+  if (r.emailTrigger) parts.push(t('routine.emailTrigger'));
+  if (r.whatsappGroup) parts.push(t('routine.whatsappGroup'));
+  if (r.whatsappPeople) parts.push(t('routine.whatsappPeople'));
+  if (r.tableTrigger) parts.push(t('routine.tableTrigger'));
+  if (r.slackChannel) parts.push(t('routine.slackChannel'));
+  if (r.slackReaction) parts.push(t('routine.slackReaction'));
+  return parts;
 }
 
 type Errors = Partial<Record<keyof Form, MessageKey>>;
@@ -137,11 +200,32 @@ function validate(f: Form): Errors {
     if (!TIME.test(f.to)) e.to = 'routine.timeFormat';
   }
   if (!/^(https:\/\/\S+)?$/.test(f.watchUrl.trim())) e.watchUrl = 'routine.watchUrlInvalid';
+  if (inputProblems(f.inputs).some(Boolean)) e.inputs = 'routine.inputNameInvalid';
   return e;
 }
 
+/** What is wrong with each input row's name, by row. */
+function inputProblems(rows: readonly InputRow[]): (MessageKey | undefined)[] {
+  return rows.map((r, i) =>
+    !INPUT_NAME.test(r.name.trim())
+      ? 'routine.inputNameInvalid'
+      : rows.findIndex((x) => x.name.trim() === r.name.trim()) !== i
+        ? 'routine.inputNameTwice'
+        : undefined,
+  );
+}
+
 /** Creates a routine for `botId` (a bot is asked for when none is given), or edits `routineId`. */
-export function RoutineEditor({ botId, routineId }: { botId?: string; routineId?: string }) {
+export function RoutineEditor({
+  botId,
+  routineId,
+  showRuns = false,
+}: {
+  botId?: string;
+  routineId?: string;
+  /** Opens at its latest runs, for a routine opened to see why a run failed. */
+  showRuns?: boolean;
+}) {
   const routines = useRoutines();
   const bots = useBots();
   if (routines.isLoading || bots.isLoading) {
@@ -159,10 +243,25 @@ export function RoutineEditor({ botId, routineId }: { botId?: string; routineId?
       </Page>
     );
   }
-  return <RoutinePage key={routine?.id ?? 'new'} routine={routine} initialBotId={routine?.botId ?? botId} />;
+  return (
+    <RoutinePage
+      key={routine?.id ?? 'new'}
+      routine={routine}
+      initialBotId={routine?.botId ?? botId}
+      showRuns={showRuns}
+    />
+  );
 }
 
-function RoutinePage({ routine, initialBotId }: { routine?: Routine; initialBotId?: string }) {
+function RoutinePage({
+  routine,
+  initialBotId,
+  showRuns,
+}: {
+  routine?: Routine;
+  initialBotId?: string;
+  showRuns: boolean;
+}) {
   const api = useApi();
   const { origin } = useServer();
   const qc = useQueryClient();
@@ -210,6 +309,10 @@ function RoutinePage({ routine, initialBotId }: { routine?: Routine; initialBotI
         webhookFilter: v.webhookFilter.trim(),
         webhookPost: v.webhookPost,
         model: v.model.trim(),
+        // An older server has no inputs; it is sent them only once the person gives some.
+        ...(routine?.inputs || v.inputs.length
+          ? { inputs: Object.fromEntries(v.inputs.map((i) => [i.name.trim(), i.value])) }
+          : {}),
       };
       return routine ? api.updateRoutine(routine.id, body) : api.createRoutine({ ...body, botId, timezone });
     },
@@ -227,10 +330,13 @@ function RoutinePage({ routine, initialBotId }: { routine?: Routine; initialBotI
     },
     onError: toastError,
   });
+  // A routine with inputs asks for this run's values first, with its usual ones filled in.
+  const [asking, setAsking] = useState<Record<string, string> | null>(null);
   const runNow = useMutation({
-    mutationFn: () => api.runRoutine(routine!.id),
-    onSuccess: () => {
-      toast(t('panel.routineStarted'));
+    mutationFn: (inputs?: Record<string, string>) => api.runRoutine(routine!.id, inputs),
+    onSuccess: (done) => {
+      setAsking(null);
+      toast(done?.status === 'skipped' ? (done.reason ?? t('panel.skipped')) : t('panel.routineStarted'));
       void invalidate();
       void qc.invalidateQueries({ queryKey: ['routine-runs', origin, routine!.id] });
     },
@@ -279,6 +385,8 @@ function RoutinePage({ routine, initialBotId }: { routine?: Routine; initialBotI
       onBack={() => void leave()}
       right={<SaveButton label={t('common.save')} onPress={submit} busy={save.isPending} />}
     >
+      {/* Opened to see why a run failed: its runs come first. */}
+      {routine && showRuns ? <RecentRuns routineId={routine.id} botId={routine.botId} /> : null}
       {!initialBotId ? (
         <Section>
           <ChoiceRow
@@ -310,7 +418,24 @@ function RoutinePage({ routine, initialBotId }: { routine?: Routine; initialBotI
         />
       </FormField>
 
-      {routine ? <Rehearsal routine={routine} prompt={v.prompt} /> : null}
+      {routine && setElsewhere(routine).length ? (
+        <Note>{t('routine.setElsewhere', { parts: setElsewhere(routine).join(', ') })}</Note>
+      ) : null}
+
+      <InputsSection
+        rows={v.inputs}
+        onChange={(next) => set('inputs', next)}
+        wanted={namesWanted(v.prompt, routine?.steps, v.inputs)}
+        problems={tried ? inputProblems(v.inputs) : []}
+      />
+
+      {/* A rehearsal reads the instruction as a run would, with the inputs' usual values. */}
+      {routine ? (
+        <Rehearsal
+          routine={routine}
+          prompt={fillInputs(v.prompt, Object.fromEntries(v.inputs.map((i) => [i.name.trim(), i.value])))}
+        />
+      ) : null}
 
       <Section>
         <Rows>
@@ -560,10 +685,38 @@ function RoutinePage({ routine, initialBotId }: { routine?: Routine; initialBotI
             <Row
               icon="play"
               label={t('panel.runNow')}
-              onPress={() => runNow.mutate()}
-              busy={runNow.isPending}
+              onPress={() =>
+                Object.keys(routine.inputs ?? {}).length
+                  ? setAsking({ ...routine.inputs })
+                  : runNow.mutate(undefined)
+              }
+              busy={runNow.isPending && !asking}
               chevron={false}
             />
+            {asking ? (
+              <Pad>
+                <Hint>{`${t('routine.runWith')}. ${t('routine.runWithHint')}`}</Hint>
+                {Object.keys(asking).map((name) => (
+                  <FormField key={name} label={name}>
+                    <TextBox
+                      value={asking[name] ?? ''}
+                      maxLength={ROUTINE_VAR_MAX}
+                      onChangeText={(x) => setAsking({ ...asking, [name]: x })}
+                    />
+                  </FormField>
+                ))}
+                <View style={styles.buttons}>
+                  <PillButton label={t('common.cancel')} variant="ghost" onPress={() => setAsking(null)} />
+                  <PillButton
+                    icon="play"
+                    label={t('panel.runNow')}
+                    variant="primary"
+                    busy={runNow.isPending}
+                    onPress={() => runNow.mutate(asking)}
+                  />
+                </View>
+              </Pad>
+            ) : null}
             <Row
               icon="terminal"
               label={t('routine.copyRunCommand')}
@@ -580,7 +733,7 @@ function RoutinePage({ routine, initialBotId }: { routine?: Routine; initialBotI
       ) : null}
 
       {routine ? <RoutineHealthSection routine={routine} locked={dirty} /> : null}
-      {routine ? <RecentRuns routineId={routine.id} botId={routine.botId} /> : null}
+      {routine && !showRuns ? <RecentRuns routineId={routine.id} botId={routine.botId} /> : null}
 
       {routine ? (
         <Section>
@@ -595,6 +748,92 @@ function RoutinePage({ routine, initialBotId }: { routine?: Routine; initialBotI
         </Section>
       ) : null}
     </Page>
+  );
+}
+
+/** A routine's inputs: rows of a name and its usual value, and the names its texts want but lack. */
+function InputsSection({
+  rows,
+  onChange,
+  wanted,
+  problems,
+}: {
+  rows: InputRow[];
+  onChange: (next: InputRow[]) => void;
+  wanted: string[];
+  problems: (MessageKey | undefined)[];
+}) {
+  const c = useColors();
+  const full = rows.length >= ROUTINE_VARS_MAX;
+  const setRow = (i: number, next: Partial<InputRow>) =>
+    onChange(rows.map((r, j) => (j === i ? { ...r, ...next } : r)));
+  return (
+    <Section title={t('routine.inputs')} footer={t('routine.inputsHint')}>
+      <Rows>
+        <Pad>
+          {rows.map((r, i) => (
+            <View key={i} style={styles.input}>
+              <View style={styles.inputLine}>
+                <View style={styles.inputName}>
+                  <TextBox
+                    value={r.name}
+                    onChangeText={(x) => setRow(i, { name: x })}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    placeholder={t('routine.inputName')}
+                    accessibilityLabel={t('routine.inputName')}
+                    invalid={!!problems[i]}
+                  />
+                </View>
+                <View style={styles.inputValue}>
+                  <TextBox
+                    value={r.value}
+                    maxLength={ROUTINE_VAR_MAX}
+                    onChangeText={(x) => setRow(i, { value: x })}
+                    placeholder={t('routine.inputValuePlaceholder')}
+                    accessibilityLabel={t('routine.inputValue', { name: r.name || '…' })}
+                  />
+                </View>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t('routine.inputRemove', { name: r.name || '…' })}
+                  hitSlop={8}
+                  onPress={() => onChange(rows.filter((_, j) => j !== i))}
+                  style={styles.inputRemove}
+                >
+                  <Feather name="x" size={20} color={c.mutedForeground} />
+                </Pressable>
+              </View>
+              {problems[i] ? (
+                <Text style={[styles.inputError, { color: c.destructive }]}>{t(problems[i])}</Text>
+              ) : null}
+            </View>
+          ))}
+          <ChipRow>
+            {/* A name the texts already use is one tap away. */}
+            {!full
+              ? wanted.map((name) => (
+                  <Chip
+                    key={name}
+                    on={false}
+                    icon="plus"
+                    label={name}
+                    onPress={() => onChange([...rows, { name, value: '' }])}
+                  />
+                ))
+              : null}
+            {!full ? (
+              <Chip
+                on={false}
+                icon="plus"
+                label={t('routine.inputAdd')}
+                onPress={() => onChange([...rows, { name: '', value: '' }])}
+              />
+            ) : null}
+          </ChipRow>
+        </Pad>
+      </Rows>
+    </Section>
   );
 }
 
@@ -794,4 +1033,10 @@ const styles = StyleSheet.create({
   runReason: { fontSize: 15, lineHeight: 20 },
   url: { fontSize: 13, fontFamily: 'Menlo' },
   buttons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' },
+  input: { gap: 4 },
+  inputLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  inputName: { width: 120 },
+  inputValue: { flex: 1, minWidth: 0 },
+  inputRemove: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  inputError: { fontSize: 13 },
 });

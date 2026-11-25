@@ -205,3 +205,19 @@ export const usePeople = () => {
   const api = useApi();
   return useQuery({ queryKey: ['people', useOrigin()], queryFn: api.people });
 };
+/** Ways to ask less on one bot, read from the person's answers on its cards. */
+export const usePermissionSuggestions = (botId: string) => {
+  const api = useApi();
+  return useQuery({
+    queryKey: ['suggestions', useOrigin(), botId],
+    queryFn: () => api.suggestions(botId),
+  });
+};
+export const useBotTables = (botId: string) => {
+  const api = useApi();
+  return useQuery({ queryKey: ['tables', useOrigin(), botId], queryFn: () => api.botTables(botId) });
+};
+export const useTableRows = (tableId: string) => {
+  const api = useApi();
+  return useQuery({ queryKey: ['table-rows', useOrigin(), tableId], queryFn: () => api.tableRows(tableId) });
+};
