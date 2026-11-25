@@ -538,6 +538,8 @@ export class MemoryService {
           row.memoryId,
           {
             content: words,
+            // The person said yes to these words.
+            unverified: false,
             ...sourceOf(row),
             ...(row.validUntil && { validUntil: row.validUntil.toISOString() }),
           },
@@ -578,6 +580,8 @@ export class MemoryService {
     sourceUrl?: string | null;
     /** Until when the note is true, as an ISO time; none when not said. */
     validUntil?: string | null;
+    /** A bot wrote it with outside text in its conversation (see `memories.unverified`). */
+    unverified?: boolean;
   }): Promise<Memory> {
     if (input.scope === 'bot' && !input.botId) throw new HttpError(400, 'error.memoryNeedsBot');
     if (input.scope === 'room') {
@@ -599,6 +603,7 @@ export class MemoryService {
         threadId: input.threadId ?? null,
         sourceUrl: input.sourceUrl ?? null,
         validUntil: input.validUntil ? new Date(input.validUntil) : null,
+        unverified: input.unverified ?? false,
       })
       .returning();
     await this.log(row!.id, 'create', null, row!.content, input.actor ?? input.source, noteOwner(row!));
@@ -687,6 +692,11 @@ export class MemoryService {
       /** An ISO time the note is true until; null takes the end away. */
       validUntil?: string | null;
       expectedUpdatedAt?: string;
+      /**
+       * Whether it is marked as written from outside text; left out, the mark stays as it was. Like
+       * a pin, no change of the words: `updatedAt` stays, the date the prompt gives the fact.
+       */
+      unverified?: boolean;
     },
     actor: string,
   ): Promise<Memory> {
@@ -697,7 +707,7 @@ export class MemoryService {
     ) {
       throw new HttpError(409, 'error.memoryChanged');
     }
-    const { expectedUpdatedAt: _seen, content: written, pinned, validUntil, ...source } = patch;
+    const { expectedUpdatedAt: _seen, content: written, pinned, validUntil, unverified, ...source } = patch;
     const content = written === undefined ? undefined : scrubCanary(written);
     const nowPinned = pinned ?? !!before.pinned;
     if (
@@ -712,6 +722,7 @@ export class MemoryService {
       .set({
         ...(content !== undefined && { content, ...source, updatedAt: new Date() }),
         ...(pinned !== undefined && { pinned }),
+        ...(unverified !== undefined && { unverified }),
         // A date is no change of the words, so `updatedAt` stays; the history line says it happened.
         ...(validUntil !== undefined && { validUntil: validUntil ? new Date(validUntil) : null }),
       })

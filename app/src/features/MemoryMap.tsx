@@ -38,7 +38,7 @@ export function MemoryMap({
   notes: Memory[];
   bots: Bot[];
   rooms: Pick<Room, 'id' | 'title'>[];
-  noteProps: Pick<Parameters<typeof NoteRow>[0], 'onSave' | 'onPin' | 'onForget'>;
+  noteProps: Pick<Parameters<typeof NoteRow>[0], 'onSave' | 'onPin' | 'onForget' | 'onVerify'>;
 }) {
   const t = useT();
   const { data: graph } = useQuery({ queryKey: ['memory', 'graph'], queryFn: api.memoryGraph });

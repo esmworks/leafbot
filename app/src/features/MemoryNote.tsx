@@ -1,7 +1,7 @@
 import type { Memory } from '@leafbot/shared';
 import { MEMORY_REVIEW_STEPS } from '@leafbot/shared';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight, Pencil, Pin, Trash2 } from 'lucide-react';
+import { ChevronRight, Pencil, Pin, ShieldCheck, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,12 +30,15 @@ export function NoteRow({
   onSave,
   onPin,
   onForget,
+  onVerify,
 }: {
   m: Memory;
   hint?: string;
   onSave: (m: Memory, patch: { content?: string; validUntil?: string | null }) => Promise<unknown>;
   onPin: (m: Memory) => void;
   onForget: (m: Memory) => void;
+  /** The person says a note written from outside text is right. */
+  onVerify?: (m: Memory) => void;
 }) {
   const t = useT();
   const { calendarDay } = useFormat();
@@ -126,6 +129,7 @@ export function NoteRow({
           <span className="min-w-0 break-words">{m.site ? `${m.site} · ${m.content}` : m.content}</span>
         </div>
         {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
+        {m.unverified && <div className="text-xs text-muted-foreground">{t('memory.unverified')}</div>}
         {m.validUntil && (
           <div className="text-xs text-muted-foreground">
             {t(noteExpired(m) ? 'memory.expiredOn' : 'memory.validUntilOn', {
@@ -136,6 +140,18 @@ export function NoteRow({
       </div>
       <NoteSource m={m} />
       <div className="flex items-center">
+        {m.unverified && onVerify && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8 rounded-full"
+            onClick={() => onVerify(m)}
+            aria-label={t('memory.verify')}
+            title={t('memory.verify')}
+          >
+            <ShieldCheck className="size-4" />
+          </Button>
+        )}
         <Button
           variant="ghost"
           size="icon"

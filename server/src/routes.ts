@@ -2268,8 +2268,14 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const id = IdParams.parse(req.params).id;
     await ownNote(req, id);
     // A change of the words may carry the version it was made on; pinning alone has none.
-    const { updatedAt, ...patch } = MemoryUpdate.parse(req.body);
-    return s.memory.update(id, { ...patch, expectedUpdatedAt: updatedAt }, actorOf(req));
+    const { updatedAt, verified, ...patch } = MemoryUpdate.parse(req.body);
+    // Words the person wrote, or a note they say is right, are theirs: no longer outside text's.
+    const vouched = verified || patch.content !== undefined;
+    return s.memory.update(
+      id,
+      { ...patch, ...(vouched && { unverified: false }), expectedUpdatedAt: updatedAt },
+      actorOf(req),
+    );
   });
   // Every note one bot keeps for itself.
   app.delete('/api/bots/:id/memory', async (req) =>

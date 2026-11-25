@@ -621,7 +621,14 @@ export function endpoints(send: Transport, base = '') {
     }) => http.post<Memory>('/api/memory', m),
     updateMemory: (
       id: string,
-      p: { content?: string; pinned?: boolean; validUntil?: string | null; updatedAt?: string },
+      p: {
+        content?: string;
+        pinned?: boolean;
+        validUntil?: string | null;
+        updatedAt?: string;
+        /** The person says the note is right: it is no longer marked as written from outside text. */
+        verified?: true;
+      },
     ) => http.patch<Memory>(`/api/memory/${id}`, p),
     memoryHistory: () => http.get<MemoryHistoryLine[]>('/api/memory-history'),
     removeMemory: (id: string) => http.del<{ ok: true }>(`/api/memory/${id}`),

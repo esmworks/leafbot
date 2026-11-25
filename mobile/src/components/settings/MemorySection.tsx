@@ -56,12 +56,15 @@ function NoteLine({
   onSave,
   onPin,
   onForget,
+  onVerify,
 }: {
   m: Memory;
   detail?: string;
   onSave: (m: Memory, patch: { content?: string; validUntil?: string | null }) => Promise<unknown>;
   onPin: (m: Memory) => void;
   onForget: (m: Memory) => void;
+  /** The person says a note written from outside text is right. */
+  onVerify: (m: Memory) => void;
 }) {
   const c = useColors();
   const [draft, setDraft] = useState<string | null>(null);
@@ -133,9 +136,26 @@ function NoteLine({
   return (
     <Row
       label={text}
-      detail={[m.pinned ? t('memory.pinned') : null, detail, ends].filter(Boolean).join(' · ') || undefined}
+      detail={
+        [
+          m.pinned ? t('memory.pinned') : null,
+          m.unverified ? t('memory.unverifiedShort') : null,
+          detail,
+          ends,
+        ]
+          .filter(Boolean)
+          .join(' · ') || undefined
+      }
       right={
         <View style={styles.pair}>
+          {m.unverified ? (
+            <IconButton
+              icon="check-circle"
+              size={18}
+              label={t('memory.verify')}
+              onPress={() => onVerify(m)}
+            />
+          ) : null}
           <IconButton
             icon="bookmark"
             size={18}
@@ -202,6 +222,11 @@ export function MemorySection() {
   });
   const pin = useMutation({
     mutationFn: (m: Memory) => api.updateMemory(m.id, { pinned: !m.pinned }),
+    onSuccess: refresh,
+    onError: toastError,
+  });
+  const verify = useMutation({
+    mutationFn: (m: Memory) => api.updateMemory(m.id, { verified: true }),
     onSuccess: refresh,
     onError: toastError,
   });
@@ -288,6 +313,7 @@ export function MemorySection() {
       save.mutateAsync({ m, patch }),
     onPin: (m: Memory) => pin.mutate(m),
     onForget: (m: Memory) => forget.mutate(m),
+    onVerify: (m: Memory) => verify.mutate(m),
   };
   const reviewEvery = settings?.memoryReviewEvery;
   const botName = (id: string | null) =>

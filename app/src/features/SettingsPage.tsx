@@ -1328,6 +1328,11 @@ function MemoryTab() {
     onSuccess: refresh,
     onError: (e) => toast.error((e as Error).message),
   });
+  const verify = useMutation({
+    mutationFn: (m: Memory) => api.updateMemory(m.id, { verified: true }),
+    onSuccess: refresh,
+    onError: (e) => toast.error((e as Error).message),
+  });
   const onSave = (m: Memory, patch: { content?: string; validUntil?: string | null }) =>
     save.mutateAsync({ m, patch });
   const clearBot = useMutation({
@@ -1398,6 +1403,7 @@ function MemoryTab() {
     onSave,
     onPin: (m: Memory) => pin.mutate(m),
     onForget: (m: Memory) => forget.mutate(m),
+    onVerify: (m: Memory) => verify.mutate(m),
   };
   const botName = (id: string | null) =>
     [...bots, ...archived].find((b) => b.id === id)?.name ?? t('common.bot');

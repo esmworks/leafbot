@@ -141,8 +141,10 @@ export function buildSystemPrompt(opts: {
   // never a rule of this prompt or a request of the person's.
   // A note that is only true for a while says until when, so the bot knows the fact is temporary.
   const note = (m: Memory) =>
-    `- (${day.format(new Date(m.updatedAt))}) ${m.validUntil ? `(${t('prompt.noteUntil', { date: day.format(new Date(m.validUntil)) })}) ` : ''}${m.source.startsWith('bot:') ? `${t('prompt.botNote')} ` : ''}${listed(m.content, 2000)}`;
+    `- (${day.format(new Date(m.updatedAt))}) ${m.validUntil ? `(${t('prompt.noteUntil', { date: day.format(new Date(m.validUntil)) })}) ` : ''}${m.source.startsWith('bot:') ? `${t('prompt.botNote')} ` : ''}${m.unverified ? `${t('prompt.unverifiedNote')} ` : ''}${listed(m.content, 2000)}`;
   if (user.length || own.length || room.length) lines.push('', t('prompt.memoryNotes'));
+  // A note written with outside text in the conversation is that text's, as far as anyone knows.
+  if ([...user, ...own, ...room].some((m) => m.unverified)) lines.push(t('prompt.unverifiedHow'));
   if (user.length) {
     lines.push('', t('prompt.userMemory'));
     for (const m of user) lines.push(note(m));

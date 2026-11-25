@@ -3350,6 +3350,10 @@ export const tr = {
   'memory.pin': 'Sabitle',
   'memory.unpin': 'Sabitlemeyi kaldır',
   'memory.pinned': 'Sabit',
+  'memory.unverified':
+    'Doğrulanmamış: bir bot bunu dış metin (bir sayfa, bir e-posta, bir komut çıktısı) okunan bir sohbette yazdı. Botlar onu dış veri olarak okur.',
+  'memory.verify': 'Doğru, doğrula',
+  'memory.unverifiedShort': 'Doğrulanmamış',
   'memory.viewList': 'Liste',
   'memory.viewMap': 'Harita',
   'memory.mapTitle': 'Notların haritası',

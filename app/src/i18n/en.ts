@@ -3411,6 +3411,10 @@ export const en: Catalog<MessageKey> = {
   'memory.pin': 'Pin',
   'memory.unpin': 'Unpin',
   'memory.pinned': 'Pinned',
+  'memory.unverified':
+    "Unverified: a bot wrote this in a conversation where outside text (a page, a mail, a command's output) was read. Bots read it as outside data.",
+  'memory.verify': 'It is right, verify',
+  'memory.unverifiedShort': 'Unverified',
   'memory.viewList': 'List',
   'memory.viewMap': 'Map',
   'memory.mapTitle': 'Map of the notes',

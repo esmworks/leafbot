@@ -7,6 +7,12 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A note a bot writes or changes while outside text (a page, a mail, a command's output) is in its conversation is
+  marked unverified. It is still written straight away and still reaches bots, but marked as outside data, so a
+  page cannot turn its words into a fact bots trust. The background review and the weekly tidy-up mark what they
+  write from such text too. The memory screen shows the mark with a Verify button; your own edit clears it as well.
+  Notes written before this update are not marked. The mark is advice to the model, not a gate: an unverified note
+  can still shape what a bot does.
 - A tool result too long for the conversation is kept whole for the rest of it, instead of only cut: the bot sees
   the start (for a shell command, the start and the end) and reads the rest page by page with `ReadResult`. Pages
   read back from outside text are marked as outside text again. Kept in the server's memory only, ten results per

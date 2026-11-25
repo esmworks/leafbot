@@ -329,7 +329,8 @@ export class MemoryFlagService {
       // and takes the answer after it, or beside it as a note of its own when both do not fit.
       const added = note && `${note.content.trimEnd()}\n${words}`;
       if (note && flag.kind === 'wrong')
-        await memory.update(note.id, { content: words, sourceUrl: null }, actor);
+        // The person's own answer puts it right: the words are theirs now.
+        await memory.update(note.id, { content: words, sourceUrl: null, unverified: false }, actor);
       else if (note && added && added.length <= NOTE_MAX)
         await memory.update(note.id, { content: added, sourceUrl: null }, actor);
       else

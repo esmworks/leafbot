@@ -1213,6 +1213,11 @@ export const Memory = z.object({
   place: z.string().nullable().optional(),
   /** The person asked for the note to go into every prompt that reaches it. Missing from older servers. */
   pinned: z.boolean().optional(),
+  /**
+   * A bot wrote it while outside text (a page, a mail, a command's output) was in its conversation;
+   * bots read it as data until the person verifies or edits it. Missing from older servers.
+   */
+  unverified: z.boolean().optional(),
   /** Until when the note is true, as an ISO time; past it the note reaches no bot. Null: no end. Missing from older servers. */
   validUntil: z.string().nullable().optional(),
   createdAt: z.string(),
@@ -1356,10 +1361,15 @@ export const MemoryUpdate = z
      * the save is refused instead of overwriting the newer words. Older clients leave it out.
      */
     updatedAt: z.string().optional(),
+    /** The person says the note is right: it is no longer marked as written from outside text. */
+    verified: z.literal(true).optional(),
   })
-  .refine((u) => u.content !== undefined || u.pinned !== undefined || u.validUntil !== undefined, {
-    message: 'validation.memoryUpdateEmpty',
-  });
+  .refine(
+    (u) => u.content !== undefined || u.pinned !== undefined || u.validUntil !== undefined || !!u.verified,
+    {
+      message: 'validation.memoryUpdateEmpty',
+    },
+  );
 export type MemoryUpdate = z.infer<typeof MemoryUpdate>;
 
 /** What a person may do on this server: the owner installed it; admins manage it with them. */

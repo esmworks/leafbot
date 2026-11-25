@@ -2069,7 +2069,7 @@ export class ToolFactory {
           return found
             .map(
               (m) =>
-                `- [${m.id}] (${whose(m)}${m.site ? ` · ${m.site}` : ''}) ${m.content}${m.sourceUrl ? ` (${t('tool.memorySource', { url: m.sourceUrl })})` : ''}${m.validUntil ? ` (${t('tool.memoryUntil', { date: m.validUntil })})` : ''}`,
+                `- [${m.id}] (${whose(m)}${m.site ? ` · ${m.site}` : ''}) ${m.unverified ? `${t('prompt.unverifiedNote')} ` : ''}${m.content}${m.sourceUrl ? ` (${t('tool.memorySource', { url: m.sourceUrl })})` : ''}${m.validUntil ? ` (${t('tool.memoryUntil', { date: m.validUntil })})` : ''}`,
             )
             .join('\n');
         },
@@ -2125,6 +2125,8 @@ export class ToolFactory {
             threadId: thread.id,
             sourceUrl,
             validUntil,
+            // Outside text in the conversation may be what the note repeats: it reaches bots as data.
+            unverified: !!reads(),
           });
           await journal({
             kind: 'memory',
@@ -2143,7 +2145,8 @@ export class ToolFactory {
         // The bot keeps its memory itself, whoever it works for: asking someone to approve each note
         // asks them to judge facts from conversations they were not in. Everything it writes shows in
         // the memory screen and its history, where those who may change the bot change or delete it,
-        // and the weekly tidy-up settles duplicates and contradictions.
+        // and the weekly tidy-up settles duplicates and contradictions. A note written with outside
+        // text in the conversation is marked: bots read it as data until the person vouches for it.
         'internal',
       ),
       def(
@@ -2181,6 +2184,8 @@ export class ToolFactory {
                 expectedUpdatedAt: m.updatedAt,
                 ...sourceOf({ threadId: thread.id, sourceUrl }),
                 ...(validUntil !== undefined && { validUntil }),
+                // New words from a conversation with outside text in it are marked; a bot never clears the mark.
+                ...(reads() && { unverified: true }),
               },
               `bot:${bot.id}`,
             );
@@ -2800,7 +2805,9 @@ export class ToolFactory {
           ownRoutine: turn.source === 'routine' && !turn.guest,
           siteNotes: async (host) =>
             bot.memory
-              ? (await s.memory.forSite(bot.id, host, own, await place())).map((m) => m.content)
+              ? (await s.memory.forSite(bot.id, host, own, await place())).map(
+                  (m) => `${m.unverified ? `${t('prompt.unverifiedNote')} ` : ''}${m.content}`,
+                )
               : [],
           exitNote: () => this.ctx.egress?.takeExitNote(bot.id) ?? null,
           signal,

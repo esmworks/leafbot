@@ -520,6 +520,12 @@ export const memories = pgTable(
     place: text('place'),
     /** The person asked for this note to go into every prompt that reaches it, before the rest. */
     pinned: boolean('pinned').notNull().default(false),
+    /**
+     * A bot wrote it while outside text (a page, a mail, a command's output) was in its conversation,
+     * so it may say what that text said rather than what is true. It reaches bots marked so, as
+     * data; the person's own edit or a yes clears it.
+     */
+    unverified: boolean('unverified').notNull().default(false),
     content: sealedText('content').notNull(),
     /** A note on how a site works, given to the bot when it opens that site rather than every turn. */
     site: text('site'),
