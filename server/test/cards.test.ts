@@ -67,8 +67,8 @@ describe('interactive cards', () => {
     await t.services.turns.idle();
     const msgs = await t.messages(th.id);
     expect(msgs.some((m) => m.props.card)).toBe(false);
-    expect(msgs.at(-1)!.text).toContain('show_page');
-    expect(msgs.at(-1)!.text).toContain('root.children[0]');
+    expect(msgs.at(-1)!.text).toContain('root.children[0].data');
+    expect(msgs.at(-1)!.text).toContain('boş');
   });
 
   it("sends a form's values as the person's message, reads the action to the bot, and settles the card once", async () => {
@@ -176,6 +176,98 @@ describe('interactive cards', () => {
       values: {},
     });
     expect(again.status).toBe(200);
+  });
+
+  const CHECKLIST = {
+    type: 'Card',
+    children: [
+      { type: 'Title', value: 'Lansman' },
+      {
+        type: 'Checkbox',
+        name: 'copy',
+        label: 'Metin',
+        defaultChecked: true,
+        onChangeAction: { type: 'tick' },
+      },
+      {
+        type: 'Checkbox',
+        name: 'qa',
+        label: 'QA',
+        description: 'Test ortamı bekleniyor',
+        onChangeAction: { type: 'tick' },
+      },
+      { type: 'Checkbox', name: 'publish', label: 'Yayın', onChangeAction: { type: 'tick' } },
+      { type: 'Checkbox', name: 'plain', label: 'Sıradan' },
+    ],
+    confirm: { label: 'Bitti' },
+  };
+
+  it('keeps checklist ticks on an open card and tells the bot once, with the next message', async () => {
+    const bot = await t.bot();
+    const th = await main(bot.id);
+    await t.send(th.id, call({ card: CHECKLIST }));
+    await t.services.turns.idle();
+    const card = await cardIn(th.id);
+    expect(card.text).toBe('Lansman\n☑ Metin\n☐ QA (Test ortamı bekleniyor)\n☐ Yayın\n☐ Sıradan\n[Bitti]');
+
+    const tick = (name: string, value: boolean, rev = 1) =>
+      t.api<Message>('POST', `/api/messages/${card.id}/card/tick`, { name, value, rev });
+    expect((await tick('plain', true)).status).toBe(400);
+    expect((await tick('qa', true, 2)).status).toBe(409);
+    const ticked = await tick('qa', true);
+    expect(ticked.status).toBe(200);
+    expect((await tick('copy', false)).status).toBe(200);
+    const now = await cardIn(th.id);
+    expect(now.props).toMatchObject({ cardTicks: { qa: true, copy: false } });
+    expect(now.props.cardAnswered).toBeUndefined();
+    expect(now.text).toBe('Lansman\n☐ Metin\n☑ QA (Test ortamı bekleniyor)\n☐ Yayın\n☐ Sıradan\n[Bitti]');
+    // Ticking starts no turn of its own.
+    const before = t.engine.requests.length;
+    await t.services.turns.idle();
+    expect(t.engine.requests.length).toBe(before);
+
+    await t.send(th.id, 'nasıl gidiyor');
+    await t.services.turns.idle();
+    const asked = t.engine.requests.at(-1)!.prompt;
+    expect(asked).toContain(card.id);
+    expect(asked).toContain('☐ Metin\n☑ QA\n☐ Yayın');
+    expect(asked).not.toContain('Sıradan');
+    await t.send(th.id, 'peki');
+    await t.services.turns.idle();
+    expect(t.engine.requests.at(-1)!.prompt).not.toContain('☑ QA');
+
+    // An answered card's checklist stays open to ticks.
+    expect(
+      (await t.api('POST', `/api/messages/${card.id}/card`, { node: 'confirm', rev: 1, values: {} })).status,
+    ).toBe(200);
+    await t.services.turns.idle();
+    expect((await tick('publish', true)).status).toBe(200);
+    expect((await cardIn(th.id)).props).toMatchObject({ cardAnswered: true, cardTicks: { publish: true } });
+  });
+
+  it('carries ticks over when the bot shows the card again, unless it changed that item', async () => {
+    const bot = await t.bot();
+    const th = await main(bot.id);
+    await t.send(th.id, call({ card: CHECKLIST }));
+    await t.services.turns.idle();
+    const card = await cardIn(th.id);
+    for (const [name, value] of [
+      ['qa', true],
+      ['publish', true],
+    ] as const) {
+      await t.api('POST', `/api/messages/${card.id}/card/tick`, { name, value, rev: 1 });
+    }
+    const next = structuredClone(CHECKLIST);
+    // The bot ticks "Yayın" itself and drops "Metin".
+    next.children = next.children.filter((c) => c.name !== 'copy');
+    (next.children.find((c) => c.name === 'publish') as { defaultChecked?: boolean }).defaultChecked = true;
+    await t.send(th.id, call({ card: next, card_id: card.id }));
+    await t.services.turns.idle();
+    const updated = await cardIn(th.id);
+    // "QA" was not changed by the bot: the person's tick stays. "Yayın" was: the bot's wins.
+    expect(updated.props.cardTicks).toEqual({ qa: true });
+    expect(updated.props.cardRev).toBe(2);
+    expect(updated.text).toBe('Lansman\n☑ QA (Test ortamı bekleniyor)\n☑ Yayın\n☐ Sıradan\n[Bitti]');
   });
 
   it('is not shown in a conversation with another bot', async () => {

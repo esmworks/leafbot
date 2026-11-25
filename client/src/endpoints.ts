@@ -1,5 +1,6 @@
 import type {
   CardAnswer,
+  CardTick,
   BotAction,
   LinkPreview,
   TailscaleState,
@@ -494,6 +495,8 @@ export function endpoints(send: Transport, base = '') {
     answerOffer: (id: string, take: boolean) => http.post<Message>(`/api/messages/${id}/offer`, { take }),
     /** A press on a bot's card; the card comes back settled, and the answer is the person's next message. */
     answerCard: (id: string, answer: CardAnswer) => http.post<Message>(`/api/messages/${id}/card`, answer),
+    /** A tick on a card's checklist item; the card comes back with it kept, and stays open. */
+    tickCard: (id: string, tick: CardTick) => http.post<Message>(`/api/messages/${id}/card/tick`, tick),
     /** A tool call an MCP app's view makes, through the server to its own connection. */
     appCall: (messageId: string, name: string, args: Record<string, unknown>) =>
       http.post<unknown>(`/api/apps/${messageId}/call`, { name, arguments: args }),

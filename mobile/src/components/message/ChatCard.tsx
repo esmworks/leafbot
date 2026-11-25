@@ -1,4 +1,5 @@
 import {
+  cardChecklist,
   cardDefaults,
   cardLink,
   cardPress,
@@ -32,6 +33,7 @@ import { locale, t } from '@/i18n';
 import { dayAllowed, monthGrid, monthOf, shiftMonth } from '@/lib/calendar';
 import { useApi } from '@/lib/server';
 import { useColors, type Colors } from '@/lib/theme';
+import { CardChart, CardProgress, CardStat } from './CardChart';
 
 /** ChatKit's icon names drawn with the phone's icon set; the nearest one where it has none. */
 const ICONS: Record<string, IconName> = {
@@ -187,6 +189,9 @@ interface Ctx {
   locked: boolean;
   pressed?: string;
   c: Colors;
+  /** Checklist items, which stay open to ticks even once the card is answered. */
+  live: Set<string>;
+  tick(name: string, v: boolean): void;
 }
 
 /**
@@ -207,6 +212,34 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
   const answer = m.props.cardAnswered === true ? (m.props.cardAnswer as Answer | undefined) : undefined;
   const [values, setValues] = useState<CardValues>(() => ({ ...cardDefaults(card), ...answer?.values }));
   const [problem, setProblem] = useState<string | null>(null);
+  // Ticks shown at once. One the server took stays shown until the card's copy here changes,
+  // so the box does not flick back while the conversation is read again.
+  const [pending, setPending] = useState<Record<string, { value: boolean; done: boolean; before: string }>>(
+    {},
+  );
+  const live = new Set(cardChecklist(card).map((f) => f.name));
+  const serverTicks = m.props.cardTicks as CardValues | undefined;
+  const server = JSON.stringify(serverTicks ?? {});
+  const ticked: CardValues = { ...values, ...serverTicks };
+  for (const [name, x] of Object.entries(pending)) if (!x.done || x.before === server) ticked[name] = x.value;
+  const forget = (name: string, value: boolean) =>
+    setPending((p) => {
+      if (p[name]?.value !== value) return p;
+      const { [name]: _, ...rest } = p;
+      return rest;
+    });
+  const tick = useMutation({
+    mutationFn: (o: { name: string; value: boolean }) => api.tickCard(m.id, { ...o, rev }),
+    onSuccess: (_d, o) =>
+      setPending((p) => {
+        const x = p[o.name];
+        return x?.value === o.value ? { ...p, [o.name]: { ...x, done: true } } : p;
+      }),
+    onError: (err: Error, o) => {
+      forget(o.name, o.value);
+      toastError(err);
+    },
+  });
   const send = useMutation({
     mutationFn: (o: { node: string; values: CardValues }) =>
       api.answerCard(m.id, { node: o.node, rev, values: o.values }),
@@ -222,7 +255,7 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
       void WebBrowser.openBrowserAsync(link);
       return;
     }
-    const checked = checkCardValues(p, values);
+    const checked = checkCardValues(p, ticked);
     if (!checked.ok) {
       setProblem(t(`card.value.${checked.issue}`, { field: checked.field.label }));
       return;
@@ -232,7 +265,7 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
   };
   const ctx: Ctx = {
     card,
-    values,
+    values: ticked,
     // A change may fix what the last press found missing, so its message goes; the next press checks again.
     set: (name, v) => {
       setProblem(null);
@@ -242,6 +275,11 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
     locked,
     pressed: answer?.node,
     c,
+    live,
+    tick: (name, value) => {
+      setPending((p) => ({ ...p, [name]: { value, done: false, before: server } }));
+      tick.mutate({ name, value });
+    },
   };
   const root = card.root;
   const ends = (['confirm', 'cancel'] as const)
@@ -449,6 +487,12 @@ function Part({ node, ctx }: { node: CardNode; ctx: Ctx }): ReactNode {
         </View>
       );
     }
+    case 'Chart':
+      return <CardChart node={node} c={c} />;
+    case 'Stat':
+      return <CardStat node={node} icon={ICONS[str(node.icon)]} c={c} />;
+    case 'Progress':
+      return <CardProgress node={node} c={c} />;
     default:
       return <Field node={node} ctx={ctx} />;
   }
@@ -467,6 +511,7 @@ function Field({ node, ctx }: { node: CardNode; ctx: Ctx }) {
   switch (node.type) {
     case 'Input':
     case 'Textarea': {
+      if (node.inputType === 'number' && node.variant === 'stepper') return <Stepper node={node} ctx={ctx} />;
       const multi = node.type === 'Textarea';
       const kind = str(node.inputType) as keyof typeof KEYBOARD;
       return (
@@ -484,7 +529,58 @@ function Field({ node, ctx }: { node: CardNode; ctx: Ctx }) {
         />
       );
     }
-    case 'Checkbox':
+    case 'Checkbox': {
+      const live = ctx.live.has(name);
+      // A checklist item is ticked on its own, answered card or not.
+      const off = live ? node.disabled === true : disabled;
+      const toggle = (v: boolean) => (live ? ctx.tick(name, v) : ctx.set(name, v));
+      const description =
+        typeof node.description === 'string' && node.description ? (
+          <Text style={[styles.small, { color: c.mutedForeground }]}>{node.description}</Text>
+        ) : null;
+      if (live && node.variant !== 'chip') {
+        const on = value === true;
+        return (
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: on, disabled: off }}
+            disabled={off}
+            onPress={() => toggle(!on)}
+            style={[styles.checkItem, off && { opacity: 0.6 }]}
+          >
+            <Feather
+              name={on ? 'check-circle' : 'circle'}
+              size={20}
+              color={on ? c.success : c.mutedForeground}
+            />
+            <View style={styles.shrink}>
+              <Text style={[styles.body, { color: on ? c.mutedForeground : c.foreground }]}>
+                {str(node.label)}
+              </Text>
+              {description}
+            </View>
+          </Pressable>
+        );
+      }
+      if (node.variant === 'chip') {
+        const on = value === true;
+        return (
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: on, disabled: off }}
+            disabled={off}
+            onPress={() => toggle(!on)}
+            style={[
+              styles.chip,
+              { borderColor: on ? c.primary : c.outline, opacity: disabled ? 0.6 : 1 },
+              on && { backgroundColor: c.muted },
+            ]}
+          >
+            {on ? <Feather name="check" size={14} color={c.foreground} /> : null}
+            <Text style={[styles.body, { color: c.foreground }, on && styles.strong]}>{str(node.label)}</Text>
+          </Pressable>
+        );
+      }
       return (
         <Pressable
           accessibilityRole="checkbox"
@@ -494,11 +590,45 @@ function Field({ node, ctx }: { node: CardNode; ctx: Ctx }) {
           style={styles.check}
         >
           <Feather name={value === true ? 'check-square' : 'square'} size={20} color={c.foreground} />
-          <Text style={[styles.body, { color: c.foreground }]}>{str(node.label)}</Text>
+          <View style={styles.shrink}>
+            <Text style={[styles.body, { color: c.foreground }]}>{str(node.label)}</Text>
+            {description}
+          </View>
         </Pressable>
       );
+    }
     case 'RadioGroup': {
       const options = (node.options as CardOption[]) ?? [];
+      if (node.variant === 'segmented') {
+        return (
+          <View accessibilityRole="radiogroup" style={[styles.segments, { backgroundColor: c.muted }]}>
+            {options.map((o) => {
+              const on = text === o.value;
+              return (
+                <Pressable
+                  key={o.value}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: on, disabled: disabled || o.disabled }}
+                  disabled={disabled || o.disabled}
+                  onPress={() => ctx.set(name, o.value)}
+                  style={[styles.segment, on && { backgroundColor: c.card }, disabled && { opacity: 0.6 }]}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.body,
+                      { color: on ? c.foreground : c.mutedForeground },
+                      on && styles.strong,
+                    ]}
+                  >
+                    {o.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        );
+      }
       return (
         <View
           accessibilityRole="radiogroup"
@@ -589,6 +719,49 @@ function Field({ node, ctx }: { node: CardNode; ctx: Ctx }) {
     default:
       return null;
   }
+}
+
+/** A small count changed with minus and plus, kept within the card's bounds. */
+function Stepper({ node, ctx }: { node: CardNode; ctx: Ctx }) {
+  const { c } = ctx;
+  const name = str(node.name);
+  const disabled = ctx.locked || node.disabled === true;
+  const min = typeof node.min === 'number' ? node.min : undefined;
+  const max = typeof node.max === 'number' ? node.max : undefined;
+  const step = typeof node.step === 'number' && node.step > 0 ? node.step : 1;
+  const raw = ctx.values[name];
+  const current = typeof raw === 'string' && raw.trim() && Number.isFinite(Number(raw)) ? Number(raw) : null;
+  const shown = current ?? min ?? 0;
+  const move = (dir: 1 | -1) => {
+    let next = Number((shown + dir * step).toPrecision(12));
+    if (min !== undefined) next = Math.max(min, next);
+    if (max !== undefined) next = Math.min(max, next);
+    ctx.set(name, String(next));
+  };
+  const button = (dir: 1 | -1, off: boolean) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={dir < 0 ? t('card.less') : t('card.more')}
+      disabled={disabled || off}
+      onPress={() => move(dir)}
+      style={[styles.stepButton, { borderColor: c.outline, opacity: disabled || off ? 0.4 : 1 }]}
+    >
+      <Feather name={dir < 0 ? 'minus' : 'plus'} size={18} color={c.foreground} />
+    </Pressable>
+  );
+  return (
+    <View style={styles.stepper}>
+      {button(-1, min !== undefined && shown <= min)}
+      <TextInput
+        value={typeof raw === 'string' ? raw : String(shown)}
+        editable={!disabled}
+        onChangeText={(v) => ctx.set(name, v)}
+        keyboardType="numeric"
+        style={[styles.stepValue, { color: c.foreground }]}
+      />
+      {button(1, max !== undefined && shown >= max)}
+    </View>
+  );
 }
 
 const intl = () => INTL_LOCALE[locale];
@@ -729,6 +902,36 @@ const styles = StyleSheet.create({
   check: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
   radioRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16 },
   radioCol: { gap: 2 },
+  strong: { fontWeight: '600' },
+  checkItem: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 4 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    alignSelf: 'flex-start',
+  },
+  segments: { flexDirection: 'row', alignSelf: 'stretch', borderRadius: 10, padding: 3 },
+  segment: { flex: 1, alignItems: 'center', paddingVertical: 7, paddingHorizontal: 8, borderRadius: 8 },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'flex-start' },
+  stepButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepValue: {
+    minWidth: 44,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
   scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0,0,0,0.4)' },
   month: {
     position: 'absolute',
