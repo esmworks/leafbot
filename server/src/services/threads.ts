@@ -600,16 +600,21 @@ export class ThreadService {
 
   /**
    * Starts the conversation afresh for the bot: its next turn opens a new session and is handed
-   * nothing from before this point. The messages stay on screen, under a line that says so.
+   * nothing from before this point. The messages stay on screen, under a line that says so; a room
+   * says it of all its bots.
    */
-  async resetContext(id: string, t: T) {
+  async resetContext(
+    id: string,
+    t: T,
+    line: 'thread.contextReset' | 'room.contextReset' = 'thread.contextReset',
+  ) {
     const thread = await this.row(id);
     await this.setSession(id, null);
     await this.addMessage({
       threadId: thread.id,
       role: 'system',
       author: 'system',
-      text: t('thread.contextReset'),
+      text: t(line),
       props: { kind: 'contextReset' },
     });
     for (const fn of this.resetListeners) void Promise.resolve(fn(thread.id)).catch(() => {});

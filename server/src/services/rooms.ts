@@ -228,6 +228,26 @@ export class RoomService {
     return stopped || teammates > 0;
   }
 
+  /**
+   * The room starts afresh: its lines stay, but every member's session ends and its next one reads
+   * only what is said after the line marking the reset. Refused while a member speaks or waits,
+   * so no turn under way carries the old talk past it.
+   */
+  async reset(id: string, t: T) {
+    if (!(await this.roomRow(id))) throw notFound('room');
+    if ((await this.services.threads.state(id)) !== 'idle') throw new HttpError(409, 'error.roomBusy');
+    await this.ctx.db
+      .update(schema.roomMembers)
+      .set({ engineSessionId: null, engineSessionCostUsd: null, seenAt: null })
+      .where(eq(schema.roomMembers.roomId, id));
+    await this.ctx.db
+      .update(schema.rooms)
+      .set({ roundsLeft: 0, roundSpoke: false, botTurnsLeft: 0 })
+      .where(eq(schema.rooms.id, id));
+    await this.services.threads.resetContext(id, t, 'room.contextReset');
+    this.ctx.bus.refresh({ scope: 'rooms' });
+  }
+
   /** The member's engine session in the room, and what it had cost by its last run. */
   async session(roomId: string, botId: string): Promise<{ id: string | null; costUsd: number | null }> {
     const [m] = await this.ctx.db
@@ -344,9 +364,11 @@ export class RoomService {
         : m.author === `bot:${bot.id}`
           ? t('room.you', { name: bot.name })
           : (bots.find((b) => `bot:${b.id}` === m.author)?.name ?? m.author);
-    const talk = (await this.services.threads.messages(roomId, { limit: 200 })).filter(
-      (m) => (m.role === 'user' || m.role === 'assistant') && m.text.trim(),
-    );
+    const recent = await this.services.threads.messages(roomId, { limit: 200 });
+    // A reset room is read from its last reset on; what came before is no longer the members' talk.
+    const talk = recent
+      .slice(recent.findLastIndex((m) => m.props.kind === 'contextReset') + 1)
+      .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.text.trim());
     // The member's session has read the room's recent stretch, its own lines included.
     for (const m of talk.slice(-ROOM_WINDOW)) o.note?.(outsideIn(m.props));
     const seen = member?.seenAt ?? null;

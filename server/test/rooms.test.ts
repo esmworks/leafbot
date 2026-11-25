@@ -176,6 +176,44 @@ describe('odalar', () => {
     expect(row!.roundsLeft).toBe(0);
   });
 
+  it('baştan başlayan odada botlar yeni oturum açar ve yalnızca sıfırlamadan sonrasını okur', async () => {
+    const r = await room({ botIds: [ada.id, bora.id] });
+    await say(r.id, 'Eski konu: bütçe');
+    await t.services.turns.idle();
+
+    expect((await t.api('POST', `/api/rooms/${r.id}/reset`)).status).toBe(200);
+    const members = await t.db.db
+      .select()
+      .from(schema.roomMembers)
+      .where(eq(schema.roomMembers.roomId, r.id));
+    expect(members.every((m) => m.engineSessionId === null && m.seenAt === null)).toBe(true);
+    const line = (await t.messages(r.id)).at(-1)!;
+    expect(line).toMatchObject({ role: 'system', props: { kind: 'contextReset' } });
+
+    const before = t.engine.requests.length;
+    await say(r.id, 'Yeni konu: tatil');
+    await t.services.turns.idle();
+    const asked = t.engine.requests.slice(before);
+    expect(asked).toHaveLength(2);
+    for (const a of asked) {
+      expect(a.sessionId).toBeFalsy();
+      expect(a.prompt).toContain('Yeni konu: tatil');
+      expect(a.prompt).not.toContain('bütçe');
+    }
+    // The second member still hears the first one's answer given after the reset.
+    expect(asked[1]!.prompt).toContain('Ada: Yankı:');
+  });
+
+  it('konuşan ya da bekleyen varken oda baştan başlamaz', async () => {
+    const r = await room({ botIds: [ada.id] });
+    await say(r.id, 'Uzun düşün [bekle:2000]');
+    await waitFor(async () => (await turnsOf(r.id)).some((x) => x.status === 'running'));
+    expect((await t.api('POST', `/api/rooms/${r.id}/reset`)).status).toBe(409);
+    await t.api('POST', `/api/rooms/${r.id}/stop`);
+    await t.services.turns.idle();
+    expect((await t.messages(r.id)).some((m) => m.props?.kind === 'contextReset')).toBe(false);
+  });
+
   it('yeni mesaj sırada bekleyenleri bırakır, herkes yenisine cevap verir', async () => {
     const r = await room();
     await say(r.id, 'İlk [bekle:300]');

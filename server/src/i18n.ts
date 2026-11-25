@@ -246,6 +246,8 @@ const tr = {
   'error.nothingRunning': 'Bot şu an çalışmıyor; mesaj sırası gelince işlenecek',
   'error.threadBusy': 'Bot bu sohbette çalışıyor; bitince yeniden deneyin',
   'thread.contextReset': 'Bağlam sıfırlandı: bot buradan sonrasını yeni bir başlangıç olarak okur.',
+  'room.contextReset': 'Oda baştan başladı: botlar buradan sonrasını yeni bir başlangıç olarak okur.',
+  'error.roomBusy': 'Odada bir bot konuşuyor ya da sırada bekliyor; bitince yeniden deneyin',
   'error.totpInvalid':
     'Doğrulayıcı kurulumu tanınmadı: sitenin gösterdiği metni ya da otpauth:// bağlantısını yapıştır',
   'error.payloadTooLarge': 'Gönderilen metin çok uzun (en çok {max} karakter)',
@@ -2491,6 +2493,8 @@ const en: Catalog<ServerKey> = {
   'error.nothingRunning': 'The bot is not working right now; the message runs in its turn',
   'error.threadBusy': 'The bot is working in this conversation; try again when it is done',
   'thread.contextReset': 'Context reset: the bot reads what comes after this as a fresh start.',
+  'room.contextReset': 'The room starts afresh: the bots read what comes after this as a new start.',
+  'error.roomBusy': 'A bot is speaking or waiting its turn in the room; try again when it is done',
   'error.totpInvalid':
     'The authenticator setup was not recognised: paste the text the site shows or its otpauth:// link',
   'error.payloadTooLarge': 'The text sent is too long (at most {max} characters)',

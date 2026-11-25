@@ -206,9 +206,25 @@ export function RoomView({ room }: { room: Room }) {
     }
   }, [api, qc, origin, room.id, room.title]);
 
+  const reset = useCallback(async () => {
+    const ok = await confirm({
+      title: t('room.reset'),
+      message: t('room.resetConfirm'),
+      confirmLabel: t('room.reset'),
+    });
+    if (!ok) return;
+    try {
+      await api.resetRoom(room.id);
+      await qc.invalidateQueries({ queryKey: ['messages', origin, room.id] });
+    } catch (e) {
+      toastError(e);
+    }
+  }, [api, qc, origin, room.id]);
+
   const items: SheetItem[] = [
     { icon: 'edit-2', label: t('room.edit'), onPress: () => nav.roomEdit(room.id) },
     ...(busy ? [{ icon: 'square' as const, label: t('chat.stop'), onPress: stop }] : []),
+    { icon: 'rotate-ccw', label: t('room.reset'), onPress: () => void reset() },
     { icon: 'trash-2', label: t('room.delete'), onPress: () => void remove(), destructive: true },
   ];
 

@@ -7,6 +7,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A room can start fresh from its menu, on the web and on the phone: every bot's session in the room ends, and its
+  next one reads only what is said after the line the room leaves there. The messages stay, and so do the room's own
+  notes. It is refused while a bot speaks or waits its turn.
 - A routine's flow canvas can be zoomed (with its buttons, Ctrl or ⌘ with the wheel, a trackpad pinch, or Ctrl or ⌘
   with plus, minus or zero), fitted to the view, arranged in one click and seen whole in a small overview, where a
   click or a drag brings that place into view. Notes can be written on the canvas, moved, sized and coloured; they are

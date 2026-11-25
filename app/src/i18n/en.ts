@@ -174,6 +174,9 @@ export const en: Catalog<MessageKey> = {
   'room.roundsN': 'They stop after {count} rounds',
   'room.create': 'Open the room',
   'room.edit': 'Edit room',
+  'room.reset': 'Start fresh',
+  'room.resetConfirm':
+    'Start the room fresh? The bots no longer read what was said before this point; the messages stay here.',
   'room.delete': 'Delete room',
   'room.deleteConfirm': 'Delete the room “{name}” and its conversation? This cannot be undone.',
   'room.placeholder': 'Write to the room… @name to ask one bot',

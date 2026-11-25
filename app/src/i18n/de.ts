@@ -175,6 +175,9 @@ export const de: Partial<Catalog<MessageKey>> = {
   'room.roundsN': 'Sie hören nach {count} Runden auf',
   'room.create': 'Raum öffnen',
   'room.edit': 'Raum bearbeiten',
+  'room.reset': 'Neu beginnen',
+  'room.resetConfirm':
+    'Den Raum neu beginnen? Die Bots lesen nicht mehr, was vor diesem Punkt gesagt wurde; die Nachrichten bleiben hier.',
   'room.delete': 'Raum löschen',
   'room.deleteConfirm':
     'Den Raum „{name}“ und sein Gespräch löschen? Das lässt sich nicht rückgängig machen.',

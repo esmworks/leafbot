@@ -17,6 +17,7 @@ import {
   Pencil,
   Plus,
   Reply,
+  RotateCcw,
   Square,
   Trash2,
   Users,
@@ -691,6 +692,14 @@ function RoomHeader({ room, members }: { room: Room; members: Bot[] }) {
     },
     onError: (e) => toast.error((e as Error).message),
   });
+  const reset = useMutation({
+    mutationFn: () => api.resetRoom(room.id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['messages', room.id] });
+      void qc.invalidateQueries({ queryKey: ['rooms'] });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 z-10 wallpaper-fade bg-gradient-to-b from-background via-background/80 to-transparent pb-6">
       <div className="window-drag grid grid-cols-[1fr_minmax(0,auto)_1fr] items-center gap-2 px-3 pt-3 sm:px-4">
@@ -734,6 +743,12 @@ function RoomHeader({ room, members }: { room: Room; members: Bot[] }) {
               )}
               <DropdownMenuItem onClick={() => showMinutes(room.id)}>
                 <ClipboardList /> {t('meeting.list')}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled={reset.isPending}
+                onClick={() => confirm(t('room.resetConfirm')) && reset.mutate()}
+              >
+                <RotateCcw /> {t('room.reset')}
               </DropdownMenuItem>
               <DropdownMenuItem
                 className="text-destructive"
