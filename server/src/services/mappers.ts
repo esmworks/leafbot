@@ -118,6 +118,7 @@ export const toApproval = (r: Row<typeof schema.approvals>): Approval => ({
   firstAt: iso(r.firstAt),
   createdAt: r.createdAt.toISOString(),
   decidedAt: iso(r.decidedAt),
+  answeredVia: r.answeredViaBotId ?? null,
 });
 
 export const toRule = (r: Row<typeof schema.permissionRules>): PermissionRule => ({

@@ -660,6 +660,11 @@ export const Approval = z.object({
   createdAt: z.string(),
   decidedAt: z.string().nullable(),
   /**
+   * The manager bot that answered the card for the person, in their words; null when the person
+   * answered it themselves. Missing from older servers.
+   */
+  answeredVia: Id.nullable().optional(),
+  /**
    * For a card asked in an exchange between bots, which the person does not open: the conversation
    * it is shown and answered in (where the work began), and the props of the card's own line, as a
    * card in that conversation would carry them. Missing for other cards and from older servers.

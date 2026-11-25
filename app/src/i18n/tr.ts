@@ -1207,6 +1207,7 @@ export const tr = {
   'approval.expired': 'İzin isteği yanıtsız kaldı',
   'approval.timedOut': 'İzin isteği zamanında yanıtlanmadı; işlem yapılmadı',
   'approval.show': 'Neyi?',
+  'approval.answeredVia': 'Yönetici {manager}, senin söylediğinle yanıtladı',
   'approval.hide': 'Gizle',
 
   // Question cards

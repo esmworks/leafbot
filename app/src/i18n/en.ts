@@ -1248,6 +1248,7 @@ export const en: Catalog<MessageKey> = {
   'approval.expired': 'Permission request left unanswered',
   'approval.timedOut': 'Permission request timed out; the action was not taken',
   'approval.show': 'What exactly?',
+  'approval.answeredVia': 'Answered by the manager {manager}, from what you said',
   'approval.hide': 'Hide',
 
   'question.answer': 'Your answer: {answer}',

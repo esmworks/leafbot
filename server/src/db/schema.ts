@@ -390,6 +390,11 @@ export const approvals = pgTable(
      */
     decidedBy: text('decided_by', { enum: ['person', 'rule', 'typed'] }),
     /**
+     * A manager bot that gave the answer for the person, in their words (`cards_answer`); null when
+     * the person answered on the card itself.
+     */
+    answeredViaBotId: text('answered_via_bot_id').references(() => bots.id, { onDelete: 'set null' }),
+    /**
      * An "always ask" rule asked for a second person's yes: the step runs only after two different
      * people allowed it. `secondUserId` is the one the rule named (anyone who may change the bot
      * when null), kept as the rule had it when the card was made.

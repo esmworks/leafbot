@@ -1,0 +1,2 @@
+ALTER TABLE "approvals" ADD COLUMN "answered_via_bot_id" text;--> statement-breakpoint
+ALTER TABLE "approvals" ADD CONSTRAINT "approvals_answered_via_bot_id_bots_id_fk" FOREIGN KEY ("answered_via_bot_id") REFERENCES "public"."bots"("id") ON DELETE set null ON UPDATE no action;

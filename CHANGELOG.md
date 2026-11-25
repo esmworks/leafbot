@@ -7,6 +7,12 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A manager bot answers the cards waiting on you in your words, such as "say yes to the mail and tell the writer to
+  keep it warm". When you said it in your own conversation with the manager, and the manager has read nothing from
+  outside, it answers straight away; otherwise you see all its answers on one card first, at every permission level.
+  Cards that use money, passwords or codes, your own computer or phone, a second person's yes, a lookalike site or
+  another manager's own step stay with you. An answered card says which manager answered it, and the waiting bot is
+  told the answer came through the manager. The manager never turns on "always allow".
 - A daily check-in: once a day, at the person's reminder time, their bots are looked over with no AI for what has
   gone wrong and waits on them: a routine that keeps failing, switched itself off and is still off two days later, or
   waits for a sign-in; a card left unanswered for more than twelve hours; a connection of theirs that signed out or

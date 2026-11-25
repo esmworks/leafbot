@@ -32,6 +32,7 @@ import {
   searchCatalog,
   skillSlug,
   type ApiSource,
+  type Approval,
   type Bot,
   type BotLevel,
   type EngineKind,
@@ -41,17 +42,19 @@ import {
   type Routine,
   type Skill,
   type WhatsAppGroup,
+  describeAction,
+  questionItems,
   wallClock,
   zonedTime,
 } from '@leafbot/shared';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, or } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import { planItems, type AppTool, type PlanItem, type ToolResult } from '../engine/types';
 import { attended, type TurnRow } from '../runtime/turns';
 import { requestedBy } from '../runtime/owner-words';
-import { reportOnlyTurn, STRICTNESS } from '../services/approvals';
+import { managerMayNotAnswer, reportOnlyTurn, STRICTNESS } from '../services/approvals';
 import type { Services } from '../services';
 import { isServerKey, type T } from '../i18n';
 import { errorText, HttpError, newId, notFound, truncate } from '../util';
@@ -450,6 +453,9 @@ const GUEST_OFF = new Set<string>([
   'browser_login',
   'browser_code',
   'browser_email_code',
+  // The cards waiting on the person are theirs to see and answer, not a stranger's.
+  'cards_waiting',
+  'cards_answer',
 ]);
 
 /** Tool builder for one turn: descriptions and results are written in the turn's language. */
@@ -596,6 +602,8 @@ export type ToolName =
   | 'bot_stop'
   | 'reply_files'
   | 'bot_conversations_read'
+  | 'cards_waiting'
+  | 'cards_answer'
   | 'bot_create'
   | 'bot_factory'
   | 'models_list'
@@ -1095,7 +1103,8 @@ export class ToolFactory {
             const given = answers[i] || t('tool.emptyAnswer');
             return `- ${q.question} → ${q.secret && answers[i] ? t('tool.secretAnswer', { answer: given }) : given}`;
           });
-          return t('tool.answers', { lines: lines.join('\n'), id: r.approvalId });
+          const said = t('tool.answers', { lines: lines.join('\n'), id: r.approvalId });
+          return r.via ? `${said}\n${t('approval.viaManager', { manager: r.via })}` : said;
         },
         'internal',
       ),
@@ -2935,7 +2944,20 @@ export class ToolFactory {
     }
     if (bot.isManager && !team) {
       tools.push(
-        ...this.managerTools(bot, signal, t, unattended, person, (ref) => reachBot(ref, 'edit'), journal),
+        ...this.managerTools(bot, signal, t, unattended, person, (ref) => reachBot(ref, 'edit'), journal, {
+          // The person's own words, in their own conversation, with nothing from outside read yet:
+          // only then does the manager answer cards for them without asking first.
+          clean: () =>
+            turn.source === 'user' &&
+            !turn.guest &&
+            !turn.rehearsalId &&
+            thread.kind === 'user' &&
+            thread.userId === person &&
+            !reads(),
+          shows: async (kind) => {
+            await opts.readOutside?.(kind);
+          },
+        }),
       );
       // A manager also reads and tidies the other bots' own notes.
       for (const x of tools) {
@@ -2958,6 +2980,12 @@ export class ToolFactory {
     reach: (ref: string) => Promise<Bot>,
     /** Puts a change into the journal that takes the turn back. */
     note: (c: ChangeNote) => Promise<void>,
+    inbox: {
+      /** Whether the turn may answer the person's cards without a card of its own. */
+      clean: () => boolean;
+      /** Tells the turn it was shown outside text. */
+      shows: (kind: OutsideTrigger) => Promise<void>;
+    },
   ): AppTool[] {
     const def = definer(t);
     const s = this.services;
@@ -3027,7 +3055,168 @@ export class ToolFactory {
       const g = groups.find((x) => x.id === name || x.name.toLowerCase() === name.toLowerCase());
       return g ? g.id : (await s.bots.createGroup(name)).id;
     };
+    /** The cards waiting on the person that they may answer, newest first. */
+    const waiting = async () => {
+      const viewer = await s.access.viewerOf(person);
+      const { seen, answerable } = await s.access.summaryScope(viewer);
+      return s.approvals.list({ status: 'pending', seen, answerable });
+    };
     return [
+      def(
+        'cards_waiting',
+        {},
+        async () => {
+          const cards = await waiting();
+          if (!cards.length) return t('cards.none');
+          const bots = await s.bots.list({ includeArchived: true });
+          const names = new Map(bots.map((b) => [b.id, b.name]));
+          const managers = new Set(bots.filter((b) => b.isManager).map((b) => b.id));
+          const locale = await s.settings.locale();
+          const now = Date.now();
+          // A card's words may come from outside text (a mail, a page, a stranger) that the turn
+          // asking it read: reading them counts so, and the manager then answers nothing unasked.
+          const outside = await this.ctx.db
+            .select({ id: schema.approvals.id })
+            .from(schema.approvals)
+            .leftJoin(schema.turns, eq(schema.turns.id, schema.approvals.turnId))
+            .where(
+              and(
+                inArray(
+                  schema.approvals.id,
+                  cards.map((c) => c.id),
+                ),
+                or(
+                  eq(schema.approvals.outside, true),
+                  isNotNull(schema.turns.outside),
+                  eq(schema.turns.guest, true),
+                ),
+              ),
+            )
+            .limit(1);
+          if (outside.length) await inbox.shows('stored');
+          const out: string[] = [];
+          for (const c of cards.slice(0, 30)) {
+            const bot = names.get(c.botId) ?? '?';
+            const hours = Math.max(0, Math.round((now - Date.parse(c.createdAt)) / 3_600_000));
+            out.push(t('cards.line', { id: c.id, bot, hours: String(hours) }));
+            if (c.kind === 'question') {
+              for (const q of questionItems(c).items)
+                out.push(
+                  t('cards.question', {
+                    question: truncate(q.question, 400),
+                    options: q.options.join(' | ') || '-',
+                  }),
+                );
+            } else {
+              const said = describeAction(c.toolName, c.input, { bot, locale });
+              out.push(t('cards.step', { step: said.want, detail: truncate(said.detail ?? c.summary, 400) }));
+            }
+            const keep = managerMayNotAnswer(c, c.line ?? {}, manager.id, managers);
+            if (keep) out.push(t('cards.keeps', { why: t(keep) }));
+          }
+          return out.join('\n');
+        },
+        'read',
+      ),
+      def(
+        'cards_answer',
+        {
+          answers: z
+            .array(
+              z.object({
+                card: z.string().min(1).max(64),
+                bot: z.string().min(1).max(80),
+                decision: z.enum(['yes', 'no']),
+                answer: z.string().max(5_000).optional(),
+                answers: z.array(z.string().max(5_000)).max(6).optional(),
+              }),
+            )
+            .min(1)
+            .max(10),
+        },
+        async ({ answers }) => {
+          const open = new Map((await waiting()).map((c) => [c.id, c]));
+          const bots = await s.bots.list({ includeArchived: true });
+          const names = new Map(bots.map((b) => [b.id, b.name]));
+          const managers = new Set(bots.filter((b) => b.isManager).map((b) => b.id));
+          const out: string[] = [];
+          const go: { card: Approval; bot: string; yes: boolean; words?: string; answers?: string[] }[] = [];
+          for (const a of answers) {
+            const card = open.get(a.card);
+            if (!card) {
+              out.push(t('cards.notWaiting', { id: a.card }));
+              continue;
+            }
+            const bot = names.get(card.botId) ?? '?';
+            // The bot named beside the card is checked, so a mixed-up id answers nothing.
+            if (bot.toLowerCase() !== a.bot.trim().toLowerCase()) {
+              out.push(t('cards.wrongBot', { id: a.card, bot }));
+              continue;
+            }
+            const keep = managerMayNotAnswer(card, card.line ?? {}, manager.id, managers);
+            if (keep) {
+              out.push(t('cards.kept', { id: a.card, bot, why: t(keep) }));
+              continue;
+            }
+            const yes = a.decision === 'yes';
+            // A step goes ahead as it is on a yes, so words reach its bot only with a no.
+            const several = a.answers?.length ? a.answers : undefined;
+            const words =
+              several || (card.kind !== 'question' && yes) ? undefined : a.answer?.trim() || undefined;
+            if (card.kind === 'question' && yes && !words && !several) {
+              out.push(t('cards.needAnswer', { id: a.card, bot }));
+              continue;
+            }
+            go.push({ card, bot, yes, words, answers: several });
+          }
+          // Answered without asking only on the person's own word, in their own conversation, with
+          // nothing from outside read: otherwise they see every answer on one card first, at every
+          // permission level, since the answers let other bots act, stricter ones among them.
+          if (go.length && !inbox.clean()) {
+            const lines = go.map(
+              (g) =>
+                `${g.bot} · ${truncate(g.card.summary, 120)}: ${g.yes ? '✓' : '✗'}` +
+                (g.answers ? ` ${g.answers.join(' | ')}` : g.words ? ` ${g.words}` : ''),
+            );
+            const approve = t('tool.approve');
+            const ok = await confirm(
+              t('cards.ask', { count: String(go.length) }),
+              {
+                questions: [
+                  {
+                    question: t('cards.ask', { count: String(go.length) }),
+                    context: lines.join('\n'),
+                    options: [approve, t('tool.reject')],
+                  },
+                ],
+              },
+              'cards_answer',
+            );
+            if (ok !== true) return refused([...out, t('cards.refused')].join('\n'), ok);
+          }
+          for (const g of go) {
+            const id = g.card.id;
+            try {
+              await s.approvals.answer(
+                id,
+                {
+                  decision: g.yes ? 'allow' : 'deny',
+                  ...(g.words !== undefined && { answer: g.words }),
+                  ...(g.answers && { answers: g.answers }),
+                  remember: false,
+                },
+                person,
+                { via: { botId: manager.id, name: manager.name } },
+              );
+              out.push(t(g.yes ? 'cards.said' : 'cards.declined', { id, bot: g.bot }));
+            } catch (err) {
+              out.push(t('cards.failed', { id, bot: g.bot, message: errorText(err, t) }));
+            }
+          }
+          return out.join('\n');
+        },
+        'internal',
+      ),
       def(
         'bot_conversations_read',
         { bot: z.string().min(1), limit: z.number().int().min(1).max(100).default(30) },
