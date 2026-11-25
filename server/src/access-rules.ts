@@ -73,6 +73,9 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'GET /api/push/apns': 'admin',
   'PUT /api/push/apns': 'admin',
   'DELETE /api/push/apns': 'admin',
+  // Pictures go through the server's saved keys; whoever may make a bot may give it an avatar.
+  'GET /api/images/models': 'signedIn',
+  'POST /api/images/avatar': 'signedIn',
   'GET /api/providers': 'signedIn',
   'GET /api/providers/:id/models': 'signedIn',
   'GET /api/providers/:id/model-info': 'signedIn',

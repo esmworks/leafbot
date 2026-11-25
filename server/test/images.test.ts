@@ -257,6 +257,14 @@ describe('botun resim oluşturması', () => {
     expect(sent.map((x) => x.body?.model)).toEqual(['grok-imagine-image-2.0', 'grok-imagine-image-2.0']);
   });
 
+  it('lets anyone who may make a bot give it an avatar, not only those who look after the server', async () => {
+    await t.services.keys.set('openai', 'sk-test-image-1234');
+    useProvider(() => b64());
+    const member = await t.person('ayse');
+    expect((await member.api('GET', '/api/images/models')).status).toBe(200);
+    expect((await member.api('POST', '/api/images/avatar', { description: 'a cat' })).status).toBe(200);
+  });
+
   it('offers only the models of providers with a saved key', async () => {
     const none = await t.api<{ models: { ref: string }[] }>('GET', '/api/images/models');
     expect(none.body.models).toEqual([]);

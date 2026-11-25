@@ -991,7 +991,9 @@ function AvatarEditor({
           <p className="text-xs text-muted-foreground">{t('bot.imageHint')}</p>
           <ColorRow color={color} onColor={onColor} />
         </TabsContent>
-        <TabsContent value="describe" className="space-y-3">
+        {/* Kept mounted while another tab shows: a picture being made (and paid for) stays in view,
+            so coming back shows it under way rather than a button that would pay again. */}
+        <TabsContent value="describe" forceMount className="space-y-3 data-[state=inactive]:hidden">
           <DescribeAvatar onAvatar={onAvatar} />
         </TabsContent>
       </Tabs>
