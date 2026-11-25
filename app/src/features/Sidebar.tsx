@@ -376,65 +376,71 @@ function SidebarPanel({
         </div>
       </SidebarMenu>
 
-      {/* Too narrow for the name beside the four buttons, the avatar stands alone and carries the
-          connection dot, as in the rail. */}
-      <div className="@container flex items-center gap-1 border-t px-2 py-2 @xs:gap-2">
-        <button
-          type="button"
-          onClick={() => openSettings('profile')}
-          title={`${userName} · ${connected ? t('sidebar.connected') : t('sidebar.connecting')}`}
-          aria-label={t('profile.open')}
-          className="me-auto flex min-w-0 items-center gap-3 rounded-2xl p-0.5 text-start transition-colors hover:bg-accent @xs:me-0 @xs:flex-1 @xs:px-2 @xs:py-1.5"
-        >
-          <span className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold">
-            {initials(userName, intl)}
-            <span
-              className={cn(
-                'absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-sidebar @xs:hidden',
-                connected ? 'bg-emerald-500' : 'bg-amber-500',
-              )}
-            />
-          </span>
-          <span className="hidden min-w-0 flex-1 @xs:block">
-            <span className="block truncate text-sm font-medium">{userName}</span>
-            <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
+      {/* Too narrow for the name beside the five buttons, the avatar stands alone and carries the
+          connection dot, as in the rail. Narrower still, not even the avatar fits beside them and a
+          button would be pushed out of sight, so the avatar takes a row of its own, with the name
+          now that it has the room, and the buttons spread across the row below. */}
+      <div className="@container border-t">
+        <div className="flex flex-wrap items-center gap-1 px-2 py-2 @xs:gap-2 @max-[17.5rem]:justify-between">
+          <button
+            type="button"
+            onClick={() => openSettings('profile')}
+            title={`${userName} · ${connected ? t('sidebar.connected') : t('sidebar.connecting')}`}
+            aria-label={t('profile.open')}
+            className="me-auto flex min-w-0 items-center gap-3 rounded-2xl p-0.5 text-start transition-colors hover:bg-accent @xs:me-0 @xs:flex-1 @xs:px-2 @xs:py-1.5 @max-[17.5rem]:me-0 @max-[17.5rem]:basis-full @max-[17.5rem]:px-2 @max-[17.5rem]:py-1.5"
+          >
+            <span className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold">
+              {initials(userName, intl)}
               <span
                 className={cn(
-                  'size-1.5 shrink-0 rounded-full',
+                  'absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-sidebar @xs:hidden @max-[17.5rem]:hidden',
                   connected ? 'bg-emerald-500' : 'bg-amber-500',
                 )}
               />
-              <span className="truncate">{connected ? t('sidebar.connected') : t('sidebar.connecting')}</span>
             </span>
-          </span>
-        </button>
-        <RoundButton
-          label={t('today.title')}
-          variant="ghost"
-          onClick={() => useUi.getState().setTodayOpen(true)}
-        >
-          <CalendarCheck />
-        </RoundButton>
-        <RoundButton
-          label={t('board.title')}
-          variant="ghost"
-          onClick={() => useUi.getState().setBoardOpen(true)}
-        >
-          <KanbanSquare />
-        </RoundButton>
-        <RoundButton
-          label={t('dashboards.title')}
-          variant="ghost"
-          onClick={() => useUi.getState().setDashboardsOpen(true)}
-        >
-          <LayoutDashboard />
-        </RoundButton>
-        <RoundButton label={t('apps.open')} variant="ghost" onClick={() => openApps({ botId: null })}>
-          <Blocks />
-        </RoundButton>
-        <RoundButton label={t('settings.title')} onClick={() => openSettings('general', true)}>
-          <Settings2 />
-        </RoundButton>
+            <span className="hidden min-w-0 flex-1 @xs:block @max-[17.5rem]:block">
+              <span className="block truncate text-sm font-medium">{userName}</span>
+              <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
+                <span
+                  className={cn(
+                    'size-1.5 shrink-0 rounded-full',
+                    connected ? 'bg-emerald-500' : 'bg-amber-500',
+                  )}
+                />
+                <span className="truncate">
+                  {connected ? t('sidebar.connected') : t('sidebar.connecting')}
+                </span>
+              </span>
+            </span>
+          </button>
+          <RoundButton
+            label={t('today.title')}
+            variant="ghost"
+            onClick={() => useUi.getState().setTodayOpen(true)}
+          >
+            <CalendarCheck />
+          </RoundButton>
+          <RoundButton
+            label={t('board.title')}
+            variant="ghost"
+            onClick={() => useUi.getState().setBoardOpen(true)}
+          >
+            <KanbanSquare />
+          </RoundButton>
+          <RoundButton
+            label={t('dashboards.title')}
+            variant="ghost"
+            onClick={() => useUi.getState().setDashboardsOpen(true)}
+          >
+            <LayoutDashboard />
+          </RoundButton>
+          <RoundButton label={t('apps.open')} variant="ghost" onClick={() => openApps({ botId: null })}>
+            <Blocks />
+          </RoundButton>
+          <RoundButton label={t('settings.title')} onClick={() => openSettings('general', true)}>
+            <Settings2 />
+          </RoundButton>
+        </div>
       </div>
       {resizable && <ResizeHandle width={width} />}
     </aside>
