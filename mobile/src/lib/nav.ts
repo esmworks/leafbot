@@ -32,6 +32,10 @@ export const nav = {
       params: clean({ botId, path, paths: paths && paths.length > 1 ? JSON.stringify(paths) : undefined }),
     }),
   today: () => router.push('/today'),
+  /** The dashboards the bots fill, or one of them. */
+  dashboards: () => router.push('/dashboards'),
+  dashboard: (dashboardId: string) =>
+    router.push({ pathname: '/dashboard/[dashboardId]', params: { dashboardId } }),
   search: (q?: string) => router.push({ pathname: '/search', params: clean({ q }) }),
   /** The list of settings sections, or one of them. */
   settings: (section?: string) =>

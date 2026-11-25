@@ -43,6 +43,8 @@ export type NotFoundKind =
   | 'ticket'
   | 'table'
   | 'tableRow'
+  | 'dashboard'
+  | 'dashboardTile'
   | 'person'
   | 'meeting'
   | 'promise'

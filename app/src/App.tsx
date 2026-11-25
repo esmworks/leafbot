@@ -25,6 +25,7 @@ import { SettingsPage } from '@/features/SettingsPage';
 import { ShortcutsDialog } from '@/features/ShortcutsDialog';
 import { TodayDialog } from '@/features/TodayDialog';
 import { BoardDialog } from '@/features/board/BoardDialog';
+import { DashboardsDialog } from '@/features/DashboardsDialog';
 import { RoutinePage, useOpenedRoutine } from '@/features/RoutinePage';
 import { QuickPanel } from '@/features/QuickPanel';
 import { Sidebar } from '@/features/Sidebar';
@@ -310,6 +311,7 @@ function Workspace() {
         <ShortcutsDialog />
         <TodayDialog />
         <BoardDialog />
+        <DashboardsDialog />
       </div>
       <SettingsPage />
     </>

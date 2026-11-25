@@ -192,6 +192,8 @@ interface Ctx {
   /** Checklist items, which stay open to ticks even once the card is answered. */
   live: Set<string>;
   tick(name: string, v: boolean): void;
+  /** A figure drawn without its own frame, as the only part of a tile that frames it. */
+  bare?: string;
 }
 
 /**
@@ -312,6 +314,40 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
           </Text>
         </View>
       ) : null}
+    </View>
+  );
+}
+
+/** The figure that is all a card holds, if that is what it holds. */
+function loneStat(card: Card): string | undefined {
+  const only = card.root.children?.length === 1 ? card.root.children[0] : undefined;
+  return only?.type === 'Stat' ? only.id : undefined;
+}
+
+/**
+ * A card that only shows, as a dashboard tile holds one: drawn as a bot's card is, with nothing in
+ * it to change or press, and no frame of its own so the tile around it gives one.
+ */
+export function ShownCard({ card }: { card: Card }) {
+  const c = useColors();
+  const ctx: Ctx = {
+    card,
+    values: cardDefaults(card),
+    set: () => {},
+    press: () => {},
+    locked: true,
+    c,
+    live: new Set(),
+    tick: () => {},
+    bare: loneStat(card),
+  };
+  return (
+    <View style={styles.shown}>
+      {card.root.type === 'ListView' ? (
+        <ListView node={card.root} ctx={ctx} />
+      ) : (
+        <Children node={card.root} ctx={ctx} />
+      )}
     </View>
   );
 }
@@ -490,7 +526,7 @@ function Part({ node, ctx }: { node: CardNode; ctx: Ctx }): ReactNode {
     case 'Chart':
       return <CardChart node={node} c={c} />;
     case 'Stat':
-      return <CardStat node={node} icon={ICONS[str(node.icon)]} c={c} />;
+      return <CardStat node={node} icon={ICONS[str(node.icon)]} c={c} bare={ctx.bare === node.id} />;
     case 'Progress':
       return <CardProgress node={node} c={c} />;
     default:
@@ -875,6 +911,7 @@ const styles = StyleSheet.create({
     padding: 14,
     gap: 12,
   },
+  shown: { alignSelf: 'stretch', gap: 12 },
   ends: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 8 },
   answered: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   small: { fontSize: 12, lineHeight: 16 },

@@ -132,6 +132,14 @@ export const useStorage = () => {
   const api = useApi();
   return useQuery({ queryKey: ['storage', useOrigin()], queryFn: api.storage, staleTime: 60_000 });
 };
+export const useDashboards = () => {
+  const api = useApi();
+  return useQuery({ queryKey: ['dashboards', useOrigin()], queryFn: api.dashboards });
+};
+export const useDashboard = (id: string) => {
+  const api = useApi();
+  return useQuery({ queryKey: ['dashboard', useOrigin(), id], queryFn: () => api.dashboard(id) });
+};
 export const useToday = () => {
   const api = useApi();
   return useQuery({ queryKey: ['today', useOrigin()], queryFn: api.today });

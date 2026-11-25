@@ -317,7 +317,8 @@ const TONE: Record<string, string> = {
 const TREND: Record<string, LucideIcon> = { up: TrendingUp, down: TrendingDown, flat: Minus };
 
 /** One headline number: what it counts, the value, and how it moved. */
-export function CardStat({ node, icon: Glyph }: { node: CardNode; icon?: LucideIcon }) {
+/** `bare`: without a frame of its own, for a figure that already sits in one (a dashboard tile). */
+export function CardStat({ node, icon: Glyph, bare }: { node: CardNode; icon?: LucideIcon; bare?: boolean }) {
   const trend = typeof node.trend === 'string' ? node.trend : undefined;
   const tone =
     typeof node.tone === 'string'
@@ -331,7 +332,11 @@ export function CardStat({ node, icon: Glyph }: { node: CardNode; icon?: LucideI
   const color = (node.color as ChartColor | undefined) ?? 'blue';
   return (
     <div
-      className="flex min-w-0 flex-1 basis-36 items-center gap-3 rounded-xl border bg-background/50 p-3"
+      className={cn(
+        'flex min-w-0 items-center gap-3',
+        // Shares a row with other figures in a frame of its own; bare, it stands alone in a column.
+        !bare && 'flex-1 basis-36 rounded-xl border bg-background/50 p-3',
+      )}
       style={flexStyle(node)}
     >
       {Glyph && (

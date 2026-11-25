@@ -49,6 +49,9 @@ export function BottomBar() {
       <IconButton label={t('today.title')} onPress={() => nav.today()}>
         <MaterialCommunityIcons name="calendar-check-outline" size={20} color={c.foreground} />
       </IconButton>
+      <IconButton label={t('dashboards.title')} onPress={() => nav.dashboards()}>
+        <MaterialCommunityIcons name="view-dashboard-outline" size={20} color={c.foreground} />
+      </IconButton>
       <IconButton label={t('apps.open')} onPress={() => nav.apps()}>
         <MaterialCommunityIcons name="widgets-outline" size={20} color={c.foreground} />
       </IconButton>

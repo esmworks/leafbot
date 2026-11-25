@@ -1046,6 +1046,25 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     return { ok: true };
   });
 
+  // Dashboards: each person sees the tiles of the bots they may talk with; the service keeps to that.
+  app.get('/api/dashboards', async (req) => s.dashboards.list({ userId: me(req).userId }));
+  app.get('/api/dashboards/:id', async (req) =>
+    s.dashboards.view(IdParams.parse(req.params).id, { userId: me(req).userId }),
+  );
+  app.delete('/api/dashboards/:id', async (req) => {
+    await s.dashboards.remove(IdParams.parse(req.params).id, me(req).userId);
+    return { ok: true };
+  });
+  app.delete('/api/dashboard-tiles/:id', async (req) => {
+    await s.dashboards.removeTile(IdParams.parse(req.params).id, me(req).userId);
+    return { ok: true };
+  });
+  app.post('/api/dashboard-tiles/:id/move', async (req) => {
+    const { direction } = z.object({ direction: z.enum(['earlier', 'later']) }).parse(req.body);
+    await s.dashboards.moveTile(IdParams.parse(req.params).id, direction, me(req).userId);
+    return { ok: true };
+  });
+
   // The board: tickets the person and the bots work from.
   // The board: a person sees the tickets they opened and those of bots they may talk with; they
   // change those they opened or whose bot they may change.

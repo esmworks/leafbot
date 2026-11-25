@@ -253,6 +253,8 @@ interface Ctx {
   live: Set<string>;
   tick(name: string, v: boolean): void;
   fieldId(name: string): string;
+  /** A figure drawn without its own frame, as the only part of a tile that frames it. */
+  bare?: string;
 }
 
 /**
@@ -376,6 +378,39 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
         <div className="flex items-center gap-1 text-xs text-muted-foreground">
           <Check className="size-3.5" aria-hidden /> {t('card.answered', { label: answer.label })}
         </div>
+      )}
+    </div>
+  );
+}
+
+/** The figure that is all a card holds, if that is what it holds. */
+function loneStat(card: Card): string | undefined {
+  const only = card.root.children?.length === 1 ? card.root.children[0] : undefined;
+  return only?.type === 'Stat' ? only.id : undefined;
+}
+
+/**
+ * A card that only shows, as a dashboard tile holds one: drawn as a bot's card is, with nothing in
+ * it to change or press, and no frame of its own so the tile around it gives one.
+ */
+export function ShownCard({ card, id }: { card: Card; id: string }) {
+  const ctx: Ctx = {
+    card,
+    values: cardDefaults(card),
+    set: () => {},
+    press: () => {},
+    locked: true,
+    fieldId: (name) => `tile-${id}-${name}`,
+    live: new Set(),
+    tick: () => {},
+    bare: loneStat(card),
+  };
+  return (
+    <div className="flex min-w-0 flex-col gap-3 text-[15px]">
+      {card.root.type === 'ListView' ? (
+        <ListView node={card.root} ctx={ctx} />
+      ) : (
+        <Children node={card.root} ctx={ctx} />
       )}
     </div>
   );
@@ -570,7 +605,7 @@ function Part({ node, ctx }: { node: CardNode; ctx: Ctx }): ReactNode {
     case 'Chart':
       return <CardChart node={node} />;
     case 'Stat':
-      return <CardStat node={node} icon={ICONS[str(node.icon)]} />;
+      return <CardStat node={node} icon={ICONS[str(node.icon)]} bare={ctx.bare === node.id} />;
     case 'Progress':
       return <CardProgress node={node} />;
     default:

@@ -35,6 +35,7 @@ export * from './app-events';
 export * from './phone';
 export * from './card';
 export * from './card-chart';
+export * from './dashboards';
 export * from './routine-health';
 export * from './routine-health-text';
 export * from './routine-versions';

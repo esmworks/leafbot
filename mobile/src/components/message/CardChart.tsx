@@ -285,7 +285,18 @@ function ChartTable({ node, range, c }: { node: CardNode; range?: number; c: Col
 const TREND: Record<string, IconName> = { up: 'trending-up', down: 'trending-down', flat: 'minus' };
 
 /** One headline number: what it counts, the value, and how it moved. */
-export function CardStat({ node, icon, c }: { node: CardNode; icon?: IconName; c: Colors }) {
+/** `bare`: without a frame of its own, for a figure that already sits in one (a dashboard tile). */
+export function CardStat({
+  node,
+  icon,
+  c,
+  bare,
+}: {
+  node: CardNode;
+  icon?: IconName;
+  c: Colors;
+  bare?: boolean;
+}) {
   const viz = useViz();
   const trend = typeof node.trend === 'string' ? node.trend : undefined;
   const tone =
@@ -306,7 +317,13 @@ export function CardStat({ node, icon, c }: { node: CardNode; icon?: IconName; c
           : c.mutedForeground;
   const color = viz((node.color as ChartColor | undefined) ?? 'blue');
   return (
-    <View style={[styles.stat, { borderColor: c.border, backgroundColor: c.background }, flexOf(node)]}>
+    <View
+      style={[
+        styles.stat,
+        bare ? styles.bare : { borderColor: c.border, backgroundColor: c.background },
+        flexOf(node),
+      ]}
+    >
       {icon ? (
         <View style={[styles.statIcon, { backgroundColor: `${color}29` }]}>
           <Feather name={icon} size={17} color={color} />
@@ -436,6 +453,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
   },
+  // Alone in a column, a basis would set its height rather than its width.
+  bare: { borderWidth: 0, padding: 0, flexGrow: 0, flexBasis: 'auto' },
   statIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   statLine: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 6 },
   statValue: { fontSize: 24, lineHeight: 30, fontWeight: '600', fontVariant: ['tabular-nums'] },

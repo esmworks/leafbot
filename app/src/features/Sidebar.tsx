@@ -3,6 +3,7 @@ import {
   Blocks,
   CalendarCheck,
   KanbanSquare,
+  LayoutDashboard,
   Plus,
   Search,
   Settings2,
@@ -201,6 +202,14 @@ function SidebarPanel({
             side="right"
           >
             <KanbanSquare />
+          </RoundButton>
+          <RoundButton
+            label={t('dashboards.title')}
+            onClick={() => useUi.getState().setDashboardsOpen(true)}
+            variant="ghost"
+            side="right"
+          >
+            <LayoutDashboard />
           </RoundButton>
           <RoundButton
             label={t('apps.open')}
@@ -412,6 +421,13 @@ function SidebarPanel({
           onClick={() => useUi.getState().setBoardOpen(true)}
         >
           <KanbanSquare />
+        </RoundButton>
+        <RoundButton
+          label={t('dashboards.title')}
+          variant="ghost"
+          onClick={() => useUi.getState().setDashboardsOpen(true)}
+        >
+          <LayoutDashboard />
         </RoundButton>
         <RoundButton label={t('apps.open')} variant="ghost" onClick={() => openApps({ botId: null })}>
           <Blocks />

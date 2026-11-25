@@ -714,6 +714,26 @@ export const en: Catalog<MessageKey> = {
   'replay.askBot':
     'I replayed the “{name}” skill without AI; it stopped at step {step}: {reason} Look at the page and finish the task from there.',
   'board.title': 'Board',
+  'dashboards.title': 'Dashboards',
+  'dashboards.description':
+    'Dashboards your bots fill. Tiles from a table are worked out from its current rows each time you look.',
+  'dashboards.emptyTitle': 'No dashboards yet',
+  'dashboards.empty':
+    'Ask one of your bots, for example: “Set up a dashboard showing this month’s quote count and the monthly total from the sales table.” The bot sets up the tiles; the dashboard updates by itself as rows are added.',
+  'dashboards.tiles': '{count} tiles',
+  'dashboards.noTiles': 'This dashboard has no tiles yet.',
+  'dashboards.tileMenu': 'Tile options',
+  'dashboards.removeTile': 'Remove tile',
+  'dashboards.moveEarlier': 'Move earlier',
+  'dashboards.moveLater': 'Move later',
+  'dashboards.menu': 'Dashboard options',
+  'dashboards.remove': 'Delete dashboard',
+  'dashboards.removeTitle': 'Delete “{name}”?',
+  'dashboards.removeBody':
+    'Every tile on it is removed. The tables and their rows stay as they are; bots can set it up again under the same name.',
+  'dashboards.live': 'Live from a table',
+  'dashboards.written': 'Written {time}',
+  'dashboards.list': 'Dashboards',
   'board.description': 'Tickets you and your bots work from, in columns by status.',
   'board.new': 'New ticket',
   'board.newDescription': 'Write the ticket’s title and details, who it goes to and how urgent it is.',

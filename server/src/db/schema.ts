@@ -1821,6 +1821,54 @@ export const botTableRows = pgTable(
 );
 
 /**
+ * Dashboards: pages known by name across the server, filled with tiles by any bot. `nameKey` is
+ * the name in lower case, so two bots naming the same page in other letters land on one.
+ */
+export const dashboards = pgTable(
+  'dashboards',
+  {
+    id: text('id').primaryKey(),
+    name: text('name').notNull(),
+    nameKey: text('name_key').notNull(),
+    /** The bot that started the page; who sees it while it has no tile. Null once that bot is gone. */
+    createdByBotId: text('created_by_bot_id').references(() => bots.id, { onDelete: 'set null' }),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex('dashboards_name_uq').on(t.nameKey)],
+);
+
+/**
+ * A dashboard's tiles, each the bot's own: it reads that bot's table (`spec`) or holds a card the
+ * bot wrote. A bot changes its tile by writing one of the same title again.
+ */
+export const dashboardTiles = pgTable(
+  'dashboard_tiles',
+  {
+    id: text('id').primaryKey(),
+    dashboardId: text('dashboard_id')
+      .notNull()
+      .references(() => dashboards.id, { onDelete: 'cascade' }),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    title: text('title').notNull(),
+    titleKey: text('title_key').notNull(),
+    /** What the tile shows and which rows it reads (`TileSpec`). */
+    spec: jsonb('spec').$type<Record<string, unknown>>().notNull(),
+    /** The card a `card` tile holds; sealed as conversations are, since a bot may put anything in it. */
+    card: sealedJson('card'),
+    position: integer('position').notNull().default(0),
+    createdAt: created(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('dashboard_tiles_title_uq').on(t.dashboardId, t.botId, t.titleKey),
+    index('dashboard_tiles_bot_idx').on(t.botId),
+  ],
+);
+
+/**
  * Trip-wires that caught a bot being steered by text it read: the bot repeated its private
  * canary token, or touched a trap key. Kept until the person marks the alarm seen. Holds no
  * input of the call that tripped it, so the token itself is never stored.
