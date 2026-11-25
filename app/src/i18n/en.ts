@@ -1102,6 +1102,10 @@ export const en: Catalog<MessageKey> = {
   'preview.failed':
     'Could not open the file. It may have been moved or deleted; download it, or ask the bot to send it again.',
   'preview.cut': 'The file is long; only its first 1 MB is shown. Download it for the rest.',
+  'preview.tooLarge': 'This file is too large to show here; download it to open it.',
+  'preview.sheetCut': 'Showing part of this sheet; download the file for all of it.',
+  'preview.sheetEmpty': 'This sheet is empty.',
+  'preview.sheets': 'Sheets',
   'message.reaction': 'Reaction: {emoji}',
   'message.copy': 'Copy',
   'message.copied': 'Copied',

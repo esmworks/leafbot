@@ -1,6 +1,5 @@
 import type { Bot } from '@leafbot/shared';
 import Feather from '@expo/vector-icons/Feather';
-import { previewKind } from '@leafbot/app/src/lib/preview';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Loading, Note } from '@/components/page';
 import { locale, t } from '@/i18n';
@@ -9,7 +8,7 @@ import { nav } from '@/lib/nav';
 import { useLibrary } from '@/lib/queries';
 import { useApi } from '@/lib/server';
 import { useColors } from '@/lib/theme';
-import { fileSize, shareFile } from './files';
+import { fileSize, phonePreviewKind, shareFile } from './files';
 import { Block } from './parts';
 
 const fmt = formatters(locale, t);
@@ -28,7 +27,7 @@ export function Library({ bot }: { bot: Bot }) {
       </Block>
     );
   }
-  const paths = files.filter((f) => previewKind(f.name) !== null).map((f) => f.path);
+  const paths = files.filter((f) => phonePreviewKind(f.name) !== null).map((f) => f.path);
   return (
     <View style={styles.list}>
       {files.map((f) => {
@@ -48,7 +47,7 @@ export function Library({ bot }: { bot: Bot }) {
           </>
         );
         const share = () => void shareFile(api.fileUrl(bot.id, f.path), f.name);
-        const canOpen = previewKind(f.name) !== null;
+        const canOpen = phonePreviewKind(f.name) !== null;
         return (
           <View key={f.path} style={styles.item}>
             <Pressable
