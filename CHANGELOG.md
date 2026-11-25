@@ -7,6 +7,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A tool result too long for the conversation is kept whole for the rest of it, instead of only cut: the bot sees
+  the start (for a shell command, the start and the end) and reads the rest page by page with `ReadResult`. Pages
+  read back from outside text are marked as outside text again. Kept in the server's memory only, ten results per
+  conversation; a restart forgets them. With the Claude engine, Claude Code handles long results itself.
 - Bots can run commands on your own computer through the desktop app, when you turn on "Bots may run commands"
   beside "Bots may use this computer" in the Leaf Bot icon's menu (off until you do; with the server elsewhere). The
   computer resolves the folder first and each command asks on a card at every permission level; "always allow"

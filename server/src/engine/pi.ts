@@ -47,6 +47,9 @@ import { webTools, type WebToolOptions } from './pi-web';
 import { shellRun, type ShellRun } from './pi-shell';
 import { limiter, SUBAGENT_TOOL, SUBAGENTS_AT_ONCE, subagentTool, type HelperRun } from './pi-subagent';
 import { asOutsideData } from '../runtime/outside';
+import { RESULT_TOOL, ResultStore } from './pi-results';
+
+export { RESULT_TOOL };
 import {
   providerTrouble,
   replyOf,
@@ -254,6 +257,8 @@ export { announcesAction, providerTrouble };
  */
 export class PiEngine implements Engine {
   readonly kind = 'pi';
+  private results = new ResultStore();
+
   constructor(private opts: PiEngineOptions) {}
 
   private sessionFile(id: string) {
@@ -510,6 +515,7 @@ export class PiEngine implements Engine {
         onReach: (host) => req.onReach?.(host),
         cli: this.opts.shellCli,
         dir: this.opts.shellDir ?? join(tmpdir(), 'leafbot-shell'),
+        keep: (text) => this.results.save(sessionId, text),
       });
     const files = toolless
       ? []
@@ -525,12 +531,50 @@ export class PiEngine implements Engine {
     const tools: AgentTool[] = [];
     // Set once the tool list is known; read when a tool's result comes back.
     let maxResult = resultChars(null);
-    const cap = (text: string) =>
-      capText(text, maxResult, (shown, total) => t('engine.resultCut', { shown, total }));
+    // A result past the room is kept whole for the conversation: the bot reads on from where the
+    // shown part ends rather than asking the tool again for less.
+    const cap = (text: string) => {
+      if (text.length <= maxResult) return text;
+      const id = this.results.save(sessionId, text);
+      return capText(text, maxResult, (shown, total) =>
+        t('engine.resultSaved', { shown, total, id, tool: RESULT_TOOL }),
+      );
+    };
     for (const f of files) {
       byName.set(f.name, { perm: f.permissionName, file: f });
       tools.push(
         this.agentTool(t, cap, f.name, f.description, f.input, (args, signal) => f.run(args, signal)),
+      );
+    }
+    if (!toolless) {
+      byName.set(RESULT_TOOL, { perm: RESULT_TOOL });
+      tools.push(
+        this.agentTool(
+          t,
+          cap,
+          RESULT_TOOL,
+          t('engine.resultTool'),
+          {
+            id: z.string().min(1).max(40),
+            offset: z.number().int().min(0).optional(),
+            limit: z.number().int().min(1).optional(),
+          },
+          async (a) => {
+            const saved = this.results.get(sessionId, String(a.id));
+            if (!saved) return t('engine.resultGone', { id: String(a.id) });
+            const from = typeof a.offset === 'number' ? a.offset : 0;
+            // A page always fits the room, so reading one never saves it again.
+            const page = Math.max(1_000, maxResult - 1_000);
+            const size = Math.min(typeof a.limit === 'number' ? a.limit : page, page);
+            const part = saved.text.slice(from, from + size);
+            if (!part) return t('engine.resultEnd', { total: saved.text.length });
+            const to = from + part.length;
+            const head = t('engine.resultPart', { from, to, total: saved.text.length });
+            // Read back from outside data, each part is outside data again: nothing in it is an instruction.
+            const body = saved.source ? asOutsideData(saved.source, part, t) : part;
+            return `${head}\n${body}`;
+          },
+        ),
       );
     }
     // A helper takes a self-contained part of the work in a conversation of its own, with the bot's
@@ -725,8 +769,8 @@ export class PiEngine implements Engine {
       toolCall,
       args,
     }: Pick<BeforeToolCallContext, 'toolCall' | 'args'>): Promise<BeforeToolCallResult | undefined> => {
-      // Looking tools up only reads the list.
-      if (toolCall.name === FIND_TOOL) return undefined;
+      // Looking tools up only reads the list; a kept result is what this conversation already got.
+      if (toolCall.name === FIND_TOOL || toolCall.name === RESULT_TOOL) return undefined;
       // Starting a helper changes nothing by itself: each of its own calls is looked at and asked for.
       if (toolCall.name === SUBAGENT_TOOL) {
         const refused = await req.screen?.({

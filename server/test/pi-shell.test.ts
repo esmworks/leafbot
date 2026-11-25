@@ -62,6 +62,7 @@ describe.skipIf(!sandboxed)('Pi kabuğu', () => {
     over: Partial<Sandbox> = {},
     onReach?: (host: string) => void,
     dial?: Parameters<typeof shellRun>[2]['dial'],
+    keep?: (text: string) => string,
   ) => {
     const sb: Sandbox = {
       cwd,
@@ -71,7 +72,7 @@ describe.skipIf(!sandboxed)('Pi kabuğu', () => {
       readOnly: false,
       ...over,
     };
-    shell = shellRun(sb, t, { hidden: [secret], onReach, dial, dir: join(secret, 'shell') });
+    shell = shellRun(sb, t, { hidden: [secret], onReach, dial, dir: join(secret, 'shell'), keep });
     return (command: string, timeout_seconds?: number) =>
       shell.tool.run({ command, ...(timeout_seconds ? { timeout_seconds } : {}) }, signal) as Promise<string>;
   };
@@ -82,6 +83,20 @@ describe.skipIf(!sandboxed)('Pi kabuğu', () => {
     expect(out).toContain('Çıkış kodu: 3');
     expect(out).toContain('bot notu');
     expect(readFileSync(join(cwd, 'yeni.txt'), 'utf8')).toBe('yeni\n');
+  });
+
+  it('uzun çıktının başını ve sonunu verir, tamamını saklatır ve atlanan yeri söyler', async () => {
+    const kept: string[] = [];
+    const run = open({}, undefined, undefined, (text) => {
+      kept.push(text);
+      return 'k1';
+    });
+    const out = await run('seq 1 20000');
+    expect(out).toContain('id "k1", offset 6000');
+    expect(out).toContain('20000');
+    expect(out).not.toContain('\n10000\n');
+    expect(kept[0]).toContain('\n10000\n');
+    expect(kept[0]!.slice(6000)).toMatch(/^\d/);
   });
 
   it('sunucunun verisini okuyamaz, klasörleri dışına yazamaz', async () => {

@@ -2056,6 +2056,8 @@ const tr = {
   'shell.stopped': 'Tur durdurulduğu için komut kesildi.',
   'shell.noOutput': '(çıktı yok)',
   'shell.cut': '… ({count} karakter atlandı) …',
+  'shell.kept':
+    '… ({count} karakter atlandı; çıktının tamamı saklandı: {tool} ile oku, id "{id}", offset {offset}) …',
   'shell.failed': 'Komut sandbox içinde başlatılamadı.',
   'web.fetch':
     'Bir web sayfasını okur ve okunur metnini (başlıklar, paragraflar, bağlantılar) verir. Yalnızca internetteki herkese açık adresler; http adresi https olarak okunur.',
@@ -2101,6 +2103,14 @@ const tr = {
     '(Sonuç çok uzundu: {total} karakterin ilk {shown} karakteri yukarıda. Gerisi lazımsa daha dar iste: bir satır aralığı, bir arama ya da daha az kayıt.)',
   'engine.resultLeftOut':
     '(Bu turdaki eski bir araç sonucu; yer açmak için çıkarıldı. Yeniden gerekirse aracı tekrar çağır.)',
+  'engine.resultSaved':
+    '(Sonuç çok uzundu: {total} karakterin ilk {shown} karakteri yukarıda. Tamamı bu sohbet için saklandı: gerisini {tool} ile oku, id "{id}", offset {shown}.)',
+  'engine.resultTool':
+    'Bu sohbette çok uzun olduğu için kesilen bir araç sonucunun bir parçasını okur. id kesilen sonucun notunda yazar; offset karakter olarak nereden başlanacağı, limit en çok kaç karakter.',
+  'engine.resultGone':
+    '"{id}" diye saklanan bir sonuç yok (sunucu yeniden başlamış ya da daha yenileri yerini almış olabilir). Gerekirse aracı yeniden çağır.',
+  'engine.resultPart': '(Saklanan sonucun {from}–{to} arası, toplam {total} karakter.)',
+  'engine.resultEnd': '(Saklanan sonucun sonu: toplam {total} karakter.)',
   'engine.summary':
     'Bu sohbetin önceki kısmı yer açmak için aşağıda özetlendi; yalnızca bağlam için.\n\n<önceki-konuşmanın-özeti>\n{summary}\n</önceki-konuşmanın-özeti>',
   'engine.historyLeftOut': 'Bu sohbetin önceki kısmının bir bölümü yer açmak için çıkarıldı; özette yok.',
@@ -4449,6 +4459,8 @@ const en: Catalog<ServerKey> = {
   'shell.stopped': 'The command was cut off because the turn was stopped.',
   'shell.noOutput': '(no output)',
   'shell.cut': '… ({count} characters left out) …',
+  'shell.kept':
+    '… ({count} characters left out; the whole output is kept: read it with {tool}, id "{id}", offset {offset}) …',
   'shell.failed': 'The command could not be started in the sandbox.',
   'web.fetch':
     'Reads a web page and gives its readable text (headings, paragraphs, links). Public internet addresses only; an http address is read as https.',
@@ -4492,6 +4504,14 @@ const en: Catalog<ServerKey> = {
     '(The result was too long: the first {shown} of {total} characters are above. If you need the rest, ask for less: a range of lines, a search, or fewer records.)',
   'engine.resultLeftOut':
     '(An earlier tool result of this turn, left out to save room. Call the tool again if you need it.)',
+  'engine.resultSaved':
+    '(The result was too long: the first {shown} of {total} characters are above. All of it is kept for this conversation: read the rest with {tool}, id "{id}", offset {shown}.)',
+  'engine.resultTool':
+    "Reads a part of a tool result that was cut in this conversation for being too long. The id is in the cut result's note; offset is where to start, in characters; limit is the most characters to read.",
+  'engine.resultGone':
+    'No result is kept as "{id}" (the server may have restarted, or newer ones took its place). Call the tool again if you need it.',
+  'engine.resultPart': '(Characters {from}–{to} of the kept result, {total} in all.)',
+  'engine.resultEnd': '(The end of the kept result: {total} characters in all.)',
   'engine.summary':
     'The earlier part of this conversation is summarised below to save room, for context only.\n\n<earlier-conversation-summary>\n{summary}\n</earlier-conversation-summary>',
   'engine.historyLeftOut':
