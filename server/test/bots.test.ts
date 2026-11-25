@@ -854,6 +854,8 @@ describe('var olan botları yeni botların yapay zekâsına geçirme', () => {
     // An older phone app sends no finish: the one chosen stays.
     await t.api('PATCH', `/api/bots/${bot.id}`, { color: '#16a34a' });
     expect((await t.api<Bot>('GET', `/api/bots/${bot.id}`)).body.material).toBe('fluffy');
+    const glass = await t.api<Bot>('PATCH', `/api/bots/${bot.id}`, { material: 'glass' });
+    expect(glass.body.material).toBe('glass');
     expect((await t.api('PATCH', `/api/bots/${bot.id}`, { material: 'velvet' })).status).toBe(400);
   });
 });

@@ -98,11 +98,11 @@ export const BotAccess = z.object({
 export type BotAccess = z.infer<typeof BotAccess>;
 
 /**
- * How the body of an object avatar is finished: a plain fill, or a coat of fur with the eyes set into
- * it. Only an object avatar has a body to finish; an uploaded picture ignores it. Where fur can't be
- * drawn (the phone, a browser without WebGL2) the body is drawn flat.
+ * How the body of an object avatar is finished: a plain fill, a coat of fur with the eyes set into it,
+ * or tinted glass. Only an object avatar has a body to finish; an uploaded picture ignores it. Where
+ * fur or glass can't be drawn (the phone, a browser without WebGL2) the body is drawn flat.
  */
-export const BOT_MATERIALS = ['flat', 'fluffy'] as const;
+export const BOT_MATERIALS = ['flat', 'fluffy', 'glass'] as const;
 export const BotMaterial = z.enum(BOT_MATERIALS);
 export type BotMaterial = z.infer<typeof BotMaterial>;
 

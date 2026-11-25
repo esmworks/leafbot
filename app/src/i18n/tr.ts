@@ -2034,6 +2034,7 @@ export const tr = {
   'bot.material': 'Yüzey',
   'bot.material.flat': 'Düz',
   'bot.material.fluffy': 'Tüylü',
+  'bot.material.glass': 'Cam',
   'bot.upload': 'Karşıya yükle',
   'bot.chooseImage': 'Görsel seç',
   'bot.reset': 'Sıfırla',

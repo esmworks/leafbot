@@ -2067,6 +2067,7 @@ export const en: Catalog<MessageKey> = {
   'bot.material': 'Surface',
   'bot.material.flat': 'Smooth',
   'bot.material.fluffy': 'Fluffy',
+  'bot.material.glass': 'Glass',
   'bot.upload': 'Upload',
   'bot.chooseImage': 'Choose image',
   'bot.reset': 'Reset',

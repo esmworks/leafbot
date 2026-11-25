@@ -1,6 +1,8 @@
 import { BRAND_COLOR, DEFAULT_AVATAR, type BotMaterial, type ObjectAvatar } from '@leafbot/shared';
 import type { AvatarDefinition } from 'open-bot-avatar';
-import { mountAvatar, type MountedAvatar } from 'open-bot-avatar/dom';
+import { mountAvatar, type AvatarMaterial, type MountedAvatar } from 'open-bot-avatar/dom';
+import { fluffy } from 'open-bot-avatar/materials/fluffy';
+import { glass } from 'open-bot-avatar/materials/glass';
 import { useEffect, useRef, useState } from 'react';
 import type { BotActivity } from '@/lib/botActivity';
 import { gazeOf, lookTarget, pointerLook, sharedClock, swayAt } from '@/lib/gaze';
@@ -32,6 +34,12 @@ function useCelebration(activity: BotActivity) {
  * - `always`: moves as `hover` does and, large enough to hold, can be turned round by hand.
  */
 export type AvatarMotion = 'still' | 'hover' | 'always';
+
+/**
+ * The engine draws a finish from the material it is handed, not from its name: a name such as
+ * `'fluffy'` comes out flat. The bot keeps the name, so it is turned into the material here.
+ */
+const MATERIALS: Record<BotMaterial, AvatarMaterial> = { flat: 'flat', fluffy, glass };
 
 /** The engine takes a hex colour; a CSS variable such as the brand colour is read from the page. */
 function hexColor(color: string) {
@@ -194,7 +202,8 @@ function useFollowPointer(
  * pointed at: while the window has the focus it breathes, blinks and looks at the pointer wherever it
  * is on the page, which is what makes these avatars feel alive. The engine itself stops
  * one that is off screen and follows the system's reduced motion setting; `still` draws one picture.
- * A fluffy body is a coat of fur; where the page can't draw one (no WebGL2) it comes out flat.
+ * A fluffy body is a coat of fur and a glass one tinted glass; where the page can't draw them (no
+ * WebGL2) they come out flat.
  */
 export function ObjectArt({
   id,
@@ -207,7 +216,7 @@ export function ObjectArt({
 }: {
   id: ObjectAvatar;
   color: string;
-  /** How the body is finished: a plain fill or a coat of fur. */
+  /** How the body is finished: a plain fill, a coat of fur or tinted glass. */
   material?: BotMaterial;
   activity?: BotActivity;
   motion?: AvatarMotion;
@@ -260,7 +269,7 @@ export function ObjectArt({
       color: hexColor(color),
       eyeColor: OBJECT_EYES,
       ...objectLook(activity, celebrating),
-      material,
+      material: MATERIALS[material],
       still: !moving,
       // Followed by `useFollowPointer`, which reaches further for a small avatar.
       followPointer: false,

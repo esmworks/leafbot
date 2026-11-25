@@ -51,8 +51,8 @@ export const bots = pgTable('bots', {
   groupId: text('group_id').references(() => groups.id, { onDelete: 'set null' }),
   color: text('color').notNull().default('#4f6bed'),
   avatar: text('avatar').notNull().default('object:circle'),
-  /** How an object avatar's body is finished: a plain fill or a coat of fur. */
-  material: text('material', { enum: ['flat', 'fluffy'] })
+  /** How an object avatar's body is finished: a plain fill, a coat of fur or tinted glass. */
+  material: text('material', { enum: ['flat', 'fluffy', 'glass'] })
     .notNull()
     .default('flat'),
   permissionMode: text('permission_mode', { enum: ['ask', 'review', 'auto', 'readonly'] })
