@@ -367,6 +367,15 @@ function refresh(origin: string, e: RefreshScope, inv: (...key: unknown[]) => vo
       inv('rules', origin);
       inv('suggestions', origin);
       break;
+    case 'people':
+      inv('people', origin);
+      // A changed role changes what this device may do.
+      inv('session', origin);
+      inv('bots', origin);
+      break;
+    case 'actions':
+      inv('actions', origin, e.botId);
+      break;
     case 'tables':
       inv('tables', origin, e.botId);
       inv('table-rows', origin);

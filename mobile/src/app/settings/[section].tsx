@@ -15,6 +15,9 @@ import { GroupsSection } from '@/components/settings/GroupsSection';
 import { ImportSection } from '@/components/settings/ImportSection';
 import { UsageSection } from '@/components/settings/UsageSection';
 import { AboutSection } from '@/components/settings/AboutSection';
+import { PeopleSection } from '@/components/settings/PeopleSection';
+import { ProvidersSection } from '@/components/settings/ProvidersSection';
+import { ServicesSection } from '@/components/settings/ServicesSection';
 import { t } from '@/i18n';
 
 /** One settings section with its own title bar and the way back to the list. */
@@ -25,6 +28,9 @@ export default function SettingsSection() {
     <Page title={t(`settings.tab.${section}`)} onBack={() => (closeSectionForm() ? undefined : back())}>
       {section === 'profile' && <ProfileSection />}
       {section === 'general' && <GeneralSection />}
+      {section === 'providers' && <ProvidersSection />}
+      {section === 'services' && <ServicesSection />}
+      {section === 'people' && <PeopleSection />}
       {section === 'connection' && <ConnectionSection />}
       {section === 'channels' && <ChannelsSection />}
       {section === 'permissions' && <PermissionsSection />}
