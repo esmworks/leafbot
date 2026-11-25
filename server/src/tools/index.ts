@@ -1279,11 +1279,15 @@ export class ToolFactory {
             system: `${os.type()} ${os.release()} (${os.arch()})`,
             engine: [bot.engine, bot.model].filter(Boolean).join(' / '),
           });
-          const section = (label: string, text: string | undefined) =>
+          // The description and the steps read as Markdown, as GitHub shows them; the errors
+          // stay plain, one per line, as the form shows them in a text block.
+          const section = (label: string, text: string | undefined, markdown: boolean) =>
             text
               ? [
                   { type: 'Caption', value: label, weight: 'semibold' },
-                  { type: 'Text', value: text },
+                  ...(markdown
+                    ? [{ type: 'Markdown', value: text }]
+                    : text.split('\n').map((line) => ({ type: 'Text', value: line, size: 'sm' }))),
                 ]
               : [];
           const card = {
@@ -1297,9 +1301,9 @@ export class ToolFactory {
                 ],
               },
               { type: 'Text', value: report.title ?? title, weight: 'semibold' },
-              { type: 'Text', value: report.description ?? '' },
-              ...section(t('problem.steps'), report.reproduction),
-              ...section(t('problem.errors'), report.errors),
+              { type: 'Markdown', value: report.description ?? '' },
+              ...section(t('problem.steps'), report.reproduction, true),
+              ...section(t('problem.errors'), report.errors, false),
               {
                 type: 'Caption',
                 value: [`Leaf Bot ${report.version}`, report.system, report.engine]

@@ -44,8 +44,11 @@ const CUT_ORDER = ['errors', 'reproduction', 'description', 'title'] as const;
 
 const ELLIPSIS = '…';
 
-/** `@name` would notify that GitHub account; a zero-width space after the @ keeps it plain text. */
-function noMentions(text: string): string {
+/**
+ * GitHub turns `@someone` in an issue into a mention and tells that account. An invisible
+ * zero-width space after the sign leaves the text reading the same and tells nobody.
+ */
+function quietMentions(text: string): string {
   return text.replace(/@(?=[A-Za-z0-9])/g, '@\u200b');
 }
 
@@ -79,7 +82,7 @@ export function problemReport(input: ProblemReport): { report: ProblemReport; ur
   const report: ProblemReport = {};
   for (const key of Object.keys(REPORT_LIMITS) as (keyof ProblemReport)[]) {
     const value = input[key]?.trim();
-    if (value) report[key] = cut(noMentions(value), REPORT_LIMITS[key]);
+    if (value) report[key] = cut(quietMentions(value), REPORT_LIMITS[key]);
   }
   let link = url(report);
   for (const key of CUT_ORDER) {

@@ -1,4 +1,4 @@
-import type { Message, Thread } from '@leafbot/shared';
+import type { Message, Routine, Thread } from '@leafbot/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { testServer, type TestServer } from './helpers';
 
@@ -51,6 +51,24 @@ describe('problem reports', () => {
     expect(card.text).toContain(description);
     // The bot is told the person sends it, not that it was sent.
     expect((await t.messages(th.id)).at(-1)!.text).toContain('GitHub');
+  });
+
+  it("drafts nothing in a routine's run, where nobody wrote and the server's details would go unseen", async () => {
+    const bot = await t.bot({ permissionMode: 'auto' });
+    const routine = (
+      await t.api<Routine>('POST', '/api/routines', {
+        botId: bot.id,
+        name: 'Gece',
+        prompt: call({ title: 'Something fails', what_happened: 'It fails.', asked: true }),
+        schedule: { type: 'weekly', days: [0], time: '18:00' },
+      })
+    ).body;
+    await t.api('POST', `/api/routines/${routine.id}/run`);
+    await t.services.turns.idle();
+    const threads = (await t.api<Thread[]>('GET', `/api/bots/${bot.id}/threads`)).body;
+    const all = (await Promise.all(threads.map((th) => t.messages(th.id)))).flat();
+    expect(all.some((m) => m.props.card)).toBe(false);
+    expect(all.some((m) => m.text.includes('yalnızca kişinin kendi konuşmasındaki'))).toBe(true);
   });
 
   it('turns a sign-in or limit failure back to the bot unless the person asked', async () => {
