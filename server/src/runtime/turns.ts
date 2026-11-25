@@ -1410,8 +1410,14 @@ export class TurnManager {
       cwd: sandbox.cwd,
       // A bot with memory off sees none, not even the person's shared notes.
       memory: bot.memory
-        ? await memory.visibleTo(bot.id, own, await placeOf(this.ctx, thread))
-        : { user: [], bot: [], room: [] },
+        ? await memory.visibleTo(
+            bot.id,
+            own,
+            await placeOf(this.ctx, thread),
+            // What every bot should know is not for a stranger, nor for a WhatsApp contact.
+            !turn.guest && !contact,
+          )
+        : { user: [], bot: [], room: [], common: [] },
       profile: {
         name: settings.userName,
         addressAs: settings.addressAs,

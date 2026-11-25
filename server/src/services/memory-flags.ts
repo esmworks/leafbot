@@ -198,7 +198,8 @@ export class MemoryFlagService {
     let place: string | null = null;
     if (input.memoryId) {
       const note = await this.services.memory.get(input.memoryId);
-      scope = note.scope;
+      // A gap in a note for every bot is the bot's to raise: its answer comes back as a proposal.
+      scope = note.scope === 'common' ? 'bot' : note.scope;
       if (note.scope === 'user') userId = note.userId ?? OWNER_ID;
       if (note.scope === 'room') place = note.place ?? input.place;
       // A note from a page is read against the page again at the next tidy-up, ahead of the rest.

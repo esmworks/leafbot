@@ -7,6 +7,12 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Common knowledge: notes every bot on the server reads, such as the company address or a team rule. Those who
+  look after the server write them on the memory screen and they apply at once; everyone else sees them there. A bot
+  only proposes adding, changing or deleting one, and the proposal waits under "Waiting for approval" for someone who
+  looks after the server, saying when the bot had read outside text. They have their own room in the prompt, so they
+  neither crowd out a bot's own notes nor get crowded out, at most 100 notes; they do not reach a guest's turn or a
+  WhatsApp contact. On the phone they show in the memory settings; they are added on the web.
 - A note a bot writes or changes while outside text (a page, a mail, a command's output) is in its conversation is
   marked unverified. It is still written straight away and still reaches bots, but marked as outside data, so a
   page cannot turn its words into a fact bots trust. The background review and the weekly tidy-up mark what they

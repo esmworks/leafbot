@@ -1311,6 +1311,8 @@ function Permissions() {
 function MemoryTab() {
   const t = useT();
   const { dayLabel } = useFormat();
+  const manages = useManagesServer();
+  const [commonText, setCommonText] = useState('');
   const { data: memory = [] } = useMemory();
   const { data: bots = [] } = useBots();
   // Notes of an archived bot stay until deleted; its name tells them apart.
@@ -1353,6 +1355,14 @@ function MemoryTab() {
     mutationFn: () => api.addMemory({ scope: 'user', content: text }),
     onSuccess: () => {
       setText('');
+      void refresh();
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+  const addCommon = useMutation({
+    mutationFn: () => api.addMemory({ scope: 'common', content: commonText }),
+    onSuccess: () => {
+      setCommonText('');
       void refresh();
     },
     onError: (e) => toast.error((e as Error).message),
@@ -1402,6 +1412,7 @@ function MemoryTab() {
   const current = memory.filter((m) => !noteExpired(m, now));
   const expiredHits = memory.filter((m) => noteExpired(m, now) && hit(m));
   const user = pinnedFirst(current.filter((m) => m.scope === 'user' && hit(m)));
+  const common = pinnedFirst(current.filter((m) => m.scope === 'common' && hit(m)));
   const groups = botNoteGroups(current.filter(hit), bots, archived).map((g) => ({
     ...g,
     notes: pinnedFirst(g.notes),
@@ -1541,6 +1552,43 @@ function MemoryTab() {
         />
       ) : (
         <>
+          {(manages || common.length > 0) && (
+            <Card title={t('memory.common')}>
+              <p className="px-4 py-3 text-xs text-muted-foreground">
+                {t(manages ? 'memory.commonHint' : 'memory.commonHintMember')}
+              </p>
+              {manages && (
+                <form
+                  className="flex gap-2 px-4 pb-3"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (commonText.trim()) addCommon.mutate();
+                  }}
+                >
+                  <Input
+                    value={commonText}
+                    maxLength={2000}
+                    onChange={(e) => setCommonText(e.target.value)}
+                    placeholder={t('memory.commonPlaceholder')}
+                    aria-label={t('memory.commonPlaceholder')}
+                    className="flex-1 rounded-full"
+                  />
+                  <Button className="rounded-full" disabled={!commonText.trim() || addCommon.isPending}>
+                    {t('common.add')}
+                  </Button>
+                </form>
+              )}
+              {common.map((m) =>
+                manages ? (
+                  <NoteRow key={m.id} m={m} {...noteProps} />
+                ) : (
+                  <div key={m.id} className="px-4 py-3 text-sm break-words">
+                    {m.content}
+                  </div>
+                ),
+              )}
+            </Card>
+          )}
           <Card title={t('memory.user')}>
             {user.length === 0 && (
               <div className="px-4 py-3 text-sm text-muted-foreground">

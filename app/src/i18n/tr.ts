@@ -2343,6 +2343,13 @@ export const tr = {
     '{days} gündür bunları kimse değiştirmedi, hiçbir bot da bakmadı; her turda okuyan bir bot da yok. Artık gerekmeyenleri silin; kalanlar durur, botlar onları aramayla yine bulur.',
   'memory.staleShared': 'Sizin hakkınızda',
   'memory.scopeRoom': 'Yer notu',
+  'memory.scopeCommon': 'Ortak bilgi',
+  'memory.common': 'Ortak bilgi (herkesin botları görür)',
+  'memory.commonHint':
+    'Sunucudaki her botun bilmesi gereken şeyler; herkesin konuşmalarına gider, misafirlere ve WhatsApp kişilerine gitmez. Burada yazdığın hemen geçer; bir botun eklemek, değiştirmek ya da silmek istediği yukarıda onay bekler.',
+  'memory.commonHintMember':
+    'Sunucuya bakanların her bot için yazdığı bilgiler. Değiştirmek için onlara sor.',
+  'memory.commonPlaceholder': 'Her botun bilmesi gereken bir şey ekleyin',
   'memory.lastUsed': 'en son {when} bakıldı',
   'memory.neverUsed': 'hiç bakılmadı, son değişiklik {when}',
   'memory.staleDeleteAllConfirm': 'Hiçbir botun kullanmadığı {count} notun hepsi silinsin mi? Geri alınamaz.',
@@ -3238,7 +3245,7 @@ export const tr = {
     'WhatsApp bağlantısı kesilsin mi? Cihaz Bağlı cihazlar listesinden çıkar ve anahtarları silinir.',
   'memory.pending': 'Onay bekleyenler',
   'memory.pendingHint':
-    'Bu botu değiştirme yetkisi olmayan birinin istediği bot notu değişiklikleri. Not o botu kullanan herkese ulaştığı için, botu değiştirebilen biri kabul edene kadar yapılmaz.',
+    'Bu botu değiştirme yetkisi olmayan birinin istediği bot notu değişiklikleri ve botların ortak bilgi için önerdikleri. Bu notlar birden çok kişiye ulaştığı için, karar verebilen biri kabul edene kadar yapılmaz.',
   'memory.change.write': 'Yeni not',
   'memory.change.update': 'Düzeltme',
   'memory.change.forget': 'Silme',

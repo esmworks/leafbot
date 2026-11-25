@@ -2242,7 +2242,11 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   const ownNote = async (req: FastifyRequest, id: string) => {
     const reach = await memoryReach(req);
     const note = await s.memory.get(id);
-    if (!s.memory.canEdit(note, reach.botIds, reach.userId, reach.places)) throw notFound('memory');
+    if (!s.memory.canEdit(note, reach.botIds, reach.userId, reach.places, reach.managesServer)) {
+      // Everyone sees the notes for every bot; only those who look after the server change them.
+      if (note.scope === 'common') throw new HttpError(403, 'error.adminOnly');
+      throw notFound('memory');
+    }
     return note;
   };
   /** A waiting change the person decides on; another's reads as missing. */
@@ -2254,7 +2258,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.get('/api/memory', async (req) => {
     const q = z
       .object({
-        scope: z.enum(['bot', 'user', 'room']).optional(),
+        scope: z.enum(['bot', 'user', 'room', 'common']).optional(),
         botId: z.string().optional(),
       })
       .parse(req.query);
@@ -2265,6 +2269,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const b = MemoryCreate.parse(req.body);
     // A bot's note needs its bot, and leave to change it.
     if (b.scope === 'bot') await s.access.requireBot(me(req), b.botId ?? '', 'edit');
+    // A note for every bot reaches everyone's conversations: those who look after the server write it.
+    if (b.scope === 'common') requireAdmin(me(req));
     // `source` says a person wrote it; the history says which person.
     return s.memory.create({ ...b, userId: me(req).userId, source: 'user', actor: actorOf(req) });
   });

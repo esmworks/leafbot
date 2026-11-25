@@ -512,7 +512,7 @@ export const memories = pgTable(
     id: text('id').primaryKey(),
     // `room`: a note about a place (a chat app channel or a room), read by every bot that talks there
     // and by nobody anywhere else.
-    scope: text('scope', { enum: ['bot', 'user', 'room'] }).notNull(),
+    scope: text('scope', { enum: ['bot', 'user', 'room', 'common'] }).notNull(),
     botId: text('bot_id').references(() => bots.id, { onDelete: 'cascade' }),
     /** For a note about the person, whose: each person's notes reach only bots working for them. */
     userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
@@ -1533,7 +1533,7 @@ export const memoryChanges = pgTable(
     action: text('action', { enum: ['write', 'update', 'forget'] }).notNull(),
     /** The note an update or a forget is about; the change goes when the note does. */
     memoryId: text('memory_id').references(() => memories.id, { onDelete: 'cascade' }),
-    scope: text('scope', { enum: ['bot', 'user', 'room'] }).notNull(),
+    scope: text('scope', { enum: ['bot', 'user', 'room', 'common'] }).notNull(),
     botId: text('bot_id').references(() => bots.id, { onDelete: 'cascade' }),
     /** For a room note, its place (see `memories.place`). */
     place: text('place'),

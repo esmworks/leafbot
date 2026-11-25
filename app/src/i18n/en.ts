@@ -2375,6 +2375,13 @@ export const en: Catalog<MessageKey> = {
     'Nobody has changed these and no bot has looked them up in {days} days, and no bot reads them on every turn. Delete the ones you no longer need; the rest stay, and bots can still find them by search.',
   'memory.staleShared': 'About you',
   'memory.scopeRoom': 'Place note',
+  'memory.scopeCommon': 'Common knowledge',
+  'memory.common': "Common knowledge (everyone's bots see it)",
+  'memory.commonHint':
+    "What every bot on the server should know; it reaches everyone's conversations, not guests or WhatsApp contacts. What you write here is saved at once; what a bot wants to add, change or delete waits for approval above.",
+  'memory.commonHintMember':
+    'What those who look after the server wrote for every bot. Ask them to change it.',
+  'memory.commonPlaceholder': 'Add something every bot should know',
   'memory.lastUsed': 'last looked up {when}',
   'memory.neverUsed': 'never looked up, last changed {when}',
   'memory.staleDeleteAllConfirm': 'Delete all {count} notes no bot uses? This cannot be undone.',
@@ -3285,7 +3292,7 @@ export const en: Catalog<MessageKey> = {
     'Disconnect WhatsApp? The device leaves Linked devices and its keys are deleted.',
   'memory.pending': 'Waiting for approval',
   'memory.pendingHint':
-    "Changes to a bot's notes asked by someone who may not change that bot. A note reaches everyone who uses the bot, so it waits until someone who may change the bot accepts it.",
+    "Changes to a bot's notes asked by someone who may not change that bot, and what bots propose for common knowledge. These notes reach more than one person, so each waits until someone who may decide accepts it.",
   'memory.change.write': 'New note',
   'memory.change.update': 'Correction',
   'memory.change.forget': 'Deletion',

@@ -29,6 +29,7 @@ import { locale, t } from '@/i18n';
 import { formatters } from '@/lib/format';
 import {
   useBots,
+  useManagesServer,
   useMemory,
   useMemoryChanges,
   useRooms,
@@ -181,6 +182,7 @@ function NoteLine({
 
 /** The "memory" settings section's content, under the section's own title bar. */
 export function MemorySection() {
+  const manages = useManagesServer();
   const api = useApi();
   const { origin } = useServer();
   const { data: memory = [] } = useMemory();
@@ -302,6 +304,7 @@ export function MemorySection() {
   const current = memory.filter((m) => !noteExpired(m, now));
   const expiredHits = memory.filter((m) => noteExpired(m, now) && hit(m));
   const user = pinnedFirst(current.filter((m) => m.scope === 'user' && hit(m)));
+  const common = pinnedFirst(current.filter((m) => m.scope === 'common' && hit(m)));
   const groups = botNoteGroups(current.filter(hit), bots, archived).map((g) => ({
     ...g,
     notes: pinnedFirst(g.notes),
@@ -324,7 +327,9 @@ export function MemorySection() {
       ? t('memory.staleShared')
       : m.scope === 'room'
         ? placeLabel(m.place, t, rooms)
-        : botName(m.botId);
+        : m.scope === 'common'
+          ? t('memory.scopeCommon')
+          : botName(m.botId);
   const staleDetail = (m: Memory) =>
     `${whose(m)} · ${
       m.lastUsedAt
@@ -455,6 +460,18 @@ export function MemorySection() {
             {stale.length > 1 ? (
               <Row label={t('memory.deleteAll')} destructive onPress={() => void clearAllStale()} />
             ) : null}
+          </Rows>
+        </Section>
+      ) : null}
+      {common.length > 0 ? (
+        <Section title={t('memory.common')}>
+          <Rows>
+            <Pad>
+              <Hint>{t(manages ? 'memory.commonHint' : 'memory.commonHintMember')}</Hint>
+            </Pad>
+            {common.map((m) =>
+              manages ? <NoteLine key={m.id} m={m} {...noteProps} /> : <Row key={m.id} label={m.content} />,
+            )}
           </Rows>
         </Section>
       ) : null}

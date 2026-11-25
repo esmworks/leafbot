@@ -615,7 +615,7 @@ export function endpoints(send: Transport, base = '') {
     memory: () => http.get<Memory[]>('/api/memory'),
     memoryGraph: () => http.get<MemoryGraph>('/api/memory/graph'),
     addMemory: (m: {
-      scope: 'bot' | 'user';
+      scope: 'bot' | 'user' | 'common';
       botId?: string | null;
       content: string;
       site?: string | null;

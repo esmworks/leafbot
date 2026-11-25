@@ -41,6 +41,8 @@ const MEANING_HITS = 20;
 
 /** Room notes one place keeps at most, so a busy channel cannot fill every prompt that reaches it. */
 export const ROOM_NOTES_PER_PLACE = 50;
+/** Notes for every bot at most: each goes to every bot, so they stay a page, not a library. */
+export const COMMON_NOTES = 100;
 
 /**
  * What one person reaches of the memory: their own notes, the bots they may change, and the
@@ -67,6 +69,8 @@ const GRAPH_ROWS_AT_ONCE = 25;
 /** The SQL condition for the notes of `reach`. */
 const reachable = (reach: MemoryReach) =>
   or(
+    // What every bot knows is no secret from those who use the bots.
+    eq(schema.memories.scope, 'common'),
     and(eq(schema.memories.scope, 'user'), eq(schema.memories.userId, reach.userId)),
     reach.botIds.length
       ? and(eq(schema.memories.scope, 'bot'), inArray(schema.memories.botId, reach.botIds))
@@ -90,7 +94,9 @@ const noteOwner = (m: {
     ? `user:${m.userId ?? OWNER_ID}`
     : m.scope === 'room'
       ? `room:${m.place}`
-      : `bot:${m.botId}`;
+      : m.scope === 'common'
+        ? 'common'
+        : `bot:${m.botId}`;
 
 /** Whether a waiting change is one `reach` decides on. */
 export const decides = (
@@ -101,7 +107,9 @@ export const decides = (
     ? (c.userId ?? OWNER_ID) === reach.userId
     : c.scope === 'room'
       ? !!c.place && reach.places.includes(c.place)
-      : !!c.botId && reach.botIds.includes(c.botId);
+      : c.scope === 'common'
+        ? !!reach.managesServer
+        : !!c.botId && reach.botIds.includes(c.botId);
 
 /**
  * Where a conversation is, for the notes about a place: a Slack or Discord channel (every thread
@@ -145,6 +153,9 @@ const unexpired = (now: Date) => or(isNull(schema.memories.validUntil), gt(schem
 /** One person's notes; none for null (a team conversation, which reads no one's own notes). */
 const userNotes = (userId: string | null) =>
   userId ? and(eq(schema.memories.scope, 'user'), eq(schema.memories.userId, userId)) : sql`false`;
+
+/** The notes for every bot, where they reach: not a turn a stranger or a WhatsApp contact writes in. */
+const commonNotes = (reach: boolean) => (reach ? eq(schema.memories.scope, 'common') : sql`false`);
 
 export class MemoryService {
   private embeddings: EmbeddingService | null = null;
@@ -319,7 +330,9 @@ export class MemoryService {
     botId: string,
     userId: string | null,
     place: string | null = null,
-  ): Promise<{ user: Memory[]; bot: Memory[]; room: Memory[] }> {
+    /** Whether the notes for every bot reach this turn (see `commonNotes`). */
+    common = false,
+  ): Promise<{ user: Memory[]; bot: Memory[]; room: Memory[]; common: Memory[] }> {
     const rows = await this.ctx.db
       .select()
       .from(schema.memories)
@@ -332,6 +345,7 @@ export class MemoryService {
             userNotes(userId),
             and(eq(schema.memories.scope, 'bot'), eq(schema.memories.botId, botId)),
             placeNotes(place),
+            commonNotes(common),
           ),
         ),
       )
@@ -341,6 +355,7 @@ export class MemoryService {
       user: all.filter((m) => m.scope === 'user'),
       bot: all.filter((m) => m.scope === 'bot'),
       room: all.filter((m) => m.scope === 'room'),
+      common: all.filter((m) => m.scope === 'common'),
     };
   }
 
@@ -356,11 +371,16 @@ export class MemoryService {
     query?: string,
     shared = true,
     place: string | null = null,
+    /** Whether the notes for every bot reach the asking turn (see `commonNotes`). */
+    common = false,
   ): Promise<Memory[]> {
     const own = botIds.length
       ? and(eq(schema.memories.scope, 'bot'), inArray(schema.memories.botId, botIds))
       : sql`false`;
-    const visible = and(unexpired(new Date()), shared ? or(userNotes(userId), own, placeNotes(place)) : own)!;
+    const visible = and(
+      unexpired(new Date()),
+      shared ? or(userNotes(userId), own, placeNotes(place), commonNotes(common)) : own,
+    )!;
     if (query?.trim() && this.embeddings && (await this.embeddings.available())) {
       const rows = await this.ctx.db
         .select()
@@ -411,7 +431,15 @@ export class MemoryService {
    * Whether the note is `userId`'s own about themselves, the own note of one of `botIds`, or a
    * note of one of `places`.
    */
-  canEdit(m: Memory, botIds: Iterable<string>, userId: string, places: Iterable<string> = []) {
+  canEdit(
+    m: Memory,
+    botIds: Iterable<string>,
+    userId: string,
+    places: Iterable<string> = [],
+    /** Whether a person who looks after the server asks: only they change the notes for every bot. */
+    managesServer = false,
+  ) {
+    if (m.scope === 'common') return managesServer;
     if (m.scope === 'room') return !!m.place && new Set(places).has(m.place);
     return m.scope === 'user' ? m.userId === userId : !!m.botId && new Set(botIds).has(m.botId);
   }
@@ -584,6 +612,8 @@ export class MemoryService {
     unverified?: boolean;
   }): Promise<Memory> {
     if (input.scope === 'bot' && !input.botId) throw new HttpError(400, 'error.memoryNeedsBot');
+    if (input.scope === 'common' && (await this.commonCount()) >= COMMON_NOTES)
+      throw new HttpError(400, 'error.memoryCommonFull', { max: COMMON_NOTES });
     if (input.scope === 'room') {
       if (!input.place) throw new HttpError(400, 'error.memoryNeedsPlace');
       if ((await this.roomCount(input.place)) >= ROOM_NOTES_PER_PLACE)
@@ -642,6 +672,15 @@ export class MemoryService {
     return [...places];
   }
 
+  /** How many notes there are for every bot. */
+  async commonCount(): Promise<number> {
+    const [row] = await this.ctx.db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(schema.memories)
+      .where(eq(schema.memories.scope, 'common'));
+    return row?.n ?? 0;
+  }
+
   /** How many notes a place keeps. */
   async roomCount(place: string): Promise<number> {
     const [row] = await this.ctx.db
@@ -662,7 +701,9 @@ export class MemoryService {
         ? and(eq(schema.memories.scope, 'user'), eq(schema.memories.userId, note.userId ?? OWNER_ID))
         : note.scope === 'room'
           ? placeNotes(note.place ?? null)
-          : and(eq(schema.memories.scope, 'bot'), eq(schema.memories.botId, note.botId ?? ''));
+          : note.scope === 'common'
+            ? eq(schema.memories.scope, 'common')
+            : and(eq(schema.memories.scope, 'bot'), eq(schema.memories.botId, note.botId ?? ''));
     const rows = await this.ctx.db
       .select({ id: schema.memories.id, content: schema.memories.content })
       .from(schema.memories)

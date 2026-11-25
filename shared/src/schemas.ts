@@ -1187,7 +1187,12 @@ export const PermissionRuleCreate = z
   });
 
 /** `room`: a note about a place (a chat app channel, or a room), read only where it was written. */
-export const MemoryScope = z.enum(['bot', 'user', 'room']);
+/**
+ * Whose a note is: one bot's, one person's about themselves, one place's, or `common`: what every
+ * bot should know, read by all of them (not by a stranger's turn), written by those who look after
+ * the server; a bot only proposes one.
+ */
+export const MemoryScope = z.enum(['bot', 'user', 'room', 'common']);
 export type MemoryScope = z.infer<typeof MemoryScope>;
 export const Memory = z.object({
   id: Id,
@@ -1341,7 +1346,8 @@ export const MEMORY_REVIEW_STEPS = [0, 10, 20, 40] as const;
 export type MemoryReviewEvery = (typeof MEMORY_REVIEW_STEPS)[number];
 export const MemoryCreate = z.object({
   // A person writes their own notes and a bot's; a place's notes are written by the bots there.
-  scope: z.enum(['bot', 'user']),
+  // Notes for every bot are written by those who look after the server.
+  scope: z.enum(['bot', 'user', 'common']),
   botId: Id.nullable().default(null),
   content: z.string().trim().min(1).max(2000),
   /** The site a note is about (`example.com`), when it is a site note. */
