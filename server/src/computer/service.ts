@@ -47,7 +47,8 @@ export interface ComputerOptions {
 
 /**
  * The bots' desktops on the computer service: started on first use or when a person wakes one,
- * put to sleep when nobody watches and the bot has left it alone for a while. While a person has
+ * put to sleep once the bot, and any person in control, have left it alone for a while, whoever
+ * still looks at its screen. While a person has
  * control, the bot's actions on it wait until they hand it back.
  */
 export class ComputerService {
@@ -409,12 +410,10 @@ export class ComputerService {
   async tick(now = Date.now()) {
     for (const [botId, d] of this.desks) {
       if (d.status !== 'running') continue;
-      const idle =
-        !d.busy &&
-        !d.user &&
-        !this.watchers.has(botId) &&
-        now >= (d.awakeUntil ?? 0) &&
-        now - d.lastUsed >= this.opts.idleMs;
+      // A screen left open in the app does not keep the desktop: the panel shows it while it is
+      // shown at all, so a forgotten panel would keep it up for hours with nothing on it moving. A
+      // person in control does, and the quiet time counts from when they hand it back.
+      const idle = !d.busy && !d.user && now >= (d.awakeUntil ?? 0) && now - d.lastUsed >= this.opts.idleMs;
       if (idle) {
         await this.stop(botId);
         continue;

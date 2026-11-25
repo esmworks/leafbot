@@ -191,6 +191,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Changed
 
+- A bot's computer goes to sleep after its quiet time even while its screen is open in the app, instead of staying
+  on for as long as the panel is shown. A bot step, a command left running and a person in control still keep it on;
+  it wakes again on the bot's next step or with Wake.
 - The bot's browser tells sites the interface language, instead of an empty or invalid one on servers whose locale is
   C or POSIX.
 - Screenshots of a bot's computer go to the model as JPEG of the same size, which costs fewer tokens.
