@@ -2608,11 +2608,28 @@ export class WhatsAppChannel {
     const t = await this.services.settings.translator();
     const zone = await this.zone();
     const title = shownName(row) || chat;
+    // The bot's drafts still waiting: without them a run that finds no line of its message cannot
+    // tell one still on its card from one turned down, and the bot's own notes cannot say which.
+    const waiting = await this.ctx.db
+      .select()
+      .from(schema.whatsappDrafts)
+      .where(
+        and(
+          eq(schema.whatsappDrafts.chat, chat),
+          eq(schema.whatsappDrafts.botId, botId),
+          eq(schema.whatsappDrafts.kind, 'message'),
+          eq(schema.whatsappDrafts.status, 'pending'),
+        ),
+      )
+      .orderBy(schema.whatsappDrafts.createdAt);
     return [
       t(row.kind === 'group' ? 'whatsapp.groupHeader' : 'whatsapp.chatHeader', { name: title }),
       t('whatsapp.chatId', { chat }),
       '',
       ...rows.map((r) => this.chatLine(r, botId, t, zone)),
+      ...waiting.map((d) =>
+        t('whatsapp.draftPendingLine', { at: localStamp(d.createdAt, zone), text: this.draftSaid(d) }),
+      ),
     ].join('\n');
   }
 
