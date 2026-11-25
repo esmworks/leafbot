@@ -265,6 +265,8 @@ export function outsideSource(tool: AppTool, apps: ReadonlyMap<string, string>, 
   if (tool.name.startsWith('browser_')) return t('outside.browser');
   // Whatever is open on the person's screen: a page, a mail, someone else's message.
   if (tool.name.startsWith('person_computer_')) return t('outside.screen');
+  // What a command printed: a page it fetched, a file someone else wrote.
+  if (tool.name.startsWith('person_command_')) return t('outside.command');
   // The person's calendar and contacts hold what others wrote: invitations, names, notes.
   if (tool.name.startsWith('person_phone_')) return t('outside.phone');
   // What the people in a call said, written out.

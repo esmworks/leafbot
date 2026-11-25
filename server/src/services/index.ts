@@ -54,6 +54,7 @@ import { RoutineService } from './routines';
 import { RehearsalService } from './rehearsals';
 import { RoutineHealthService } from './routine-health';
 import { CheckInService } from './check-ins';
+import { PersonJobService } from './person-jobs';
 import { UnusedService } from './unused';
 import { SubscriptionService } from './subscriptions';
 import { ProviderKeyService } from './keys';
@@ -112,6 +113,7 @@ export class Services {
   readonly rehearsals: RehearsalService;
   readonly routineHealth: RoutineHealthService;
   readonly checkIns: CheckInService;
+  readonly personJobs: PersonJobService;
   readonly unused: UnusedService;
   readonly subscriptions: SubscriptionService;
   readonly tools: ToolFactory;
@@ -230,6 +232,7 @@ export class Services {
     this.skillSuggestions = new SkillSuggestionService(ctx, this, engineFor, clock);
     this.followUps = new FollowUpService(ctx, this, engineFor, clock);
     this.checkIns = new CheckInService(ctx, this, clock);
+    this.personJobs = new PersonJobService(ctx, this, clock);
     this.turns.onFinished((t, o) => this.checkIns.onTurnFinished(t, o));
     this.calls = new CallService(ctx, this, clock);
     this.turns.onFinished((t, o) => this.followUps.onTurnFinished(t, o));

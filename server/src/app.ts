@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fastifyCookie from '@fastify/cookie';
-import { MAC_EVENT, MAC_NAMESPACE } from '@leafbot/shared/mac';
+import { MAC_EVENT, MAC_JOB_EVENT, MAC_JOBS_EVENT, MAC_NAMESPACE } from '@leafbot/shared/mac';
 import fastifyStatic from '@fastify/static';
 import {
   BrowserControlEvent,
@@ -429,6 +429,8 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     // Each set of notes that changed is tidied once a week; likewise not with a test's engine.
     if (!opts.engine && !fake)
       void services.memoryTidy.runDue().catch((err) => console.warn(`Memory tidy-up failed: ${String(err)}`));
+    // A command on someone's computer that never said how it ended, past that computer's own limit.
+    void services.personJobs.sweep().catch((err) => console.warn(`Job sweep failed: ${String(err)}`));
   };
   sweep();
   const sweepTimer = setInterval(sweep, 60 * 60_000);
@@ -651,7 +653,20 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     const by = socketPrincipals.get(socket.request);
     if (!by) return void socket.disconnect(true);
     const device: unknown = socket.handshake.auth?.device;
-    macs.offer(socket.id, by.userId, typeof device === 'string' ? device : '');
+    const name = typeof device === 'string' ? device : '';
+    // Commands only when that computer's own switch lets bots run them.
+    macs.offer(socket.id, by.userId, name, socket.handshake.auth?.commands === true);
+    // How the commands go: told only for this person's own jobs (see `PersonJobService`).
+    socket.on(MAC_JOB_EVENT, (e: unknown) => {
+      void services.personJobs
+        .onEvent(by.userId, e)
+        .catch((err) => console.warn(`job event: ${String(err)}`));
+    });
+    socket.on(MAC_JOBS_EVENT, (e: unknown) => {
+      void services.personJobs
+        .onSnapshot(by.userId, name, e)
+        .catch((err) => console.warn(`job list: ${String(err)}`));
+    });
     bus.refresh({ scope: 'info' });
     socket.on('disconnect', () => {
       macs.drop(socket.id);

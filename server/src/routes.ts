@@ -1648,6 +1648,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const { seen, answerable } = await s.access.summaryScope(me(req));
     return s.approvals.list({ ...q, seen, answerable });
   });
+  // Stops a command a bot runs on the person's own computer: theirs only.
+  app.post('/api/person-jobs/:id/stop', async (req) => ({
+    stopped: await s.personJobs.stop(IdParams.parse(req.params).id, me(req).userId),
+  }));
   app.get('/api/approvals/:id', async (req) => s.approvals.get(IdParams.parse(req.params).id));
   app.post('/api/approvals/:id', async (req) =>
     s.approvals.answer(IdParams.parse(req.params).id, ApprovalDecision.parse(req.body), me(req).userId),

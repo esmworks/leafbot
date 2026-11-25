@@ -238,6 +238,16 @@ const ANSWER: Verb = ['yanıtlamak', 'yanıtlayabilir', 'yanıtlamayacak'];
  * keyboard. They ask once in a turn at every level (see the turn's permission check).
  */
 export const PERSON_COMPUTER = 'person_computer_';
+/**
+ * The start of the names of the tools that run commands on the person's own computer, through the
+ * desktop app. Each command asks on a card at every level unless the person allowed that very
+ * command in that very folder.
+ */
+export const PERSON_COMMAND = 'person_command_';
+export const PERSON_COMMAND_RUN = 'person_command_run';
+/** The rule that lets one command run in one folder without a card, for one person. */
+export const commandRulePattern = (command: string, cwd: string) =>
+  `${PERSON_COMMAND_RUN}(${command} @ ${cwd})`;
 /** The name prefix of the tools that read the person's own phone. */
 export const PERSON_PHONE = 'person_phone_';
 
@@ -255,6 +265,16 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
   const bot = str(input.bot) ?? str(input.name);
   if (name.startsWith(PERSON_COMPUTER)) {
     return { tr: ['bilgisayarını', 'bilgisayarını', USE], en: ['use your computer', 'use your computer'] };
+  }
+  if (name === PERSON_COMMAND_RUN) {
+    return {
+      tr: ['bilgisayarında bir komut', 'bu komutu bilgisayarında', RUN],
+      en: [
+        'run a command on your computer',
+        'run this command on your computer',
+        'run commands on your computer',
+      ],
+    };
   }
   if (name === `${PERSON_PHONE}calendar`) {
     return {
@@ -570,6 +590,18 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
 
 function detailFor(name: string, input: Record<string, unknown>, locale: Locale): string | null {
   if (name === `${PERSON_COMPUTER}type`) return str(input.text);
+  // The folder is the one the computer resolved: what any "always allow" would be for.
+  if (name === PERSON_COMMAND_RUN) {
+    const where = str(input.cwd);
+    const device = str(input.device);
+    return [
+      str(input.command),
+      where && `${locale === 'tr' ? 'Klasör' : 'Folder'}: ${where}`,
+      device && `${locale === 'tr' ? 'Bilgisayar' : 'Computer'}: ${device}`,
+    ]
+      .filter(Boolean)
+      .join('\n');
+  }
   if (name === `${PERSON_COMPUTER}key`) return str(input.keys);
   if (name === `${PERSON_PHONE}contacts`) return str(input.query);
   // The card says where the voices go, since the people in the call are not the ones asked.

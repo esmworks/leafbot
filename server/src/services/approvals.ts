@@ -1,7 +1,10 @@
 import {
   APPROVAL_TIMED_OUT,
   type Approver,
+  commandRulePattern,
   hideSecretAnswers,
+  PERSON_COMMAND,
+  PERSON_COMMAND_RUN,
   PERSON_COMPUTER,
   PERSON_PHONE,
   questionItems,
@@ -394,7 +397,11 @@ export function managerMayNotAnswer(
   if (card.needsSecond) return 'cards.keep.second';
   if (card.botId === manager || managers.has(card.botId)) return 'cards.keep.manager';
   if (card.kind === 'question' && questionItems(card).items.some((q) => q.secret)) return 'cards.keep.secret';
-  if (card.toolName.startsWith(PERSON_COMPUTER) || card.toolName.startsWith(PERSON_PHONE))
+  if (
+    card.toolName.startsWith(PERSON_COMPUTER) ||
+    card.toolName.startsWith(PERSON_COMMAND) ||
+    card.toolName.startsWith(PERSON_PHONE)
+  )
     return 'cards.keep.device';
   if (typeof line.resembles === 'string') return 'cards.keep.lookalike';
   return PERSON_ONLY_TOOLS[card.toolName] ?? null;
@@ -860,6 +867,9 @@ export class ApprovalService {
     // this step: a rule per command kept the person answering cards for the next one. Not from a
     // card that offers no such button (an "always ask" rule, a copy of a site), nor from someone
     // who may only talk with the bot, whose answer counts for this time.
+    // A command on the person's own computer is remembered as itself, in its folder, for them
+    // alone: never as full access, which would let the bot run anything there.
+    const command = current.toolName === PERSON_COMMAND_RUN;
     const remembered =
       !!d.remember &&
       d.decision === 'allow' &&
@@ -867,7 +877,7 @@ export class ApprovalService {
       !twoKeys &&
       !stored.outside &&
       !askRuleMatches(botRules, current.toolName, current.input) &&
-      (await this.mayChangeBot(stored.botId, by));
+      (command ? !!by : await this.mayChangeBot(stored.botId, by));
     let answer = d.answers ? JSON.stringify(d.answers) : (d.answer ?? null);
     /** What the waiting bot gets, when it differs from what the card keeps. */
     let given: string | null | undefined;
@@ -921,7 +931,16 @@ export class ApprovalService {
       )
       .returning();
     if (!row) throw new HttpError(409, 'error.cardAnswered');
-    if (remembered) await this.goFullAccess(stored.botId, by);
+    if (remembered && command) {
+      const t = await serverTranslator(this.ctx);
+      await this.addRule({
+        list: 'allow',
+        pattern: commandRulePattern(String(current.input.command ?? ''), String(current.input.cwd ?? '')),
+        note: t('approval.commandRuleNote'),
+        botId: stored.botId,
+        userId: by,
+      });
+    } else if (remembered) await this.goFullAccess(stored.botId, by);
     // "Never allow": the step is refused from now on, in every mode, without a card. As narrow as
     // the step, and for the bot that asked: one refused command does not take the whole tool from
     // every bot.
@@ -947,7 +966,7 @@ export class ApprovalService {
       ...(opts.via && { via: opts.via.name }),
     });
     this.waiters.delete(id);
-    if (remembered) await this.allowAllWaiting(stored.botId, id, by);
+    if (remembered && !command) await this.allowAllWaiting(stored.botId, id, by);
     this.ctx.bus.refresh({ scope: 'approvals' });
     return toApproval(row);
   }
@@ -1378,6 +1397,8 @@ export class ApprovalService {
       /** An ask rule that wants a second person's yes, and who gives it (anyone who may change the bot when null). */
       secondPerson?: boolean;
       secondUserId?: string | null;
+      /** The one person the rule is for (see the column). */
+      userId?: string | null;
     },
     by: string | null = null,
   ): Promise<PermissionRule> {
@@ -1396,6 +1417,7 @@ export class ApprovalService {
         limit: limited ? r.limit : null,
         secondPerson: second,
         secondUserId: second ? (r.secondUserId ?? null) : null,
+        userId: r.userId ?? null,
       })
       .returning();
     this.ctx.bus.refresh({ scope: 'rules' });
