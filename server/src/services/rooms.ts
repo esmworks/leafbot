@@ -1,5 +1,6 @@
 import {
   findMentions,
+  lastResetIndex,
   outsideIn,
   type Bot,
   type Message,
@@ -90,6 +91,8 @@ export class RoomService {
       .from(schema.turns)
       .where(and(eq(schema.turns.threadId, id), eq(schema.turns.status, 'running')))
       .limit(1);
+    // A room started fresh lists as empty until something new is said in it.
+    const [last] = await this.services.threads.messages(id, { limit: 1 });
     return {
       id,
       title: thread.title,
@@ -101,7 +104,7 @@ export class RoomService {
       meeting: await this.services.meetings.open(id),
       state: thread.state,
       speakerId: speaking?.botId ?? null,
-      preview: thread.preview,
+      preview: last?.props.kind === 'contextReset' ? null : thread.preview,
       createdAt: thread.createdAt,
       updatedAt: thread.updatedAt,
     };
@@ -367,7 +370,7 @@ export class RoomService {
     const recent = await this.services.threads.messages(roomId, { limit: 200 });
     // A reset room is read from its last reset on; what came before is no longer the members' talk.
     const talk = recent
-      .slice(recent.findLastIndex((m) => m.props.kind === 'contextReset') + 1)
+      .slice(lastResetIndex(recent) + 1)
       .filter((m) => (m.role === 'user' || m.role === 'assistant') && m.text.trim());
     // The member's session has read the room's recent stretch, its own lines included.
     for (const m of talk.slice(-ROOM_WINDOW)) o.note?.(outsideIn(m.props));

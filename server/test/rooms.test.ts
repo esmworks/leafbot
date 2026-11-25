@@ -189,6 +189,8 @@ describe('odalar', () => {
     expect(members.every((m) => m.engineSessionId === null && m.seenAt === null)).toBe(true);
     const line = (await t.messages(r.id)).at(-1)!;
     expect(line).toMatchObject({ role: 'system', props: { kind: 'contextReset' } });
+    // The list shows it as empty until something new is said.
+    expect((await t.api<Room>('GET', `/api/rooms/${r.id}`)).body.preview).toBeNull();
 
     const before = t.engine.requests.length;
     await say(r.id, 'Yeni konu: tatil');
@@ -202,6 +204,7 @@ describe('odalar', () => {
     }
     // The second member still hears the first one's answer given after the reset.
     expect(asked[1]!.prompt).toContain('Ada: Yankı:');
+    expect((await t.api<Room>('GET', `/api/rooms/${r.id}`)).body.preview).toBeTruthy();
   });
 
   it('konuşan ya da bekleyen varken oda baştan başlamaz', async () => {

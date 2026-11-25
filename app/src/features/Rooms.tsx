@@ -1,4 +1,5 @@
 import {
+  lastResetIndex,
   MAX_ROOM_MEMBERS,
   MAX_ROOM_ROUNDS,
   type Bot,
@@ -12,6 +13,7 @@ import {
   ArrowUp,
   ChevronLeft,
   ClipboardList,
+  History,
   MoreHorizontal,
   NotebookPen,
   Pencil,
@@ -490,11 +492,18 @@ function RoomForm({ room, onDone }: { room?: Room; onDone(): void }) {
 
 /** A room: the conversation of the person with its bots, one speaking at a time. */
 export function RoomView({ room }: { room: Room }) {
+  const t = useT();
   const { dayLabel } = useFormat();
   const { data: bots = [] } = useBots();
   const botMap = useMemo(() => new Map(bots.map((b) => [b.id, b])), [bots]);
   const members = useMembers(room);
   const { data: messages = [], isLoading } = useMessages(room.id);
+  // A room started fresh opens empty: what came before its last reset shows only when asked for,
+  // and hides again once the room is reset anew.
+  const reset = lastResetIndex(messages);
+  const [earlierOf, setEarlierOf] = useState<string | null>(null);
+  const hidden = reset >= 0 && earlierOf !== messages[reset]!.id ? reset + 1 : 0;
+  const current = hidden ? messages.slice(hidden) : messages;
   const stream = useUi((s) => s.streams[room.id]);
   useLiveCatchUp(room.id);
   const live = useUi((s) => s.states[room.id]);
@@ -509,7 +518,7 @@ export function RoomView({ room }: { room: Room }) {
 
   const shown = pending.filter((p) => !messages.some((m) => m.clientId === p.clientId));
   // A sent message stays one row, keyed by its clientId, until the server's copy replaces it.
-  const all = shown.length ? [...messages, ...shown] : messages;
+  const all = shown.length ? [...current, ...shown] : current;
   const waiting = new Set(shown.map((m) => m.clientId));
   const streamDone = stream && messages.some((m) => m.turnId === stream.turnId && m.role === 'assistant');
   // A card asked while the reply streams in goes inside it, where it was asked.
@@ -557,7 +566,17 @@ export function RoomView({ room }: { room: Room }) {
       >
         <CardDock.Provider value>
           <div className="mx-auto flex max-w-[860px] flex-col gap-4 px-3 pt-20 pb-6 sm:px-6">
-            {!isLoading && messages.length === 0 && shown.length === 0 && (
+            {hidden > 0 && (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="self-center"
+                onClick={() => setEarlierOf(messages[reset]!.id)}
+              >
+                <History /> {t('room.showEarlier')}
+              </Button>
+            )}
+            {!isLoading && current.length === 0 && shown.length === 0 && (
               <RoomEmpty room={room} members={members} />
             )}
             {rows.map((m, i) => {
