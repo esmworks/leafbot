@@ -392,6 +392,12 @@ function refresh(origin: string, e: RefreshScope, inv: (...key: unknown[]) => vo
     case 'channels':
       inv('telegram', origin);
       inv('whatsapp', origin);
+      inv('slack', origin);
+      inv('slack-link', origin);
+      inv('discord', origin);
+      inv('teams', origin);
+      inv('teams-link', origin);
+      inv('email', origin);
       break;
     case 'info':
       inv('info', origin);

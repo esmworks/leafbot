@@ -1018,7 +1018,7 @@ function ErrorRow({ m, retry }: { m: Message; retry: boolean }) {
               <PillButton
                 label={t('message.connectClaude')}
                 variant="primary"
-                onPress={() => nav.settings('connection')}
+                onPress={() => nav.settings('providers')}
               />
             </View>
           ) : null}

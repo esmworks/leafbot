@@ -13,6 +13,7 @@ import { Loading, Note, PillButton, Row, Section, Segments, SwitchRow } from '@/
 import { fileSize, shareFile } from '@/components/panel/files';
 import { ChoiceRow, Hint, Pad, Rows, useSaveSettings } from './common/controls';
 import { usd } from './more/money';
+import { UnusedCard } from './more/Unused';
 import { BotMark, DailyChart, ShareBar, UsageCard, UsageLine } from './more/usageParts';
 import { locale, t } from '@/i18n';
 import { formatters } from '@/lib/format';
@@ -77,6 +78,7 @@ export function UsageSection() {
       <BackgroundNet calls={data?.background} />
       <Parallel parallel={data?.parallel} />
       <Storage />
+      <UnusedCard />
       <PillButton
         icon="download"
         label={t('usage.downloadCsv')}

@@ -7,6 +7,7 @@ import { confirm, toastError } from '@/components/overlay';
 import { Empty, IconButton, Loading, PillButton, Row, Section, SwitchRow } from '@/components/page';
 import { InCard } from '@/components/card';
 import { Field } from '@/components/ui';
+import { ContactDetails } from './ContactDetails';
 import { BotSwitches } from './more/BotSwitches';
 import { Pad, Rows } from './common/controls';
 import { locale, t } from '@/i18n';
@@ -111,6 +112,7 @@ export function VaultSection() {
           </Rows>
         )}
       </Section>
+      <ContactDetails />
     </>
   );
 }
