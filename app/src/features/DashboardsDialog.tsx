@@ -55,8 +55,9 @@ export function DashboardsDialog() {
         className="screen-edges flex h-dvh max-h-none w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 shadow-none sm:max-w-none"
       >
         <DialogDescription className="sr-only">{t('dashboards.description')}</DialogDescription>
-        {/* In the desktop app the window buttons sit over its top left corner. */}
-        <header className="window-drag flex items-center gap-3 border-b px-5 py-3.5 frameless:ps-[88px] phone:px-4">
+        {/* In the desktop app the window buttons sit over its top left corner, their middle 24px from
+            the top (desktop/src/main.ts): the row is centred on that line, as the sidebar's top row is. */}
+        <header className="window-drag flex items-center gap-3 border-b px-5 py-3.5 frameless:py-1.5 frameless:ps-[88px] phone:px-4">
           {current && !listOnPhone && (
             <Button
               variant="ghost"
