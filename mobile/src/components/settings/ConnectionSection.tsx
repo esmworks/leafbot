@@ -2,27 +2,17 @@ import type { ApnsSet, ServerInfo } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
-import { useRef, useState, type ComponentRef, type RefObject } from 'react';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { toast, toastError } from '@/components/overlay';
-import { PillButton, Row, Section, Segments, SwitchRow, usePageScroll } from '@/components/page';
+import { PillButton, Row, Section } from '@/components/page';
 import { Field } from '@/components/ui';
-import { Hint, Pad, Rows, Status, useSaveSettings } from './common/controls';
+import { Pad, Rows, Status } from './common/controls';
 import { deviceName } from './common/text';
 import { AccountForm } from './connect/AccountSetup';
-import { ClaudeConnect } from './connect/ClaudeConnect';
-import { ModelDefaults } from './connect/ModelDefaults';
-import {
-  AddProviderForm,
-  isPiModel,
-  PiModelPicker,
-  ProviderRow,
-  useHasProvider,
-  useSavePiModel,
-} from './connect/ProviderConnect';
 import { locale, t } from '@/i18n';
 import { formatters } from '@/lib/format';
-import { useClaudeAuth, useInfo, useProviders, useSettings } from '@/lib/queries';
+import { useInfo, useManagesServer } from '@/lib/queries';
 import { useApi, useServer } from '@/lib/server';
 import { useColors } from '@/lib/theme';
 
@@ -33,33 +23,10 @@ export function ConnectionSection() {
   const api = useApi();
   const { origin } = useServer();
   const { data: info } = useInfo();
-  const { data: claudeAuth } = useClaudeAuth();
-  const { data: providers = [] } = useProviders();
+  // The server's environment and the push key are for those who look after the server.
+  const manages = useManagesServer();
   const qc = useQueryClient();
-  const check = useMutation({
-    mutationFn: api.checkClaude,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['info', origin] }),
-    onError: toastError,
-  });
   const [leaving, setLeaving] = useState(false);
-  // Opened from the model card too, when another provider is picked before any is connected.
-  const [adding, setAdding] = useState(false);
-  const addAnchor = useRef<ComponentRef<typeof View>>(null);
-  const scrollTo = usePageScroll();
-  const addProvider = () => {
-    setAdding(true);
-    requestAnimationFrame(() => scrollTo(addAnchor.current));
-  };
-  const status = info?.claude.status ?? 'unknown';
-  const claude = info?.claude;
-  const hint =
-    status === 'logged-out'
-      ? t('connection.loggedOutHint')
-      : claude?.reason === 'api-key'
-        ? t('connection.apiKeyInUse', { source: claude.detail ?? '' })
-        : claude?.reason === 'timeout'
-          ? t('connection.timeout')
-          : (claude?.detail ?? t('connection.defaultHint'));
   // As the bot list signs out: the server may not hear it, and this phone is signed out anyway.
   const logout = async () => {
     setLeaving(true);
@@ -74,46 +41,14 @@ export function ConnectionSection() {
   };
   return (
     <>
-      <Section title={t('connection.ai')}>
-        <Rows>
-          {claudeAuth === null ? (
-            <Row
-              label={t('connection.claude')}
-              detail={hint}
-              right={
-                <Status
-                  state={status === 'ok' ? 'ok' : status === 'unknown' ? 'unknown' : 'problem'}
-                  label={t(`connection.status.${status}`)}
-                />
-              }
-            />
-          ) : (
-            <Pad>
-              <ClaudeConnect checking={check.isPending} />
-            </Pad>
-          )}
-          <Row
-            icon="refresh-cw"
-            label={t('connection.check')}
-            onPress={() => check.mutate()}
-            busy={check.isPending}
-            chevron={false}
-          />
-          {providers
-            .filter((p) => p.configured)
-            .map((p) => (
-              <ProviderRow key={p.id} provider={p} plain />
-            ))}
-          <AddProvider open={adding} onOpenChange={setAdding} anchor={addAnchor} />
-        </Rows>
-      </Section>
-      <ModelCard onAddProvider={addProvider} />
-      <Section title={t('connection.environment')}>
-        <Rows>
-          <ShellSandboxRow sandbox={info?.shellSandbox} />
-          <BrowserRow browser={info?.browser} />
-        </Rows>
-      </Section>
+      {manages ? (
+        <Section title={t('connection.environment')}>
+          <Rows>
+            <ShellSandboxRow sandbox={info?.shellSandbox} />
+            <BrowserRow browser={info?.browser} />
+          </Rows>
+        </Section>
+      ) : null}
       <Section title={t('connection.server')}>
         <Rows>
           <Row label={t('connection.address')} detail={origin} />
@@ -131,7 +66,7 @@ export function ConnectionSection() {
         </Rows>
       </Section>
       <Devices />
-      <ApnsCard />
+      {manages ? <ApnsCard /> : null}
     </>
   );
 }
@@ -169,241 +104,6 @@ function BrowserRow({ browser }: { browser: ServerInfo['browser'] | undefined })
         <Status state={ok ? 'ok' : 'problem'} label={ok ? t('browserInfo.ok') : t('browserInfo.missing')} />
       }
     />
-  );
-}
-
-/**
- * What new bots start with, the Claude defaults and the backup model; hidden on servers that
- * cannot store them. The Claude defaults fold away while another provider is picked for new bots:
- * bots already on Claude still use them, so they stay one tap away.
- */
-function ModelCard({ onAddProvider }: { onAddProvider: () => void }) {
-  const c = useColors();
-  const { data: settings } = useSettings();
-  const save = useSaveSettings();
-  const [picked, setPicked] = useState<'claude' | 'pi' | null>(null);
-  const [claudeOpen, setClaudeOpen] = useState(false);
-  if (settings?.defaultModel === undefined) return null;
-  const kind = picked ?? settings.defaultEngine ?? 'claude';
-  const folded = kind === 'pi' && !claudeOpen;
-  return (
-    <Section title={t('model.title')}>
-      <Rows>
-        {settings.defaultEngine !== undefined ? (
-          <NewBotEngine kind={kind} onPick={setPicked} onAddProvider={onAddProvider} />
-        ) : null}
-        <Pad gap={16}>
-          {settings.defaultEngine !== undefined ? (
-            <View style={styles.headRow}>
-              <View style={[styles.gap2, styles.fill]}>
-                <Text style={[styles.titleBase, { color: c.foreground }]}>{t('model.claudeBots')}</Text>
-                <Hint>{kind === 'pi' ? t('model.claudeBotsFoldedHint') : t('model.claudeBotsHint')}</Hint>
-              </View>
-              {kind === 'pi' ? (
-                <PillButton
-                  variant="ghost"
-                  icon={folded ? 'chevron-down' : 'chevron-up'}
-                  label={folded ? t('model.show') : t('model.hide')}
-                  onPress={() => setClaudeOpen(!claudeOpen)}
-                />
-              ) : null}
-            </View>
-          ) : null}
-          {!folded ? (
-            <ModelDefaults
-              value={{ model: settings.defaultModel, effort: settings.effort ?? '' }}
-              onChange={(v) => save.mutate({ defaultModel: v.model, effort: v.effort })}
-            />
-          ) : null}
-        </Pad>
-        {settings.backupModel !== undefined ? <BackupModel onAddProvider={onAddProvider} /> : null}
-      </Rows>
-    </Section>
-  );
-}
-
-/** The model that carries the work once the usage limit is spent, instead of waiting for it. */
-function BackupModel({ onAddProvider }: { onAddProvider: () => void }) {
-  const { data: settings } = useSettings();
-  const save = useSaveSettings();
-  const [on, setOn] = useState<boolean | null>(null);
-  const [ref, setRef] = useState<string | null>(null);
-  const pi = useSavePiModel(() => setRef(null), true);
-  const hasProvider = useHasProvider();
-  const stored = settings?.backupModel ?? '';
-  const open = on ?? !!stored;
-  const value = ref ?? stored;
-  return (
-    <View>
-      <SwitchRow
-        label={t('model.backup')}
-        detail={t('model.backupHint')}
-        value={open}
-        onChange={(v) => {
-          setOn(v);
-          if (!v && stored) save.mutate({ backupModel: '' });
-        }}
-      />
-      {open ? (
-        <Pad>
-          <PiModelPicker value={value} onChange={setRef} empty={<NoProvider onAdd={onAddProvider} />} />
-          {hasProvider ? (
-            <TrySave
-              busy={pi.save.isPending}
-              disabled={!isPiModel(value) || value === stored}
-              inUse={!!stored && value === stored}
-              error={pi.error}
-              onPress={() => pi.save.mutate(value)}
-            />
-          ) : null}
-        </Pad>
-      ) : null}
-    </View>
-  );
-}
-
-/** The save button that tries the model first, with what came of it. */
-function TrySave({
-  busy,
-  disabled,
-  inUse,
-  error,
-  onPress,
-}: {
-  busy: boolean;
-  disabled: boolean;
-  inUse: boolean;
-  error: string | null;
-  onPress: () => void;
-}) {
-  const c = useColors();
-  return (
-    <View style={styles.gap2}>
-      <View style={styles.tryRow}>
-        <PillButton
-          variant="primary"
-          label={busy ? t('claude.testing') : t('provider.tryAndSave')}
-          onPress={onPress}
-          busy={busy}
-          disabled={disabled}
-        />
-        {inUse ? (
-          <Text style={[styles.small, { color: c.mutedForeground }]}>{t('provider.inUse')}</Text>
-        ) : null}
-      </View>
-      {error ? (
-        <Text style={[styles.small, { color: c.destructive }]}>
-          {t('provider.failed', { detail: error })}
-        </Text>
-      ) : null}
-    </View>
-  );
-}
-
-/**
- * Which AI new bots start with: Claude, or a model of a provider with a stored key. The choice
- * is held by the card, which folds the Claude settings away while another provider is picked.
- */
-function NewBotEngine({
-  kind,
-  onPick,
-  onAddProvider,
-}: {
-  kind: 'claude' | 'pi';
-  onPick: (kind: 'claude' | 'pi') => void;
-  onAddProvider: () => void;
-}) {
-  const c = useColors();
-  const { data: settings } = useSettings();
-  const save = useSaveSettings();
-  const [ref, setRef] = useState<string | null>(null);
-  const pi = useSavePiModel(() => setRef(null));
-  const hasProvider = useHasProvider();
-  const value = ref ?? settings?.piModel ?? '';
-  const saved = settings?.defaultEngine === 'pi' && settings.piModel === value;
-  return (
-    <Pad>
-      <View style={styles.gap2}>
-        <Text style={[styles.titleBase, { color: c.foreground }]}>{t('model.newBots')}</Text>
-        <Hint>{t('model.newBotsHint')}</Hint>
-      </View>
-      <Segments
-        value={kind}
-        options={[
-          { value: 'claude', label: t('ai.claude') },
-          { value: 'pi', label: t('ai.other') },
-        ]}
-        onChange={(v) => {
-          onPick(v);
-          if (v === 'claude' && settings?.defaultEngine !== 'claude')
-            save.mutate({ defaultEngine: 'claude' });
-        }}
-      />
-      {kind === 'pi' ? (
-        <>
-          <PiModelPicker value={value} onChange={setRef} empty={<NoProvider onAdd={onAddProvider} />} />
-          {hasProvider ? (
-            <TrySave
-              busy={pi.save.isPending}
-              disabled={!isPiModel(value) || saved}
-              inUse={saved}
-              error={pi.error}
-              onPress={() => pi.save.mutate(value)}
-            />
-          ) : null}
-        </>
-      ) : null}
-    </Pad>
-  );
-}
-
-/**
- * Adds a provider other than Claude: folded to one button once some provider is connected, open
- * while none is, since then it is the way on.
- */
-function AddProvider({
-  open,
-  onOpenChange,
-  anchor,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  anchor: RefObject<ComponentRef<typeof View> | null>;
-}) {
-  const hasProvider = useHasProvider();
-  const shown = open || !hasProvider;
-  return (
-    <View ref={anchor}>
-      <Pad>
-        {shown ? (
-          <>
-            <Hint>{t('keys.hint')}</Hint>
-            <AddProviderForm onAdded={() => onOpenChange(false)} />
-            {hasProvider ? (
-              <View style={styles.start}>
-                <PillButton variant="ghost" label={t('common.cancel')} onPress={() => onOpenChange(false)} />
-              </View>
-            ) : null}
-          </>
-        ) : (
-          <View style={styles.start}>
-            <PillButton icon="plus" label={t('provider.add')} onPress={() => onOpenChange(true)} />
-          </View>
-        )}
-      </Pad>
-    </View>
-  );
-}
-
-/** In the model card while no provider is connected: says so and opens the form above. */
-function NoProvider({ onAdd }: { onAdd: () => void }) {
-  return (
-    <View style={styles.gap8}>
-      <Hint>{t('provider.noneYet')}</Hint>
-      <View style={styles.start}>
-        <PillButton icon="plus" label={t('provider.add')} onPress={onAdd} />
-      </View>
-    </View>
   );
 }
 
@@ -639,13 +339,7 @@ function ApnsForm({
 }
 
 const styles = StyleSheet.create({
-  gap2: { gap: 2 },
-  gap8: { gap: 8 },
-  fill: { flex: 1 },
-  headRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  titleBase: { fontSize: 17, fontWeight: '500' },
   small: { fontSize: 15, lineHeight: 20 },
   tryRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
-  start: { alignItems: 'flex-start' },
   area: { height: undefined, minHeight: 110, paddingTop: 12, textAlignVertical: 'top' },
 });

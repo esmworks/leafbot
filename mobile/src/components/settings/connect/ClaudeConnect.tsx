@@ -1,9 +1,10 @@
-import type { ServerInfo } from '@leafbot/shared';
+import type { ProviderSignIn, ServerInfo } from '@leafbot/shared';
 import Feather from '@expo/vector-icons/Feather';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { toastError } from '@/components/overlay';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import * as WebBrowser from 'expo-web-browser';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { toast, toastError } from '@/components/overlay';
 import { useInCard } from '@/components/card';
 import { PillButton } from '@/components/page';
 import { Field } from '@/components/ui';
@@ -13,9 +14,10 @@ import { useApi, useServer } from '@/lib/server';
 import { useColors } from '@/lib/theme';
 
 /**
- * Connects Claude: a subscription token from `claude setup-token` (run on the server's computer) or
- * an Anthropic API key. Saving tries the credential with one real request, so "connected" means
- * Claude answered. Used by the settings and the first-run screen.
+ * Connects Claude: signing in with the person's Claude account first, and behind "other ways" a
+ * subscription token from `claude setup-token` (run on the server's computer) or an Anthropic API
+ * key. Saving a token or key tries it with one real request, so "connected" means Claude answered.
+ * Used by the settings and the first-run screen.
  *
  * Props:
  * - `checking`: true while the caller runs a status check, so the line shows it as checking.
@@ -60,6 +62,7 @@ export function ClaudeConnect({
   const qc = useQueryClient();
   const { loading, auth, connected, unknown, claude } = useClaudeState();
   const [open, setOpen] = useState(false);
+  const [other, setOther] = useState(false);
   const [method, setMethod] = useState<Method>('token');
   const [value, setValue] = useState('');
   const [gateway, setGateway] = useState('');
@@ -150,6 +153,24 @@ export function ClaudeConnect({
       </View>
 
       {showForm ? (
+        <ClaudeSignIn
+          onDone={() => {
+            setOpen(false);
+            setOther(false);
+            setResult(null);
+            void refresh();
+            onConnected?.();
+          }}
+        />
+      ) : null}
+      {showForm && !other ? (
+        <Pressable accessibilityRole="button" onPress={() => setOther(true)} hitSlop={8}>
+          <Text style={[styles.muted, styles.link, { color: c.mutedForeground }]}>
+            {t('claude.otherWays')}
+          </Text>
+        </Pressable>
+      ) : null}
+      {showForm && other ? (
         <View style={styles.root}>
           <View style={styles.methods}>
             {(['token', 'apiKey'] as const).map((m) => {
@@ -239,8 +260,149 @@ export function ClaudeConnect({
   );
 }
 
+/**
+ * Signing in with the person's own Claude account, run on the server. The phone is never the
+ * computer the server runs on, so the person opens the sign-in page here and pastes back the code
+ * the page shows once they have signed in.
+ */
+function ClaudeSignIn({ onDone }: { onDone: () => void }) {
+  const c = useColors();
+  const api = useApi();
+  const [session, setSession] = useState<ProviderSignIn | null>(null);
+  const [pasted, setPasted] = useState('');
+  const doneRef = useRef(onDone);
+  useEffect(() => {
+    doneRef.current = onDone;
+  });
+  const start = useMutation({ mutationFn: api.startClaudeSignIn, onSuccess: setSession });
+  const live = session && (session.status === 'starting' || session.status === 'waiting');
+  const { data: polled } = useQuery({
+    queryKey: ['claude-sign-in', session?.id],
+    queryFn: () => api.claudeSignIn(session!.id),
+    enabled: !!live,
+    refetchInterval: 1500,
+  });
+  const now = polled && polled.id === session?.id ? polled : session;
+  const done = now?.status === 'done';
+  useEffect(() => {
+    if (!done) return;
+    toast(t('claude.signInDone'));
+    doneRef.current();
+  }, [done]);
+  // Ends a sign-in left half-way when the form closes.
+  useEffect(() => {
+    const id = session?.id;
+    return () => {
+      if (id) void api.cancelClaudeSignIn(id).catch(() => {});
+    };
+  }, [session?.id, api]);
+  const paste = useMutation({
+    mutationFn: () => api.pasteClaudeSignIn(now!.id, pasted.trim()),
+    onSuccess: (s) => {
+      setSession(s);
+      setPasted('');
+    },
+    onError: toastError,
+  });
+  // The in-app browser keeps this screen under it, so the code is one dismiss away from its field.
+  const openPage = async (url: string) => {
+    try {
+      await WebBrowser.openBrowserAsync(url);
+    } catch {
+      void Linking.openURL(url);
+    }
+  };
+
+  if (!now || now.status === 'cancelled' || now.status === 'error' || done) {
+    const failed = now?.status === 'error' ? now.error : start.error ? (start.error as Error).message : null;
+    return (
+      <View style={styles.root}>
+        <View style={styles.start}>
+          <PillButton
+            variant="primary"
+            icon="log-in"
+            label={t('claude.signIn')}
+            onPress={() => start.mutate()}
+            busy={start.isPending}
+          />
+        </View>
+        <Text style={[styles.muted, { color: c.mutedForeground }]}>{t('claude.signInHint')}</Text>
+        {failed ? (
+          <Text style={[styles.muted, { color: c.destructive }]}>
+            {t('claude.signInFailed', { detail: failed })}
+          </Text>
+        ) : null}
+      </View>
+    );
+  }
+  return (
+    <View style={[styles.root, styles.signing, { borderColor: c.border }]}>
+      {now.status === 'starting' ? (
+        <View style={styles.waiting}>
+          <ActivityIndicator size="small" color={c.mutedForeground} />
+          <Text style={[styles.muted, { color: c.mutedForeground }]}>{t('claude.signInStarting')}</Text>
+        </View>
+      ) : (
+        <Text style={[styles.muted, { color: c.foreground }]}>{t('claude.signInOpened')}</Text>
+      )}
+      {now.url ? (
+        <View style={styles.start}>
+          <PillButton
+            icon="external-link"
+            label={t('provider.openSignIn')}
+            onPress={() => void openPage(now.url!)}
+          />
+        </View>
+      ) : null}
+      {now.needsPaste ? (
+        <View style={styles.root}>
+          <Text style={[styles.muted, { color: c.mutedForeground }]}>{t('claude.signInPasteHint')}</Text>
+          <Field
+            value={pasted}
+            onChangeText={setPasted}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            accessibilityLabel={t('claude.signInPastePlaceholder')}
+            placeholder={t('claude.signInPastePlaceholder')}
+          />
+          <View style={styles.start}>
+            <PillButton
+              variant="primary"
+              label={t('common.save')}
+              onPress={() => pasted.trim() && paste.mutate()}
+              busy={paste.isPending}
+              disabled={!pasted.trim()}
+            />
+          </View>
+          {now.message ? <Text style={[styles.muted, { color: c.amber }]}>{now.message}</Text> : null}
+        </View>
+      ) : null}
+      <View style={styles.waiting}>
+        <ActivityIndicator size="small" color={c.mutedForeground} />
+        <Text style={[styles.muted, styles.fill, { color: c.mutedForeground }]}>
+          {t('provider.signInWaiting')}
+        </Text>
+        <PillButton
+          variant="ghost"
+          label={t('common.cancel')}
+          onPress={() => {
+            void api.cancelClaudeSignIn(now.id).catch(() => {});
+            setSession(null);
+          }}
+        />
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { gap: 12 },
+  start: { alignItems: 'flex-start' },
+  fill: { flex: 1 },
+  link: { textDecorationLine: 'underline' },
+  signing: { borderWidth: 1, borderRadius: 16, padding: 16 },
+  waiting: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   status: {
     flexDirection: 'row',
     alignItems: 'center',

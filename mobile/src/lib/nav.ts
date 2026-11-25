@@ -48,6 +48,8 @@ export const nav = {
     router.push({ pathname: '/table/[tableId]', params: { tableId, botId } }),
   /** The change a bot's instructions document waits with, to accept or turn down. */
   instructions: (botId: string) => router.push({ pathname: '/instructions/[botId]', params: { botId } }),
+  /** What each turn of a conversation changed, with taking a turn back. */
+  actionLog: (threadId: string) => router.push({ pathname: '/action-log/[threadId]', params: { threadId } }),
   /** The bot's browser or computer screen. */
   computer: (botId: string) => router.push({ pathname: '/computer/[botId]', params: { botId } }),
 };

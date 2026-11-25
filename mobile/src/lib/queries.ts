@@ -39,6 +39,11 @@ export const useSession = () => {
   const api = useApi();
   return useQuery({ queryKey: ['session', useOrigin()], queryFn: api.session });
 };
+/** Whether the one signed in looks after the server: its owner or an admin. */
+export const useManagesServer = () => {
+  const role = useSession().data?.user?.role;
+  return role === 'owner' || role === 'admin';
+};
 /** Null on a server older than the in-app Claude sign-in. */
 export const useClaudeAuth = () => {
   const api = useApi();

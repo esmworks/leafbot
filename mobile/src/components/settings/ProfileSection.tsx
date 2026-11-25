@@ -3,6 +3,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Loading, Section, SwitchRow } from '@/components/page';
 import { CheckRow, ChoiceRow, Hint, Pad, Rows, SavedField, useSaveSettings } from './common/controls';
 import { t } from '@/i18n';
+import { ChatAccountLinks } from './ChatAccountLinks';
 import { useSettings } from '@/lib/queries';
 import { useColors } from '@/lib/theme';
 
@@ -119,6 +120,7 @@ export function ProfileSection() {
           ) : null}
         </>
       ) : null}
+      <ChatAccountLinks />
     </>
   );
 }

@@ -156,6 +156,11 @@ function ThreadMenu({
         label: t('export.action'),
         onPress: () => void actions.exportConversation(thread.id),
       },
+      {
+        icon: 'list',
+        label: t('actionLog.title'),
+        onPress: () => nav.actionLog(thread.id),
+      },
       { icon: 'link', label: t('chat.copyLink'), onPress: () => void actions.copyLink(thread) },
       { icon: 'edit-2', label: t('chat.renameThread'), onPress: () => void actions.rename(thread) },
       { icon: 'rotate-ccw', label: t('chat.resetThread'), onPress: () => void actions.reset(thread) },

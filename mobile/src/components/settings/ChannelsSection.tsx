@@ -1,172 +1,76 @@
-import type { Bot, WhatsAppMode, WhatsAppStatus } from '@leafbot/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Image } from 'expo-image';
 import { useState } from 'react';
-import { StyleSheet } from 'react-native';
-import { FormField, TextBox } from '@/components/dialogs/common';
-import { confirm, toast, toastError } from '@/components/overlay';
-import { Note, PillButton, Row, Section, Segments, SwitchRow } from '@/components/page';
-import { ChoiceRow, Hint, Pad, Rows } from '@/components/settings/common/controls';
-import { t, type MessageKey } from '@/i18n';
-import { useBots } from '@/lib/queries';
-import { useApi, useServer } from '@/lib/server';
+import { Row, Section } from '@/components/page';
+import { Rows } from '@/components/settings/common/controls';
+import { useSectionBack } from '@/components/settings/common/sectionBack';
+import { DiscordPage } from '@/components/settings/channels/DiscordPage';
+import { EmailPage } from '@/components/settings/channels/EmailPage';
+import { SlackPage } from '@/components/settings/channels/SlackPage';
+import { TeamsPage } from '@/components/settings/channels/TeamsPage';
+import { TelegramPage } from '@/components/settings/channels/TelegramPage';
+import { WhatsAppPage } from '@/components/settings/channels/WhatsAppPage';
+import {
+  CHANNELS,
+  HealthStatus,
+  ICONS,
+  NAME_KEYS,
+  useSummaries,
+  type Channel,
+} from '@/components/settings/channels/common';
+import { t } from '@/i18n';
 
-const ERRORS: Record<string, MessageKey> = {
-  expired: 'whatsapp.error.expired',
-  ownNumber: 'whatsapp.error.ownNumber',
-  loggedOut: 'whatsapp.error.loggedOut',
-  forbidden: 'whatsapp.error.forbidden',
-  mismatch: 'whatsapp.error.mismatch',
-  replaced: 'whatsapp.error.replaced',
-  unreachable: 'whatsapp.error.unreachable',
-  failing: 'whatsapp.error.failing',
-};
-
-/** The "chat apps" settings section: WhatsApp here, and where each bot's Telegram is. */
-export function ChannelsSection() {
-  const api = useApi();
-  const { origin } = useServer();
-  const { data: status } = useQuery({ queryKey: ['whatsapp', origin], queryFn: api.whatsapp });
-  const { data: bots } = useBots();
-  return (
-    <>
-      {status && bots ? (
-        <WhatsAppForm key={`${status.mode}:${status.phone}:${status.botId}`} status={status} bots={bots} />
-      ) : null}
-      <Section title={t('channels.telegram')}>
-        <Pad>
-          <Hint>{t('channels.telegramHint')}</Hint>
-        </Pad>
-      </Section>
-    </>
-  );
+/** The chat app whose page is open, and for Telegram the bot whose settings are open in it. */
+interface View {
+  id: Channel;
+  telegramBot: string | null;
 }
 
-function WhatsAppForm({ status, bots }: { status: WhatsAppStatus; bots: Bot[] }) {
-  const api = useApi();
-  const { origin } = useServer();
-  const qc = useQueryClient();
-  const live = bots.filter((b) => !b.archivedAt);
-  const [mode, setMode] = useState<WhatsAppMode>(status.mode ?? 'separate');
-  const [phone, setPhone] = useState(status.phone ?? '');
-  const [botId, setBotId] = useState(status.botId ?? live.find((b) => b.isManager)?.id ?? live[0]?.id ?? '');
-  const [notices, setNotices] = useState(status.notices);
-  const put = (s: WhatsAppStatus) => qc.setQueryData(['whatsapp', origin], s);
-  const body = () => ({ mode, phone, botId: botId || null, notices });
-  const save = useMutation({
-    mutationFn: () => api.setWhatsapp(body()),
-    onSuccess: (s) => {
-      put(s);
-      toast(t('whatsapp.saved'));
-    },
-    onError: toastError,
-  });
-  const link = useMutation({
-    mutationFn: async () => {
-      await api.setWhatsapp(body());
-      return api.linkWhatsapp();
-    },
-    onSuccess: put,
-    onError: toastError,
-  });
-  const disconnect = useMutation({ mutationFn: api.disconnectWhatsapp, onSuccess: put, onError: toastError });
-  const state = status.state;
-  const error = status.error ? (ERRORS[status.error] ? t(ERRORS[status.error]!) : status.error) : null;
+/**
+ * The "chat apps" settings section: each chat app on one line with whether it works and which bot
+ * answers there, opening to its own page. The title bar's Back closes a page, or a bot's Telegram
+ * settings, before it leaves the section.
+ */
+export function ChannelsSection() {
+  const [view, setView] = useState<View | null>(null);
+  const summaries = useSummaries();
+  useSectionBack(!!view, () => setView((v) => (v?.telegramBot ? { ...v, telegramBot: null } : null)));
 
+  if (view) {
+    const summary = summaries[view.id];
+    return (
+      <>
+        {view.id === 'whatsapp' && <WhatsAppPage summary={summary} />}
+        {view.id === 'slack' && <SlackPage summary={summary} />}
+        {view.id === 'teams' && <TeamsPage summary={summary} />}
+        {view.id === 'discord' && <DiscordPage summary={summary} />}
+        {view.id === 'telegram' && (
+          <TelegramPage
+            summary={summary}
+            open={view.telegramBot}
+            onOpen={(botId) => setView({ id: 'telegram', telegramBot: botId })}
+          />
+        )}
+        {view.id === 'email' && <EmailPage summary={summary} />}
+      </>
+    );
+  }
   return (
-    <Section title={t('whatsapp.title')} footer={t('whatsapp.risk')}>
+    <Section>
       <Rows>
-        <Row
-          label={t(`whatsapp.state.${state}`)}
-          value={status.linked ? `+${status.linked}` : null}
-          chevron={false}
-        />
-        <Pad>
-          <Segments
-            options={(['separate', 'own'] as const).map((m) => ({
-              value: m,
-              label: t(`whatsapp.mode.${m}`),
-            }))}
-            value={mode}
-            onChange={setMode}
-          />
-          <Hint>{t(`whatsapp.modeHint.${mode}`)}</Hint>
-          <FormField label={t(`whatsapp.phone.${mode}`)} hint={t(`whatsapp.phoneHint.${mode}`)}>
-            <TextBox
-              value={phone}
-              onChangeText={setPhone}
-              keyboardType="phone-pad"
-              placeholder="905321234567"
+        {CHANNELS.map((id) => {
+          const s = summaries[id];
+          return (
+            <Row
+              key={id}
+              icon={ICONS[id]}
+              label={t(NAME_KEYS[id])}
+              detail={s?.detail.filter(Boolean).join(' · ') || null}
+              detailLines={2}
+              right={s ? <HealthStatus health={s.health} /> : null}
+              onPress={() => setView({ id, telegramBot: null })}
             />
-          </FormField>
-        </Pad>
-        <ChoiceRow
-          label={t('whatsapp.bot')}
-          detail={t('whatsapp.botHint')}
-          value={botId}
-          placeholder={t('whatsapp.botPick')}
-          options={live.map((b) => ({ value: b.id, label: b.name }))}
-          onChange={setBotId}
-        />
-        <SwitchRow
-          label={t('whatsapp.notices')}
-          detail={t('whatsapp.noticesHint')}
-          value={notices}
-          onChange={setNotices}
-        />
-        {state === 'linking' ? (
-          <Pad>
-            {status.qr ? (
-              <Image source={{ uri: status.qr }} style={styles.qr} accessibilityLabel={t('whatsapp.qrAlt')} />
-            ) : (
-              <Hint>{t('whatsapp.qrWaiting')}</Hint>
-            )}
-            <Hint>{t('whatsapp.scan')}</Hint>
-          </Pad>
-        ) : null}
-        {state === 'connected' ? (
-          <Pad>
-            <Hint>{t(`whatsapp.howTo.${status.mode ?? mode}`, { number: status.linked ?? '' })}</Hint>
-          </Pad>
-        ) : null}
-        <Pad>
-          {state === 'off' || state === 'error' ? (
-            <PillButton
-              label={t(state === 'error' ? 'whatsapp.relink' : 'whatsapp.link')}
-              onPress={() => link.mutate()}
-              busy={link.isPending}
-              disabled={!phone.trim()}
-            />
-          ) : (
-            <PillButton
-              label={t('common.save')}
-              variant="secondary"
-              onPress={() => save.mutate()}
-              busy={save.isPending}
-            />
-          )}
-        </Pad>
-        {state !== 'off' ? (
-          <Row
-            label={t('whatsapp.disconnect')}
-            destructive
-            chevron={false}
-            busy={disconnect.isPending}
-            onPress={() =>
-              void confirm({
-                title: t('whatsapp.disconnectConfirm'),
-                destructive: true,
-                confirmLabel: t('whatsapp.disconnect'),
-              }).then((ok) => ok && disconnect.mutate())
-            }
-          />
-        ) : null}
+          );
+        })}
       </Rows>
-      {error ? <Note tone="error">{error}</Note> : null}
     </Section>
   );
 }
-
-const styles = StyleSheet.create({
-  qr: { width: 240, height: 240, alignSelf: 'center', borderRadius: 12, backgroundColor: '#fff' },
-});

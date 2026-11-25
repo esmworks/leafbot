@@ -367,6 +367,15 @@ function refresh(origin: string, e: RefreshScope, inv: (...key: unknown[]) => vo
       inv('rules', origin);
       inv('suggestions', origin);
       break;
+    case 'people':
+      inv('people', origin);
+      // A changed role changes what this device may do.
+      inv('session', origin);
+      inv('bots', origin);
+      break;
+    case 'actions':
+      inv('actions', origin, e.botId);
+      break;
     case 'tables':
       inv('tables', origin, e.botId);
       inv('table-rows', origin);
@@ -383,6 +392,12 @@ function refresh(origin: string, e: RefreshScope, inv: (...key: unknown[]) => vo
     case 'channels':
       inv('telegram', origin);
       inv('whatsapp', origin);
+      inv('slack', origin);
+      inv('slack-link', origin);
+      inv('discord', origin);
+      inv('teams', origin);
+      inv('teams-link', origin);
+      inv('email', origin);
       break;
     case 'info':
       inv('info', origin);

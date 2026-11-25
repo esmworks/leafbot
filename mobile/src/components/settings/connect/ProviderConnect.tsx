@@ -42,7 +42,7 @@ import { useColors } from '@/lib/theme';
  */
 
 /** Offered first; every other provider the server knows is under "Other". */
-const POPULAR = ['openai', 'google', 'openrouter', 'deepseek', 'xai', 'mistral', 'groq'];
+export const POPULAR = ['openai', 'google', 'openrouter', 'deepseek', 'xai', 'mistral', 'groq'];
 /**
  * Product names, not words to translate. A provider missing here shows its id, which is also
  * how regional plans (`minimax-cn`, `xiaomi-token-plan-sgp`) stay told apart.
@@ -74,6 +74,12 @@ const NAMES: Record<string, string> = {
   zai: 'Z.ai',
 };
 export const providerName = (id: string) => NAMES[id] ?? id;
+/** What a connected provider is called: the endpoint's own name, or the plan it is reached by. */
+export function connectionName(p: ProviderInfo): string {
+  if (p.custom) return p.custom.name;
+  const plan = PLANS.find((x) => x.provider === p.id);
+  return plan && p.signIn?.signedIn && !p.hint ? plan.name : providerName(p.id);
+}
 const byName = (a: string, b: string) => providerName(a).localeCompare(providerName(b));
 /** Model names typed into one field, split on spaces, commas and new lines. */
 const modelList = (text: string) =>
@@ -86,18 +92,18 @@ const SHOWN_MODELS = 8;
 /** The chip that opens the form for the person's own endpoint; never a provider id. */
 const CUSTOM = '+custom';
 /** Plans signed in to instead of a key; the chip value is not a provider id (OpenAI also takes keys). */
-const PLANS = [
+export const PLANS = [
   { chip: '+chatgpt', provider: 'openai', name: 'ChatGPT' },
   { chip: '+copilot', provider: 'github-copilot', name: 'GitHub Copilot' },
 ] as const;
 /** Providers reached only by signing in to a plan: no key chip for them. */
-const PLAN_ONLY = new Set(['github-copilot']);
+export const PLAN_ONLY = new Set(['github-copilot']);
 /** Ollama's address on the same computer; an address, not a word to translate. */
 const EXAMPLE_URL = 'http://localhost:11434/v1';
 const MONO = Platform.select({ ios: 'Menlo', default: 'monospace' });
 
 /** Splits `provider/model`; a text without a slash is all model. */
-function splitPiModel(ref: string): { provider: string; model: string } {
+export function splitPiModel(ref: string): { provider: string; model: string } {
   const i = ref.indexOf('/');
   return i > 0 ? { provider: ref.slice(0, i), model: ref.slice(i + 1) } : { provider: '', model: ref };
 }
@@ -202,7 +208,7 @@ function PlanRow({ provider: p, plain }: { provider: ProviderInfo; plain: boolea
  * code to type there (Copilot), or takes the address the browser ended on (ChatGPT, whose page
  * cannot come back to a phone by itself).
  */
-function PlanSignIn({ plan, onDone }: { plan: (typeof PLANS)[number]; onDone?: () => void }) {
+export function PlanSignIn({ plan, onDone }: { plan: (typeof PLANS)[number]; onDone?: () => void }) {
   const c = useColors();
   const api = useApi();
   const refresh = useRefreshProviders();
@@ -505,7 +511,7 @@ export function EndpointRow({ provider: p, plain = false }: { provider: Provider
  * Changes a saved endpoint's name, address, models or key; an empty key field keeps the saved key.
  * The models are the ones named by hand, for an endpoint whose own list leaves some out.
  */
-function EndpointEdit({
+export function EndpointEdit({
   provider: p,
   plain,
   onDone,
@@ -757,7 +763,7 @@ export function PiModelPicker({
  * holding what is typed. A name off the list stays allowed: the provider may serve models its
  * list leaves out. Only the first few matches are shown, so the list stays on the screen.
  */
-function ModelSearch({
+export function ModelSearch({
   value,
   models,
   onChange,
