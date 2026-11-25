@@ -52,4 +52,14 @@ describe('what a server may ask of a Mac', () => {
     expect(MacRequest.safeParse({ op: 'shell', command: 'ls' }).success).toBe(false);
     expect(MacRequest.safeParse({ op: 'type', text: '' }).success).toBe(false);
   });
+
+  it('opens only the two privacy lists by name, never an address the server gives', () => {
+    expect(MacRequest.safeParse({ op: 'request', pane: 'screen' }).success).toBe(true);
+    expect(MacRequest.safeParse({ op: 'request', pane: 'accessibility' }).success).toBe(true);
+    expect(MacRequest.safeParse({ op: 'request', pane: 'x-apple.systempreferences:other' }).success).toBe(
+      false,
+    );
+    // Without a pane it is the request older servers send.
+    expect(MacRequest.parse({ op: 'request' })).toEqual({ op: 'request' });
+  });
 });

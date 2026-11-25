@@ -28,6 +28,7 @@ import {
   FolderOpen,
   Info,
   KeyRound,
+  Laptop,
   Link2,
   Loader2,
   LogOut,
@@ -114,6 +115,8 @@ import { appsHit, settingsMatch } from '@/lib/settingsMatch';
 import { useZoom, ZOOMS } from '@/lib/zoom';
 import { cn } from '@/lib/utils';
 import { ChannelsTab, useChannelTitle } from './ChannelsTab';
+import { ComputerTab } from './ComputerTab';
+import { useComputerOffered } from './PersonComputer';
 import { AiServicesTab } from './AiServicesTab';
 import { MemoryFlags } from './MemoryFlags';
 import { PendingMemory } from './PendingMemory';
@@ -148,6 +151,7 @@ const TABS: { id: SettingsTab; icon: React.ReactNode; group: TabGroup }[] = [
   { id: 'groups', icon: <Folder />, group: 'bots' },
   { id: 'people', icon: <Users />, group: 'access' },
   { id: 'permissions', icon: <Shield />, group: 'access' },
+  { id: 'computer', icon: <Laptop />, group: 'access' },
   { id: 'vault', icon: <KeyRound />, group: 'access' },
   { id: 'connection', icon: <Link2 />, group: 'server' },
   { id: 'import', icon: <FileInput />, group: 'server' },
@@ -232,7 +236,11 @@ export function SettingsPage() {
   const manages = useManagesServer();
   // Until the session is known, every section shows, as it did with a single account.
   const known = !!useSession().data?.user;
-  const tabs = TABS.filter((tb) => !known || manages || !SERVER_TABS.has(tb.id));
+  // The computer's section shows only where the bots could use one.
+  const computer = useComputerOffered();
+  const tabs = TABS.filter(
+    (tb) => (!known || manages || !SERVER_TABS.has(tb.id)) && (tb.id !== 'computer' || computer),
+  );
   const current = tabs.find((t) => t.id === tab) ?? tabs[0]!;
   // A provider's or a chat app's own page puts its name after the section's in the title.
   const view = useUi((s) => s.settingsView);
@@ -427,6 +435,7 @@ export function SettingsPage() {
               {current.id === 'connection' && <Connection />}
               {current.id === 'channels' && <ChannelsTab />}
               {current.id === 'permissions' && <Permissions />}
+              {current.id === 'computer' && <ComputerTab />}
               {current.id === 'vault' && <VaultTab />}
               {current.id === 'memory' && <MemoryTab />}
               {current.id === 'services' && <AiServicesTab />}

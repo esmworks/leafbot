@@ -518,6 +518,8 @@ export const tr = {
   'settings.keywords.connection':
     'sunucu, adres, cihazlar, oturum kapat, korumalı alan, tarayıcı, iphone, telefon, bildirim, apple, apns',
   'settings.keywords.permissions': 'onaylar, kurallar, izin, sor, her zaman, engelle, asla, yasakla',
+  'settings.keywords.computer':
+    'mac, ekran kaydı, erişilebilirlik, fare, klavye, izin, sistem ayarları, windows',
   'settings.keywords.vault':
     'şifreler, girişler, iki adımlı kod, totp, gizli, paylaşılan sayfalar, bağlantılar',
   'settings.keywords.memory': 'notlar, hatırla, unut',
@@ -1985,7 +1987,27 @@ export const tr = {
   'bot.personComputerMissing': 'macOS henüz izin vermedi: {what}',
   'bot.personComputerAccessibility': 'Erişilebilirlik',
   'bot.personComputerScreen': 'Ekran Kaydı',
-  'bot.personComputerAllow': 'İzin iste',
+  'bot.personComputerSettings': 'İzinleri ayarla',
+  'computerUse.permissions': 'macOS izinleri',
+  'computerUse.screen': 'Ekran Kaydı',
+  'computerUse.screenHint': 'Botlar senin istediğin işlerde ekranına bakabilir.',
+  'computerUse.accessibility': 'Erişilebilirlik',
+  'computerUse.accessibilityHint': 'Botlar fareyi ve klavyeyi kullanabilir.',
+  'computerUse.granted': 'İzin verildi',
+  'computerUse.grant': 'İzin ver',
+  'computerUse.manage': 'Yönet',
+  'computerUse.checkAgain': 'Tekrar kontrol et',
+  'computerUse.macosHint':
+    "Bu izinleri macOS yönetir. Düğme Sistem Ayarları'nı ilgili listede açar; orada Leaf Bot'un anahtarını aç. Ekran Kaydı'nı açınca macOS Leaf Bot'u yeniden açmak isteyebilir; izin ondan sonra burada görünür.",
+  'computerUse.botsHint':
+    'Bir bot bu bilgisayarı yalnızca kendi ayarlarında “Bilgisayarımı kullanabilir” açıksa kullanır ve her işte ilk adımdan önce sorar.',
+  'computerUse.notConnected': 'Botların kullanabileceği bir bilgisayar yok',
+  'computerUse.unavailable': 'Bu sunucuda senin için bir bilgisayar yok.',
+  'computerUse.device': 'Bağlı bilgisayar: {device}',
+  'computerUse.deviceHint': "İzinler o bilgisayarda verilir; düğmeler Sistem Ayarları'nı orada açar.",
+  'computerUse.windows': 'Windows ayrıca izin istemez',
+  'computerUse.windowsHint':
+    'Botlar bu bilgisayarın ekranını görebilir, fareyi ve klavyeyi kullanabilir; yönetici olarak çalışan pencerelere dokunamaz.',
   'bot.manager': 'Yönetici bot',
   'bot.managerHint':
     'Bütün botlara yazabilir, bot oluşturup düzenleyebilir. İzin gevşetmek için yine size sorar.',
@@ -2066,6 +2088,7 @@ export const tr = {
   'settings.group.server': 'Sunucu',
   'settings.tab.connection': 'Bağlantı',
   'settings.tab.permissions': 'İzinler',
+  'settings.tab.computer': 'Bilgisayar kullanımı',
   'settings.tab.vault': 'Kasa',
   'settings.tab.memory': 'Hafıza',
   'settings.tab.services': 'Yapay zekâ servisleri',

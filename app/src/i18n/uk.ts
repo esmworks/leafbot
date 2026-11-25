@@ -1855,7 +1855,6 @@ export const uk: Partial<Catalog<MessageKey>> = {
   'bot.personComputerMissing': 'macOS ще не дозволила це: {what}',
   'bot.personComputerAccessibility': 'Доступність',
   'bot.personComputerScreen': 'Запис екрана',
-  'bot.personComputerAllow': 'Попросити дозвіл',
   'bot.manager': 'Бот-керівник',
   'bot.managerHint':
     'Може писати кожному боту, створювати й редагувати ботів. Усе одно питає вас, перш ніж послабити дозволи.',

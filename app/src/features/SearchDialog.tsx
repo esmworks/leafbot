@@ -8,6 +8,7 @@ import { useLocale, useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { matchCommands, paletteCommands, type PaletteCommand } from '@/lib/commands';
+import { useComputerOffered } from './PersonComputer';
 import { useBots, useManagesServer, useSession } from '@/lib/queries';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -74,7 +75,11 @@ function SearchBody({ onDone }: { onDone(): void }) {
   const byId = useMemo(() => new Map(bots.map((b) => [b.id, b])), [bots]);
   const manages = useManagesServer();
   const known = !!useSession().data?.user;
-  const commands = useMemo(() => paletteCommands(t, { manages, known }), [t, manages, known]);
+  const computer = useComputerOffered();
+  const commands = useMemo(
+    () => paletteCommands(t, { manages, known, computer }),
+    [t, manages, known, computer],
+  );
   const results: Result[] = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase(intl);
     const named = needle

@@ -1725,7 +1725,6 @@ export const vi: Partial<Catalog<MessageKey>> = {
   'bot.personComputerMissing': 'macOS chưa cho phép: {what}',
   'bot.personComputerAccessibility': 'Trợ năng',
   'bot.personComputerScreen': 'Ghi màn hình',
-  'bot.personComputerAllow': 'Yêu cầu quyền',
   'bot.manager': 'Bot quản lý',
   'bot.managerHint': 'Có thể viết cho mọi bot và tạo, sửa bot. Vẫn hỏi bạn trước khi nới quyền.',
   'bot.archive': 'Lưu trữ',

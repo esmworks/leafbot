@@ -16,6 +16,7 @@ export type SettingsTab =
   | 'connection'
   | 'channels'
   | 'permissions'
+  | 'computer'
   | 'vault'
   | 'memory'
   | 'services'

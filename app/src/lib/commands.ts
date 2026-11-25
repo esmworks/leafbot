@@ -24,6 +24,7 @@ export const SETTINGS_TABS: readonly SettingsTab[] = [
   'groups',
   'people',
   'permissions',
+  'computer',
   'vault',
   'connection',
   'import',
@@ -48,7 +49,10 @@ const MAX_SHOWN = 6;
  * Every command the person may use: server sections only for those who look after the server
  * (`manages`), or while the session is not known yet, as the settings page shows them.
  */
-export function paletteCommands(t: T, opts: { manages: boolean; known: boolean }): PaletteCommand[] {
+export function paletteCommands(
+  t: T,
+  opts: { manages: boolean; known: boolean; computer?: boolean },
+): PaletteCommand[] {
   const ui = () => useUi.getState();
   const theme = (choice: ThemeChoice): PaletteCommand => ({
     id: `theme:${choice}`,
@@ -56,7 +60,11 @@ export function paletteCommands(t: T, opts: { manages: boolean; known: boolean }
     words: t('general.theme'),
     run: () => useTheme.getState().setChoice(choice),
   });
-  const sections = SETTINGS_TABS.filter((tab) => !opts.known || opts.manages || !SERVER_TABS.has(tab));
+  const sections = SETTINGS_TABS.filter(
+    (tab) =>
+      (!opts.known || opts.manages || !SERVER_TABS.has(tab)) &&
+      (tab !== 'computer' || opts.computer !== false),
+  );
   return [
     {
       id: 'new-bot',

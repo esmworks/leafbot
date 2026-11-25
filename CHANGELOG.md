@@ -7,6 +7,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Settings has a Computer use section, shown where the bots could use a computer: it says whether macOS allows
+  Screen Recording and Accessibility, and each one's button opens System Settings at its list. macOS asks its own
+  question only once, so after a no this was the way left, and the bot form's button now leads here. A Windows
+  computer is said to need neither; a computer connected from afar is named, and its buttons open the settings there.
 - Bots can run commands on your own computer through the desktop app, when you turn on "Bots may run commands"
   beside "Bots may use this computer" in the Leaf Bot icon's menu (off until you do; with the server elsewhere). The
   computer resolves the folder first and each command asks on a card at every permission level; "always allow"

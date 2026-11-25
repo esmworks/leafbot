@@ -1641,7 +1641,6 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'bot.personComputerMissing': 'macOS 尚未允许：{what}',
   'bot.personComputerAccessibility': '辅助功能',
   'bot.personComputerScreen': '屏幕录制',
-  'bot.personComputerAllow': '请求权限',
   'bot.manager': '管理机器人',
   'bot.managerHint': '可以写入所有机器人，并创建和编辑机器人。放宽权限前仍会询问你。',
   'bot.archive': '归档',
