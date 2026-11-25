@@ -5,14 +5,31 @@ import {
   startUpload,
   type MessageFile,
 } from '@leafbot/shared';
-import { AlertCircle, Download, FileText, Loader2, PenLine, RotateCw, X } from 'lucide-react';
+import {
+  AlertCircle,
+  Download,
+  File as FileIcon,
+  FileArchive,
+  FileCode,
+  FileImage,
+  FileMusic,
+  FileSpreadsheet,
+  FileText,
+  FileVideo,
+  Loader2,
+  PenLine,
+  Presentation,
+  RotateCw,
+  X,
+  type LucideIcon,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { create } from 'zustand';
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
-import { previewKind } from '@/lib/preview';
+import { fileFamily, previewKind, type FileFamily } from '@/lib/preview';
 import { usePreview } from './FilePreview';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -364,9 +381,24 @@ export function AttachmentChips({
   );
 }
 
+/** Each family's icon and tint, so a report, a page and a sheet tell apart before their names are read. */
+const FAMILY_LOOK: Record<FileFamily, { icon: LucideIcon; tint: string }> = {
+  pdf: { icon: FileText, tint: 'bg-red-500/15 text-red-700 dark:text-red-300' },
+  document: { icon: FileText, tint: 'bg-sky-500/15 text-sky-700 dark:text-sky-300' },
+  web: { icon: FileCode, tint: 'bg-orange-500/15 text-orange-700 dark:text-orange-300' },
+  code: { icon: FileCode, tint: 'bg-violet-500/15 text-violet-700 dark:text-violet-300' },
+  sheet: { icon: FileSpreadsheet, tint: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' },
+  slides: { icon: Presentation, tint: 'bg-amber-500/15 text-amber-700 dark:text-amber-300' },
+  archive: { icon: FileArchive, tint: 'bg-secondary text-muted-foreground' },
+  image: { icon: FileImage, tint: 'bg-pink-500/15 text-pink-700 dark:text-pink-300' },
+  audio: { icon: FileMusic, tint: 'bg-secondary text-muted-foreground' },
+  video: { icon: FileVideo, tint: 'bg-secondary text-muted-foreground' },
+  other: { icon: FileIcon, tint: 'bg-secondary text-muted-foreground' },
+};
+
 /**
  * Files on a sent message: images as pictures, the rest as cards. One the app can show opens in
- * the preview, where it can also be downloaded; any other file downloads.
+ * the preview from its card and downloads from the button beside it; any other file downloads.
  */
 export function MessageFiles({
   files,
@@ -387,122 +419,153 @@ export function MessageFiles({
   const viewable = saved
     .filter((f) => previewKind(f.name))
     .map((f) => ({ botId: botId!, path: f.path, name: f.name, size: f.size }));
-  return (
-    <div
-      className={cn('flex max-w-[80%] flex-wrap gap-2', align === 'end' ? 'justify-end' : 'justify-start')}
-    >
-      {saved.length >= 3 && (
-        <a
-          href={api.zipUrl(
-            botId!,
-            saved.map((f) => f.path),
-            t('message.zipName'),
-          )}
-          download
-          title={t('message.downloadAll')}
-          className="flex items-center gap-2 rounded-2xl border border-dashed px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-        >
-          <Download className="size-4" />
-          {t('message.downloadAll')}
-        </a>
+  const zip = saved.length >= 3 && (
+    <a
+      href={api.zipUrl(
+        botId!,
+        saved.map((f) => f.path),
+        t('message.zipName'),
       )}
-      {files.map((f) => {
-        const href = botId ? api.fileUrl(botId, f.path) : undefined;
-        const label = t('message.download', { name: f.name });
-        // A message still being sent has no saved path yet: nothing to show until it has one.
-        const open =
-          botId && f.path && previewKind(f.name)
-            ? () => preview({ botId, path: f.path, name: f.name, size: f.size }, viewable)
-            : null;
-        // Sound and video play where they are; the name above still opens the preview.
-        const media = href ? previewKind(f.name) : null;
-        if (href && (media === 'audio' || media === 'video')) {
-          const src = api.fileUrl(botId!, f.path, { inline: true });
-          return (
-            <div
-              key={f.path || f.name}
-              className="flex w-72 max-w-full min-w-0 flex-col gap-1.5 rounded-2xl border bg-card p-2"
-            >
-              <button
-                type="button"
-                onClick={open ?? undefined}
-                title={t('preview.open', { name: f.name })}
-                className="truncate px-1 text-start text-xs text-muted-foreground hover:text-foreground"
-              >
-                {f.name} · {fileSize(f.size)}
-              </button>
-              {media === 'audio' ? (
-                <audio src={src} controls preload="metadata" className="w-full" />
-              ) : (
-                <video
-                  src={src}
-                  controls
-                  preload="metadata"
-                  className="max-h-64 w-full rounded-xl bg-black"
-                />
-              )}
-            </div>
-          );
-        }
-        if (href && isImage(f.name)) {
-          const picture = (
-            <img
-              src={api.fileUrl(botId!, f.path, { inline: true })}
-              alt={f.name}
-              className="max-h-56 max-w-full rounded-2xl border object-cover"
-            />
-          );
-          return open ? (
-            <button
-              key={f.path || f.name}
-              type="button"
-              onClick={open}
-              title={t('preview.open', { name: f.name })}
-              className="block max-w-64 min-w-0 cursor-zoom-in"
-            >
-              {picture}
-            </button>
-          ) : (
-            <a
-              key={f.path || f.name}
-              href={href}
-              download={f.name}
-              title={label}
-              className="block max-w-64 min-w-0"
-            >
-              {picture}
-            </a>
-          );
-        }
-        const card = (
-          <>
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-secondary">
-              <FileText className="size-4" />
-            </span>
-            <span className="min-w-0 text-start leading-tight">
-              <span className="block truncate text-sm font-medium">{f.name}</span>
-              <span className="block text-xs text-muted-foreground">{fileSize(f.size)}</span>
-            </span>
-          </>
-        );
-        const cardClass =
-          'flex max-w-64 min-w-0 items-center gap-3 rounded-2xl border bg-card px-3 py-2 transition-colors hover:bg-accent';
-        return open ? (
+      download
+      title={t('message.downloadAll')}
+      className="flex items-center gap-2 rounded-2xl border border-dashed px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+    >
+      <Download className="size-4" />
+      {t('message.downloadAll')}
+    </a>
+  );
+  const one = (f: MessageFile) => {
+    const href = botId ? api.fileUrl(botId, f.path) : undefined;
+    const label = t('message.download', { name: f.name });
+    // A message still being sent has no saved path yet: nothing to show until it has one.
+    const open =
+      botId && f.path && previewKind(f.name)
+        ? () => preview({ botId, path: f.path, name: f.name, size: f.size }, viewable)
+        : null;
+    // Sound and video play where they are; the name above still opens the preview.
+    const media = href ? previewKind(f.name) : null;
+    if (href && (media === 'audio' || media === 'video')) {
+      const src = api.fileUrl(botId!, f.path, { inline: true });
+      return (
+        <div
+          key={f.path || f.name}
+          className="flex w-72 max-w-full min-w-0 flex-col gap-1.5 rounded-2xl border bg-card p-2"
+        >
           <button
-            key={f.path || f.name}
+            type="button"
+            onClick={open ?? undefined}
+            title={t('preview.open', { name: f.name })}
+            className="truncate px-1 text-start text-xs text-muted-foreground hover:text-foreground"
+          >
+            {f.name} · {fileSize(f.size)}
+          </button>
+          {media === 'audio' ? (
+            <audio src={src} controls preload="metadata" className="w-full" />
+          ) : (
+            <video src={src} controls preload="metadata" className="max-h-64 w-full rounded-xl bg-black" />
+          )}
+        </div>
+      );
+    }
+    if (href && isImage(f.name)) {
+      const picture = (
+        <img
+          src={api.fileUrl(botId!, f.path, { inline: true })}
+          alt={f.name}
+          className="max-h-56 max-w-full rounded-2xl border object-cover"
+        />
+      );
+      return open ? (
+        <button
+          key={f.path || f.name}
+          type="button"
+          onClick={open}
+          title={t('preview.open', { name: f.name })}
+          className="block max-w-64 min-w-0 cursor-zoom-in"
+        >
+          {picture}
+        </button>
+      ) : (
+        <a
+          key={f.path || f.name}
+          href={href}
+          download={f.name}
+          title={label}
+          className="block max-w-64 min-w-0"
+        >
+          {picture}
+        </a>
+      );
+    }
+    const look = FAMILY_LOOK[fileFamily(f.name)];
+    const card = (
+      <>
+        <span
+          className={cn('flex size-9 shrink-0 items-center justify-center rounded-xl', look.tint)}
+          data-family={fileFamily(f.name)}
+        >
+          <look.icon className="size-4" />
+        </span>
+        <span className="min-w-0 flex-1 text-start leading-tight">
+          <span className="block truncate text-sm font-medium">{f.name}</span>
+          <span className="block text-xs text-muted-foreground">{fileSize(f.size)}</span>
+        </span>
+      </>
+    );
+    const cardClass =
+      'flex w-72 max-w-full min-w-0 items-center rounded-2xl border bg-card transition-colors hover:bg-accent';
+    // The card opens the preview; the button beside it saves the file without going through it.
+    if (open)
+      return (
+        <div key={f.path || f.name} className={cardClass}>
+          <button
             type="button"
             onClick={open}
             title={t('preview.open', { name: f.name })}
-            className={cardClass}
+            className="flex min-w-0 flex-1 items-center gap-3 py-2 ps-3 pe-1"
           >
             {card}
           </button>
-        ) : (
-          <a key={f.path || f.name} href={href} download={f.name} title={label} className={cardClass}>
-            {card}
+          <a
+            href={href}
+            download={f.name}
+            title={label}
+            aria-label={label}
+            className="me-2 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+          >
+            <Download className="size-4" />
           </a>
-        );
-      })}
+        </div>
+      );
+    return (
+      <a
+        key={f.path || f.name}
+        href={href}
+        download={f.name}
+        title={href ? label : undefined}
+        className={cn(cardClass, 'gap-3 py-2 ps-3 pe-4')}
+      >
+        {card}
+        {/* A file still on its way has nothing to save yet. */}
+        {href && <Download className="size-4 shrink-0 text-muted-foreground" aria-hidden />}
+      </a>
+    );
+  };
+  // Pictures and players sit side by side; other files go one under another, as a list reads.
+  const media = (f: MessageFile) => {
+    const kind = botId && f.path ? previewKind(f.name) : null;
+    return kind === 'image' || kind === 'audio' || kind === 'video';
+  };
+  const pictures = files.filter(media);
+  return (
+    <div className={cn('flex max-w-[80%] flex-col gap-2', align === 'end' ? 'items-end' : 'items-start')}>
+      {pictures.length > 0 && (
+        <div className={cn('flex flex-wrap gap-2', align === 'end' ? 'justify-end' : 'justify-start')}>
+          {pictures.map(one)}
+        </div>
+      )}
+      {files.filter((f) => !media(f)).map(one)}
+      {zip}
     </div>
   );
 }

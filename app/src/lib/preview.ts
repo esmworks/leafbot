@@ -25,6 +25,40 @@ export function previewKind(name: string): PreviewKind | null {
   return null;
 }
 
+/** The family a file belongs to by its name, so a card can show which one it is at a glance. */
+export type FileFamily =
+  | 'pdf'
+  | 'document'
+  | 'web'
+  | 'code'
+  | 'sheet'
+  | 'slides'
+  | 'archive'
+  | 'image'
+  | 'audio'
+  | 'video'
+  | 'other';
+
+const FAMILIES: [FileFamily, RegExp][] = [
+  ['pdf', /\.pdf$/i],
+  ['document', /\.(md|markdown|txt|text|rtf|docx?|odt|pages|epub)$/i],
+  ['web', /\.(html?|css|scss|svgz)$/i],
+  ['sheet', /\.(csv|tsv|xlsx?|xlsm|ods|numbers)$/i],
+  ['slides', /\.(pptx?|odp|key)$/i],
+  ['archive', /\.(zip|tar|gz|tgz|bz2|xz|7z|rar)$/i],
+  ['image', IMAGE],
+  ['audio', AUDIO],
+  ['video', VIDEO],
+  [
+    'code',
+    /\.(json|jsonl|ya?ml|toml|xml|js|mjs|cjs|jsx|ts|tsx|py|rb|go|rs|java|kt|swift|c|cc|cpp|h|hpp|cs|php|sh|bash|zsh|ps1|sql|r|lua|pl|diff|patch|ipynb)$/i,
+  ],
+];
+
+export function fileFamily(name: string): FileFamily {
+  return FAMILIES.find(([, re]) => re.test(name))?.[0] ?? 'other';
+}
+
 /** What an HTML page drawn in the preview may load: its own inline styles and data: pictures. */
 export const HTML_PREVIEW_CSP =
   "default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'";

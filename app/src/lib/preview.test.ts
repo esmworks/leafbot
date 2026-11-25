@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { htmlPreviewDocument, previewKind, readTextStart } from './preview';
+import { fileFamily, htmlPreviewDocument, previewKind, readTextStart } from './preview';
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -21,6 +21,24 @@ describe('file preview', () => {
     expect(previewKind('klip.webm')).toBe('video');
     for (const name of ['sunum.pptx', 'tablo.xlsx', 'arsiv.zip', 'adsiz'])
       expect(previewKind(name)).toBeNull();
+  });
+
+  it('names the family a file belongs to, for its card', () => {
+    expect(fileFamily('rapor.PDF')).toBe('pdf');
+    expect(fileFamily('workflow.md')).toBe('document');
+    expect(fileFamily('teklif.docx')).toBe('document');
+    expect(fileFamily('ozet.html')).toBe('web');
+    expect(fileFamily('satislar.xlsx')).toBe('sheet');
+    expect(fileFamily('veri.csv')).toBe('sheet');
+    expect(fileFamily('sunum.pptx')).toBe('slides');
+    expect(fileFamily('dosyalar.tar.gz')).toBe('archive');
+    expect(fileFamily('logo.svg')).toBe('image');
+    expect(fileFamily('ayar.json')).toBe('code');
+    expect(fileFamily('script.py')).toBe('code');
+    expect(fileFamily('kayit.m4a')).toBe('audio');
+    expect(fileFamily('klip.mov')).toBe('video');
+    expect(fileFamily('Dockerfile')).toBe('other');
+    expect(fileFamily('cizim.dwg')).toBe('other');
   });
 
   it('reads only the start of a large file', async () => {
