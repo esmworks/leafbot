@@ -2526,6 +2526,7 @@ export class ToolFactory {
           services: s,
           bot,
           person,
+          threadId: thread.id,
           roots: whatsappRoots(this.ctx.config.dataDir, bot),
           cwd: bot.projectDir ?? workspacePaths(this.ctx.config.dataDir, bot.id, thread.id, null).threadDir,
           drafts: bot.permissionMode !== 'readonly',

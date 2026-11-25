@@ -26,6 +26,8 @@ export function whatsappTools(opts: {
   bot: Bot;
   /** Whom the turn works for: the person who linked WhatsApp. */
   person: string;
+  /** The conversation the turn runs in: a draft's outcome is noted in the main one, maybe not this. */
+  threadId: string;
   /** The folders the bot's files may come from, and the one a relative name is read in. */
   roots: string[];
   cwd: string;
@@ -142,9 +144,19 @@ export function whatsappTools(opts: {
       threadId: thread.id,
       replace: d.kind === 'message' && opts.unattended,
     });
+    // The outcome is noted in the main conversation. A routine's or a ticket's run never sees that
+    // note, and a bot told it would wrote "on the card" into its own records and a later run read
+    // that as not sent. It is told where the outcome goes and how to look it up instead.
+    const told = t(
+      thread.id === opts.threadId
+        ? 'tool.whatsappToldHere'
+        : d.kind === 'status'
+          ? 'tool.whatsappToldMainStatus'
+          : 'tool.whatsappToldMain',
+    );
     return why
-      ? t('tool.whatsappDraftedWhy', { why: t(`tool.whatsappCardWhy.${why}`) })
-      : t('tool.whatsappDrafted');
+      ? t('tool.whatsappDraftedWhy', { told, why: t(`tool.whatsappCardWhy.${why}`) })
+      : t('tool.whatsappDrafted', { told });
   };
 
   const reads: AppTool[] = [
