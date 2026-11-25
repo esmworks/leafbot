@@ -426,13 +426,22 @@ function Children({ node, ctx }: { node: CardNode; ctx: Ctx }) {
   );
 }
 
+/**
+ * A row of figures: each keeps its number whole, so the row wraps where they do not fit side by
+ * side instead of squeezing them until the number breaks under its unit, and the framed figures in
+ * a line share its height.
+ */
+const figures = (node: CardNode, dir: 'row' | 'col') =>
+  dir === 'row' && !!node.children?.some((c) => c.type === 'Stat');
+
 const flex = (node: CardNode, dir: 'row' | 'col'): { className: string; style: CSSProperties } => ({
   className: cn(
     'flex min-w-0',
     dir === 'row' ? 'flex-row' : 'flex-col',
-    ALIGN[str(node.align)] ?? (dir === 'row' ? 'items-center' : undefined),
+    ALIGN[str(node.align)] ??
+      (figures(node, dir) ? 'items-stretch' : dir === 'row' ? 'items-center' : undefined),
     JUSTIFY[str(node.justify)],
-    node.wrap === 'wrap' && 'flex-wrap',
+    (node.wrap === 'wrap' || (node.wrap === undefined && figures(node, dir))) && 'flex-wrap',
     node.wrap === 'wrap-reverse' && 'flex-wrap-reverse',
   ),
   style: {
