@@ -7,6 +7,7 @@ import {
   emailPreview,
   outsideTrigger,
   joinPicks,
+  personJobOf,
   parseAnswers,
   splitPicks,
   questionItems,
@@ -98,6 +99,7 @@ import { BotPage } from './BotPage';
 import { ChatCard } from './ChatCard';
 import { McpAppView } from './McpAppView';
 import { EmailApprovalCard } from './EmailApproval';
+import { PersonJobCard } from './PersonJobCard';
 import { speechSupported, toggleSpeech, useServerVoice, useSpeech } from '@/lib/speech';
 import { useUi } from '@/lib/store';
 import { AppLogo } from './Connections';
@@ -286,6 +288,10 @@ export function MessageItem({
       if (m.props.subagent) {
         const sub = subagentOf(m.props);
         if (sub) return <SubagentCard sub={sub} />;
+      }
+      if (m.props.personJob) {
+        const job = personJobOf(m.props);
+        if (job) return <PersonJobCard job={job} />;
       }
       if (typeof m.props.connectionSignIn === 'string')
         return <SignInCard connectionId={m.props.connectionSignIn} text={m.text} botId={botId} />;

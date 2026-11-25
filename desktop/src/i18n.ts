@@ -98,6 +98,13 @@ const tr = {
     'İzin verirsen bot ekranını görür, fareyi kullanır ve yazar. Ekran görüntüleri sunucuya gider. İzin 2 dakika boyunca bir şey yapılmazsa ya da en geç 15 dakika sonra biter; Leaf Bot simgesinin menüsündeki "Bilgisayarı kullanan botu durdur" ile hemen bitirebilirsin.',
   'mac.allow': 'İzin ver',
   'mac.deny': 'Reddet',
+  'mac.commands': 'Botlar bu bilgisayarda komut çalıştırabilir',
+  'mac.jobs': 'Çalışan komutlar: {count}',
+  'mac.stopJobs': 'Çalışan komutların hepsini durdur',
+  'mac.commandAskTitle':
+    '{host} üzerindeki {bot}, anahtarların durduğu bir yere ({place}) dokunan bir komut çalıştırmak istiyor',
+  'mac.commandAskDetail':
+    'Komut:\n{command}\n\nİzin verirsen komut senin haklarınla çalışır ve çıktısı sunucuya gider.',
 } satisfies Catalog;
 
 export type DesktopKey = keyof typeof tr;
@@ -189,6 +196,13 @@ const en: Catalog<DesktopKey> = {
     'If you allow it, the bot sees your screen, uses the mouse and types. Screenshots go to the server. The permission ends after 2 minutes with nothing done, or after 15 minutes at the latest; "Stop the bot using this computer" in the menu of the Leaf Bot icon ends it at once.',
   'mac.allow': 'Allow',
   'mac.deny': "Don't allow",
+  'mac.commands': 'Bots may run commands on this computer',
+  'mac.jobs': 'Commands running: {count}',
+  'mac.stopJobs': 'Stop all running commands',
+  'mac.commandAskTitle':
+    '{bot} on {host} wants to run a command that touches a place where keys are kept ({place})',
+  'mac.commandAskDetail':
+    'Command:\n{command}\n\nIf you allow it, the command runs with your rights and its output goes to the server.',
 };
 
 const CATALOGS = { tr, en };

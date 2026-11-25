@@ -1131,6 +1131,15 @@ export const en: Catalog<MessageKey> = {
   'message.planStatus.pending': 'to do',
   'message.planStatus.in_progress': 'in progress',
   'message.planStatus.completed': 'done',
+  'personJob.title': 'Command on your computer',
+  'personJob.running': 'Running',
+  'personJob.done': 'Done, exit code {code}',
+  'personJob.stopped': 'Stopped',
+  'personJob.lost': 'The computer went away; how it ended is not known',
+  'personJob.refused': 'Did not run',
+  'personJob.where': '{device} · {cwd}',
+  'personJob.noOutput': 'No output yet',
+  'personJob.stop': 'Stop',
   'message.subagent': 'Subagent',
   'message.subagentSteps': { one: '1 step', other: '{count} steps' },
   'message.subagentState.running': 'working',
@@ -2002,7 +2011,7 @@ export const en: Catalog<MessageKey> = {
     'When on, the bot searches the web, reads pages, and uses its own browser and computer. When off, it can do none of these.',
   'bot.personComputer': 'Can use my computer',
   'bot.personComputerHint':
-    'In work you ask for, it can look at your screen and use the mouse and keyboard. It asks before its first step each time.',
+    'In work you ask for, it can look at your screen and use the mouse and keyboard. It asks before its first step each time. With “Bots may run commands” on in the desktop app, it can also run commands there, each asked on a card.',
   'bot.personComputerRemote':
     'Your computer is not connected. In the Leaf Bot desktop app on your Mac or Windows computer, turn on “Bots may use this computer” in the Leaf Bot icon’s menu.',
   'bot.personComputerDevice':

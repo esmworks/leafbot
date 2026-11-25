@@ -59,6 +59,18 @@ describe('a manager answering waiting cards', () => {
     expect(await said(worker.thread.id, 'Ankara')).toContain('Müdür');
   });
 
+  it('answers nothing when the manager may only look', async () => {
+    const worker = await asking('Yazar');
+    const m = await t.bot({ name: 'Müdür', isManager: true, permissionMode: 'readonly' });
+    const home = await main(m.id);
+    await t.send(
+      home.id,
+      answer([{ card: worker.card.id, bot: 'Yazar', decision: 'yes', answer: 'Ankara' }]),
+    );
+    await said(home.id, 'yanıtlanmadı');
+    expect((await card(worker.card.id)).status).toBe('pending');
+  });
+
   it('asks the person on one card once a card’s words came from outside', async () => {
     const worker = await asking('Yazar');
     // The turn that asked had read a mail, as a turn records it: the question may quote it.

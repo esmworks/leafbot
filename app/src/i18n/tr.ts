@@ -1091,6 +1091,15 @@ export const tr = {
   'message.planStatus.pending': 'yapılacak',
   'message.planStatus.in_progress': 'sürüyor',
   'message.planStatus.completed': 'tamam',
+  'personJob.title': 'Bilgisayarında komut',
+  'personJob.running': 'Çalışıyor',
+  'personJob.done': 'Bitti, çıkış kodu {code}',
+  'personJob.stopped': 'Durduruldu',
+  'personJob.lost': 'Bilgisayarla bağlantı koptu; nasıl bittiği bilinmiyor',
+  'personJob.refused': 'Çalışmadı',
+  'personJob.where': '{device} · {cwd}',
+  'personJob.noOutput': 'Henüz çıktı yok',
+  'personJob.stop': 'Durdur',
   'message.subagent': 'Alt ajan',
   'message.subagentSteps': '{count} adım',
   'message.subagentState.running': 'çalışıyor',
@@ -1970,7 +1979,7 @@ export const tr = {
     'Açıkken bot internette arama yapar, sayfa okur, kendi tarayıcısını ve bilgisayarını kullanır. Kapalıyken bunların hiçbirini yapamaz.',
   'bot.personComputer': 'Bilgisayarımı kullanabilir',
   'bot.personComputerHint':
-    'Senin istediğin işlerde ekranına bakabilir, fareyi ve klavyeyi kullanabilir. Her işte ilk adımdan önce sorar.',
+    'Senin istediğin işlerde ekranına bakabilir, fareyi ve klavyeyi kullanabilir. Her işte ilk adımdan önce sorar. Masaüstü uygulamasında "Botlar bu bilgisayarda komut çalıştırabilir" açıksa orada komut da çalıştırabilir; her komut kartla sorulur.',
   'bot.personComputerRemote':
     'Bilgisayarın bağlı değil. Mac ya da Windows bilgisayarındaki Leaf Bot masaüstü uygulamasında, Leaf Bot simgesinin menüsünden "Botlar bu bilgisayarı kullanabilir"i aç.',
   'bot.personComputerDevice':

@@ -131,6 +131,7 @@ export const toRule = (r: Row<typeof schema.permissionRules>): PermissionRule =>
   limit: r.limit ?? null,
   secondPerson: r.secondPerson,
   secondUserId: r.secondUserId ?? null,
+  userId: r.userId ?? null,
   createdAt: r.createdAt.toISOString(),
 });
 

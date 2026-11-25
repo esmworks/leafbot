@@ -122,7 +122,11 @@ cannot turn right to left without a restart. [docs/i18n.md](docs/i18n.md) covers
   keyboard for work in apps that only run there; it asks on a card before its first step in each piece of work. With
   the server elsewhere, each person's desktop app can offer their computer from the Leaf Bot icon's menu; that
   computer then asks on its own screen before a bot first uses it. On Windows the helper is a PowerShell script, so
-  nothing extra is installed.
+  nothing extra is installed. With "Bots may run commands" also on in that menu, a bot can run commands there (tests,
+  builds, scripts) in your login shell: each command asks on a card, "always allow" keeps that one command in that
+  one folder for you, at most four run at once, a job card shows the last lines with a Stop button, and the bot is
+  woken in the same conversation when a long one ends. Commands that touch places where keys are kept ask on the
+  computer itself every time.
 - **Sandboxed shell** — Claude's Bash commands run in a bubblewrap sandbox that only sees the bot's own folders, and a
   few catastrophic commands are refused whatever is allowed.
 - **Import and backup** — bring in bots exported from other assistants, and keep everything in one password-sealed

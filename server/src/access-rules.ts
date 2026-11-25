@@ -105,6 +105,8 @@ export const ROUTE_RULES: Record<string, Rule> = {
   // Each person's own Mac: the server's for the owner, the one their desktop app offers for anyone.
   'GET /api/person-computer': 'signedIn',
   'POST /api/person-computer/request': 'signedIn',
+  // A command on someone's own computer: the route stops only that person's own.
+  'POST /api/person-jobs/:id/stop': 'signedIn',
   'GET /api/storage': 'admin',
 
   // Everything at once: only the owner holds every person's data.

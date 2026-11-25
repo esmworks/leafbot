@@ -539,6 +539,8 @@ export function endpoints(send: Transport, base = '') {
       ),
     stop: (threadId: string) => http.post<{ stopped: boolean }>(`/api/threads/${threadId}/stop`),
     job: (id: string) => http.get<JobView>(`/api/jobs/${id}`),
+    /** Stops a command a bot runs on the person's own computer. */
+    stopPersonJob: (id: string) => http.post<{ stopped: boolean }>(`/api/person-jobs/${id}/stop`),
 
     approvals: () => http.get<Approval[]>('/api/approvals'),
     /** Steps waiting for this person's second yes, without the conversations they come from. */

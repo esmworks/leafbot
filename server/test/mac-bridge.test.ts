@@ -1,4 +1,7 @@
 import type { Approval, Bot, PersonComputerState, Thread } from '@leafbot/shared';
+import { MAC_JOB_EVENT, MAC_JOBS_EVENT } from '@leafbot/shared/mac';
+import { eq } from 'drizzle-orm';
+import { schema } from '../src/db';
 import { io, type Socket as IoSocket } from 'socket.io-client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { MacBridge } from '../src/computer/bridge';
@@ -251,6 +254,64 @@ describe('uzaktaki Mac: masaüstü bağlantısı', () => {
     } finally {
       stranger.close();
       socket.close();
+      await t.dispose();
+    }
+  });
+
+  it('a computer that runs commands tells over its socket how its jobs end, and which it still runs', async () => {
+    const t = await testServer({ onUserComputer: false });
+    const url = await t.listen();
+    const ayse = await t.person('ayse');
+    const bot = await t.bot({ name: 'Kurucu' });
+    await t.api('PUT', `/api/bots/${bot.id}/access`, { everyone: 'edit', people: {} });
+    const thread = (await ayse.api<Thread>('GET', `/api/bots/${bot.id}/main-thread`)).body;
+    const socket = io(`${url}/mac`, {
+      transports: ['websocket'],
+      reconnection: false,
+      extraHeaders: { cookie: ayse.cookie },
+      auth: { device: 'Ayşe Mac', commands: true },
+    });
+    const socketIn = new Promise<void>((resolve, reject) => {
+      socket.on('connect', resolve);
+      socket.on('connect_error', reject);
+    });
+    socket.on('do', (req: Record<string, unknown>, ack: (r: unknown) => void) =>
+      ack(req.op === 'run' ? { ok: true, running: true, exitCode: null, output: '' } : { ok: true }),
+    );
+    const job = (id: string) =>
+      t.db.db
+        .select()
+        .from(schema.personJobs)
+        .where(eq(schema.personJobs.id, id))
+        .then((r) => r[0]!);
+    try {
+      await socketIn;
+      const computer = await waitFor(async () => t.services.ctx.macs!.commandsFor('ayse'));
+      const start = () =>
+        t.services.personJobs.start({
+          computer,
+          userId: 'ayse',
+          bot,
+          threadId: thread.id,
+          turnId: null,
+          command: 'npm run build',
+          cwd: '/Users/ayse/shop',
+          waitMs: 0,
+        });
+      const first = await start();
+      const second = await start();
+      if (!('id' in first) || !('id' in second)) throw new Error('not started');
+
+      socket.emit(MAC_JOB_EVENT, { id: first.id, running: false, tail: 'bitti', exitCode: 0 });
+      await waitFor(async () => (await job(first.id)).status === 'done');
+      expect(await job(first.id)).toMatchObject({ exitCode: 0, tail: 'bitti', wake: true });
+
+      // Back without the second one: it ended while nobody heard.
+      socket.emit(MAC_JOBS_EVENT, { running: [] });
+      await waitFor(async () => (await job(second.id)).status === 'lost');
+    } finally {
+      socket.close();
+      await t.services.turns.idle();
       await t.dispose();
     }
   });

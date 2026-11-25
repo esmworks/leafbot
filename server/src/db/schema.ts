@@ -462,8 +462,49 @@ export const permissionRules = pgTable('permission_rules', {
    */
   secondPerson: boolean('second_person').notNull().default(false),
   secondUserId: text('second_user_id'),
+  /**
+   * The one person the rule is for; null for everyone. A command allowed on someone's own computer
+   * runs there only: the same bot on another person's computer still asks them.
+   */
+  userId: text('user_id'),
   createdAt: created(),
 });
+
+/**
+ * A command a bot runs on a person's own computer, through the desktop app. The id is the job's
+ * on that computer too, so its progress finds the row whichever connection carries it.
+ */
+export const personJobs = pgTable(
+  'person_jobs',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull(),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    threadId: text('thread_id')
+      .notNull()
+      .references(() => threads.id, { onDelete: 'cascade' }),
+    /** The card in the conversation that shows it. */
+    messageId: text('message_id'),
+    /** The computer's name, as its desktop app gives it. */
+    device: text('device').notNull(),
+    command: sealedText('command').notNull(),
+    cwd: text('cwd').notNull(),
+    /** `refused` when the computer would not start it; `lost` when it never said how it ended. */
+    status: text('status', { enum: ['running', 'done', 'stopped', 'lost', 'refused'] })
+      .notNull()
+      .default('running'),
+    exitCode: integer('exit_code'),
+    /** The last of the output. */
+    tail: sealedText('tail').notNull().default(''),
+    /** Whether its bot is woken when it ends: the step that started it stopped waiting. */
+    wake: boolean('wake').notNull().default(false),
+    startedAt: ts('started_at').notNull().defaultNow(),
+    endedAt: ts('ended_at'),
+  },
+  (t) => [index('person_jobs_user_idx').on(t.userId, t.status)],
+);
 
 export const memories = pgTable(
   'memories',

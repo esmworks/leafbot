@@ -1155,6 +1155,8 @@ export const PermissionRule = z.object({
    */
   secondPerson: z.boolean().optional(),
   secondUserId: Id.nullable().optional(),
+  /** The one person the rule is for (a command on their own computer); null for everyone. */
+  userId: Id.nullable().optional(),
   createdAt: z.string(),
 });
 export type PermissionRule = z.infer<typeof PermissionRule>;
@@ -1609,6 +1611,29 @@ export interface ModelInfo {
   contextWindow: number | null;
   /** YYYY-MM-DD, when known. */
   released: string | null;
+}
+
+/** A command a bot runs on the person's own computer, as its card in the chat shows it. */
+export const PersonJobCard = z.object({
+  id: z.string(),
+  command: z.string(),
+  cwd: z.string(),
+  /** The computer's name. */
+  device: z.string(),
+  /** `lost` when the computer went away and never said how it ended; `refused` when it would not start it. */
+  status: z.enum(['running', 'done', 'stopped', 'lost', 'refused']),
+  exitCode: z.number().int().nullable(),
+  /** The last of its output. */
+  tail: z.string(),
+  startedAt: z.string(),
+  endedAt: z.string().nullable(),
+});
+export type PersonJobCard = z.infer<typeof PersonJobCard>;
+
+/** The command a message is the card of, or null. */
+export function personJobOf(props: Record<string, unknown>): PersonJobCard | null {
+  const r = PersonJobCard.safeParse(props.personJob);
+  return r.success ? r.data : null;
 }
 
 /** A subagent's card in the chat: what it was asked to do, how it stands and the steps it took. */
