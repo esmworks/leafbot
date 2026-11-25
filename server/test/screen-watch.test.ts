@@ -79,12 +79,15 @@ describe('ekranda dönüp duran bot', () => {
     expect(await look.handler({})).toMatchObject({ images: [expect.anything()] });
     expect(await look.handler({})).toMatchObject({ images: [expect.anything()] });
     const stopped = await look.handler({});
-    expect(stopped).toBe(t('screen.stuck', { count: STUCK_AFTER }));
-    expect(stopped).toContain('engelled');
+    expect(stopped).toEqual({
+      text: t('screen.stuck', { count: STUCK_AFTER }),
+      images: [],
+      fromServer: true,
+    });
 
     // Nothing more is done or looked at on the screen this turn.
     const before = shots;
-    expect(await click.handler({ x: 10, y: 10 })).toBe(stopped);
+    expect(await click.handler({ x: 10, y: 10 })).toEqual(stopped);
     expect(shots).toBe(before);
   });
 });

@@ -10,8 +10,12 @@ export interface ToolImage {
   mimeType: string;
 }
 
-/** What a tool returns: plain text, or text with images. */
-export type ToolResult = string | { text: string; images: ToolImage[] };
+/**
+ * What a tool returns: plain text, or text with images. `fromServer` marks text the server wrote
+ * itself in a tool whose results otherwise come from outside (a stop it puts on the bot), so it
+ * reaches the model as an instruction and not inside the outside-data block.
+ */
+export type ToolResult = string | { text: string; images: ToolImage[]; fromServer?: true };
 
 /**
  * What a bot answers when a turn leaves it nothing to say, such as a reaction that needs no reply.

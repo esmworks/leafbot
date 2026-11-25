@@ -1,4 +1,4 @@
-import { STUCK_AFTER, type ScreenWatch } from '../computer/screen-watch';
+import { stuckResult, type ScreenWatch } from '../computer/screen-watch';
 import { DESKTOP_SIZE, type Bot, type DesktopAction } from '@leafbot/shared';
 import { z } from 'zod';
 import { ComputerError, type ComputerClient } from '../computer/client';
@@ -82,7 +82,7 @@ export function computerTools(opts: {
   watch?: ScreenWatch;
 }): AppTool[] {
   const { def, bot, t, computer, cwd, signal, watch } = opts;
-  const stuck = () => t('screen.stuck', { count: STUCK_AFTER });
+  const stuck = () => stuckResult(t);
   const readOnly = bot.permissionMode === 'readonly';
 
   /**

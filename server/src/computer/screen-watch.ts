@@ -1,4 +1,6 @@
 import { library } from '../engine/fit-image';
+import type { ToolResult } from '../engine/types';
+import type { T } from '../i18n';
 
 /** The size a screen is shrunk to before two are compared: a word typed still shows, a clock's minute does not. */
 const WIDTH = 160;
@@ -11,6 +13,16 @@ const CELLS_NEW = 5;
 const REMEMBERED = 8;
 /** Screens in a row with nothing new before the bot is stopped. */
 export const STUCK_AFTER = 40;
+
+/**
+ * What a stopped bot is told instead of the screen. The server's own words, so a tool whose results
+ * are otherwise outside data still gives it as an instruction.
+ */
+export const stuckResult = (t: T): ToolResult => ({
+  text: t('screen.stuck', { count: STUCK_AFTER }),
+  images: [],
+  fromServer: true,
+});
 
 /**
  * Watches the screens one turn's bot looks at. A bot going round in circles (clicking a button that
