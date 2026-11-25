@@ -73,6 +73,7 @@ const BOOKKEEPING = new Set([
   'plan_update',
   'quick_replies',
   'show_card',
+  'report_problem',
   'ask_user',
   'react',
   'memory_search',

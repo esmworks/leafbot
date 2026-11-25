@@ -38,6 +38,8 @@ import {
   type EngineKind,
   type Memory,
   outsideIn,
+  problemReport,
+  REPORT_LIMITS,
   type OutsideTrigger,
   type Routine,
   type Skill,
@@ -47,7 +49,8 @@ import {
   wallClock,
   zonedTime,
 } from '@leafbot/shared';
-import { and, desc, eq, inArray, isNotNull, or } from 'drizzle-orm';
+import os from 'node:os';
+import { and, desc, eq, gte, inArray, isNotNull, or } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Ctx } from '../context';
 import { schema } from '../db';
@@ -78,6 +81,7 @@ import { FollowUpsFull, MAX_OPEN_FOLLOW_UPS, readMoment } from '../services/foll
 import { placeOf, ROOM_NOTES_PER_PLACE, sourceOf } from '../services/memory';
 import { FLAGS_PER_TURN, OPEN_FLAGS_PER_BOT } from '../services/memory-flags';
 import { redactSecrets } from '../services/secrets';
+import { NO_CARDS } from '../services/cards';
 import { siteOf } from '../services/vault';
 import { workspacePaths } from '../workspace';
 import {
@@ -436,6 +440,8 @@ const TEAM_OFF = new Set<string>([
  * goes on for the person the turn acts for, with all they may do.
  */
 const GUEST_OFF = new Set<string>([
+  // A problem report carries the server's version, system and recent errors.
+  'report_problem',
   // A flag asks the person to fill a gap; a stranger's question is no gap in what the bot knows.
   'memory_flag',
   'ticket_create',
@@ -507,6 +513,23 @@ export type Define = ReturnType<typeof definer>;
 
 /** Conversations one turn may open with open_conversation. */
 const MAX_OPENED = 5;
+
+/** The version a problem report names. */
+const LEAFBOT_VERSION = '0.9.1';
+/** Errors of the conversation a problem report carries: the latest few of the last hour. */
+const REPORT_ERRORS = 5;
+const REPORT_ERRORS_MS = 60 * 60_000;
+const EMAIL = /[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.[\p{L}]{2,}/gu;
+
+/**
+ * Text that goes into a public issue: keys and passwords, email addresses and the server's home
+ * folder (which holds the account's name) are taken out.
+ */
+function publicText(text: string, marker: string): string {
+  const home = os.homedir();
+  const clean = redactSecrets(text, marker).text.replace(EMAIL, marker);
+  return home.length > 1 ? clean.replaceAll(home, '~') : clean;
+}
 
 export type ToolName =
   | 'ask_user'
@@ -588,6 +611,7 @@ export type ToolName =
   | 'app_suggest'
   | 'quick_replies'
   | 'show_card'
+  | 'report_problem'
   | 'app_add'
   | 'plan_update'
   | 'memory_write'
@@ -1210,6 +1234,102 @@ export class ToolFactory {
             .describe('Only to replace a card you showed and nobody has answered: the card_id it returned'),
         },
         ({ card, card_id }) => s.chatCards.show({ bot, thread, input: card, cardId: card_id, t }),
+        'internal',
+      ),
+      def(
+        'report_problem',
+        {
+          title: z.string().trim().min(1).max(REPORT_LIMITS.title),
+          what_happened: z.string().trim().min(1).max(REPORT_LIMITS.description),
+          steps: z.string().trim().max(REPORT_LIMITS.reproduction).optional(),
+          asked: z.boolean().default(false),
+        },
+        async ({ title, what_happened, steps, asked }) => {
+          // The report carries the server's version, system and errors: only for someone with an
+          // account here, writing in this conversation, not a stranger in a chat app or a routine.
+          if (!fromUser || guest || opts.contact) return t('tool.problemNotAllowed');
+          if (NO_CARDS.includes(thread.kind)) return t('tool.cardNotHere');
+          const hidden = t('memory.redacted');
+          const errors = await this.ctx.db
+            .select({ text: schema.messages.text, props: schema.messages.props })
+            .from(schema.messages)
+            .where(
+              and(
+                eq(schema.messages.threadId, thread.id),
+                eq(schema.messages.role, 'error'),
+                gte(schema.messages.createdAt, new Date(Date.now() - REPORT_ERRORS_MS)),
+              ),
+            )
+            .orderBy(desc(schema.messages.createdAt))
+            .limit(REPORT_ERRORS);
+          // A sign-in or a provider's limit is for the person to fix, not a fault in Leaf Bot.
+          const setup = (e: { props: Record<string, unknown> }) =>
+            e.props.kind === 'auth' || e.props.kind === 'limit';
+          if (!asked && errors.length && errors.every(setup)) return t('tool.problemIsSetup');
+          const { report, url } = problemReport({
+            title: publicText(title, hidden),
+            description: publicText(what_happened, hidden),
+            ...(steps && { reproduction: publicText(steps, hidden) }),
+            errors: errors
+              .filter((e) => !setup(e))
+              .reverse()
+              .map((e) => publicText(e.text, hidden).replace(/\s+/g, ' '))
+              .join('\n'),
+            version: LEAFBOT_VERSION,
+            system: `${os.type()} ${os.release()} (${os.arch()})`,
+            engine: [bot.engine, bot.model].filter(Boolean).join(' / '),
+          });
+          const section = (label: string, text: string | undefined) =>
+            text
+              ? [
+                  { type: 'Caption', value: label, weight: 'semibold' },
+                  { type: 'Text', value: text },
+                ]
+              : [];
+          const card = {
+            type: 'Card',
+            children: [
+              {
+                type: 'Row',
+                children: [
+                  { type: 'Icon', name: 'bug' },
+                  { type: 'Title', value: t('problem.cardTitle') },
+                ],
+              },
+              { type: 'Text', value: report.title ?? title, weight: 'semibold' },
+              { type: 'Text', value: report.description ?? '' },
+              ...section(t('problem.steps'), report.reproduction),
+              ...section(t('problem.errors'), report.errors),
+              {
+                type: 'Caption',
+                value: [`Leaf Bot ${report.version}`, report.system, report.engine]
+                  .filter(Boolean)
+                  .join(' · '),
+              },
+              { type: 'Caption', value: t('problem.note') },
+              {
+                type: 'Row',
+                children: [
+                  {
+                    type: 'Button',
+                    label: t('problem.notNow'),
+                    style: 'secondary',
+                    onClickAction: { type: 'report_not_now' },
+                  },
+                  {
+                    type: 'Button',
+                    label: t('problem.open'),
+                    style: 'primary',
+                    iconStart: 'external-link',
+                    onClickAction: { type: 'open_url', payload: { url } },
+                  },
+                ],
+              },
+            ],
+          };
+          const shown = await s.chatCards.show({ bot, thread, input: card, t });
+          return `${shown}\n\n${t('tool.problemShown')}`;
+        },
         'internal',
       ),
       def(

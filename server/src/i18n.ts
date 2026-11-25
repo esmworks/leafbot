@@ -1260,6 +1260,21 @@ const tr = {
   'card.ticksForBot':
     'Kişi son turundan beri {id} kartındaki listeyi işaretledi; liste şimdi şöyle:\n{items}',
   'card.issue.badSeries': '"{detail}" serisinin hiçbir satırda sayısı yok',
+  'tool.report_problem':
+    "Leaf Bot'un kendisiyle ilgili bir hata raporu taslağı hazırla; kişi onu GitHub'da kendisi gönderir. Raporu ve GitHub'ın kayıt formunu dolu açan bir düğmeyi taşıyan bir kart gösterir; kişi metni orada okur ve gönderir. Buradan hiçbir şey gönderilmez. Leaf Bot sürümünü, sunucunun sistemini, motorunu ve modelini, bu konuşmanın son bir saatteki hatalarını ekler; anahtarlar, e-posta adresleri ve ev klasörü çıkarılır. Kişi bir sorunu bildirmek istediğinde kullan (asked: true); kendiliğinden yalnızca Leaf Bot'un kendisi bir yeniden denemeden sonra da hata verdiğinde öner. Eksik bir anahtar ya da oturum, bir sağlayıcının sınırı, ağ ya da kişinin kendi dosyaları, kodu ya da hesapları için değildir: bunlarda kişiye nasıl düzelteceğini söyle. title: İngilizce kısa bir özet, özellik ve belirti. what_happened: İngilizce bir ile üç düz cümle; ne ters gitti, ne bekleniyordu, hatanın tam metniyle. steps: İngilizce, öncesinde ne yapıldı, kısa numaralı adımlarla; bilmiyorsan boş bırak. Konuşmanın özel içeriğini (mesajlar, adlar, dosya içerikleri) rapora koyma. Kişi Şimdi değil derse sormadıkça yeniden önerme.",
+  'tool.problemShown':
+    "Kişi raporu GitHub'dan kendisi gönderir; gönderip göndermediğini bilemezsin. Gönderildi deme ve kaydı başka bir yoldan açma.",
+  'tool.problemNotAllowed':
+    'Hata raporu yalnızca kişinin kendi konuşmasındaki kendi mesajı için hazırlanır. Sorunu bunun yerine yanıtında anlat.',
+  'tool.problemIsSetup':
+    "Buradaki hatalar bir oturum ya da sağlayıcı sınırı; kişi bunu Ayarlar'dan düzeltir, Leaf Bot'taki bir hata değil. Kişiye nasıl düzelteceğini söyle. Rapor yalnızca kişi isterse hazırlanır (asked: true).",
+  'problem.cardTitle': 'Bir hata mı buldun? Bildir',
+  'problem.steps': 'Adımlar',
+  'problem.errors': 'Bu konuşmadaki hatalar',
+  'problem.note':
+    "Düğme GitHub'da doldurulmuş bir kayıt açar; orada kontrol edip kendin gönderirsin. Buradan hiçbir şey gönderilmez.",
+  'problem.notNow': 'Şimdi değil',
+  'problem.open': "GitHub'da aç",
   'card.yes': 'Evet',
   'card.no': 'Hayır',
   'card.forBot': '[Kart cevabı · eylem: {action} · değerler: {values}]',
@@ -3609,6 +3624,21 @@ const en: Catalog<ServerKey> = {
   'card.ticksForBot':
     'Since your last turn the person ticked the checklist on card {id}; it now reads:\n{items}',
   'card.issue.badSeries': 'the series "{detail}" has no number in any row',
+  'tool.report_problem':
+    "Draft a bug report about Leaf Bot itself for the person to send on GitHub. It shows a card with the report and a button that opens GitHub's issue form filled in; the person reads it there and submits it. Nothing is sent from here. Leaf Bot adds its version, the server's system, your engine and model, and this conversation's errors from the last hour, with keys, email addresses and the home folder taken out. Use it when the person asks to report a problem (asked: true); offer it yourself only when Leaf Bot itself fails again after one retry. It is not for a missing key or sign-in, a provider's limit, the network, or the person's own files, code or accounts: tell the person how to fix those instead. title: a short summary in English, the feature and the symptom. what_happened: one to three plain sentences in English, what went wrong and what was expected, with the exact error text. steps: in English, what was done before it, as short numbered steps; leave it out when you do not know. Keep the conversation's private content (messages, names, file contents) out of the report. If the person picks Not now, do not offer it again unless they ask.",
+  'tool.problemShown':
+    'The person sends it themselves from GitHub; you cannot know whether they did. Do not say it was sent, and do not open an issue another way.',
+  'tool.problemNotAllowed':
+    "A problem report is drafted only for the person's own message in their conversation. Describe the problem in your reply instead.",
+  'tool.problemIsSetup':
+    "The errors here are a sign-in or a provider's limit, which the person fixes in Settings, not a fault in Leaf Bot. Tell them how to fix it. Draft a report only if they ask for one (asked: true).",
+  'problem.cardTitle': 'Found a bug? Report it',
+  'problem.steps': 'Steps',
+  'problem.errors': 'Errors in this conversation',
+  'problem.note':
+    'The button opens a filled-in issue on GitHub; you check it there and submit it. Nothing is sent from here.',
+  'problem.notNow': 'Not now',
+  'problem.open': 'Open on GitHub',
   'card.yes': 'Yes',
   'card.no': 'No',
   'card.forBot': '[Card answer · action: {action} · values: {values}]',
