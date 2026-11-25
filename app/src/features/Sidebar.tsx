@@ -1,9 +1,9 @@
 import type { Bot, BotSummary, Group } from '@leafbot/shared';
 import {
-  Blocks,
-  CalendarCheck,
-  KanbanSquare,
-  LayoutDashboard,
+  LayoutGrid,
+  Sun,
+  ListTodo,
+  ChartColumnBig,
   Plus,
   Search,
   Settings2,
@@ -193,7 +193,7 @@ function SidebarPanel({
             variant="ghost"
             side="right"
           >
-            <CalendarCheck />
+            <Sun />
           </RoundButton>
           <RoundButton
             label={t('board.title')}
@@ -201,7 +201,7 @@ function SidebarPanel({
             variant="ghost"
             side="right"
           >
-            <KanbanSquare />
+            <ListTodo />
           </RoundButton>
           <RoundButton
             label={t('dashboards.title')}
@@ -209,7 +209,7 @@ function SidebarPanel({
             variant="ghost"
             side="right"
           >
-            <LayoutDashboard />
+            <ChartColumnBig />
           </RoundButton>
           <RoundButton
             label={t('apps.open')}
@@ -217,7 +217,7 @@ function SidebarPanel({
             variant="ghost"
             side="right"
           >
-            <Blocks />
+            <LayoutGrid />
           </RoundButton>
           <RoundButton
             label={t('settings.title')}
@@ -418,24 +418,24 @@ function SidebarPanel({
             variant="ghost"
             onClick={() => useUi.getState().setTodayOpen(true)}
           >
-            <CalendarCheck />
+            <Sun />
           </RoundButton>
           <RoundButton
             label={t('board.title')}
             variant="ghost"
             onClick={() => useUi.getState().setBoardOpen(true)}
           >
-            <KanbanSquare />
+            <ListTodo />
           </RoundButton>
           <RoundButton
             label={t('dashboards.title')}
             variant="ghost"
             onClick={() => useUi.getState().setDashboardsOpen(true)}
           >
-            <LayoutDashboard />
+            <ChartColumnBig />
           </RoundButton>
           <RoundButton label={t('apps.open')} variant="ghost" onClick={() => openApps({ botId: null })}>
-            <Blocks />
+            <LayoutGrid />
           </RoundButton>
           <RoundButton label={t('settings.title')} onClick={() => openSettings('general', true)}>
             <Settings2 />

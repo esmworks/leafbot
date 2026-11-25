@@ -191,6 +191,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Changed
 
+- The buttons at the foot of the sidebar have icons that tell them apart: a sun for Today, a checklist for Tasks, a
+  bar chart for Dashboards and a grid for Apps. Dashboards and Apps had two near-identical sets of squares. Tasks show
+  the same checklist in a conversation and on a message.
 - Dashboards open over the whole window. Their tiles fill each row instead of leaving an empty column beside a wide
   chart, and tiles in a row are the same height.
 - A row of figures on a card or a dashboard wraps where the figures do not fit side by side, so a number stays on one
