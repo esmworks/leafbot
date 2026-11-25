@@ -27,8 +27,11 @@ import { SCREEN_RATIO, StatusDot } from './parts';
 /** How far a finger moves before a touch counts as a drag instead of a tap. */
 const TAP_SLOP = 8;
 
-/** The bot's browser: its screen, the address bar and the buttons that take it over. */
-export function BrowserView({ bot }: { bot: Bot }) {
+/**
+ * The bot's browser: its screen, the address bar and the buttons that take it over. Turned sideways
+ * (`wide`) the screen takes the whole height and the controls sit beside it.
+ */
+export function BrowserView({ bot, wide = false }: { bot: Bot; wide?: boolean }) {
   const c = useColors();
   const api = useApi();
   const { data: info } = useInfo();
@@ -74,13 +77,8 @@ export function BrowserView({ bot }: { bot: Bot }) {
         ? t('computer.offHint')
         : t('computer.watchHint');
 
-  return (
-    <ScrollView
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-      // A drag on the picture scrolls the page in the browser, not this screen.
-      scrollEnabled={!control}
-    >
+  const controls = (
+    <>
       <View style={styles.status}>
         <StatusDot status={state.status} />
         <Text style={[styles.statusText, { color: c.mutedForeground }]} numberOfLines={1}>
@@ -143,31 +141,57 @@ export function BrowserView({ bot }: { bot: Bot }) {
           onPress={() => void toggle()}
         />
       </View>
+    </>
+  );
+  const typing = control ? (
+    <View style={[styles.typeRow, wide && styles.wrap]}>
+      <TextInput
+        value={typed}
+        onChangeText={setTyped}
+        onSubmitEditing={sendTyped}
+        placeholder={t('computer.typePlaceholder')}
+        placeholderTextColor={c.mutedForeground}
+        returnKeyType="send"
+        style={[styles.typeInput, wide && styles.whole, { backgroundColor: c.muted, color: c.foreground }]}
+      />
+      <PillButton label={t('computer.typeSend')} onPress={sendTyped} />
+      <PillButton
+        icon="corner-down-left"
+        label={t('computer.enter')}
+        onPress={() => {
+          send({ type: 'key', action: 'down', key: 'Enter' });
+          send({ type: 'key', action: 'up', key: 'Enter' });
+        }}
+      />
+    </View>
+  ) : null;
+  const screen = <RemoteScreen frame={frame} state={state} control={control} send={send} wide={wide} />;
 
-      <RemoteScreen frame={frame} state={state} control={control} send={send} />
-
-      {control ? (
-        <View style={styles.typeRow}>
-          <TextInput
-            value={typed}
-            onChangeText={setTyped}
-            onSubmitEditing={sendTyped}
-            placeholder={t('computer.typePlaceholder')}
-            placeholderTextColor={c.mutedForeground}
-            returnKeyType="send"
-            style={[styles.typeInput, { backgroundColor: c.muted, color: c.foreground }]}
-          />
-          <PillButton label={t('computer.typeSend')} onPress={sendTyped} />
-          <PillButton
-            icon="corner-down-left"
-            label={t('computer.enter')}
-            onPress={() => {
-              send({ type: 'key', action: 'down', key: 'Enter' });
-              send({ type: 'key', action: 'up', key: 'Enter' });
-            }}
-          />
-        </View>
-      ) : null}
+  if (wide) {
+    return (
+      <View style={styles.wide}>
+        <View style={styles.wideScreen}>{screen}</View>
+        <ScrollView
+          style={styles.wideSide}
+          contentContainerStyle={styles.content}
+          keyboardShouldPersistTaps="handled"
+        >
+          {controls}
+          {typing}
+        </ScrollView>
+      </View>
+    );
+  }
+  return (
+    <ScrollView
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      // A drag on the picture scrolls the page in the browser, not this screen.
+      scrollEnabled={!control}
+    >
+      {controls}
+      {screen}
+      {typing}
     </ScrollView>
   );
 }
@@ -181,11 +205,14 @@ function RemoteScreen({
   state,
   control,
   send,
+  wide,
 }: {
   frame: Frame | null;
   state: BrowserState;
   control: boolean;
   send: (input: BrowserInput) => void;
+  /** Sized by the height it is given rather than by the width. */
+  wide: boolean;
 }) {
   const c = useColors();
   const api = useApi();
@@ -255,6 +282,7 @@ function RemoteScreen({
     <View
       style={[
         styles.screen,
+        wide && styles.screenWide,
         { backgroundColor: c.muted, borderColor: control ? c.amber : c.border },
         control && styles.screenControlled,
       ]}
@@ -428,6 +456,12 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   screenControlled: { borderWidth: 2 },
+  screenWide: { width: undefined, height: '100%', maxWidth: '100%' },
+  wide: { flex: 1, flexDirection: 'row' },
+  wideScreen: { flex: 1, padding: 8, alignItems: 'center', justifyContent: 'center' },
+  wideSide: { width: 300, flexGrow: 0 },
+  wrap: { flexWrap: 'wrap' },
+  whole: { flexBasis: '100%' },
   inner: { flex: 1 },
   note: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10, padding: 20 },
   noteText: { fontSize: 15, lineHeight: 21, textAlign: 'center' },
