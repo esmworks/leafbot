@@ -2,7 +2,10 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   MAC_ASK_MS,
+  MAC_COMMANDS,
   MAC_EVENT,
+  MAC_JOB_EVENT,
+  MAC_JOBS_EVENT,
   MAC_NAMESPACE,
   MAC_TOUCHES,
   type MacDriver,
@@ -10,6 +13,7 @@ import {
   type MacShot,
 } from '@leafbot/shared/mac';
 import { io, type Socket } from 'socket.io-client';
+import type { CommandJobs } from './commands';
 
 /**
  * This Mac offered to the bots of a server elsewhere. The server sends requests over a socket;
@@ -39,6 +43,8 @@ export interface MacGateOptions {
   ask(bot: string, signal: AbortSignal): Promise<boolean>;
   /** Told when a use starts or ends, for the menu bar to show it. */
   onChange?(active: boolean): void;
+  /** Runs commands, when the person lets bots run them on this computer; null when not. */
+  commands?: CommandJobs | null;
 }
 
 /**
@@ -138,6 +144,11 @@ export class MacGate {
     if (!parsed.success) return { ok: false, error: 'badRequest' };
     const req = parsed.data;
     if (req.op === 'begin') return this.begin(req.bot);
+    // Commands never reach the helper; with the switch off they do not run at all.
+    if (MAC_COMMANDS.has(req.op)) {
+      if (!this.o.commands) return { ok: false, error: 'commandsOff' };
+      return this.o.commands.handle(req).catch(() => ({ ok: false, error: 'failed' }));
+    }
     if (MAC_TOUCHES.has(req.op)) {
       if (!this.active()) return { ok: false, error: 'refused' };
       this.touched(Date.now());
@@ -175,7 +186,7 @@ export function startMacBridge(o: MacBridgeOptions): { gate: MacGate; stop(): vo
   const socket: Socket = io(`${o.url}${MAC_NAMESPACE}`, {
     path: '/socket.io',
     transports: ['websocket'],
-    auth: { device: o.device },
+    auth: { device: o.device, commands: !!o.commands },
     autoConnect: false,
     reconnectionDelay: 2_000,
     reconnectionDelayMax: 60_000,
@@ -183,14 +194,25 @@ export function startMacBridge(o: MacBridgeOptions): { gate: MacGate; stop(): vo
   const signIn = async () => {
     socket.io.opts.extraHeaders = await o.headers().catch(() => ({}));
   };
-  socket.on('connect', () => o.log('info', 'mac: connected'));
+  socket.on('connect', () => {
+    o.log('info', 'mac: connected');
+    // First the ends the server missed, then the jobs still running, so it closes as lost only
+    // the ones this computer no longer has.
+    o.commands?.attach((event) => {
+      if (!socket.connected) return false;
+      socket.emit(MAC_JOB_EVENT, event);
+      return true;
+    });
+    socket.emit(MAC_JOBS_EVENT, { running: o.commands?.running().map((j) => j.id) ?? [] });
+  });
   socket.on(MAC_EVENT, (req: unknown, ack: unknown) => {
     if (typeof ack !== 'function') return;
     void gate.handle(req).then((r) => (ack as (r: unknown) => void)(r));
   });
   socket.on('disconnect', (reason) => {
-    // A use the person allowed belongs to this connection; a new one asks again.
+    // A use the person allowed belongs to this connection; a new one asks again. Jobs go on.
     gate.end();
+    o.commands?.attach(null);
     o.log('info', `mac: disconnected (${reason})`);
   });
   socket.on('connect_error', (err) => {
@@ -205,6 +227,7 @@ export function startMacBridge(o: MacBridgeOptions): { gate: MacGate; stop(): vo
     gate,
     stop() {
       stopped = true;
+      o.commands?.attach(null);
       gate.close();
       socket.disconnect();
     },
@@ -213,15 +236,28 @@ export function startMacBridge(o: MacBridgeOptions): { gate: MacGate; stop(): vo
 
 const SETTING_FILE = 'mac.json';
 
-/** Whether the person lets the bots of the server this app connects to use this Mac; off until they say. */
-export function readMacOn(dir: string): boolean {
+function readSetting(dir: string): { on?: unknown; commands?: unknown } {
   try {
-    return (JSON.parse(readFileSync(join(dir, SETTING_FILE), 'utf8')) as { on?: unknown }).on === true;
+    return JSON.parse(readFileSync(join(dir, SETTING_FILE), 'utf8')) as { on?: unknown; commands?: unknown };
   } catch {
-    return false;
+    return {};
   }
 }
 
+/** Whether the person lets the bots of the server this app connects to use this Mac; off until they say. */
+export function readMacOn(dir: string): boolean {
+  return readSetting(dir).on === true;
+}
+
 export function writeMacOn(dir: string, on: boolean) {
-  writeFileSync(join(dir, SETTING_FILE), JSON.stringify({ on }), { mode: 0o600 });
+  writeFileSync(join(dir, SETTING_FILE), JSON.stringify({ ...readSetting(dir), on }), { mode: 0o600 });
+}
+
+/** Whether those bots may also run commands here; off until the person says, and only with the Mac on. */
+export function readCommandsOn(dir: string): boolean {
+  return readSetting(dir).commands === true;
+}
+
+export function writeCommandsOn(dir: string, commands: boolean) {
+  writeFileSync(join(dir, SETTING_FILE), JSON.stringify({ ...readSetting(dir), commands }), { mode: 0o600 });
 }
