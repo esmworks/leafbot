@@ -44,13 +44,8 @@ export const PORT_Y = 22;
 /** Room between two boxes side by side, and around the canvas's edge. */
 const GAP = 56;
 const EDGE = 24;
-/** How far apart rows of boxes start; boxes are seldom taller than this less the gap. */
+/** How far apart rows of boxes start; a box, a few lines long, is well under this. */
 const ROW = 340;
-/**
- * The tallest a box may grow before its fields scroll inside it: past this the box below covers
- * them, since boxes may sit this close.
- */
-export const BOX_MAX_H = ROW - GAP;
 
 /** A place on the canvas's grid, never off its top or left, nor past where a place may be kept. */
 export function snap(v: number): number {

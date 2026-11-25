@@ -326,6 +326,7 @@ export function RoutinePage({
   showRuns?: boolean;
 }) {
   const t = useT();
+  const locale = useLocale((s) => s.locale);
   const { dayLabel } = useFormat();
   const qc = useQueryClient();
   const { data: settings } = useSettings();
@@ -470,6 +471,14 @@ export function RoutinePage({
     ...(values.watchUrl?.trim() ? [t('flow.watch')] : []),
     ...(values.condition ? [t('flow.condition')] : []),
   ];
+  /** How often it runs, in words, for the flow's first box; nothing while the form cannot say. */
+  const scheduleSummary = (() => {
+    try {
+      return describeSchedule(toSchedule({ ...fromRoutine(), ...values }), locale);
+    } catch {
+      return undefined;
+    }
+  })();
   /** When it runs next: worked out from the schedule as it is in the form. */
   const when = (() => {
     if (routine && !routine.enabled)
@@ -828,6 +837,7 @@ export function RoutinePage({
               <RoutineFlow
                 triggers={triggers}
                 schedule={<ScheduleFields form={form} values={values} />}
+                scheduleSummary={scheduleSummary}
                 when={when}
                 run={latestRun}
                 onRunNow={routine ? () => runNow.mutate() : undefined}

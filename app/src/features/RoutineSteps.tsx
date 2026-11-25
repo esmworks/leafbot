@@ -280,7 +280,6 @@ export function StepFields({
   error,
   modelListId,
   modelPlaceholder,
-  inFlow,
   botId,
 }: {
   step: StepForm;
@@ -295,8 +294,6 @@ export function StepFields({
   error?: string;
   modelListId: string;
   modelPlaceholder: string;
-  /** In a box on the flow, where a long text opens in a window rather than growing the box. */
-  inFlow?: boolean;
 }) {
   const t = useT();
   // A way that goes nowhere it can is shown under the ways; any other message under the step's text.
@@ -313,7 +310,6 @@ export function StepFields({
             placeholder={t('routine.stepPromptPlaceholder')}
             className="scroll-thin max-h-60 overflow-y-auto rounded-xl"
             label={t('routine.step.agent')}
-            inFlow={inFlow}
           />
           {textError && <p className="text-sm text-destructive">{t(textError as MessageKey)}</p>}
           <StepBotSelect
@@ -357,7 +353,6 @@ export function StepFields({
             placeholder={t('routine.extractPlaceholder')}
             className="scroll-thin max-h-40 overflow-y-auto rounded-xl text-sm"
             label={t('routine.step.extract')}
-            inFlow={inFlow}
           />
           {textError && <p className="text-sm text-destructive">{t(textError as MessageKey)}</p>}
           <p className="text-xs text-muted-foreground">{t('routine.extractHint')}</p>
@@ -371,7 +366,6 @@ export function StepFields({
             placeholder={t('routine.notifyPlaceholder')}
             className="scroll-thin max-h-40 overflow-y-auto rounded-xl"
             label={t('routine.step.notify')}
-            inFlow={inFlow}
           />
           <label className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
             <span>{t('routine.notifyWithBefore')}</span>
@@ -388,7 +382,6 @@ export function StepFields({
             placeholder={t('routine.stepQuestionPlaceholder')}
             className="scroll-thin max-h-40 overflow-y-auto rounded-xl"
             label={t('routine.step.approval')}
-            inFlow={inFlow}
           />
           {textError && <p className="text-sm text-destructive">{t(textError as MessageKey)}</p>}
           <p className="text-xs text-muted-foreground">{t('routine.stepApprovalHint')}</p>
@@ -426,23 +419,26 @@ const WAY_INVALID = 'routine.stepWayInvalid' satisfies MessageKey;
 /** What a way choice stands for when it goes nowhere else: the usual way, kept apart from step ids. */
 const USUAL = '__usual';
 
+/** What a step says or does, in its own words: its text, its address, or what it waits for. */
+export function stepText(s: StepForm, t: ReturnType<typeof useT>): string {
+  return s.kind === 'agent'
+    ? s.prompt
+    : s.kind === 'approval'
+      ? s.question
+      : s.kind === 'notify'
+        ? s.text
+        : s.kind === 'fetch'
+          ? s.url.replace(/^https:\/\//, '')
+          : s.kind === 'extract'
+            ? s.fields
+            : s.on === 'time'
+              ? t('routine.stepWaitMinutes', { minutes: String(s.minutes) })
+              : t(`routine.waitOn.${s.on}`);
+}
+
 /** A step as a way's list names it: its kind and the start of what it says. */
 function wayLabel(s: StepForm, t: ReturnType<typeof useT>): string {
-  const text =
-    s.kind === 'agent'
-      ? s.prompt
-      : s.kind === 'approval'
-        ? s.question
-        : s.kind === 'notify'
-          ? s.text
-          : s.kind === 'fetch'
-            ? s.url.replace(/^https:\/\//, '')
-            : s.kind === 'extract'
-              ? s.fields
-              : s.on === 'time'
-                ? t('routine.stepWaitMinutes', { minutes: String(s.minutes) })
-                : s.on;
-  const short = text.trim().replace(/\s+/g, ' ');
+  const short = stepText(s, t).trim().replace(/\s+/g, ' ');
   const kind = t(`routine.step.${s.kind}`);
   return short ? `${kind}: ${short.length > 40 ? `${short.slice(0, 39)}…` : short}` : kind;
 }
