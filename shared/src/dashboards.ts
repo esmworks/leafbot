@@ -564,3 +564,24 @@ export function dashboardText(view: DashboardView, botName: (id: string) => stri
   }
   return lines.join('\n');
 }
+
+/**
+ * The tile ids of a page in their new order once `id` is put just before `beforeId`, or after the
+ * last tile when `beforeId` is null. Only the ids `seen` keeps take part: the others hold their
+ * slots, so a person moving a tile never shifts the tiles of bots they do not reach. Unchanged when
+ * either tile is not among those seen.
+ */
+export function placeTile(
+  order: readonly string[],
+  id: string,
+  beforeId: string | null,
+  seen: (id: string) => boolean = () => true,
+): string[] {
+  const visible = order.filter(seen);
+  if (!visible.includes(id) || id === beforeId || (beforeId !== null && !visible.includes(beforeId)))
+    return [...order];
+  const rest = visible.filter((x) => x !== id);
+  rest.splice(beforeId === null ? rest.length : rest.indexOf(beforeId), 0, id);
+  let i = 0;
+  return order.map((x) => (seen(x) ? rest[i++]! : x));
+}

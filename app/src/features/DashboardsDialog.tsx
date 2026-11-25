@@ -1,7 +1,7 @@
 import type { Bot, DashboardSummary, DashboardTileView } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ChartColumnBig, MoreHorizontal, TriangleAlert, X } from 'lucide-react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { BotAvatar } from '@/components/BotAvatar';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,7 @@ import { useBots } from '@/lib/queries';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { ShownCard } from './ChatCard';
+import { useTileDrag } from './tileDrag';
 
 /**
  * Dashboards: pages of tiles the bots keep filled. A tile from a table is worked out again from
@@ -177,8 +178,12 @@ function Page({ page, className }: { page: DashboardSummary; className?: string 
     onError: (err: Error) => toast.error(err.message),
   });
   const tiles = view?.tiles ?? [];
+  const scroller = useRef<HTMLElement>(null);
+  const { itemProps, ghost } = useTileDrag(page.id, scroller);
+  const { data: bots = [] } = useBots();
   return (
     <section
+      ref={scroller}
       className={cn('@container flex min-w-0 flex-1 flex-col overflow-y-auto', className)}
       aria-label={page.name}
     >
@@ -203,11 +208,20 @@ function Page({ page, className }: { page: DashboardSummary; className?: string 
       {/* Rows that wrap and grow rather than a grid: a wide tile that does not fit beside the ones
           before it would leave an empty column at the end of their row; here they stretch over it,
           and the tiles in a row share its height. */}
-      <div className="flex flex-wrap items-stretch gap-4 px-5 pb-6 phone:px-4">
+      <div data-tile-grid className="flex flex-wrap items-stretch gap-4 px-5 pb-6 phone:px-4">
         {tiles.map((tile, i) => (
-          <Tile key={tile.id} tile={tile} first={i === 0} last={i === tiles.length - 1} onChanged={refresh} />
+          <Tile
+            key={tile.id}
+            tile={tile}
+            first={i === 0}
+            last={i === tiles.length - 1}
+            onChanged={refresh}
+            // Moving a tile takes being allowed to change its bot; others only show where it lands.
+            drag={itemProps(tile, (bots.find((b) => b.id === tile.botId)?.yourLevel ?? 'edit') === 'edit')}
+          />
         ))}
       </div>
+      {ghost}
       <Dialog open={asking} onOpenChange={setAsking}>
         <DialogContent className="rounded-2xl sm:max-w-sm">
           <DialogHeader>
@@ -233,11 +247,13 @@ function Tile({
   first,
   last,
   onChanged,
+  drag,
 }: {
   tile: DashboardTileView;
   first: boolean;
   last: boolean;
   onChanged(): void;
+  drag: ReturnType<ReturnType<typeof useTileDrag>['itemProps']>;
 }) {
   const t = useT();
   const intl = useLocale((s) => s.intl);
@@ -259,9 +275,12 @@ function Tile({
   );
   return (
     <article
+      {...drag.item}
       aria-label={tile.title}
+      onPointerDown={drag.onPointerDown}
       className={cn(
-        'flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4',
+        'relative flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4',
+        drag.dragging && 'opacity-40',
         tile.wide ? 'grow-[2] basis-[min(100%,38rem)]' : 'grow basis-[min(100%,20rem)]',
       )}
     >
@@ -311,6 +330,7 @@ function Tile({
           </DropdownMenuContent>
         </DropdownMenu>
       </footer>
+      {drag.indicator}
     </article>
   );
 }

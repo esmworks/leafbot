@@ -1,6 +1,7 @@
 import {
   MAX_DASHBOARDS,
   MAX_TILES,
+  placeTile,
   storedCard,
   tableTileCard,
   tileCard,
@@ -344,28 +345,48 @@ export class DashboardService {
    * do not reach keep their places around it.
    */
   async moveTile(tileId: string, direction: 'earlier' | 'later', userId: string) {
+    const { tile, order, sees } = await this.reordering(tileId, userId);
+    const visible = order.filter(sees);
+    const at = visible.indexOf(tileId);
+    // Earlier: before the one before it. Later: before the one after the next, or last.
+    if (direction === 'earlier' ? at === 0 : at === visible.length - 1) return;
+    const beforeId = direction === 'earlier' ? visible[at - 1]! : (visible[at + 2] ?? null);
+    await this.reorder(tile, order, placeTile(order, tileId, beforeId, sees));
+  }
+
+  /**
+   * A person drops a tile just before another one they see, or after the last when `beforeId` is
+   * null; tiles of bots they do not reach keep their places.
+   */
+  async placeTile(tileId: string, beforeId: string | null, userId: string) {
+    const { tile, order, sees } = await this.reordering(tileId, userId);
+    if (beforeId !== null && !order.filter(sees).includes(beforeId)) throw notFound('dashboardTile');
+    await this.reorder(tile, order, placeTile(order, tileId, beforeId, sees));
+  }
+
+  /** The tile a person may move, its page's tiles in order and which of them the person sees. */
+  private async reordering(tileId: string, userId: string) {
     const [tile] = await this.ctx.db
       .select()
       .from(schema.dashboardTiles)
       .where(eq(schema.dashboardTiles.id, tileId))
       .limit(1);
     if (!tile) throw notFound('dashboardTile');
-    const sees = await this.reached({ userId });
-    if (!sees(tile.botId)) throw notFound('dashboardTile');
+    const reached = await this.reached({ userId });
+    if (!reached(tile.botId)) throw notFound('dashboardTile');
     await this.s.access.requireBot(await this.s.access.viewerOf(userId), tile.botId, 'edit');
     const all = await this.ctx.db
       .select({ id: schema.dashboardTiles.id, botId: schema.dashboardTiles.botId })
       .from(schema.dashboardTiles)
       .where(eq(schema.dashboardTiles.dashboardId, tile.dashboardId))
       .orderBy(asc(schema.dashboardTiles.position), asc(schema.dashboardTiles.createdAt));
-    const order = all.map((x) => x.id);
-    const visible = all.filter((x) => sees(x.botId)).map((x) => x.id);
-    const at = visible.indexOf(tileId);
-    const other = visible[direction === 'earlier' ? at - 1 : at + 1];
-    if (!other) return;
-    const a = order.indexOf(tileId);
-    const b = order.indexOf(other);
-    [order[a], order[b]] = [order[b]!, order[a]!];
+    const botOf = new Map(all.map((x) => [x.id, x.botId]));
+    return { tile, order: all.map((x) => x.id), sees: (id: string) => reached(botOf.get(id)!) };
+  }
+
+  /** Writes the new order; a drop where the tile already was changes nothing, not even the page's time. */
+  private async reorder(tile: TileRow, was: string[], order: string[]) {
+    if (order.every((id, i) => id === was[i])) return;
     await this.ctx.db.transaction(async (tx) => {
       for (const [i, id] of order.entries())
         await tx.update(schema.dashboardTiles).set({ position: i }).where(eq(schema.dashboardTiles.id, id));

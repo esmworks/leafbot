@@ -703,6 +703,9 @@ export function endpoints(send: Transport, base = '') {
     removeDashboardTile: (id: string) => http.del<{ ok: true }>(`/api/dashboard-tiles/${id}`),
     moveDashboardTile: (id: string, direction: 'earlier' | 'later') =>
       http.post<{ ok: true }>(`/api/dashboard-tiles/${id}/move`, { direction }),
+    /** Puts a tile just before another, or last when `beforeId` is null. */
+    placeDashboardTile: (id: string, beforeId: string | null) =>
+      http.post<{ ok: true }>(`/api/dashboard-tiles/${id}/move`, { beforeId }),
     /** Where the table downloads as a CSV file. */
     tableCsvUrl: (id: string) => `${base}/api/tables/${id}/rows.csv`,
     tickets: () => http.get<Ticket[]>('/api/tickets'),
