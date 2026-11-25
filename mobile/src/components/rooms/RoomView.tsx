@@ -1,4 +1,4 @@
-import { streamParts, type Bot, type Message, type Room } from '@leafbot/shared';
+import { lastResetIndex, streamParts, type Bot, type Message, type Room } from '@leafbot/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -79,7 +79,14 @@ export function RoomView({ room }: { room: Room }) {
     const ids = new Set(recent.map((m) => m.id));
     return [...older.filter((m) => !ids.has(m.id)), ...recent];
   }, [older, recent]);
-  const hasOlder = !olderDone && (older.length > 0 || recent.length >= MESSAGE_PAGE);
+  // A room started fresh opens empty: what came before its last reset shows only when asked for,
+  // and hides again once the room is reset anew. Older pages wait until it shows.
+  const resetAt = lastResetIndex(messages);
+  const [earlierOf, setEarlierOf] = useState<string | null>(null);
+  const hidden = resetAt >= 0 && earlierOf !== messages[resetAt]!.id ? resetAt + 1 : 0;
+  const current = useMemo(() => (hidden ? messages.slice(hidden) : messages), [messages, hidden]);
+  const showEarlier = () => setEarlierOf(messages[resetAt]?.id ?? null);
+  const hasOlder = !hidden && !olderDone && (older.length > 0 || recent.length >= MESSAGE_PAGE);
   const messagesRef = useRef(messages);
   useEffect(() => {
     messagesRef.current = messages;
@@ -121,7 +128,7 @@ export function RoomView({ room }: { room: Room }) {
 
   const streamDone = streamSaved(stream, messages);
   const streaming = !!stream?.text && !streamDone;
-  const listed = useMemo(() => withPending(messages, pending), [messages, pending]);
+  const listed = useMemo(() => withPending(current, pending), [current, pending]);
   // A card asked while the reply streams in goes inside it, where it was asked.
   const { messages: shown, cards, head, end } = useLiveCards(listed, stream, streamDone);
   // Whether anything was written after the last card: until then the turn waits on its answer.
@@ -299,6 +306,7 @@ export function RoomView({ room }: { room: Room }) {
               <Text style={[styles.hint, { color: c.mutedForeground }]}>
                 {room.responders === 'mentions' ? t('room.emptyHintMentions') : t('room.emptyHint')}
               </Text>
+              {hidden ? <Button label={t('room.showEarlier')} variant="ghost" onPress={showEarlier} /> : null}
             </Pressable>
           ) : (
             <FlatList
@@ -317,7 +325,17 @@ export function RoomView({ room }: { room: Room }) {
               }}
               onEndReachedThreshold={0.5}
               ListFooterComponent={
-                hasOlder ? (
+                hidden ? (
+                  <View style={styles.older}>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={showEarlier}
+                      style={[styles.olderButton, { backgroundColor: c.muted }]}
+                    >
+                      <Text style={[styles.olderText, { color: c.foreground }]}>{t('room.showEarlier')}</Text>
+                    </Pressable>
+                  </View>
+                ) : hasOlder ? (
                   <View style={styles.older}>
                     <Pressable
                       accessibilityRole="button"

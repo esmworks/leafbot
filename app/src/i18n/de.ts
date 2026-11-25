@@ -177,7 +177,8 @@ export const de: Partial<Catalog<MessageKey>> = {
   'room.edit': 'Raum bearbeiten',
   'room.reset': 'Neu beginnen',
   'room.resetConfirm':
-    'Den Raum neu beginnen? Die Bots lesen nicht mehr, was vor diesem Punkt gesagt wurde; die Nachrichten bleiben hier.',
+    'Den Raum neu beginnen? Die Bots lesen nicht mehr, was vor diesem Punkt gesagt wurde, und der Raum öffnet sich leer. Das frühere Gespräch wird nicht gelöscht; die Schaltfläche oben im Raum zeigt es.',
+  'room.showEarlier': 'Früheres Gespräch zeigen',
   'room.delete': 'Raum löschen',
   'room.deleteConfirm':
     'Den Raum „{name}“ und sein Gespräch löschen? Das lässt sich nicht rückgängig machen.',

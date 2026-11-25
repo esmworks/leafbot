@@ -176,7 +176,8 @@ export const en: Catalog<MessageKey> = {
   'room.edit': 'Edit room',
   'room.reset': 'Start fresh',
   'room.resetConfirm':
-    'Start the room fresh? The bots no longer read what was said before this point; the messages stay here.',
+    'Start the room fresh? The bots no longer read what was said before this point, and the room opens empty. The earlier conversation is not deleted; the button at the top of the room shows it.',
+  'room.showEarlier': 'Show the earlier conversation',
   'room.delete': 'Delete room',
   'room.deleteConfirm': 'Delete the room “{name}” and its conversation? This cannot be undone.',
   'room.placeholder': 'Write to the room… @name to ask one bot',

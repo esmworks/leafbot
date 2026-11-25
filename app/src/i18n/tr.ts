@@ -179,7 +179,8 @@ export const tr = {
   'room.edit': 'Odayı düzenle',
   'room.reset': 'Baştan başla',
   'room.resetConfirm':
-    'Oda baştan başlasın mı? Botlar bu noktadan önce konuşulanları artık okumaz; mesajlar burada kalır.',
+    'Oda baştan başlasın mı? Botlar bu noktadan önce konuşulanları artık okumaz ve oda boş açılır. Önceki konuşma silinmez; odanın başındaki düğmeyle açılır.',
+  'room.showEarlier': 'Önceki konuşmayı göster',
   'room.delete': 'Odayı sil',
   'room.deleteConfirm': '“{name}” odası ve içindeki konuşma silinsin mi? Bu geri alınamaz.',
   'room.placeholder': 'Odaya yaz… Belirli bir bota sormak için @ad',
