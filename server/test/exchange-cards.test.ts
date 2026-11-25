@@ -97,6 +97,20 @@ describe('botlar arası konuşmada sorulan kart', () => {
     await t.services.turns.idle();
   });
 
+  it('ayrı sohbetteki bekleyen kart kendi satırıyla gelir; ana sohbet onu oradan da gösterir', async () => {
+    const bot = await t.bot({ name: 'Vezir' });
+    const side = (await t.api<Thread>('POST', `/api/bots/${bot.id}/threads`, {})).body;
+    await t.send(side.id, ask);
+    const card = await pending();
+    expect(card.threadId).toBe(side.id);
+    expect(card.line).toMatchObject({ approvalId: card.id });
+
+    await t.api('POST', `/api/approvals/${card.id}`, { decision: 'allow', answers: ['A'] });
+    await t.services.turns.idle();
+    const answered = (await t.api<Approval[]>('GET', '/api/approvals')).body.find((a) => a.id === card.id)!;
+    expect(answered.line).toBeUndefined();
+  });
+
   it('başka bot için çalışan bot ayrı sohbet açamaz; arama botlar arası konuşmayı göstermez', async () => {
     const g = await group('Ekip');
     const vezir = await t.bot({ name: 'Vezir', groupId: g.id });

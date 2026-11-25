@@ -660,6 +660,12 @@ export const Approval = z.object({
     .object({ threadId: Id, botId: Id, props: z.record(z.string(), z.unknown()) })
     .nullable()
     .optional(),
+  /**
+   * For a waiting card, the props of its own line in its conversation, so it can be answered away
+   * from it (the bot's main chat shows the cards of its other conversations). Missing for answered
+   * cards and from older servers.
+   */
+  line: z.record(z.string(), z.unknown()).optional(),
 });
 export type Approval = z.infer<typeof Approval>;
 
