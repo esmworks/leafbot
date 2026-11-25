@@ -18,6 +18,8 @@ import type {
   TaughtStep,
   PermissionSuggestions,
   BotTable,
+  DashboardSummary,
+  DashboardView,
   RowValues,
   TableRow,
   TelegramStatus,
@@ -695,6 +697,12 @@ export function endpoints(send: Transport, base = '') {
     deleteTableRow: (id: string, rowId: string) =>
       http.del<{ deleted: number }>(`/api/tables/${id}/rows/${rowId}`),
     removeTable: (id: string) => http.del<{ ok: true }>(`/api/tables/${id}`),
+    dashboards: () => http.get<DashboardSummary[]>('/api/dashboards'),
+    dashboard: (id: string) => http.get<DashboardView>(`/api/dashboards/${id}`),
+    removeDashboard: (id: string) => http.del<{ ok: true }>(`/api/dashboards/${id}`),
+    removeDashboardTile: (id: string) => http.del<{ ok: true }>(`/api/dashboard-tiles/${id}`),
+    moveDashboardTile: (id: string, direction: 'earlier' | 'later') =>
+      http.post<{ ok: true }>(`/api/dashboard-tiles/${id}/move`, { direction }),
     /** Where the table downloads as a CSV file. */
     tableCsvUrl: (id: string) => `${base}/api/tables/${id}/rows.csv`,
     tickets: () => http.get<Ticket[]>('/api/tickets'),

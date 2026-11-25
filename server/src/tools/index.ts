@@ -68,6 +68,7 @@ import { slidesTool } from './slides';
 import { apiTools } from './api';
 import { emailTools } from './email';
 import { pickGroup, whatsappRoots, whatsappTools } from './whatsapp';
+import { dashboardTools } from './dashboards';
 import { tableTools } from './tables';
 import { ticketTools } from './tickets';
 import { FollowUpsFull, MAX_OPEN_FOLLOW_UPS, readMoment } from '../services/follow-ups';
@@ -525,6 +526,8 @@ export type ToolName =
   | 'table_add'
   | 'table_update'
   | 'table_delete_rows'
+  | 'dashboards'
+  | 'dashboard_define'
   | 'email_inbox'
   | 'email_read'
   | 'whatsapp_chats'
@@ -2663,6 +2666,7 @@ export class ToolFactory {
     );
     tools.push(
       ...tableTools({ def, services: s, botId: bot.id, t, note: journal, hasTables: opts.hasTables ?? true }),
+      ...dashboardTools({ def, services: s, botId: bot.id, person, onlyOwn: team || guest, t }),
     );
     // With the internet off the bot gets neither its browser nor its desktop, which reach it too.
     if (this.ctx.browser.available && bot.internet) {

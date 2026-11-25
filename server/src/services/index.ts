@@ -30,6 +30,7 @@ import { PluginService } from './plugins';
 import { ApiSourceService } from './api-sources';
 import { TicketService } from './tickets';
 import { TableService } from './tables';
+import { DashboardService } from './dashboards';
 import { ContentSealService } from './content-seal';
 import { DoctorService } from './doctor';
 import { ReviewerService } from './reviewer';
@@ -129,6 +130,7 @@ export class Services {
   readonly apiSources: ApiSourceService;
   readonly tickets: TicketService;
   readonly tables: TableService;
+  readonly dashboards: DashboardService;
   readonly contentSeal: ContentSealService;
   readonly doctor: DoctorService;
   readonly titles: TitleService;
@@ -217,6 +219,7 @@ export class Services {
     this.turns.onFinished((t, o) => this.titles.onTurnFinished(t, o));
     this.offers = new OfferService(ctx, this, engineFor, clock);
     this.chatCards = new CardService(ctx, this, clock);
+    this.dashboards = new DashboardService(ctx, this, clock);
     this.turns.onFinished((t, o) => this.offers.onTurnFinished(t, o));
     this.threads.onContextReset((id) => this.memoryReview.onContextReset(id));
     this.promises = new PromiseService(ctx, this, engineFor, clock);

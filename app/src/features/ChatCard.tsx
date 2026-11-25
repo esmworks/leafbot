@@ -381,6 +381,32 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
   );
 }
 
+/**
+ * A card that only shows, as a dashboard tile holds one: drawn as a bot's card is, with nothing in
+ * it to change or press, and no frame of its own so the tile around it gives one.
+ */
+export function ShownCard({ card, id }: { card: Card; id: string }) {
+  const ctx: Ctx = {
+    card,
+    values: cardDefaults(card),
+    set: () => {},
+    press: () => {},
+    locked: true,
+    fieldId: (name) => `tile-${id}-${name}`,
+    live: new Set(),
+    tick: () => {},
+  };
+  return (
+    <div className="flex min-w-0 flex-col gap-3 text-[15px]">
+      {card.root.type === 'ListView' ? (
+        <ListView node={card.root} ctx={ctx} />
+      ) : (
+        <Children node={card.root} ctx={ctx} />
+      )}
+    </div>
+  );
+}
+
 function Children({ node, ctx }: { node: CardNode; ctx: Ctx }) {
   return (
     <>

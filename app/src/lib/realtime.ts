@@ -191,6 +191,12 @@ function refresh(qc: QueryClient, e: RefreshScope) {
     case 'tables':
       inv('tables', e.botId);
       inv('table-rows');
+      // A dashboard's table tiles are worked out from the rows as they are now.
+      inv('dashboard');
+      break;
+    case 'dashboards':
+      inv('dashboards');
+      inv('dashboard');
       break;
     case 'actions':
       inv('actions', e.botId);

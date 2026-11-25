@@ -26,6 +26,7 @@ export const REHEARSAL_READS: ReadonlySet<string> = new Set([
   'api_call',
   'tables_list',
   'table_rows',
+  'dashboards',
   'email_inbox',
   'email_read',
   'tickets_list',

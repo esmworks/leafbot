@@ -104,6 +104,7 @@ export interface UiState {
   /** The day's summary. */
   todayOpen: boolean;
   boardOpen: boolean;
+  dashboardsOpen: boolean;
   /**
    * The routine open in place of the bot's chat: a saved one, or a new one when `routineId` is
    * null. `showRuns` opens it at its latest runs, for a routine opened to see why a run failed.
@@ -165,6 +166,7 @@ export interface UiState {
   setShortcutsOpen(open: boolean): void;
   setTodayOpen(open: boolean): void;
   setBoardOpen(open: boolean): void;
+  setDashboardsOpen(open: boolean): void;
   /** Opens a routine in place of its bot's chat; `null` leaves it as `leavePage` does. */
   openRoutine(routine: UiState['routine']): void;
   /**
@@ -253,6 +255,7 @@ export const useUi = create<UiState>((set, get) => ({
   shortcutsOpen: false,
   todayOpen: false,
   boardOpen: false,
+  dashboardsOpen: false,
   routine: null,
   botPage: null,
   pendingQuote: null,
@@ -310,6 +313,7 @@ export const useUi = create<UiState>((set, get) => ({
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
   setTodayOpen: (todayOpen) => set({ todayOpen }),
   setBoardOpen: (boardOpen) => set({ boardOpen }),
+  setDashboardsOpen: (dashboardsOpen) => set({ dashboardsOpen }),
   openRoutine: (routine) => {
     if (!routine) return void get().leavePage();
     const s = get();

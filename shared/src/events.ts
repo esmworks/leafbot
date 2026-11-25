@@ -22,6 +22,7 @@ export type RefreshScope =
   | { scope: 'channels' }
   | { scope: 'tickets' }
   | { scope: 'tables'; botId: string }
+  | { scope: 'dashboards' }
   | { scope: 'actions'; botId: string }
   | { scope: 'info' }
   | { scope: 'people' }

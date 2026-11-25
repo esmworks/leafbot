@@ -682,6 +682,26 @@ export const tr = {
   'replay.askBot':
     '“{name}” becerisini AI olmadan yeniden oynattım; {step}. adımda durdu: {reason} Sayfaya bak ve işi oradan bitir.',
   'board.title': 'Pano',
+  'dashboards.title': 'Gösterge panelleri',
+  'dashboards.description':
+    'Botlarının doldurduğu gösterge panelleri. Tablodan gelen kutucuklar her açılışta tablonun o anki satırlarından hesaplanır.',
+  'dashboards.emptyTitle': 'Henüz gösterge paneli yok',
+  'dashboards.empty':
+    'Bir botundan iste, örneğin: “Satış tablosundan bu ayın teklif sayısını ve aylık tutarı gösteren bir gösterge paneli kur.” Bot kutucukları kurar; tabloya satır ekledikçe panel kendiliğinden güncellenir.',
+  'dashboards.tiles': '{count} kutucuk',
+  'dashboards.noTiles': 'Bu panelde henüz kutucuk yok.',
+  'dashboards.tileMenu': 'Kutucuk seçenekleri',
+  'dashboards.removeTile': 'Kutucuğu kaldır',
+  'dashboards.moveEarlier': 'Öne taşı',
+  'dashboards.moveLater': 'Arkaya taşı',
+  'dashboards.menu': 'Panel seçenekleri',
+  'dashboards.remove': 'Paneli sil',
+  'dashboards.removeTitle': '“{name}” silinsin mi?',
+  'dashboards.removeBody':
+    'Paneldeki bütün kutucuklar kaldırılır. Tablolar ve satırları olduğu gibi kalır; botlar aynı adla yeniden kurabilir.',
+  'dashboards.live': 'Tablodan, canlı',
+  'dashboards.written': '{time} yazıldı',
+  'dashboards.list': 'Paneller',
   'board.description': 'Senin ve botlarının üzerinde çalıştığı görevler, durumlarına göre sütunlarda.',
   'board.new': 'Yeni görev',
   'board.newDescription': 'Görevin başlığını, ayrıntılarını, kime gideceğini ve önceliğini yaz.',
