@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CardNode } from './card';
 import {
   periodDays,
+  placeTile,
   tableTileCard,
   tileCard,
   tileProblem,
@@ -228,5 +229,30 @@ describe('tableTileCard', () => {
   it('shows how far along a goal is', () => {
     const p = find(made({ show: 'progress', goal: 10, ring: true }, [row({}), row({})]), 'Progress');
     expect(p).toMatchObject({ value: 2, max: 10, variant: 'ring', label: 'T' });
+  });
+});
+
+describe('placeTile', () => {
+  const order = ['a', 'b', 'c', 'd'];
+
+  it('kutucuğu bir başkasının önüne ya da en sona koyar', () => {
+    expect(placeTile(order, 'd', 'a')).toEqual(['d', 'a', 'b', 'c']);
+    expect(placeTile(order, 'a', 'c')).toEqual(['b', 'a', 'c', 'd']);
+    expect(placeTile(order, 'a', null)).toEqual(['b', 'c', 'd', 'a']);
+  });
+
+  it('yerinde bırakılan ya da bilinmeyen kutucuk sırayı değiştirmez', () => {
+    expect(placeTile(order, 'b', 'c')).toEqual(order);
+    expect(placeTile(order, 'b', 'b')).toEqual(order);
+    expect(placeTile(order, 'd', null)).toEqual(order);
+    expect(placeTile(order, 'x', 'a')).toEqual(order);
+    expect(placeTile(order, 'a', 'x')).toEqual(order);
+  });
+
+  it('görülmeyen kutucuklar yerlerinde kalır', () => {
+    const seen = (id: string) => id !== 'b';
+    expect(placeTile(order, 'd', 'a', seen)).toEqual(['d', 'b', 'a', 'c']);
+    expect(placeTile(order, 'a', null, seen)).toEqual(['c', 'b', 'd', 'a']);
+    expect(placeTile(order, 'a', 'b', seen)).toEqual(order);
   });
 });

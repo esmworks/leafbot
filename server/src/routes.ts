@@ -1059,9 +1059,18 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     await s.dashboards.removeTile(IdParams.parse(req.params).id, me(req).userId);
     return { ok: true };
   });
+  // One step from the tile menu ({direction}), or straight to where it was dropped ({beforeId},
+  // null for last); the step stays for the phone app and older ones.
   app.post('/api/dashboard-tiles/:id/move', async (req) => {
-    const { direction } = z.object({ direction: z.enum(['earlier', 'later']) }).parse(req.body);
-    await s.dashboards.moveTile(IdParams.parse(req.params).id, direction, me(req).userId);
+    const body = z
+      .union([
+        z.object({ direction: z.enum(['earlier', 'later']) }),
+        z.object({ beforeId: z.string().min(1).nullable() }),
+      ])
+      .parse(req.body);
+    const id = IdParams.parse(req.params).id;
+    if ('direction' in body) await s.dashboards.moveTile(id, body.direction, me(req).userId);
+    else await s.dashboards.placeTile(id, body.beforeId, me(req).userId);
     return { ok: true };
   });
 

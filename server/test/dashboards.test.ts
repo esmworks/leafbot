@@ -202,5 +202,84 @@ describe('panolar', () => {
     expect((await view(page!.id)).tiles.map((x) => x.title)).toEqual(['B', 'A', 'C']);
     await t.api('POST', `/api/dashboard-tiles/${b!.id}/move`, { direction: 'earlier' });
     expect((await view(page!.id)).tiles.map((x) => x.title)).toEqual(['B', 'A', 'C']);
+    await t.api('POST', `/api/dashboard-tiles/${b!.id}/move`, { direction: 'later' });
+    expect((await view(page!.id)).tiles.map((x) => x.title)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('kişi kutucuğu sürükleyip istediği yere bırakır', async () => {
+    const { th } = await quoting('Satış');
+    await say(
+      th.id,
+      tool('dashboard_define', {
+        name: 'Panel',
+        tiles: ['A', 'B', 'C', 'D'].map((title) => ({ title, show: 'number', table: 'Teklifler' })),
+      }),
+    );
+    await say(
+      th.id,
+      tool('dashboard_define', {
+        name: 'Başka',
+        tiles: [{ title: 'X', show: 'number', table: 'Teklifler' }],
+      }),
+    );
+    const page = (await pages()).find((p) => p.name === 'Panel')!;
+    const titles = async () => (await view(page.id)).tiles.map((x) => x.title);
+    const [a, , c, d] = (await view(page.id)).tiles;
+    const place = (id: string, beforeId: string | null) =>
+      t.api('POST', `/api/dashboard-tiles/${id}/move`, { beforeId });
+
+    expect((await place(d!.id, a!.id)).status).toBe(200);
+    expect(await titles()).toEqual(['D', 'A', 'B', 'C']);
+    await place(d!.id, null);
+    expect(await titles()).toEqual(['A', 'B', 'C', 'D']);
+    await place(a!.id, c!.id);
+    expect(await titles()).toEqual(['B', 'A', 'C', 'D']);
+
+    // A tile of another page is not a place on this one.
+    const other = (await pages()).find((p) => p.name === 'Başka')!;
+    const [x] = (await view(other.id)).tiles;
+    expect((await place(a!.id, x!.id)).status).toBe(404);
+    expect((await t.api('POST', `/api/dashboard-tiles/${a!.id}/move`, { beforeId: 5 })).status).toBe(400);
+    expect(await titles()).toEqual(['B', 'A', 'C', 'D']);
+  });
+
+  it('bırakılan kutucuk görülmeyen botların kutucuklarını yerinden oynatmaz', async () => {
+    const { th: a } = await quoting('Satış');
+    const { bot: depo, th: b } = await quoting('Depo');
+    const define = (th: string, titles: string[]) =>
+      say(
+        th,
+        tool('dashboard_define', {
+          name: 'Ortak',
+          tiles: titles.map((title) => ({ title, show: 'number', table: 'Teklifler' })),
+        }),
+      );
+    await define(a.id, ['S1']);
+    await define(b.id, ['D1']);
+    await define(a.id, ['S1', 'S2']);
+    await define(b.id, ['D1', 'D2']);
+    const [page] = await pages();
+    expect((await view(page!.id)).tiles.map((x) => x.title)).toEqual(['S1', 'D1', 'S2', 'D2']);
+
+    const mert = await t.person('mert');
+    await t.api('PUT', `/api/bots/${depo.id}/access`, { everyone: 'none', people: { mert: 'edit' } });
+    const seen = (await mert.api<DashboardView>('GET', `/api/dashboards/${page!.id}`)).body.tiles;
+    expect(seen.map((x) => x.title)).toEqual(['D1', 'D2']);
+    // Mert sees only Depo's tiles: putting D2 first leaves Satış's tiles in their slots.
+    const moved = await mert.api('POST', `/api/dashboard-tiles/${seen[1]!.id}/move`, {
+      beforeId: seen[0]!.id,
+    });
+    expect(moved.status).toBe(200);
+    expect((await view(page!.id)).tiles.map((x) => x.title)).toEqual(['S1', 'D2', 'S2', 'D1']);
+    // A tile Mert does not see is no place for him to drop at.
+    const s1 = (await view(page!.id)).tiles[0]!;
+    expect(
+      (await mert.api('POST', `/api/dashboard-tiles/${seen[0]!.id}/move`, { beforeId: s1.id })).status,
+    ).toBe(404);
+    // Nor may he move a tile of a bot he only talks with.
+    await t.api('PUT', `/api/bots/${depo.id}/access`, { everyone: 'none', people: { mert: 'chat' } });
+    expect(
+      (await mert.api('POST', `/api/dashboard-tiles/${seen[0]!.id}/move`, { beforeId: null })).status,
+    ).toBe(403);
   });
 });
