@@ -214,7 +214,7 @@ describe('botun bilgisayarı', () => {
     return typeof r === 'string' ? r : r.text;
   };
 
-  it('ekrana kartsız bakar; masaüstünü botun klasörleriyle açar ve sunucu kabuğunu kapatır', async () => {
+  it('ekrana kartsız bakar; masaüstünü botun klasörleriyle açar, sunucu kabuğunu açık bırakır', async () => {
     const info = await waitFor(async () => {
       const r = (await t.api<ServerInfo>('GET', '/api/info')).body;
       return r.computer.status === 'ok' && r;
@@ -223,10 +223,17 @@ describe('botun bilgisayarı', () => {
 
     const bot = await t.bot();
     const thread = await main(bot.id);
+    // A turn that only talks or runs plain commands uses this server's shell: the desktop stays off.
+    await t.send(thread.id, 'merhaba');
+    await t.services.turns.idle();
+    expect(t.engine.requests.at(-1)!.shell).toBe('sandbox');
+    expect(tool('run_command')).toBeDefined();
+    expect(fake.starts).toHaveLength(0);
+
     await t.send(thread.id, '[araç:computer_screenshot]');
     await t.services.turns.idle();
     expect((await t.messages(thread.id)).at(-1)!.text).toContain('[1 görüntü]');
-    expect(t.engine.requests.at(-1)!.shell).toBe('computer');
+    expect(t.engine.requests.at(-1)!.shell).toBe('sandbox');
 
     const root = join(t.dataDir, 'workspaces');
     expect(fake.starts).toHaveLength(1);
@@ -243,6 +250,32 @@ describe('botun bilgisayarı', () => {
     expect(fake.calls.find((c) => c.op === 'action')!.body).toMatchObject({ type: 'click', x: 10, y: 20 });
     expect(await tool('computer_click').gated!({ x: 1, y: 1, sends: true })).toBe(true);
     expect(await tool('computer_click').gated!({ x: 1, y: 1 })).toBe(false);
+  });
+
+  it('sunucudaki Bash masaüstündekiyle aynı kurallarla sorar ve masaüstünü açmaz', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    // A plain read of its own folder needs no card; a command reaching a host asks, as Bash.
+    await t.send(thread.id, '[izin:Bash {"command":"ls"}]');
+    await t.services.turns.idle();
+    expect((await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body).toEqual([]);
+    await t.send(thread.id, '[izin:Bash {"command":"curl -s https://ornek.test"}]');
+    const card = await waitFor(
+      async () => (await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body[0],
+    );
+    expect(card).toMatchObject({ toolName: 'Bash', input: { command: 'curl -s https://ornek.test' } });
+    await t.api('POST', `/api/approvals/${card.id}`, { decision: 'allow' });
+    await t.services.turns.idle();
+    expect(fake.starts).toHaveLength(0);
+  });
+
+  it('sunucu kabuğu burada açılamıyorsa komutlar masaüstünde çalışır', async () => {
+    t.services.ctx.shellUnavailable = () => true;
+    const bot = await t.bot();
+    await t.send((await main(bot.id)).id, 'merhaba');
+    await t.services.turns.idle();
+    expect(t.engine.requests.at(-1)!.shell).toBe('computer');
+    expect(tool('run_command')).toBeDefined();
   });
 
   it('komutu Bash kartıyla sorar ve konuşmanın klasöründe çalıştırır', async () => {
