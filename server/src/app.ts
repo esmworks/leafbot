@@ -217,7 +217,19 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
   const personComputer = config.personComputer ? PersonComputer.start(config.personComputer) : null;
   const macs = new MacBridge();
   const phones = new PhoneBridge();
-  const ctx: Ctx = { db: db.db, bus, config, browser, computer, egress, personComputer, macs, phones };
+  const ctx: Ctx = {
+    db: db.db,
+    bus,
+    config,
+    browser,
+    computer,
+    egress,
+    personComputer,
+    macs,
+    phones,
+    // Read once a turn runs, after the startup check below has answered.
+    shellUnavailable: () => shellSandbox.status === 'unavailable',
+  };
   const accessKey = loadAccessKey(config);
   setToolCallTimeout(config.mcpCallTimeoutMs);
   const auth = new Auth(db.db, accessKey);

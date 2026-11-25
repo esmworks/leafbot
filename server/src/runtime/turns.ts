@@ -1675,14 +1675,16 @@ export class TurnManager {
     let stepped = false;
     // The run started over: the next words shown replace the earlier attempt's on screen.
     let restart = false;
-    // With a desktop, commands run there (run_command) instead of in this server's sandbox; a bot
-    // with its own project folder keeps the sandbox, since the desktop cannot see that folder.
     // Whether a step that changes something (not a read) was let through in this turn.
     let acted = false;
-    // The desktop has its own way out to the internet, so a bot with the internet off keeps to the
-    // sandbox here, where every host a command reaches is decided below.
+    // Commands run in this server's sandbox, also for a bot with a desktop: waking a whole desktop
+    // for an `ls` or a short script kept it up for nothing. The desktop's run_command stays for
+    // what only it has (its programs, git to GitHub with the team's key). Where the sandbox cannot
+    // start here, a bot with a desktop runs every command there instead, as it has no other shell.
     const shell: 'computer' | 'sandbox' =
-      this.ctx.computer && !bot.projectDir && bot.internet ? 'computer' : 'sandbox';
+      this.ctx.computer && !bot.projectDir && bot.internet && this.ctx.shellUnavailable?.()
+        ? 'computer'
+        : 'sandbox';
     // The card the person answered yes on before this bot first used their Mac in this turn; later
     // steps on it go by that answer (see `onMac` below).
     let macApproval: string | null = null;

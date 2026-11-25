@@ -17,6 +17,11 @@ export interface Ctx {
   /** The bots' desktops; null when no computer service is configured. */
   computer: ComputerService | null;
   /**
+   * Whether this server's command sandbox is known not to start here; a bot with a desktop then
+   * runs its commands there instead.
+   */
+  shellUnavailable?: () => boolean;
+  /**
    * The owner's Mac when the server runs on it, for the bots they allow to use it; null where the
    * server runs elsewhere.
    */
