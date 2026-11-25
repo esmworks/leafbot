@@ -63,22 +63,33 @@ export function useTileDrag(pageId: string, scroller: React.RefObject<HTMLElemen
     if ((e.target as Element).closest(OWN_PRESS)) return;
     const startX = e.clientX;
     const startY = e.clientY;
+    let x = startX;
+    let y = startY;
     let started = false;
     let target: Target | null = null;
+    let edge = 0;
 
+    const aim = () => {
+      target = targetAt(x, y, tile.id, target);
+      setDrag({ tile, x, y, target });
+    };
     const move = (ev: PointerEvent) => {
+      x = ev.clientX;
+      y = ev.clientY;
       if (!started) {
-        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < THRESHOLD) return;
+        if (Math.hypot(x - startX, y - startY) < THRESHOLD) return;
         started = true;
         // The press began selecting the tile's text; the tile moves instead.
         window.getSelection()?.removeAllRanges();
         document.body.style.cursor = 'grabbing';
         document.body.style.userSelect = 'none';
+        // A page of tiles runs past the window: held near its top or bottom edge, it keeps
+        // scrolling without the pointer moving, and the place is read again as tiles pass under it.
+        edge = window.setInterval(() => autoScroll(scroller.current, y), 16);
+        scroller.current?.addEventListener('scroll', aim);
       }
       ev.preventDefault();
-      autoScroll(scroller.current, ev.clientY);
-      target = targetAt(ev.clientX, ev.clientY, tile.id, target);
-      setDrag({ tile, x: ev.clientX, y: ev.clientY, target });
+      aim();
     };
     // Leaving the window (e.g. switching apps) cancels the drag; only a release drops.
     const end = (ev: Event) => {
@@ -87,6 +98,8 @@ export function useTileDrag(pageId: string, scroller: React.RefObject<HTMLElemen
       window.removeEventListener('pointercancel', end);
       window.removeEventListener('blur', end);
       if (!started) return;
+      window.clearInterval(edge);
+      scroller.current?.removeEventListener('scroll', aim);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       setDrag(null);
@@ -116,7 +129,8 @@ export function useTileDrag(pageId: string, scroller: React.RefObject<HTMLElemen
   const ghost = drag && (
     <div
       className="pointer-events-none fixed z-50 max-w-64 truncate rounded-lg border bg-popover px-3 py-1.5 text-sm font-medium text-popover-foreground shadow-lg"
-      style={{ left: drag.x + 12, top: drag.y + 12 }}
+      // Beside the pointer, and above it near the window's bottom edge where the page scrolls.
+      style={{ left: drag.x + 12, top: drag.y > window.innerHeight - 60 ? drag.y - 40 : drag.y + 12 }}
     >
       {drag.tile.title}
     </div>
