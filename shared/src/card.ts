@@ -5,6 +5,8 @@
  * once, so the web and phone renderers and the server read checked trees only.
  */
 
+import { CHART_COLOR_ORDER, chartColor, type ChartSeriesSpec } from './card-chart';
+
 export const CARD_VERSION = 1;
 
 /** Past any of these a card is refused, with the path of the problem. Strings are cut instead. */
@@ -23,6 +25,9 @@ export const CARD_LIMITS = {
   payloadBytes: 2_000,
   value: 4_000,
   fallback: 1_500,
+  chartPoints: 120,
+  chartSeries: 6,
+  chartRanges: 4,
 } as const;
 
 /** Icon names a card may use; each renderer maps them to its own set. Others are left out. */
@@ -149,7 +154,9 @@ export type CardIssue =
   | 'duplicateName'
   | 'noOptions'
   | 'secret'
-  | 'listItemOutside';
+  | 'listItemOutside'
+  | 'noData'
+  | 'badSeries';
 
 /** Why a card was refused: where (`root.children[2]`), what, and the word it is about. */
 export interface CardError {
@@ -162,7 +169,7 @@ export interface CardError {
 const ROOTS = new Set(['Card', 'ListView']);
 const FIELDS = new Set<string>(['Select', 'RadioGroup', 'Checkbox', 'Input', 'Textarea', 'DatePicker']);
 /** ChatKit components this app does not draw, and what the bot should use instead. */
-const UNSUPPORTED: Record<string, string> = { Image: 'send_file', Chart: 'show_page' };
+const UNSUPPORTED: Record<string, string> = { Image: 'send_file' };
 /** A field that asks for a secret: those go through the vault's own card, never a chat card. */
 const SECRET = /pass(word|wd|code)?\b|secret|token|api[\s_-]?key|cvv|cvc|iban|card[\s_-]?number|\bpin\b/i;
 const NAME = /^[A-Za-z_][\w.-]{0,63}$/;
@@ -189,6 +196,12 @@ const oneOf =
   (v) =>
     typeof v === 'string' && xs.includes(v) ? v : undefined;
 const bool: Read = (v) => (typeof v === 'boolean' ? v : undefined);
+/** A number, also when written as one in a string ("12.5"). */
+const num: Read = (v) => {
+  const n = typeof v === 'number' ? v : typeof v === 'string' && v.trim() ? Number(v) : NaN;
+  return Number.isFinite(n) ? n : undefined;
+};
+const color: Read = (v) => chartColor(v);
 const int =
   (min: number, max: number): Read =>
   (v) =>
@@ -320,15 +333,30 @@ const SPECS: Record<string, Spec> = {
       ariaLabel: str(CARD_LIMITS.label),
       defaultValue: str(CARD_LIMITS.label),
       direction: oneOf('row', 'col'),
+      /** `segmented`: the options side by side as one control, for a few short ones. */
+      variant: oneOf('segmented'),
     },
   },
-  Checkbox: { props: { ...field, label: str(CARD_LIMITS.title), defaultChecked: bool } },
+  Checkbox: {
+    props: {
+      ...field,
+      label: str(CARD_LIMITS.title),
+      defaultChecked: bool,
+      /** `chip`: a word that is on or off, for picking any of a few side by side. */
+      variant: oneOf('chip'),
+    },
+  },
   Input: {
     props: {
       ...field,
       inputType: oneOf('text', 'number', 'email', 'tel', 'url'),
       placeholder: str(CARD_LIMITS.label),
       defaultValue: str(CARD_LIMITS.value),
+      min: num,
+      max: num,
+      step: num,
+      /** `stepper`: a number changed with minus and plus, for a small count. */
+      variant: oneOf('stepper'),
     },
   },
   Textarea: {
@@ -341,6 +369,45 @@ const SPECS: Record<string, Spec> = {
   },
   DatePicker: {
     props: { ...field, placeholder: str(CARD_LIMITS.label), defaultValue: day, min: day, max: day },
+  },
+  /** Bars, lines and areas over a few rows of data; `data`, `series` and `xAxis` are read apart. */
+  Chart: {
+    props: {
+      height: int(120, 400),
+      showYAxis: bool,
+      showLegend: bool,
+      showTooltip: bool,
+      flex: box.flex,
+    },
+  },
+  /** One headline number: what it counts, the value, and how it moved. */
+  Stat: {
+    props: {
+      label: str(CARD_LIMITS.label),
+      value: str(CARD_LIMITS.label),
+      delta: str(CARD_LIMITS.label),
+      trend: oneOf('up', 'down', 'flat'),
+      tone: oneOf('success', 'danger', 'warning', 'secondary'),
+      caption: str(CARD_LIMITS.title),
+      icon,
+      color,
+      flex: box.flex,
+    },
+    required: ['label', 'value'],
+  },
+  /** How far along something is, as a bar or a ring. */
+  Progress: {
+    props: {
+      value: num,
+      max: num,
+      label: str(CARD_LIMITS.label),
+      caption: str(CARD_LIMITS.title),
+      variant: oneOf('bar', 'ring'),
+      size: oneOf('sm', 'md', 'lg'),
+      color,
+      flex: box.flex,
+    },
+    required: ['value'],
   },
 };
 
@@ -392,6 +459,86 @@ function options(raw: unknown, path: string): CardOption[] {
   return out;
 }
 
+/** A row's number for a series: a number, or one written in a string; anything else is a gap. */
+const point = (v: unknown): number | null => (num(v) as number | undefined) ?? null;
+
+/**
+ * Reads a chart's data the way ChatKit writes it: `data` rows, `series` naming a key of them each,
+ * and `xAxis` naming the key read across. Only those keys are kept. A series with no number in
+ * any row is refused, as it would draw nothing.
+ */
+function chart(raw: Record<string, unknown>, path: string, node: CardNode) {
+  const rows = raw.data;
+  if (!Array.isArray(rows) || !rows.length) return refuse(`${path}.data`, 'noData');
+  if (rows.length > CARD_LIMITS.chartPoints) {
+    return refuse(`${path}.data`, 'tooManyItems', String(CARD_LIMITS.chartPoints));
+  }
+  rows.forEach((r, i) => {
+    if (!isRecord(r)) refuse(`${path}.data[${i}]`, 'notObject');
+  });
+  const records = rows as Record<string, unknown>[];
+  const list = children(raw.series);
+  if (!list.length) return refuse(`${path}.series`, 'missing', 'series');
+  if (list.length > CARD_LIMITS.chartSeries) {
+    return refuse(`${path}.series`, 'tooManyItems', String(CARD_LIMITS.chartSeries));
+  }
+  const keys = new Set<string>();
+  const specs = list.map((s, i) => {
+    const at = `${path}.series[${i}]`;
+    // A bare word is a bar series of that key.
+    const rec: Record<string, unknown> = isRecord(s) ? s : { dataKey: s };
+    const dataKey = str(64)(rec.dataKey) as string | undefined;
+    if (!dataKey?.trim()) return refuse(at, 'missing', 'dataKey');
+    if (keys.has(dataKey)) return refuse(at, 'duplicateName', dataKey);
+    keys.add(dataKey);
+    if (!records.some((r) => point(r[dataKey]) !== null)) return refuse(at, 'badSeries', dataKey);
+    const stack = str(32)(rec.stack) as string | undefined;
+    return {
+      type: (oneOf('bar', 'line', 'area')(rec.type) as ChartSeriesSpec['type'] | undefined) ?? 'bar',
+      dataKey,
+      label: (str(CARD_LIMITS.label)(rec.label) as string | undefined) ?? dataKey,
+      named: chartColor(rec.color),
+      ...(stack && { stack }),
+    };
+  });
+  // Unnamed series take the colors no other series named, in the fixed order.
+  const taken = new Set(specs.map((s) => s.named).filter(Boolean));
+  const free = CHART_COLOR_ORDER.filter((c) => !taken.has(c));
+  let next = 0;
+  const series: ChartSeriesSpec[] = specs.map(({ named, ...s }) => ({
+    ...s,
+    color: named ?? free[next++ % Math.max(1, free.length)] ?? CHART_COLOR_ORDER[0]!,
+  }));
+  const axis: Record<string, unknown> = isRecord(raw.xAxis)
+    ? raw.xAxis
+    : raw.xAxis !== undefined
+      ? { dataKey: raw.xAxis }
+      : {};
+  // Without an axis key, the first key that is not a series names the points; else their number.
+  let xKey = str(64)(axis.dataKey) as string | undefined;
+  if (!xKey || keys.has(xKey)) xKey = Object.keys(records[0]!).find((k) => !keys.has(k));
+  const indexed = !xKey;
+  const x = xKey ?? '#';
+  node.data = records.map((r, i) => {
+    const out: Record<string, string | number | null> = {
+      [x]: indexed ? String(i + 1) : ((str(CARD_LIMITS.label)(r[x]) as string | undefined) ?? null),
+    };
+    for (const s of series) out[s.dataKey] = point(r[s.dataKey]);
+    return out;
+  });
+  node.series = series;
+  node.xAxis = { dataKey: x, ...(axis.hide === true && { hide: true }) };
+  if (Array.isArray(raw.ranges)) {
+    const ranges = [
+      ...new Set(raw.ranges.map((v) => int(2, CARD_LIMITS.chartPoints)(v) as number | undefined)),
+    ]
+      .filter((v): v is number => v !== undefined)
+      .sort((a, b) => a - b)
+      .slice(0, CARD_LIMITS.chartRanges);
+    if (ranges.length) node.ranges = ranges;
+  }
+}
+
 interface Walk {
   nodes: number;
   names: Set<string>;
@@ -441,6 +588,11 @@ function walk(raw: unknown, path: string, depth: number, w: Walk, parent: string
   if ((type === 'ListViewItem' && raw.onClickAction) || (type === 'Form' && raw.onSubmitAction)) {
     const key = type === 'Form' ? 'onSubmitAction' : 'onClickAction';
     node[key] = action(raw[key], `${path}.${key}`);
+  }
+  if (type === 'Chart') chart(raw, path, node);
+  if (type === 'Progress' && !((node.max as number | undefined)! > 0)) delete node.max;
+  if (type === 'Input' && node.inputType !== 'number') {
+    for (const key of ['min', 'max', 'step', 'variant']) delete node[key];
   }
   if (type === 'Card') {
     for (const key of ['confirm', 'cancel'] as const) {
@@ -541,6 +693,33 @@ export function cardFields(card: Card): CardField[] {
   return out;
 }
 
+/** A headline number or a meter in words: "Signups: 1,284 (+12%)", "Launch beta: 9/10". */
+function meterText(n: CardNode): string {
+  if (n.type === 'Stat') {
+    return `${String(n.label)}: ${String(n.value)}${n.delta ? ` (${String(n.delta)})` : ''}`;
+  }
+  const value = n.value as number;
+  const max = n.max as number | undefined;
+  const amount = max && max !== 100 ? `${value}/${max}` : `${Math.round(value)}%`;
+  return n.label ? `${String(n.label)}: ${amount}` : amount;
+}
+
+/** A chart in a line per series: where it starts and ends, and its range, over the points shown. */
+function chartText(n: CardNode): string[] {
+  const data = n.data as Record<string, string | number | null>[];
+  const x = (n.xAxis as { dataKey: string }).dataKey;
+  const first = data[0]?.[x];
+  const last = data[data.length - 1]?.[x];
+  const span = first && last && first !== last ? ` · ${String(first)} – ${String(last)}` : '';
+  return (n.series as ChartSeriesSpec[]).map((s) => {
+    const values = data.map((r) => r[s.dataKey]).filter((v): v is number => typeof v === 'number');
+    const lo = Math.min(...values);
+    const hi = Math.max(...values);
+    const range = values.length > 2 ? ` (${lo}–${hi})` : '';
+    return `${s.label}: ${values[0]} → ${values[values.length - 1]}${range}${span}`;
+  });
+}
+
 /** The words a row of a list or a group shows, joined on one line. */
 function inlineText(node: CardNode): string {
   const parts: string[] = [];
@@ -549,6 +728,7 @@ function inlineText(node: CardNode): string {
       parts.push(n.value);
     }
     if (n.type === 'Badge') parts.push(String(n.label));
+    if (n.type === 'Stat' || n.type === 'Progress') parts.push(meterText(n));
   });
   return parts.join(' · ');
 }
@@ -633,12 +813,16 @@ export function cardDefaults(card: Card): CardValues {
   for (const f of cardFields(card)) {
     if (f.type === 'Checkbox') out[f.name] = f.node.defaultChecked === true;
     else if (typeof f.node.defaultValue === 'string') out[f.name] = f.node.defaultValue;
+    // A stepper always shows a number, so the one it shows is the one it sends.
+    else if (f.node.variant === 'stepper') {
+      out[f.name] = String(typeof f.node.min === 'number' ? Math.max(0, f.node.min) : 0);
+    }
   }
   return out;
 }
 
 export type CardValueIssue =
-  'required' | 'notOption' | 'badDate' | 'outOfRange' | 'tooLong' | 'notNumber' | 'badEmail';
+  'required' | 'notOption' | 'badDate' | 'outOfRange' | 'tooLong' | 'notNumber' | 'numberRange' | 'badEmail';
 
 /**
  * The values a press sends, read against the fields it covers: a choice must be one of the
@@ -675,7 +859,12 @@ export function checkCardValues(
       const { min, max } = f.node as { min?: string; max?: string };
       if ((min && v < min) || (max && v > max)) return { ok: false, field: f, issue: 'outOfRange' };
     } else if (f.type === 'Input' && f.node.inputType === 'number') {
-      if (!Number.isFinite(Number(v))) return { ok: false, field: f, issue: 'notNumber' };
+      const n = Number(v);
+      if (!Number.isFinite(n)) return { ok: false, field: f, issue: 'notNumber' };
+      const { min, max } = f.node as { min?: number; max?: number };
+      if ((min !== undefined && n < min) || (max !== undefined && n > max)) {
+        return { ok: false, field: f, issue: 'numberRange' };
+      }
     } else if (f.type === 'Input' && f.node.inputType === 'email') {
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return { ok: false, field: f, issue: 'badEmail' };
     }
@@ -720,6 +909,11 @@ export function cardText(card: Card): string {
         return String(n.value);
       case 'Badge':
         return `[${String(n.label)}]`;
+      case 'Stat':
+      case 'Progress':
+        return meterText(n);
+      case 'Chart':
+        return chartText(n).join('\n');
       case 'Button':
         return n.label ? `[${String(n.label)}]` : null;
       case 'Checkbox':
@@ -751,9 +945,10 @@ export function cardText(card: Card): string {
       });
       const joined = [inline, ...buttons].filter(Boolean).join(' ');
       if (joined) lines.push(n.type === 'ListViewItem' ? `• ${joined}` : joined);
-      // Fields in a row still read one per line.
+      // Fields and charts in a row still read one per line.
       visit(n, (x) => {
         if (FIELDS.has(x.type)) lines.push(line(x)!);
+        if (x.type === 'Chart') lines.push(...chartText(x));
       });
       return;
     }

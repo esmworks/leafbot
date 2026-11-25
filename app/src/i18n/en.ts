@@ -966,6 +966,13 @@ export const en: Catalog<MessageKey> = {
   'card.value.tooLong': '"{field}" is too long',
   'card.value.notNumber': '"{field}" must be a number',
   'card.value.badEmail': '"{field}" must be an email address',
+  'card.value.numberRange': '"{field}" is outside the range allowed',
+  'card.rangeAll': 'All',
+  'card.rangeLast': 'Last {n}',
+  'card.chartTable': 'Show as a table',
+  'card.chartPlot': 'Show as a chart',
+  'card.less': 'Decrease',
+  'card.more': 'Increase',
   'offer.declined': 'You turned it down',
   'chat.pastedName': 'pasted-text.txt',
   'chat.pastedAsFile': {

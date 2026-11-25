@@ -32,6 +32,7 @@ import { locale, t } from '@/i18n';
 import { dayAllowed, monthGrid, monthOf, shiftMonth } from '@/lib/calendar';
 import { useApi } from '@/lib/server';
 import { useColors, type Colors } from '@/lib/theme';
+import { CardChart, CardProgress, CardStat } from './CardChart';
 
 /** ChatKit's icon names drawn with the phone's icon set; the nearest one where it has none. */
 const ICONS: Record<string, IconName> = {
@@ -449,6 +450,12 @@ function Part({ node, ctx }: { node: CardNode; ctx: Ctx }): ReactNode {
         </View>
       );
     }
+    case 'Chart':
+      return <CardChart node={node} c={c} />;
+    case 'Stat':
+      return <CardStat node={node} icon={ICONS[str(node.icon)]} c={c} />;
+    case 'Progress':
+      return <CardProgress node={node} c={c} />;
     default:
       return <Field node={node} ctx={ctx} />;
   }
@@ -467,6 +474,7 @@ function Field({ node, ctx }: { node: CardNode; ctx: Ctx }) {
   switch (node.type) {
     case 'Input':
     case 'Textarea': {
+      if (node.inputType === 'number' && node.variant === 'stepper') return <Stepper node={node} ctx={ctx} />;
       const multi = node.type === 'Textarea';
       const kind = str(node.inputType) as keyof typeof KEYBOARD;
       return (
@@ -485,6 +493,25 @@ function Field({ node, ctx }: { node: CardNode; ctx: Ctx }) {
       );
     }
     case 'Checkbox':
+      if (node.variant === 'chip') {
+        const on = value === true;
+        return (
+          <Pressable
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: on, disabled }}
+            disabled={disabled}
+            onPress={() => ctx.set(name, !on)}
+            style={[
+              styles.chip,
+              { borderColor: on ? c.primary : c.outline, opacity: disabled ? 0.6 : 1 },
+              on && { backgroundColor: c.muted },
+            ]}
+          >
+            {on ? <Feather name="check" size={14} color={c.foreground} /> : null}
+            <Text style={[styles.body, { color: c.foreground }, on && styles.strong]}>{str(node.label)}</Text>
+          </Pressable>
+        );
+      }
       return (
         <Pressable
           accessibilityRole="checkbox"
@@ -499,6 +526,36 @@ function Field({ node, ctx }: { node: CardNode; ctx: Ctx }) {
       );
     case 'RadioGroup': {
       const options = (node.options as CardOption[]) ?? [];
+      if (node.variant === 'segmented') {
+        return (
+          <View accessibilityRole="radiogroup" style={[styles.segments, { backgroundColor: c.muted }]}>
+            {options.map((o) => {
+              const on = text === o.value;
+              return (
+                <Pressable
+                  key={o.value}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: on, disabled: disabled || o.disabled }}
+                  disabled={disabled || o.disabled}
+                  onPress={() => ctx.set(name, o.value)}
+                  style={[styles.segment, on && { backgroundColor: c.card }, disabled && { opacity: 0.6 }]}
+                >
+                  <Text
+                    numberOfLines={1}
+                    style={[
+                      styles.body,
+                      { color: on ? c.foreground : c.mutedForeground },
+                      on && styles.strong,
+                    ]}
+                  >
+                    {o.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        );
+      }
       return (
         <View
           accessibilityRole="radiogroup"
@@ -589,6 +646,49 @@ function Field({ node, ctx }: { node: CardNode; ctx: Ctx }) {
     default:
       return null;
   }
+}
+
+/** A small count changed with minus and plus, kept within the card's bounds. */
+function Stepper({ node, ctx }: { node: CardNode; ctx: Ctx }) {
+  const { c } = ctx;
+  const name = str(node.name);
+  const disabled = ctx.locked || node.disabled === true;
+  const min = typeof node.min === 'number' ? node.min : undefined;
+  const max = typeof node.max === 'number' ? node.max : undefined;
+  const step = typeof node.step === 'number' && node.step > 0 ? node.step : 1;
+  const raw = ctx.values[name];
+  const current = typeof raw === 'string' && raw.trim() && Number.isFinite(Number(raw)) ? Number(raw) : null;
+  const shown = current ?? min ?? 0;
+  const move = (dir: 1 | -1) => {
+    let next = Number((shown + dir * step).toPrecision(12));
+    if (min !== undefined) next = Math.max(min, next);
+    if (max !== undefined) next = Math.min(max, next);
+    ctx.set(name, String(next));
+  };
+  const button = (dir: 1 | -1, off: boolean) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={dir < 0 ? t('card.less') : t('card.more')}
+      disabled={disabled || off}
+      onPress={() => move(dir)}
+      style={[styles.stepButton, { borderColor: c.outline, opacity: disabled || off ? 0.4 : 1 }]}
+    >
+      <Feather name={dir < 0 ? 'minus' : 'plus'} size={18} color={c.foreground} />
+    </Pressable>
+  );
+  return (
+    <View style={styles.stepper}>
+      {button(-1, min !== undefined && shown <= min)}
+      <TextInput
+        value={typeof raw === 'string' ? raw : String(shown)}
+        editable={!disabled}
+        onChangeText={(v) => ctx.set(name, v)}
+        keyboardType="numeric"
+        style={[styles.stepValue, { color: c.foreground }]}
+      />
+      {button(1, max !== undefined && shown >= max)}
+    </View>
+  );
 }
 
 const intl = () => INTL_LOCALE[locale];
@@ -729,6 +829,35 @@ const styles = StyleSheet.create({
   check: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
   radioRow: { flexDirection: 'row', flexWrap: 'wrap', columnGap: 16 },
   radioCol: { gap: 2 },
+  strong: { fontWeight: '600' },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    alignSelf: 'flex-start',
+  },
+  segments: { flexDirection: 'row', alignSelf: 'stretch', borderRadius: 10, padding: 3 },
+  segment: { flex: 1, alignItems: 'center', paddingVertical: 7, paddingHorizontal: 8, borderRadius: 8 },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 10, alignSelf: 'flex-start' },
+  stepButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepValue: {
+    minWidth: 44,
+    textAlign: 'center',
+    fontSize: 18,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
+  },
   scrim: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: 'rgba(0,0,0,0.4)' },
   month: {
     position: 'absolute',

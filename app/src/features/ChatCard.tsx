@@ -46,6 +46,7 @@ import {
   Images,
   Info,
   KeyRound,
+  Minus,
   Layers,
   LifeBuoy,
   Lightbulb,
@@ -86,6 +87,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { CardChart, CardProgress, CardStat } from './CardChart';
 
 /** ChatKit's icon names drawn with this app's icon set. */
 const ICONS: Record<string, LucideIcon> = {
@@ -528,6 +530,12 @@ function Part({ node, ctx }: { node: CardNode; ctx: Ctx }): ReactNode {
       );
     case 'Button':
       return <CardButton node={node} ctx={ctx} />;
+    case 'Chart':
+      return <CardChart node={node} />;
+    case 'Stat':
+      return <CardStat node={node} icon={ICONS[str(node.icon)]} />;
+    case 'Progress':
+      return <CardProgress node={node} />;
     default:
       return <Field node={node} ctx={ctx} />;
   }
@@ -602,6 +610,34 @@ function Field({ node, ctx }: { node: CardNode; ctx: Ctx }) {
     }
     case 'RadioGroup': {
       const options = (node.options as CardOption[]) ?? [];
+      if (node.variant === 'segmented') {
+        return (
+          <div
+            role="radiogroup"
+            id={id}
+            aria-label={str(node.ariaLabel) || undefined}
+            className="flex w-full min-w-0 rounded-lg bg-muted p-1"
+          >
+            {options.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                role="radio"
+                aria-checked={text === o.value}
+                disabled={disabled || o.disabled}
+                onClick={() => ctx.set(name, o.value)}
+                title={o.description}
+                className={cn(
+                  'min-w-0 flex-1 truncate rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors enabled:hover:text-foreground disabled:opacity-60',
+                  text === o.value && 'bg-background font-medium text-foreground shadow-sm',
+                )}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        );
+      }
       return (
         <div
           role="radiogroup"
@@ -632,6 +668,24 @@ function Field({ node, ctx }: { node: CardNode; ctx: Ctx }) {
       );
     }
     case 'Checkbox':
+      if (node.variant === 'chip') {
+        return (
+          <button
+            id={id}
+            type="button"
+            aria-pressed={value === true}
+            disabled={disabled}
+            onClick={() => ctx.set(name, value !== true)}
+            className={cn(
+              'flex w-fit shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors enabled:hover:bg-accent disabled:opacity-60',
+              value === true && 'border-primary bg-primary/10 font-medium enabled:hover:bg-primary/15',
+            )}
+          >
+            {value === true && <Check className="size-3.5" aria-hidden />}
+            {str(node.label)}
+          </button>
+        );
+      }
       return (
         <label className="flex items-center gap-2 text-sm">
           <input
@@ -673,6 +727,7 @@ function Field({ node, ctx }: { node: CardNode; ctx: Ctx }) {
         />
       );
     case 'Input':
+      if (node.inputType === 'number' && node.variant === 'stepper') return <Stepper node={node} ctx={ctx} />;
       return (
         <Input
           id={id}
@@ -687,4 +742,55 @@ function Field({ node, ctx }: { node: CardNode; ctx: Ctx }) {
     default:
       return null;
   }
+}
+
+/** A small count changed with minus and plus, kept within the card's bounds. */
+function Stepper({ node, ctx }: { node: CardNode; ctx: Ctx }) {
+  const t = useT();
+  const name = str(node.name);
+  const disabled = ctx.locked || node.disabled === true;
+  const min = typeof node.min === 'number' ? node.min : undefined;
+  const max = typeof node.max === 'number' ? node.max : undefined;
+  const step = typeof node.step === 'number' && node.step > 0 ? node.step : 1;
+  const raw = ctx.values[name];
+  const current = typeof raw === 'string' && raw.trim() && Number.isFinite(Number(raw)) ? Number(raw) : null;
+  const shown = current ?? min ?? 0;
+  const move = (dir: 1 | -1) => {
+    let next = Number((shown + dir * step).toPrecision(12));
+    if (min !== undefined) next = Math.max(min, next);
+    if (max !== undefined) next = Math.min(max, next);
+    ctx.set(name, String(next));
+  };
+  return (
+    <div className="flex w-fit items-center gap-2">
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        aria-label={t('card.less')}
+        disabled={disabled || (min !== undefined && shown <= min)}
+        onClick={() => move(-1)}
+      >
+        <Minus />
+      </Button>
+      <input
+        id={ctx.fieldId(name)}
+        inputMode="decimal"
+        value={typeof raw === 'string' ? raw : String(shown)}
+        disabled={disabled}
+        onChange={(e) => ctx.set(name, e.target.value)}
+        className="w-12 bg-transparent text-center text-lg font-semibold tabular-nums outline-none"
+      />
+      <Button
+        type="button"
+        size="icon"
+        variant="outline"
+        aria-label={t('card.more')}
+        disabled={disabled || (max !== undefined && shown >= max)}
+        onClick={() => move(1)}
+      >
+        <Plus />
+      </Button>
+    </div>
+  );
 }

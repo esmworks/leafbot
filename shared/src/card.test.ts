@@ -84,9 +84,9 @@ describe('parseCard', () => {
       ok: false,
       error: { issue: 'unknownType', detail: 'Video', path: 'root.children[0]' },
     });
-    expect(parseCard({ type: 'Card', children: [{ type: 'Chart', data: [] }] })).toMatchObject({
+    expect(parseCard({ type: 'Card', children: [{ type: 'Image', src: 'x.png' }] })).toMatchObject({
       ok: false,
-      error: { issue: 'unsupported', detail: 'Chart:show_page' },
+      error: { issue: 'unsupported', detail: 'Image:send_file' },
     });
   });
 
@@ -324,5 +324,145 @@ describe('storedCard', () => {
     expect(storedCard(JSON.parse(JSON.stringify(card)))).toEqual(card);
     expect(storedCard({ v: 2, root: {} })).toBeNull();
     expect(storedCard('x')).toBeNull();
+  });
+});
+
+const signups = {
+  type: 'Chart',
+  data: [
+    { day: 'Nov 1', signups: 120, visits: '900' },
+    { day: 'Nov 2', signups: 98, visits: 1000 },
+    { day: 'Nov 3', signups: 'n/a', visits: 1100 },
+    { day: 'Nov 4', signups: 208, visits: 1200, extra: 'dropped' },
+  ],
+  series: [
+    { type: 'line', dataKey: 'signups', label: 'Signups' },
+    { type: 'bar', dataKey: 'visits', color: 'purple-500' },
+  ],
+  xAxis: { dataKey: 'day' },
+  ranges: [2, 2, 30, 'x'],
+};
+
+describe('charts and meters', () => {
+  it("keeps a chart in ChatKit's shape, with only the keys it draws", () => {
+    const chart = ok(signups).root.children![0]!;
+    expect(chart.series).toEqual([
+      { type: 'line', dataKey: 'signups', label: 'Signups', color: 'blue' },
+      { type: 'bar', dataKey: 'visits', label: 'visits', color: 'violet' },
+    ]);
+    expect(chart.data).toEqual([
+      { day: 'Nov 1', signups: 120, visits: 900 },
+      { day: 'Nov 2', signups: 98, visits: 1000 },
+      { day: 'Nov 3', signups: null, visits: 1100 },
+      { day: 'Nov 4', signups: 208, visits: 1200 },
+    ]);
+    expect(chart.xAxis).toEqual({ dataKey: 'day' });
+    expect(chart.ranges).toEqual([2, 30]);
+  });
+
+  it('gives unnamed series the colors left in the fixed order', () => {
+    const chart = ok({
+      type: 'Chart',
+      data: [{ a: 1, b: 2, c: 3 }],
+      series: [{ dataKey: 'a' }, { dataKey: 'b', color: 'blue' }, { dataKey: 'c' }],
+    }).root.children![0]!;
+    expect((chart.series as { color: string }[]).map((s) => s.color)).toEqual(['orange', 'blue', 'aqua']);
+    // No axis key and none left over: the points are numbered.
+    expect(chart.xAxis).toEqual({ dataKey: '#' });
+    expect((chart.data as Record<string, unknown>[])[0]!['#']).toBe('1');
+  });
+
+  it('refuses a chart that would draw nothing, or too much', () => {
+    expect(parseCard({ type: 'Chart', data: [], series: ['a'] })).toMatchObject({
+      ok: false,
+      error: { issue: 'noData' },
+    });
+    expect(parseCard({ type: 'Chart', data: [{ a: 'x' }], series: ['a'] })).toMatchObject({
+      ok: false,
+      error: { issue: 'badSeries', detail: 'a', path: 'root.children[0].series[0]' },
+    });
+    const rows = Array.from({ length: CARD_LIMITS.chartPoints + 1 }, (_, i) => ({ a: i }));
+    expect(parseCard({ type: 'Chart', data: rows, series: ['a'] })).toMatchObject({
+      ok: false,
+      error: { issue: 'tooManyItems' },
+    });
+  });
+
+  it('writes a chart as a line per series, and meters as their numbers', () => {
+    const card = ok({
+      type: 'Card',
+      children: [
+        {
+          type: 'Row',
+          children: [{ type: 'Stat', label: 'Signups', value: 1284, delta: '+12%', trend: 'up' }],
+        },
+        { type: 'Progress', label: 'Launch beta', value: 9, max: 10, variant: 'ring' },
+        { type: 'Progress', label: 'Docs', value: 70 },
+        signups,
+      ],
+    });
+    expect(cardText(card)).toBe(
+      [
+        'Signups: 1284 (+12%)',
+        'Launch beta: 9/10',
+        'Docs: 70%',
+        'Signups: 120 → 208 (98–208) · Nov 1 – Nov 4',
+        'visits: 900 → 1200 (900–1200) · Nov 1 – Nov 4',
+      ].join('\n'),
+    );
+  });
+
+  it('refuses a meter without its number', () => {
+    expect(parseCard({ type: 'Progress', value: 'most' })).toMatchObject({
+      ok: false,
+      error: { issue: 'missing', detail: 'value' },
+    });
+  });
+});
+
+describe('field variants', () => {
+  const rsvp = ok({
+    type: 'Card',
+    children: [
+      {
+        type: 'RadioGroup',
+        name: 'ticket',
+        variant: 'segmented',
+        defaultValue: 'std',
+        options: [
+          { value: 'student', label: 'Student $19' },
+          { value: 'std', label: 'Standard $49' },
+        ],
+      },
+      { type: 'Input', name: 'guests', inputType: 'number', variant: 'stepper', min: 0, max: 4 },
+      { type: 'Input', name: 'note', variant: 'stepper', min: 3 },
+      { type: 'Checkbox', name: 'design', label: 'Design', variant: 'chip' },
+      { type: 'Button', label: 'Register', onClickAction: { type: 'rsvp' } },
+    ],
+  });
+
+  it('keeps variants and leaves number bounds off text inputs', () => {
+    const [ticket, guests, note, design] = rsvp.root.children!;
+    expect(ticket).toMatchObject({ variant: 'segmented' });
+    expect(guests).toMatchObject({ variant: 'stepper', min: 0, max: 4 });
+    expect(note).not.toHaveProperty('variant');
+    expect(note).not.toHaveProperty('min');
+    expect(design).toMatchObject({ variant: 'chip' });
+  });
+
+  it('starts a stepper at the number it shows', () => {
+    expect(cardDefaults(rsvp)).toEqual({ ticket: 'std', guests: '0', design: false });
+  });
+
+  it('holds a number within its bounds', () => {
+    const press = cardPress(rsvp, rsvp.root.children![4]!.id)!;
+    expect(checkCardValues(press, { ticket: 'std', guests: '5' })).toMatchObject({
+      ok: false,
+      issue: 'numberRange',
+    });
+    expect(checkCardValues(press, { ticket: 'std', guests: '2', design: true })).toEqual({
+      ok: true,
+      values: { ticket: 'std', guests: '2', note: '', design: true },
+    });
   });
 });
