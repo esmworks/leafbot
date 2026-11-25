@@ -552,6 +552,8 @@ export const en: Catalog<MessageKey> = {
   'settings.keywords.connection':
     'server, address, devices, sessions, sign out, sandbox, browser, iphone, phone, notifications, apple, apns',
   'settings.keywords.permissions': 'approvals, rules, allow, ask, always, block, never, deny',
+  'settings.keywords.computer':
+    'mac, screen recording, accessibility, mouse, keyboard, permission, system settings, windows',
   'settings.keywords.vault':
     'passwords, logins, two-step codes, totp, secrets, api keys, tokens, shared pages, links',
   'settings.keywords.memory': 'notes, remember, forget',
@@ -2008,7 +2010,28 @@ export const en: Catalog<MessageKey> = {
   'bot.personComputerMissing': 'macOS has not allowed it yet: {what}',
   'bot.personComputerAccessibility': 'Accessibility',
   'bot.personComputerScreen': 'Screen Recording',
-  'bot.personComputerAllow': 'Ask for permission',
+  'bot.personComputerSettings': 'Set up permissions',
+  'computerUse.permissions': 'macOS permissions',
+  'computerUse.screen': 'Screen Recording',
+  'computerUse.screenHint': 'Bots can look at your screen for the work you ask of them.',
+  'computerUse.accessibility': 'Accessibility',
+  'computerUse.accessibilityHint': 'Bots can use the mouse and keyboard.',
+  'computerUse.granted': 'Allowed',
+  'computerUse.grant': 'Allow',
+  'computerUse.manage': 'Manage',
+  'computerUse.checkAgain': 'Check again',
+  'computerUse.macosHint':
+    "macOS manages these permissions. The button opens System Settings at the right list; turn Leaf Bot's switch on there. After Screen Recording is turned on, macOS may ask to reopen Leaf Bot; the permission shows here after that.",
+  'computerUse.botsHint':
+    'A bot uses this computer only when “Can use my computer” is on in its own settings, and it asks before its first step in each piece of work.',
+  'computerUse.notConnected': 'No computer for the bots to use',
+  'computerUse.unavailable': 'This server has no computer for you.',
+  'computerUse.device': 'Connected computer: {device}',
+  'computerUse.deviceHint':
+    'The permissions are given on that computer; the buttons open System Settings there.',
+  'computerUse.windows': 'Windows asks for no separate permission',
+  'computerUse.windowsHint':
+    "Bots can see this computer's screen and use the mouse and keyboard; they cannot touch windows that run as administrator.",
   'bot.manager': 'Manager bot',
   'bot.managerHint':
     'Can write to every bot and create and edit bots. Still asks you before loosening permissions.',
@@ -2089,6 +2112,7 @@ export const en: Catalog<MessageKey> = {
   'settings.group.server': 'Server',
   'settings.tab.connection': 'Connection',
   'settings.tab.permissions': 'Permissions',
+  'settings.tab.computer': 'Computer use',
   'settings.tab.vault': 'Vault',
   'settings.tab.memory': 'Memory',
   'settings.tab.services': 'AI services',

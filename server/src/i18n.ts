@@ -1778,9 +1778,9 @@ const tr = {
   'personComputer.windowsKeys':
     "Bu bir Windows bilgisayar: kısayollarda ctrl kullan (ctrl+c, ctrl+s, alt+tab); cmd burada Windows tuşudur. Satır sonu Enter'a basar.",
   'personComputer.accessibility':
-    "Leaf Bot'un Mac'te fareyi ve klavyeyi kullanma izni yok. Kişiden Sistem Ayarları → Gizlilik ve Güvenlik → Erişilebilirlik'te Leaf Bot'u açmasını iste (ya da botun ayarlarındaki düğmeyle).",
+    "Leaf Bot'un Mac'te fareyi ve klavyeyi kullanma izni yok. Kişiden Sistem Ayarları → Gizlilik ve Güvenlik → Erişilebilirlik'te Leaf Bot'u açmasını iste (ya da Leaf Bot'un Ayarlar → Bilgisayar kullanımı bölümündeki düğmeyle).",
   'personComputer.screenOff':
-    "Leaf Bot'un Mac'in ekranını görme izni yok. Kişiden Sistem Ayarları → Gizlilik ve Güvenlik → Ekran Kaydı'nda Leaf Bot'u açmasını iste (ya da botun ayarlarındaki düğmeyle).",
+    "Leaf Bot'un Mac'in ekranını görme izni yok. Kişiden Sistem Ayarları → Gizlilik ve Güvenlik → Ekran Kaydı'nda Leaf Bot'u açmasını iste (ya da Leaf Bot'un Ayarlar → Bilgisayar kullanımı bölümündeki düğmeyle).",
   'personComputer.busy': 'Bilgisayarı şu an başka bir bot kullanıyor; biraz sonra yeniden dene.',
   'personComputer.blocked':
     'Windows bu adımı öndeki pencereye iletmedi: o pencere yönetici olarak çalışıyor ya da ekranda oturum açma veya kullanıcı hesabı denetimi (UAC) var. Bunu kişinin kendisinin yapmasını iste.',
@@ -4128,9 +4128,9 @@ const en: Catalog<ServerKey> = {
   'personComputer.windowsKeys':
     'This is a Windows computer: use ctrl for shortcuts (ctrl+c, ctrl+s, alt+tab); cmd is the Windows key here. A line break presses Enter.',
   'personComputer.accessibility':
-    "Leaf Bot may not use the mouse and keyboard on this Mac. Ask the person to turn Leaf Bot on under System Settings → Privacy & Security → Accessibility (or with the button in the bot's settings).",
+    'Leaf Bot may not use the mouse and keyboard on this Mac. Ask the person to turn Leaf Bot on under System Settings → Privacy & Security → Accessibility (or with the button under Settings → Computer use in Leaf Bot).',
   'personComputer.screenOff':
-    "Leaf Bot may not see this Mac's screen. Ask the person to turn Leaf Bot on under System Settings → Privacy & Security → Screen Recording (or with the button in the bot's settings).",
+    "Leaf Bot may not see this Mac's screen. Ask the person to turn Leaf Bot on under System Settings → Privacy & Security → Screen Recording (or with the button under Settings → Computer use in Leaf Bot).",
   'personComputer.busy': 'Another bot is using the computer right now; try again a little later.',
   'personComputer.blocked':
     'Windows did not pass this step to the window in front: it runs as administrator, or a sign-in or User Account Control screen is showing. Ask the person to do this themselves.',

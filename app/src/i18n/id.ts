@@ -1723,7 +1723,6 @@ export const id: Partial<Catalog<MessageKey>> = {
   'bot.personComputerMissing': 'macOS belum mengizinkannya: {what}',
   'bot.personComputerAccessibility': 'Aksesibilitas',
   'bot.personComputerScreen': 'Perekaman Layar',
-  'bot.personComputerAllow': 'Minta izin',
   'bot.manager': 'Bot manajer',
   'bot.managerHint':
     'Bisa menulis ke setiap bot serta membuat dan mengubah bot. Tetap bertanya kepada Anda sebelum melonggarkan izin.',

@@ -7,6 +7,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Settings has a Computer use section, shown where the bots could use a computer: it says whether macOS allows
+  Screen Recording and Accessibility, and each one's button opens System Settings at its list. macOS asks its own
+  question only once, so after a no this was the way left, and the bot form's button now leads here. A Windows
+  computer is said to need neither; a computer connected from afar is named, and its buttons open the settings there.
 - A manager bot answers the cards waiting on you in your words, such as "say yes to the mail and tell the writer to
   keep it warm". When you said it in your own conversation with the manager, and the manager has read nothing from
   outside, it answers straight away; otherwise you see all its answers on one card first, at every permission level.

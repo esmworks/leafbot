@@ -38,6 +38,13 @@ describe('⌘K komutları', () => {
     expect(ids(false, false)).toContain('settings:usage');
   });
 
+  it('bilgisayar kullanımını yalnız botların kullanabileceği bir bilgisayar varken sunar', () => {
+    const ids = (computer?: boolean) =>
+      paletteCommands(t, { manages: true, known: true, computer }).map((c) => c.id);
+    expect(ids(true)).toContain('settings:computer');
+    expect(ids(false)).not.toContain('settings:computer');
+  });
+
   it('seçilen komut yerini açar ya da ayarı değiştirir', () => {
     const all = paletteCommands(t, { manages: true, known: true });
     all.find((c) => c.id === 'settings:vault')!.run();

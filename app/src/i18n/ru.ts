@@ -1842,7 +1842,6 @@ export const ru: Partial<Catalog<MessageKey>> = {
   'bot.personComputerMissing': 'macOS пока не дала разрешение: {what}',
   'bot.personComputerAccessibility': 'Универсальный доступ',
   'bot.personComputerScreen': 'Запись экрана',
-  'bot.personComputerAllow': 'Запросить разрешение',
   'bot.manager': 'Управляющий бот',
   'bot.managerHint':
     'Может писать любому боту, создавать и редактировать ботов. Всё равно спрашивает вас перед расширением разрешений.',

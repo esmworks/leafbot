@@ -1795,7 +1795,6 @@ export const fr: Partial<Catalog<MessageKey>> = {
   'bot.personComputerMissing': 'macOS ne l’a pas encore autorisé : {what}',
   'bot.personComputerAccessibility': 'Accessibilité',
   'bot.personComputerScreen': 'Enregistrement de l’écran',
-  'bot.personComputerAllow': 'Demander l’autorisation',
   'bot.manager': 'Bot gestionnaire',
   'bot.managerHint':
     'Peut écrire dans chaque bot et créer et modifier des bots. Vous demande toujours avant d’assouplir les autorisations.',

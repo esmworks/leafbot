@@ -4,6 +4,7 @@ import type {
   BotAction,
   LinkPreview,
   TailscaleState,
+  ComputerPermission,
   PersonComputerState,
   AcpAgentState,
   TurnChanges,
@@ -491,7 +492,8 @@ export function endpoints(send: Transport, base = '') {
     retryMessage: (id: string) => http.post<{ ok: true; turnId: string }>(`/api/messages/${id}/retry`),
     acpAgents: () => http.get<AcpAgentState[]>('/api/acp-agents'),
     personComputer: () => http.get<PersonComputerState>('/api/person-computer'),
-    requestPersonComputer: () => http.post<PersonComputerState>('/api/person-computer/request', {}),
+    requestPersonComputer: (pane?: ComputerPermission) =>
+      http.post<PersonComputerState>('/api/person-computer/request', pane ? { pane } : {}),
     tailscale: () => http.get<TailscaleState>('/api/tailscale'),
     setTailscale: (on: boolean) => http.post<TailscaleState>('/api/tailscale', { on }),
     linkPreview: (url: string) =>

@@ -89,6 +89,7 @@ import {
   PaymentCardUpdate,
   ContactDetailsCreate,
   ContactDetailsUpdate,
+  PersonComputerRequest,
   type PersonComputerState,
   ACP_AGENTS,
   type AcpAgentState,
@@ -1375,18 +1376,21 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       available: true,
       accessibility: st?.accessibility ?? false,
       screen: st?.screen ?? false,
+      ...(st && { os: st.os }),
       remote: !!mac.device,
       device: mac.device,
     };
   });
   app.post('/api/person-computer/request', async (req): Promise<PersonComputerState> => {
+    const { pane } = PersonComputerRequest.parse(req.body ?? {});
     const mac = macOf(req);
     if (!mac) return { ...NO_MAC, remote: !s.ctx.personComputer };
-    const st = await mac.computer.request();
+    const st = await mac.computer.request(pane);
     return {
       available: true,
       accessibility: st.accessibility,
       screen: st.screen,
+      os: st.os,
       remote: !!mac.device,
       device: mac.device,
     };

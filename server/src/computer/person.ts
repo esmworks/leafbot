@@ -1,3 +1,4 @@
+import type { ComputerPermission } from '@leafbot/shared';
 import {
   helperDriver,
   localShot,
@@ -223,9 +224,12 @@ export class PersonComputer {
     return toStatus(await this.call({ op: 'status' }));
   }
 
-  /** Opens macOS's prompts for the two permissions it needs. */
-  async request(): Promise<PersonComputerStatus> {
-    return toStatus(await this.call({ op: 'request' }));
+  /**
+   * Asks macOS for its permissions: with `pane`, that one alone, and System Settings opens where it
+   * is turned on; without, both of macOS's own questions.
+   */
+  async request(pane?: ComputerPermission): Promise<PersonComputerStatus> {
+    return toStatus(await this.call(pane ? { op: 'request', pane } : { op: 'request' }));
   }
 
   /**

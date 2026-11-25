@@ -1875,7 +1875,6 @@ export const ar: Partial<Catalog<MessageKey>> = {
   'bot.personComputerMissing': 'لم يسمح macOS بذلك بعد: {what}',
   'bot.personComputerAccessibility': 'إمكانية الوصول',
   'bot.personComputerScreen': 'تسجيل الشاشة',
-  'bot.personComputerAllow': 'طلب الإذن',
   'bot.manager': 'بوت مدير',
   'bot.managerHint': 'يستطيع الكتابة إلى كل بوت وإنشاء البوتات وتعديلها. ويظل يسألك قبل توسيع الأذونات.',
   'bot.archive': 'أرشفة',

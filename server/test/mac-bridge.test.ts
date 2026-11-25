@@ -144,6 +144,7 @@ describe('uzaktaki Mac: botlar', () => {
       available: true,
       accessibility: true,
       screen: true,
+      os: 'macos',
       remote: true,
       device: 'Ayşe’nin MacBook’u',
     });

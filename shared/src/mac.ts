@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import { promisify } from 'node:util';
 import { z } from 'zod';
+import { ComputerPermission } from './schemas.js';
 
 /**
  * The person's own Mac, used by bots: the helper program that moves the mouse and types, the
@@ -289,7 +290,9 @@ const shift = z.number().int().min(-30).max(30);
  */
 export const MacRequest = z.discriminatedUnion('op', [
   z.object({ op: z.literal('status') }),
-  z.object({ op: z.literal('request') }),
+  // With `pane`, that permission alone is asked for and its place in System Settings opened: macOS
+  // shows its own question only once, so after a no the settings are the way left.
+  z.object({ op: z.literal('request'), pane: ComputerPermission.optional() }),
   z.object({ op: z.literal('begin'), bot: z.string().max(200) }),
   z.object({
     op: z.literal('screenshot'),

@@ -1791,6 +1791,8 @@ export const PersonComputerState = z.object({
   available: z.boolean(),
   accessibility: z.boolean(),
   screen: z.boolean(),
+  /** The computer's system, while one is available: Windows asks for neither permission. */
+  os: z.enum(['macos', 'windows']).optional(),
   /**
    * The Mac is (or would be) offered from afar by the person's desktop app, rather than being the
    * one the server runs on; turned on in that app's own menu.
@@ -1800,6 +1802,17 @@ export const PersonComputerState = z.object({
   device: z.string().nullable().optional(),
 });
 export type PersonComputerState = z.infer<typeof PersonComputerState>;
+
+/** The two permissions macOS asks for before a bot may see the screen or use the mouse and keyboard. */
+export const ComputerPermission = z.enum(['accessibility', 'screen']);
+export type ComputerPermission = z.infer<typeof ComputerPermission>;
+
+/**
+ * Asks for macOS's permissions. With `pane`, only that one, and System Settings opens where it is
+ * turned on; without, both of macOS's own questions, which it shows only until answered once.
+ */
+export const PersonComputerRequest = z.object({ pane: ComputerPermission.optional() });
+export type PersonComputerRequest = z.infer<typeof PersonComputerRequest>;
 
 /** What a web link shows on a hover; a GitHub pull request or issue also gives its state. */
 export const LinkPreview = z.object({
