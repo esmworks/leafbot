@@ -1,4 +1,5 @@
 import {
+  type PersonJobCard as PersonJob,
   type SubagentCard as SubagentCardProps,
   catalogEntry,
   connectionToolParts,
@@ -17,7 +18,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { isRefusal } from '@leafbot/app/src/lib/refusal';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { Markdown } from '@/components/Markdown';
 import { PillButton } from '@/components/page';
@@ -731,6 +732,47 @@ export function PlanCard({ items }: { items: PlanItem[] }) {
 }
 
 /** A helper the bot started for part of the work: what it was asked, how it stands, its steps. */
+/** A command a bot runs on the person's own computer: what, where, how it stands, its last lines, Stop. */
+export function PersonJobCard({ job }: { job: PersonJob }) {
+  const c = useColors();
+  const api = useApi();
+  const stop = useMutation({ mutationFn: () => api.stopPersonJob(job.id), onError: toastError });
+  const running = job.status === 'running';
+  const state =
+    job.status === 'done'
+      ? t('personJob.done', { code: String(job.exitCode ?? '?') })
+      : t(`personJob.${job.status}`);
+  return (
+    <View
+      accessibilityLabel={t('personJob.title')}
+      style={[styles.service, styles.plan, { borderColor: c.border, backgroundColor: c.card }]}
+    >
+      <View style={styles.planHead}>
+        <Text style={[styles.small, styles.medium, { color: c.mutedForeground }]}>
+          {t('personJob.title')}
+        </Text>
+        <Text style={[styles.small, { color: c.mutedForeground }]}>{state}</Text>
+      </View>
+      <Text selectable style={[styles.small, styles.mono, { color: c.foreground }]}>
+        {job.command}
+      </Text>
+      <Text style={[styles.small, { color: c.mutedForeground }]}>
+        {t('personJob.where', { device: job.device, cwd: job.cwd })}
+      </Text>
+      {job.tail || running ? (
+        <Text selectable style={[styles.small, styles.mono, { color: c.foreground }]}>
+          {job.tail || t('personJob.noOutput')}
+        </Text>
+      ) : null}
+      {running ? (
+        <View style={styles.buttons}>
+          <PillButton label={t('personJob.stop')} icon="square" onPress={() => stop.mutate()} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export function SubagentCard({ sub }: { sub: SubagentCardProps }) {
   const c = useColors();
   const [open, setOpen] = useState(false);
@@ -922,6 +964,7 @@ const styles = StyleSheet.create({
   gap8: { gap: 8 },
   body: { fontSize: 17, lineHeight: 24 },
   small: { fontSize: 15, lineHeight: 21 },
+  mono: { fontFamily: Platform.select({ ios: 'Menlo', default: 'monospace' }), fontSize: 13, lineHeight: 18 },
   sizeSm: { fontSize: 16, lineHeight: 22 },
   medium: { fontWeight: '500' },
   strike: { textDecorationLine: 'line-through' },

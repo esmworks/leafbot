@@ -1,5 +1,6 @@
 import {
   outsideTrigger,
+  personJobOf,
   quoteExcerpt,
   subagentOf,
   subagentsOf,
@@ -33,6 +34,7 @@ import {
   ApprovalCard,
   OpenedFrom,
   OpenedThread,
+  PersonJobCard,
   PlanCard,
   SubagentCard,
   SubagentGroupCard,
@@ -174,6 +176,10 @@ function NoteRow({ m, botId, retry, room }: { m: Message; botId?: string; retry:
   if (m.props.subagent) {
     const sub = subagentOf(m.props);
     if (sub) return <SubagentCard sub={sub} />;
+  }
+  if (m.props.personJob) {
+    const job = personJobOf(m.props);
+    if (job) return <PersonJobCard job={job} />;
   }
   if (typeof m.props.connectionSignIn === 'string')
     return <SignInCard connectionId={m.props.connectionSignIn} text={m.text} botId={botId} />;
