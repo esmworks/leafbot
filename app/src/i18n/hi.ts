@@ -1719,7 +1719,6 @@ export const hi: Partial<Catalog<MessageKey>> = {
   'bot.personComputerMissing': 'macOS ने अभी इसे अनुमति नहीं दी: {what}',
   'bot.personComputerAccessibility': 'सुगम्यता',
   'bot.personComputerScreen': 'स्क्रीन रिकॉर्डिंग',
-  'bot.personComputerAllow': 'अनुमति माँगें',
   'bot.manager': 'मैनेजर बॉट',
   'bot.managerHint':
     'हर बॉट में लिख सकता है और बॉट बना व संपादित कर सकता है। अनुमतियाँ ढीली करने से पहले फिर भी आपसे पूछता है।',

@@ -37,6 +37,18 @@ func screenInfo() -> [String: Any] {
   ]
 }
 
+func askAccessibility() {
+  _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
+}
+
+/// Opens System Settings at one list of Privacy & Security. This older address works on every macOS
+/// the app runs on; newer versions send it on to their own page.
+func openPane(_ anchor: String) {
+  if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)") {
+    NSWorkspace.shared.open(url)
+  }
+}
+
 func requireAccess() throws {
   if !AXIsProcessTrusted() { throw Failure(code: "accessibility") }
 }
@@ -145,9 +157,22 @@ func handle(_ req: [String: Any]) throws -> [String: Any] {
   case "status":
     return screenInfo()
   case "request":
-    // Opens the two Privacy & Security prompts; macOS shows each only until it was answered once.
-    _ = AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary)
-    _ = CGRequestScreenCaptureAccess()
+    // macOS shows its own question for each permission only until it was answered once. With a
+    // `pane`, that permission alone is asked for, which also puts the app in its list, and System
+    // Settings opens where it is turned on: the way left after a no.
+    switch req["pane"] as? String {
+    case "accessibility":
+      askAccessibility()
+      openPane("Privacy_Accessibility")
+    case "screen":
+      _ = CGRequestScreenCaptureAccess()
+      openPane("Privacy_ScreenCapture")
+    case nil:
+      askAccessibility()
+      _ = CGRequestScreenCaptureAccess()
+    default:
+      throw Failure(code: "badRequest")
+    }
     return screenInfo()
   case "move":
     try requireAccess()

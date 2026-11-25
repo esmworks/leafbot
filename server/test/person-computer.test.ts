@@ -230,6 +230,22 @@ describe('kişinin Mac’i: botlar ve onay', () => {
     expect(toolNames()).not.toContain('person_computer_click');
   });
 
+  it('izin isteği yalnız istenen izni sorar ve Sistem Ayarları’nda onun yerini açtırır', async () => {
+    const r = await t.api<PersonComputerState>('POST', '/api/person-computer/request', { pane: 'screen' });
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ available: true, os: 'macos' });
+    expect(helper.sent.at(-1)).toMatchObject({ op: 'request', pane: 'screen' });
+
+    await t.api('POST', '/api/person-computer/request', {});
+    expect(helper.sent.at(-1)).toEqual({ op: 'request' });
+
+    const bad = await t.api('POST', '/api/person-computer/request', {
+      pane: 'x-apple.systempreferences:other',
+    });
+    expect(bad.status).toBe(400);
+    expect(helper.sent.at(-1)).toEqual({ op: 'request' });
+  });
+
   it('tam izinli botta bile işin ilk adımında bir kez sorar, “hep izin ver” sunmaz', async () => {
     const bot = await t.bot({ permissionMode: 'auto', personComputer: true });
     const thread = await main(bot.id);
