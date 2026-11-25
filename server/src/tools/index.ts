@@ -1365,6 +1365,7 @@ export class ToolFactory {
               tableFilter: a.table_filter ?? '',
               flowLayout: null,
               flowNotes: [],
+              inputs: {},
             },
             person,
           );

@@ -85,6 +85,7 @@ import {
 } from './RoutineSteps';
 import { FlowNoteCard, NOTE_MAP_FILL } from './FlowNoteCard';
 import { LongText } from './LongText';
+import { markVars } from './RoutineInputs';
 import { Tag } from './SettingsList';
 
 /** The width the canvas is laid out for before it is measured (and where nothing is, in tests). */
@@ -110,6 +111,13 @@ const TINT: Record<StepForm['kind'] | 'start' | 'prompt', string> = {
   fetch: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
   extract: 'bg-pink-500/15 text-pink-600 dark:text-pink-400',
 };
+
+/** Scrolls a view to `to`, in screen pixels. */
+function scrollView(el: HTMLElement | null, to: { left: number; top: number }) {
+  if (!el) return;
+  el.scrollLeft = to.left;
+  el.scrollTop = to.top;
+}
 
 /** A button of the bar over the canvas's corner that sets how it is viewed. */
 function BarButton({
@@ -172,6 +180,7 @@ export function RoutineFlow({
   onLayout,
   notes = [],
   onNotes,
+  inputNames = [],
   fullScreenBar,
   promptExtra,
   settings,
@@ -207,6 +216,8 @@ export function RoutineFlow({
   /** The notes written on the canvas, for people only; without `onNotes` none can be added. */
   notes?: FlowNote[];
   onNotes?(next: FlowNote[]): void;
+  /** The names of the routine's inputs, shown on the first box. */
+  inputNames?: string[];
   /** What the bar over a canvas covering the window shows besides its own button (title, save). */
   fullScreenBar?: ReactNode;
   /** Shown in the instruction's box under it, such as the apps it names that are not connected. */
@@ -267,7 +278,7 @@ export function RoutineFlow({
   const zoomTo = (next: number, to: { left: number; top: number }) => {
     const el = scroller.current;
     if (next === zoomNow.current) {
-      el?.scrollTo(to);
+      scrollView(el, to);
       return;
     }
     scrollTo.current = to;
@@ -289,7 +300,7 @@ export function RoutineFlow({
   useLayoutEffect(() => {
     const to = scrollTo.current;
     scrollTo.current = null;
-    if (to) scroller.current?.scrollTo(to);
+    if (to) scrollView(scroller.current, to);
     syncPort();
   }, [zoom]);
   // Pinching a trackpad, or the wheel with Ctrl or Cmd held, zooms around the pointer; the wheel
@@ -633,7 +644,7 @@ export function RoutineFlow({
               !summary && 'text-muted-foreground',
             )}
           >
-            {summary || o.placeholder}
+            {summary ? markVars(summary) : o.placeholder}
           </span>
           {o.note && <span className="mt-1 block truncate text-xs text-muted-foreground">{o.note}</span>}
           {o.tags && <span className="mt-2 flex flex-wrap gap-1">{o.tags}</span>}
@@ -884,9 +895,9 @@ export function RoutineFlow({
     const el = scroller.current;
     if (!el) return;
     const r = e.currentTarget.getBoundingClientRect();
-    el.scrollTo({
-      left: ((e.clientX - r.left) / m) * zoom - el.clientWidth / 2,
-      top: ((e.clientY - r.top) / m) * zoom - el.clientHeight / 2,
+    scrollView(el, {
+      left: Math.max(0, ((e.clientX - r.left) / m) * zoom - el.clientWidth / 2),
+      top: Math.max(0, ((e.clientY - r.top) / m) * zoom - el.clientHeight / 2),
     });
   };
   const overview = showMap && (
@@ -1022,8 +1033,11 @@ export function RoutineFlow({
               style={{ width: size.width * zoom, height: size.height * zoom, minWidth: '100%' }}
             >
               <div
-                className="absolute top-0 left-0 origin-top-left"
+                // Placed as the boxes are, by the canvas's own left: their places do not mirror.
+                className="absolute origin-top-left"
                 style={{
+                  top: 0,
+                  left: 0,
                   width: size.width,
                   height: size.height,
                   transform: zoom === 1 ? undefined : `scale(${zoom})`,
@@ -1139,7 +1153,22 @@ export function RoutineFlow({
                   placeholder: when,
                   note: scheduleSummary ? when : undefined,
                   tags:
-                    triggers.length > 0 ? triggers.map((what) => <Tag key={what}>{what}</Tag>) : undefined,
+                    triggers.length + inputNames.length > 0 ? (
+                      <>
+                        {triggers.map((what) => (
+                          <Tag key={what}>{what}</Tag>
+                        ))}
+                        {inputNames.map((name) => (
+                          <span
+                            key={`input-${name}`}
+                            title={t('flow.inputTag', { name })}
+                            className="rounded-md bg-[var(--brand)]/12 px-1.5 py-0.5 text-[11px] font-semibold text-[var(--brand)]"
+                          >
+                            {name}
+                          </span>
+                        ))}
+                      </>
+                    ) : undefined,
                   below: onRunNow && (
                     <>
                       <Button

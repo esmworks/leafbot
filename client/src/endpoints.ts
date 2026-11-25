@@ -633,7 +633,9 @@ export function endpoints(send: Transport, base = '') {
     createRoutine: (r: unknown) => http.post<Routine>('/api/routines', r),
     updateRoutine: (id: string, p: unknown) => http.patch<Routine>(`/api/routines/${id}`, p),
     removeRoutine: (id: string) => http.del<{ ok: true }>(`/api/routines/${id}`),
-    runRoutine: (id: string) => http.post<RoutineRun | null>(`/api/routines/${id}/run`),
+    /** Runs it now; `inputs` are values typed for this run's inputs. */
+    runRoutine: (id: string, inputs?: Record<string, string>) =>
+      http.post<RoutineRun | null>(`/api/routines/${id}/run`, inputs ? { inputs } : undefined),
     routineFailureSeen: (id: string) => http.post<{ ok: true }>(`/api/routines/${id}/failure-seen`),
     routineRuns: (id: string) => http.get<RoutineRun[]>(`/api/routines/${id}/runs`),
     retryRoutineRun: (id: string, runId: string) =>

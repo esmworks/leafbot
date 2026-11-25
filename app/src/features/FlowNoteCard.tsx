@@ -192,7 +192,9 @@ export function FlowNoteCard({
       <span
         onPointerDown={hold('size')}
         title={t('flow.noteSize')}
-        className="absolute right-0 bottom-0 size-4 cursor-nwse-resize touch-none"
+        // At the far corner of the note's width on the canvas, which grows rightwards in any language.
+        style={{ right: 0, bottom: 0 }}
+        className="absolute size-4 cursor-nwse-resize touch-none"
         aria-hidden
       />
     </div>

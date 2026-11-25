@@ -191,6 +191,7 @@ export const toRoutine = (r: Row<typeof schema.routines>): Routine => ({
   pausedReason: r.pausedReason,
   flowLayout: (r.flowLayout as FlowLayout | null) ?? null,
   flowNotes: (r.flowNotes as FlowNote[] | null) ?? [],
+  inputs: r.inputs ?? {},
 });
 
 export const toRun = (r: Row<typeof schema.routineRuns>): RoutineRun => ({

@@ -55,6 +55,7 @@ import {
   LOCALES,
   pickLocale,
   RoutineCreate,
+  RoutineInputs,
   RoutineSuggestionAccept,
   SkillSuggestionAccept,
   RoutineUpdate,
@@ -2373,7 +2374,12 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     if (payload !== undefined && payload.length > MAX_PAYLOAD) {
       throw new HttpError(413, 'error.payloadTooLarge', { max: MAX_PAYLOAD });
     }
-    return s.routines.runNow(IdParams.parse(req.params).id, payload?.trim() || undefined);
+    // Values typed for this run's inputs, when the app asked for them.
+    const given =
+      body && typeof body === 'object' && 'inputs' in body
+        ? z.object({ inputs: RoutineInputs }).parse(body).inputs
+        : undefined;
+    return s.routines.runNow(IdParams.parse(req.params).id, payload?.trim() || undefined, given);
   });
   app.post('/api/routines/:id/webhook', async (req) =>
     s.routines.setWebhook(IdParams.parse(req.params).id, true),

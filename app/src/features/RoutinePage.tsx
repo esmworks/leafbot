@@ -4,12 +4,14 @@ import {
   appEventOf,
   appMakesSecret,
   describeSchedule,
+  fillInputs,
   nextRun,
   parseCron,
   parseFields,
   ROUTINE_APPROVAL_MAX_DAYS,
   ROUTINE_FETCH_URL,
   ROUTINE_STEP_END,
+  ROUTINE_VAR_MAX,
   ROUTINE_VARS_MAX,
   ROUTINE_WAIT_MAX_MINUTES,
   SHORT_DAY_NAMES,
@@ -55,6 +57,8 @@ import { MissingApps } from './MissingApps';
 import { PromptHistory } from './PromptHistory';
 import { RoutineFlow } from './RoutineFlow';
 import { RoutineHealthBlock } from './RoutineHealth';
+import { namesWanted, RoutineInputs, type InputRow } from './RoutineInputs';
+import { RunInputs } from './RunInputs';
 import { RoutineRehearsal } from './RoutineRehearsal';
 import { RunSteps, StepsEditor, TemplatePicker, type StepForm } from './RoutineSteps';
 
@@ -194,6 +198,24 @@ export const Form = z.object({
   /** What must hold before a scheduled run, as the routine has it; null for nothing. */
   condition: z.custom<RoutineCondition | null>(),
   model: z.string().max(200),
+  /** Its inputs as rows: a name its texts write as {{name}}, and the value a run takes by default. */
+  inputs: z
+    .array(
+      z.object({
+        name: z
+          .string()
+          .trim()
+          .regex(/^[A-Za-z][A-Za-z0-9_]{0,39}$/, 'routine.inputNameInvalid'),
+        value: z.string().max(ROUTINE_VAR_MAX),
+      }),
+    )
+    .max(ROUTINE_VARS_MAX)
+    .superRefine((rows, ctx) => {
+      rows.forEach((r, i) => {
+        if (rows.findIndex((x) => x.name.trim() === r.name.trim()) !== i)
+          ctx.addIssue({ code: 'custom', path: [i, 'name'], message: 'routine.inputNameTwice' });
+      });
+    }),
   slackChannel: z
     .string()
     .trim()
@@ -249,6 +271,11 @@ function toSchedule(f: Form): Schedule {
 function tomorrow(): string {
   const d = new Date(Date.now() + 86_400_000);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Input rows as the values a run takes, by name. */
+function inputValues(rows: readonly InputRow[] | undefined): Record<string, string> {
+  return Object.fromEntries((rows ?? []).filter((r) => r.name.trim()).map((r) => [r.name.trim(), r.value]));
 }
 
 export function fromRoutine(r?: Routine): Form {
@@ -309,6 +336,7 @@ export function fromRoutine(r?: Routine): Form {
     tableFilter: r?.tableFilter ?? '',
     condition: r?.condition ?? null,
     model: r?.model ?? '',
+    inputs: Object.entries(r?.inputs ?? {}).map(([name, value]) => ({ name, value })),
   };
 }
 
@@ -384,8 +412,10 @@ export function RoutinePage({
     refetchInterval: (q) => (q.state.data?.[0] && GOING.has(q.state.data[0].status) ? 2000 : false),
   });
   const latestRun = runs[0] ?? null;
+  // A routine with inputs asks for this run's values first, with its usual ones filled in.
+  const [asking, setAsking] = useState(false);
   const runNow = useMutation({
-    mutationFn: () => api.runRoutine(routine!.id),
+    mutationFn: (inputs?: Record<string, string>) => api.runRoutine(routine!.id, inputs),
     onSuccess: () => {
       toast.success(t('flow.started'));
       void qc.invalidateQueries({ queryKey: ['routine-runs', routine!.id] });
@@ -431,6 +461,7 @@ export function RoutinePage({
         model: f.model.trim(),
         flowLayout: layout && keepLayout(layout, ['start', 'prompt', ...f.steps.map((x) => x.id)]),
         flowNotes: notes,
+        inputs: Object.fromEntries(f.inputs.map((i) => [i.name.trim(), i.value])),
       };
       return routine
         ? api.updateRoutine(routine.id, body)
@@ -538,6 +569,14 @@ export function RoutinePage({
    */
   const settingsFields = (
     <>
+      <RoutineInputs
+        rows={values.inputs ?? []}
+        onChange={(next) =>
+          form.setValue('inputs', next, { shouldDirty: true, shouldValidate: form.formState.isSubmitted })
+        }
+        wanted={namesWanted(values.prompt ?? '', values.steps ?? [], values.inputs ?? [])}
+        errors={(values.inputs ?? []).map((_, i) => err.inputs?.[i]?.name?.message)}
+      />
       {type !== 'interval' && (
         <Field label={t('routine.missed')}>
           <Select value={values.missed} onValueChange={(v) => form.setValue('missed', v as Form['missed'])}>
@@ -829,7 +868,12 @@ export function RoutinePage({
                     onRestore={restoreVersion}
                   />
                 )}
-                {routine && <RoutineRehearsal routine={routine} prompt={values.prompt ?? ''} />}
+                {routine && (
+                  <RoutineRehearsal
+                    routine={routine}
+                    prompt={fillInputs(values.prompt ?? '', inputValues(values.inputs))}
+                  />
+                )}
               </Field>
               <StepsEditor
                 steps={values.steps ?? []}
@@ -851,12 +895,19 @@ export function RoutinePage({
                 scheduleSummary={scheduleSummary}
                 when={when}
                 run={latestRun}
-                onRunNow={routine ? () => runNow.mutate() : undefined}
+                onRunNow={
+                  routine
+                    ? () =>
+                        Object.keys(routine.inputs ?? {}).length ? setAsking(true) : runNow.mutate(undefined)
+                    : undefined
+                }
+                inputNames={(values.inputs ?? []).map((i) => i.name.trim()).filter(Boolean)}
                 runBlocked={dirty ? t('flow.saveFirst') : undefined}
                 onTry={
                   routine
                     ? (text, step) => {
-                        setTried({ prompt: text, step });
+                        // A try reads the text as a run would, with the inputs' usual values.
+                        setTried({ prompt: fillInputs(text, inputValues(values.inputs)), step });
                         setTrying(true);
                       }
                     : undefined
@@ -910,7 +961,7 @@ export function RoutinePage({
                 <div ref={rehearsal}>
                   <RoutineRehearsal
                     routine={routine}
-                    prompt={tried?.prompt ?? values.prompt ?? ''}
+                    prompt={tried?.prompt ?? fillInputs(values.prompt ?? '', inputValues(values.inputs))}
                     open={trying}
                     onOpenChange={(v) => {
                       setTrying(v);
@@ -919,6 +970,15 @@ export function RoutinePage({
                     note={tried?.step ? t('flow.tryStep') : undefined}
                   />
                 </div>
+              )}
+              {routine && (
+                <RunInputs
+                  open={asking}
+                  onOpenChange={setAsking}
+                  inputs={routine.inputs ?? {}}
+                  pending={runNow.isPending}
+                  onRun={(given) => runNow.mutate(given, { onSuccess: () => setAsking(false) })}
+                />
               )}
             </>
           )}

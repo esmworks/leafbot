@@ -212,6 +212,25 @@ export function filterVars(filter: string): string[] {
 }
 
 /**
+ * The values a routine is run with, by name: what its instruction and its steps write between `{{`
+ * and `}}`, each with the value a run takes unless the person running it now gives another.
+ */
+export const RoutineInputs = z
+  .record(z.string().regex(ROUTINE_VAR_NAME), z.string().max(ROUTINE_VAR_MAX))
+  .refine((r) => Object.keys(r).length <= ROUTINE_VARS_MAX, 'validation.routineInputs');
+export type RoutineInputs = z.infer<typeof RoutineInputs>;
+
+/**
+ * A text with the run's inputs put in: only names it has a value for, so a `{{name}}` that is none
+ * of them (an earlier routine's, or meant for a wait step) stays as written.
+ */
+export function fillInputs(text: string, inputs: Readonly<Record<string, string>>): string {
+  return text.replace(/\{\{\s*([A-Za-z][A-Za-z0-9_]{0,39})\s*\}\}/g, (all, name: string) =>
+    Object.hasOwn(inputs, name) ? inputs[name]! : all,
+  );
+}
+
+/**
  * A wait step's filter with the run's values put in. Null when one it names has none: an empty
  * value would make a line such as `title~={{x}}` match every event, so the wait never starts.
  */
@@ -569,6 +588,8 @@ export const Routine = z.object({
   flowLayout: FlowLayout.nullable().optional(),
   /** The notes on its flow view. Missing on older servers. */
   flowNotes: FlowNotes.optional(),
+  /** The values it is run with, by name, with each one's usual value. Missing on older servers. */
+  inputs: RoutineInputs.optional(),
 });
 export type Routine = z.infer<typeof Routine>;
 
@@ -683,6 +704,11 @@ export const RoutineCreate = z.object({
   flowLayout: FlowLayout.nullable().default(null),
   /** The notes written on its flow view. */
   flowNotes: FlowNotes.default([]),
+  /**
+   * Values its instruction and steps write as `{{name}}`, each with what a run takes unless the
+   * person running it now gives another.
+   */
+  inputs: RoutineInputs.default({}),
 });
 export type RoutineCreate = z.infer<typeof RoutineCreate>;
 export const RoutineUpdate = patchOf(RoutineCreate.omit({ botId: true }));

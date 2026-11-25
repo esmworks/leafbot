@@ -543,6 +543,8 @@ export const routines = pgTable('routines', {
   /** Where the flow view's boxes sit (`FlowLayout`); null places them in order. */
   flowLayout: jsonb('flow_layout'),
   flowNotes: jsonb('flow_notes').notNull().default([]),
+  /** Values its instruction and steps write as {{name}}, with what a run takes by default. */
+  inputs: jsonb('inputs').$type<Record<string, string>>().notNull().default({}),
   /** What must hold, with no AI, before a scheduled run starts (`RoutineCondition`); null for nothing. */
   condition: jsonb('condition'),
   schedule: jsonb('schedule').notNull(),
@@ -716,6 +718,12 @@ export const routineRuns = pgTable(
      * name; a wait step's filter names them as `{{name}}`.
      */
     vars: jsonb('vars').$type<Record<string, string>>().notNull().default({}),
+    /**
+     * The routine's inputs as this run was started with them: what the person typed or the
+     * routine's defaults, kept apart from `vars`, which a step's output or the bot writes, so
+     * only these are put into an instruction.
+     */
+    inputs: jsonb('inputs').$type<Record<string, string>>().notNull().default({}),
     startedAt: created(),
     finishedAt: ts('finished_at'),
   },

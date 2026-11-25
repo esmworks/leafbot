@@ -707,6 +707,7 @@ export const ROUTINE_KEYS = [
   'tableFilter',
   'flowLayout',
   'flowNotes',
+  'inputs',
 ];
 export const routineShape = (r: object) => pick(r as Json, ROUTINE_KEYS);
 export const skillShape = (k: { description: string; body: string }) => ({

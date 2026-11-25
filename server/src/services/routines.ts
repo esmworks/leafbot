@@ -5,6 +5,7 @@ import {
   cellText,
   cronTooOften,
   fillFilter,
+  fillInputs,
   filterVars,
   INTL_LOCALE,
   MIN_RUN_GAP_MINUTES,
@@ -1715,10 +1716,26 @@ export class RoutineService {
   /**
    * Run now, outside the schedule. `payload` is what a script or another service hands over with
    * the run (a build log, a webhook body); the bot reads it as data after its instruction.
+   * `given` are values for the routine's inputs typed for this run; one it has no input for is
+   * left out.
    */
-  async runNow(id: string, payload?: string): Promise<RoutineRun | null> {
+  async runNow(
+    id: string,
+    payload?: string,
+    given?: Readonly<Record<string, string>>,
+  ): Promise<RoutineRun | null> {
     const routine = await this.get(id);
-    return this.fire(routine, `manual:${this.clock().toISOString()}`, payload);
+    return this.fire(
+      routine,
+      `manual:${this.clock().toISOString()}`,
+      payload,
+      false,
+      undefined,
+      undefined,
+      undefined,
+      false,
+      given,
+    );
   }
 
   /**
@@ -1878,6 +1895,8 @@ export class RoutineService {
     outside?: OutsideTrigger,
     /** Started by the routine's own schedule (see `tick`). */
     scheduled = false,
+    /** Values for its inputs typed for this run, over the routine's own (see `runNow`). */
+    given?: Readonly<Record<string, string>>,
   ): Promise<RoutineRun | null> {
     const t = await this.services.settings.translator();
     const bot = await this.services.bots.get(routine.botId).catch(() => null);
@@ -1911,6 +1930,7 @@ export class RoutineService {
           trigger: check?.trigger ?? outside ?? null,
           scheduled,
           triggerInput: keptInput(payload),
+          inputs: inputsFor(routine, given),
         })
         .returning()) as [typeof schema.routineRuns.$inferSelect];
     } catch (err) {
@@ -1926,7 +1946,7 @@ export class RoutineService {
       if (dup) return null;
       // An earlier run stuck on a question nobody answered gives way to this one, once.
       if (!retried && (await this.endStaleWait(routine.id, t, STALE_WAIT_MS, 'routine.staleWait')))
-        return this.fire(routine, occurrence, payload, true, check, threadId, outside, scheduled);
+        return this.fire(routine, occurrence, payload, true, check, threadId, outside, scheduled, given);
       // A mail or a changed page does not come again: it waits for the run going now to end. A
       // webhook caller is told to send it again instead.
       const brought = check?.trigger ?? outside;
@@ -2318,11 +2338,14 @@ export class RoutineService {
         .set({ trigger: outside })
         .where(eq(schema.routineRuns.id, run.id));
     }
+    // Its instruction with the values the run was started with, the same in the conversation as
+    // in what the bot is asked.
+    const said = fillInputs(routine.prompt, run.inputs);
     await this.services.threads.addMessage({
       threadId,
       role: 'user',
       author: `routine:${routine.id}`,
-      text: payload ? `${routine.prompt}\n\n${t('routine.payloadShown', { payload })}` : routine.prompt,
+      text: payload ? `${said}\n\n${t('routine.payloadShown', { payload })}` : said,
       props: {
         routineRunId: run.id,
         routineName: routine.name,
@@ -2338,10 +2361,10 @@ export class RoutineService {
       prompt: routinePrompt(
         t,
         routine.name,
-        routine.prompt,
+        said,
         payload,
         report,
-        saveHint(snapshotSteps(run.stepsSnapshot) ?? [], 0, t),
+        saveHint(snapshotSteps(run.stepsSnapshot) ?? [], 0, t, Object.keys(run.inputs)),
         !!routine.reportOnly,
       ),
       routineRunId: run.id,
@@ -2418,6 +2441,8 @@ export class RoutineService {
       return this.dataFailed(run, routineName, steps, step, position, reason, t);
     }
     const where = target ? await this.services.threads.peerThread(target.id, run.botId, person!) : null;
+    const inputs = await this.inputsOf(run.id);
+    const said = fillInputs(step.prompt, inputs);
     await this.ctx.db
       .update(schema.routineRuns)
       .set({ stepModel: step.model || null })
@@ -2427,7 +2452,7 @@ export class RoutineService {
       threadId: run.threadId,
       role: 'user',
       author: `routine:${run.routineId}`,
-      text: step.prompt,
+      text: said,
       props: { ...asked, ...(target && { stepBotId: target.id }) },
     });
     if (where) {
@@ -2435,7 +2460,7 @@ export class RoutineService {
         threadId: where.id,
         role: 'user',
         author: `routine:${run.routineId}`,
-        text: step.prompt,
+        text: said,
         props: asked,
       });
     }
@@ -2447,12 +2472,12 @@ export class RoutineService {
         name: routineName,
         step: String(position + 1),
         total: String(steps.length + 1),
-        prompt: step.prompt,
+        prompt: said,
         silent: SILENT_REPLY,
       }),
       ...(owner ? [t('routine.stepFor', { bot: owner.name })] : []),
       ...(before?.trim() ? [t('routine.stepBefore', { text: fence(cutAt(before.trim(), REPORT_MAX)) })] : []),
-      ...saveHint(steps, position, t),
+      ...saveHint(steps, position, t, Object.keys(inputs)),
       ...(reportOnly ? [t('routine.reportOnly')] : []),
     ];
     const turn = await this.services.turns.enqueue({
@@ -2638,9 +2663,10 @@ export class RoutineService {
   ) {
     const options = [t('routine.approve'), t('routine.reject')];
     const [row] = await this.ctx.db
-      .select({ trigger: schema.routineRuns.trigger })
+      .select({ trigger: schema.routineRuns.trigger, inputs: schema.routineRuns.inputs })
       .from(schema.routineRuns)
       .where(eq(schema.routineRuns.id, run.id));
+    const question = fillInputs(step.question, row?.inputs ?? {});
     const waitUntil = new Date(this.clock().getTime() + step.timeoutDays * DAY_MS);
     let made!: () => void;
     const created = new Promise<void>((done) => (made = done));
@@ -2653,14 +2679,14 @@ export class RoutineService {
       input: {
         questions: [
           {
-            question: step.question,
+            question,
             ...(before?.trim() && { context: cutAt(before.trim(), REPORT_MAX) }),
             options,
           },
         ],
         routineRunId: run.id,
       },
-      summary: step.question,
+      summary: question,
       options,
       // Asked about what outside text started: the answer counts for this card only.
       outside: !!row?.trigger,
@@ -2719,11 +2745,16 @@ export class RoutineService {
   ) {
     const now = this.clock();
     const [row] = await this.ctx.db
-      .select({ vars: schema.routineRuns.vars, webhookToken: schema.routines.webhookToken })
+      .select({
+        vars: schema.routineRuns.vars,
+        inputs: schema.routineRuns.inputs,
+        webhookToken: schema.routines.webhookToken,
+      })
       .from(schema.routineRuns)
       .innerJoin(schema.routines, eq(schema.routines.id, schema.routineRuns.routineId))
       .where(eq(schema.routineRuns.id, run.id));
-    const vars = row?.vars ?? {};
+    // The values the run was started with come first: a step's output cannot change them.
+    const vars = { ...row?.vars, ...row?.inputs };
     let filter: string | null = null;
     let refusal: string | null = null;
     if (step.on !== 'time') {
@@ -2908,10 +2939,14 @@ export class RoutineService {
     const bot = await this.services.bots.get(run.botId).catch(() => null);
     if (!bot?.internet) return { error: t('routine.fetchNoInternet') };
     const [row] = await this.ctx.db
-      .select({ vars: schema.routineRuns.vars, trigger: schema.routineRuns.trigger })
+      .select({
+        vars: schema.routineRuns.vars,
+        inputs: schema.routineRuns.inputs,
+        trigger: schema.routineRuns.trigger,
+      })
       .from(schema.routineRuns)
       .where(eq(schema.routineRuns.id, run.id));
-    const vars = row?.vars ?? {};
+    const vars: Record<string, string> = { ...row?.vars, ...row?.inputs };
     const missing = filterVars(step.url).filter((n) => !vars[n]?.trim());
     if (missing.length) return { error: t('routine.fetchMissing', { names: missing.join(', ') }) };
     let url: URL;
@@ -2995,6 +3030,7 @@ export class RoutineService {
     const [row] = await this.ctx.db
       .select({
         vars: schema.routineRuns.vars,
+        inputs: schema.routineRuns.inputs,
         trigger: schema.routineRuns.trigger,
         slackChannel: schema.routines.slackChannel,
       })
@@ -3003,7 +3039,7 @@ export class RoutineService {
       .where(eq(schema.routineRuns.id, run.id));
     // A value never saved is left out rather than stopping the message.
     const own = step.text.replace(/\{\{\s*([A-Za-z][A-Za-z0-9_]{0,39})\s*\}\}/g, (_, name: string) =>
-      (row?.vars[name] ?? '').trim(),
+      (row?.inputs[name] ?? row?.vars[name] ?? '').trim(),
     );
     const text = [own.trim(), step.withBefore ? cutAt(before?.trim() ?? '', DELIVER_MAX) : '']
       .filter(Boolean)
@@ -3090,6 +3126,15 @@ export class RoutineService {
     }
     if (runs.length) this.ctx.bus.refresh({ scope: 'routines' });
     return runs;
+  }
+
+  /** The values a run was started with for its routine's inputs. */
+  private async inputsOf(runId: string): Promise<Record<string, string>> {
+    const [row] = await this.ctx.db
+      .select({ inputs: schema.routineRuns.inputs })
+      .from(schema.routineRuns)
+      .where(eq(schema.routineRuns.id, runId));
+    return row?.inputs ?? {};
   }
 
   /** A bot step saves a value for a later wait step to put in its filter. */
@@ -3588,9 +3633,14 @@ export class RoutineService {
       return;
     }
     const reportOnly = await this.reportOnly(run.routineId);
+    const inputs = await this.inputsOf(run.id);
     const prompt = [
-      t('routine.prompt', { name: routineName, prompt: promptSnapshot, silent: SILENT_REPLY }),
-      ...saveHint(steps, 0, t),
+      t('routine.prompt', {
+        name: routineName,
+        prompt: fillInputs(promptSnapshot, inputs),
+        silent: SILENT_REPLY,
+      }),
+      ...saveHint(steps, 0, t, Object.keys(inputs)),
       ...(reportOnly ? [t('routine.reportOnly')] : []),
     ].join('\n\n');
     await this.ctx.db
@@ -4480,9 +4530,23 @@ const DAY_MS = 24 * 60 * 60_000;
  * Tells a bot step which values the wait steps after it need saved, so a wait on "the issue it
  * opened" does not hang on the person knowing the tool's name.
  */
-function saveHint(steps: readonly RoutineStep[], position: number, t: T): string[] {
-  const names = varsWanted(steps, position);
+function saveHint(steps: readonly RoutineStep[], position: number, t: T, given: readonly string[]): string[] {
+  // A value the run was started with is not the bot's to save: its saving one would go unused.
+  const names = varsWanted(steps, position).filter((n) => !given.includes(n));
   return names.length ? [t('routine.saveValues', { names: names.join(', ') })] : [];
+}
+
+/**
+ * The values a run starts with: each of the routine's inputs, with the one typed for this run when
+ * one was, and its usual one otherwise. A value for a name the routine has no input for is left out.
+ */
+function inputsFor(routine: Routine, given?: Readonly<Record<string, string>>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(routine.inputs ?? {}).map(([name, usual]) => [
+      name,
+      (given && Object.hasOwn(given, name) ? given[name]! : usual).slice(0, ROUTINE_VAR_MAX),
+    ]),
+  );
 }
 
 /** A step that works with no AI and can fail: it reads an address or takes values from JSON. */

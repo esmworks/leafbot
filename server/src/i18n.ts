@@ -449,6 +449,7 @@ const tr = {
     'Adres https:// ile başlamalı; {{ad}} değerleri yalnızca sunucu adından sonra yer alabilir',
   'validation.extractFields':
     'Her satıra bir değer yazın: ad=yol (ör. fiyat=items.0.price), en çok 20 ve her ad bir kez',
+  'validation.routineInputs': 'Bir rutinin en çok 20 girdisi olabilir',
   'error.routineRunNotWaiting': 'Bu çalışma bir bekleme adımında beklemiyor.',
   'validation.stepIds': 'İki adımın kimliği aynı olamaz',
   'validation.stepIdEnd': '"end" bir adımın kimliği olamaz; çalışmanın sonu için ayrılmış',
@@ -2690,6 +2691,7 @@ const en: Catalog<ServerKey> = {
     'The address must start with https://, with {{name}} values only after the server name',
   'validation.extractFields':
     'Write one value per line: name=path (e.g. price=items.0.price), at most 20, each name once',
+  'validation.routineInputs': 'A routine takes at most 20 inputs',
   'error.routineRunNotWaiting': 'This run is not held at a wait step.',
   'validation.stepIds': 'Two steps cannot have the same id',
   'validation.stepIdEnd': '"end" cannot be a step\'s id: it is kept for the end of the run',
