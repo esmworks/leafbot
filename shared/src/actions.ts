@@ -425,7 +425,7 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
           DELETE,
         ],
         en: list
-          ? [`delete ${list} from the board`, `delete ${list} from the board`, 'delete finished tickets']
+          ? [`delete ticket ${list}`, `delete ticket ${list}`, 'delete finished tickets']
           : ['delete finished tickets', 'delete these tickets', 'delete finished tickets'],
       };
     }

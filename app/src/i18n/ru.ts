@@ -512,7 +512,7 @@ export const ru: Partial<Catalog<MessageKey>> = {
   'sidebarMenu.markGroupRead': 'Отметить группу прочитанной',
   'chat.apiThreads': 'Через API',
   'chat.teamThreads': 'Команда (Slack, Discord)',
-  'chat.ticketThreads': 'Работа по задачам',
+  'chat.ticketThreads': 'Задачи',
   'activity.watch': 'Слежение',
   'shortcuts.newThread': 'Новый чат с этим ботом',
   'message.fork': 'Создать новый чат отсюда',
@@ -727,12 +727,12 @@ export const ru: Partial<Catalog<MessageKey>> = {
   'replay.askBotButton': 'Дать {bot} закончить',
   'replay.askBot':
     'Я повторил навык «{name}» без ИИ; он остановился на шаге {step}: {reason} Посмотрите страницу и закончите задачу оттуда.',
-  'board.title': 'Доска',
+  'board.title': 'Задачи',
   'board.description': 'Задачи, по которым работаете вы и ваши боты, в колонках по статусу.',
   'board.new': 'Новая задача',
   'board.newDescription': 'Напишите название и подробности задачи, кому она адресована и насколько срочная.',
   'board.create': 'Создать задачу',
-  'board.emptyTitle': 'Доска пуста',
+  'board.emptyTitle': 'Задач пока нет',
   'board.empty':
     'Добавьте задачу и передайте её боту: он возьмётся за работу и отчитается здесь. Боты тоже могут заводить задачи.',
   'board.openCount': {
@@ -789,7 +789,7 @@ export const ru: Partial<Catalog<MessageKey>> = {
   'board.addDescription': 'Добавить описание…',
   'board.editDescription': 'Изменить описание',
   'board.startsHint': '{name} сразу берётся за неё в отдельном чате задачи и отчитывается здесь.',
-  'board.unassignedHint': 'Отдайте её боту — и он сразу начнёт; иначе она ждёт на доске.',
+  'board.unassignedHint': 'Отдайте её боту — и он сразу начнёт; иначе она ждёт здесь.',
   'board.startHint': 'Перевод в «В работе» или новый комментарий снова запускают бота для этой задачи.',
   'board.openedByLabel': 'Открыл',
   'board.updated': 'Обновлено',

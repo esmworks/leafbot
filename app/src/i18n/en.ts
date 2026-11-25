@@ -490,7 +490,7 @@ export const en: Catalog<MessageKey> = {
   'sidebarMenu.markGroupRead': 'Mark the group as read',
   'chat.apiThreads': 'Through the API',
   'chat.teamThreads': 'Team (Slack, Discord)',
-  'chat.ticketThreads': 'Board work',
+  'chat.ticketThreads': 'Tickets',
   'activity.watch': 'Watch',
   'shortcuts.newThread': 'New conversation with this bot',
   'message.fork': 'Branch a new conversation from here',
@@ -713,7 +713,7 @@ export const en: Catalog<MessageKey> = {
   'replay.askBotButton': 'Let {bot} finish',
   'replay.askBot':
     'I replayed the “{name}” skill without AI; it stopped at step {step}: {reason} Look at the page and finish the task from there.',
-  'board.title': 'Board',
+  'board.title': 'Tickets',
   'dashboards.title': 'Dashboards',
   'dashboards.description':
     'Dashboards your bots fill. Tiles from a table are worked out from its current rows each time you look.',
@@ -738,7 +738,7 @@ export const en: Catalog<MessageKey> = {
   'board.new': 'New ticket',
   'board.newDescription': 'Write the ticket’s title and details, who it goes to and how urgent it is.',
   'board.create': 'Create ticket',
-  'board.emptyTitle': 'The board is empty',
+  'board.emptyTitle': 'No tickets yet',
   'board.empty':
     'Add a ticket and give it to a bot: it starts on the work and reports back here. Bots can open tickets too.',
   'board.openCount': { one: '1 open', other: '{count} open' },
@@ -786,7 +786,7 @@ export const en: Catalog<MessageKey> = {
   'board.editDescription': 'Edit the description',
   'board.startsHint':
     '{name} starts on it right away, in a conversation of the ticket’s own, and reports back here.',
-  'board.unassignedHint': 'Give it to a bot and it starts right away; otherwise it waits on the board.',
+  'board.unassignedHint': 'Give it to a bot and it starts right away; otherwise it waits here.',
   'board.startHint': 'Moving it to In progress, or writing a comment, starts the bot on it again.',
   'board.openedByLabel': 'Opened by',
   'board.updated': 'Updated',

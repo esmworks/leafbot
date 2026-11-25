@@ -458,7 +458,7 @@ export const id: Partial<Catalog<MessageKey>> = {
   'sidebarMenu.markGroupRead': 'Tandai grup sudah dibaca',
   'chat.apiThreads': 'Lewat API',
   'chat.teamThreads': 'Tim (Slack, Discord)',
-  'chat.ticketThreads': 'Pekerjaan papan',
+  'chat.ticketThreads': 'Tiket',
   'activity.watch': 'Pantau',
   'shortcuts.newThread': 'Obrolan baru dengan bot ini',
   'message.fork': 'Buat obrolan baru dari sini',
@@ -667,12 +667,12 @@ export const id: Partial<Catalog<MessageKey>> = {
   'replay.askBotButton': 'Biarkan {bot} menyelesaikan',
   'replay.askBot':
     'Saya mengulang keterampilan “{name}” tanpa AI; ia berhenti di langkah {step}: {reason} Lihat halamannya dan selesaikan tugasnya dari sana.',
-  'board.title': 'Papan',
+  'board.title': 'Tiket',
   'board.description': 'Tiket yang Anda dan bot Anda kerjakan, dalam kolom menurut status.',
   'board.new': 'Tiket baru',
   'board.newDescription': 'Tulis judul dan detail tiket, siapa yang dituju, dan seberapa mendesak.',
   'board.create': 'Buat tiket',
-  'board.emptyTitle': 'Papan masih kosong',
+  'board.emptyTitle': 'Belum ada tiket',
   'board.empty':
     'Tambahkan tiket dan berikan ke bot: bot mulai mengerjakannya dan melapor kembali di sini. Bot juga bisa membuka tiket.',
   'board.openCount': { other: '{count} terbuka' },
@@ -720,7 +720,7 @@ export const id: Partial<Catalog<MessageKey>> = {
   'board.editDescription': 'Ubah deskripsi',
   'board.startsHint':
     '{name} langsung mulai mengerjakannya, di obrolan khusus untuk tiket ini, dan melapor kembali di sini.',
-  'board.unassignedHint': 'Serahkan ke bot dan bot langsung mulai; kalau tidak, tiket menunggu di papan.',
+  'board.unassignedHint': 'Serahkan ke bot dan bot langsung mulai; kalau tidak, tiket menunggu di sini.',
   'board.startHint':
     'Memindahkannya ke Sedang dikerjakan, atau menulis komentar, membuat bot mengerjakannya lagi.',
   'board.openedByLabel': 'Dibuka oleh',
