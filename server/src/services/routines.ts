@@ -2182,6 +2182,8 @@ export class RoutineService {
           trigger,
           payload: payload ?? null,
           triggerInput: keptInput(payload),
+          // Started later, as any run that brings its own text: with the inputs' usual values.
+          inputs: inputsFor(routine),
         })
         .returning();
       this.ctx.bus.refresh({ scope: 'routines' });

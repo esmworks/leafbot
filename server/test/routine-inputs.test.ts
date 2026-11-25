@@ -1,6 +1,8 @@
 import type { Approval, Routine, RoutineRun } from '@leafbot/shared';
+import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { testServer, type TestServer } from './helpers';
+import { schema } from '../src/db';
+import { testServer, waitFor, type TestServer } from './helpers';
 
 describe("a routine's inputs", () => {
   let t: TestServer;
@@ -83,5 +85,27 @@ describe("a routine's inputs", () => {
     const id = run.steps?.find((s) => s.approvalId)?.approvalId;
     const card = (await t.api<Approval>('GET', `/api/approvals/${id}`)).body;
     expect(card.summary).toBe('Send the weekly report?');
+  });
+
+  it('gives a run that waits its turn the usual values, as one started at once', async () => {
+    t.dispose();
+    t = await testServer({ unattendedApprovalMs: 5_000 });
+    const bot = await t.bot({ permissionMode: 'ask' });
+    const { table } = await t.services.tables.define(bot.id, 'Decks', [{ name: 'Title', type: 'text' }]);
+    const r = await make(bot.id, {
+      prompt: 'Prepare the {{topic}} deck. [izin:Write {"file_path":"deck.txt"}]',
+      schedule: { type: 'daily', time: '09:00' },
+      tableTrigger: table.id,
+      inputs: { topic: 'weekly' },
+    });
+    await t.api('POST', `/api/tables/${table.id}/rows`, { Title: 'First' });
+    await waitFor(async () => (await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body[0]);
+    await t.api('POST', `/api/tables/${table.id}/rows`, { Title: 'Second' });
+    const kept = await t.db.db
+      .select({ status: schema.routineRuns.status, inputs: schema.routineRuns.inputs })
+      .from(schema.routineRuns)
+      .where(eq(schema.routineRuns.routineId, r.id));
+    expect(kept.map((k) => k.status).sort()).toEqual(['queued', 'running']);
+    for (const k of kept) expect(k.inputs).toEqual({ topic: 'weekly' });
   });
 });

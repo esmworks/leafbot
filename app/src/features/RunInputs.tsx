@@ -27,7 +27,12 @@ export function RunInputs({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md"
+        // The Escape that closes it stops here, as a box's window's does: the canvas covering the
+        // window listens for Escape to leave full screen.
+        onEscapeKeyDown={(e) => e.stopPropagation()}
+      >
         {/* Drawn afresh each time it opens, so it starts from the usual values again. */}
         {open && (
           <Fields inputs={inputs} onRun={onRun} onCancel={() => onOpenChange(false)} pending={pending} />
