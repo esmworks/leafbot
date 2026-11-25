@@ -119,6 +119,18 @@ export function ProfileTab() {
               </Row>
             </Card>
           )}
+          {/* A server older than the check-ins does not offer them. */}
+          {settings.checkIns !== undefined && (
+            <Card title={t('checkIn.setting.title')}>
+              <Row label={t('checkIn.setting.on')} hint={t('checkIn.setting.hint')}>
+                <Switch
+                  checked={settings.checkIns}
+                  aria-label={t('checkIn.setting.on')}
+                  onCheckedChange={(checkIns) => save.mutate({ checkIns })}
+                />
+              </Row>
+            </Card>
+          )}
         </>
       )}
       <SlackLinkCard />

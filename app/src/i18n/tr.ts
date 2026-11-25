@@ -301,6 +301,10 @@ export const tr = {
   'routineSuggest.setting.on': 'Sürekli istediğim şeyler için rutin öner',
   'routineSuggest.setting.hint':
     'Günde bir kez, botlara son haftalarda yazdığın mesajlara bakılır; tekrar tekrar istediğin bir şey varsa Bugün sayfası bunu rutin yapmayı önerir. Rutini botun kendi hesabından kısa bir istek yazar. Mesajlarını ve önerileri başkası görmez.',
+  'checkIn.setting.title': 'Günlük kontrol',
+  'checkIn.setting.on': 'Bir şey bozulunca ya da beni bekleyince haber ver',
+  'checkIn.setting.hint':
+    'Günde bir kez, hatırlatma saatinde, botlarına yapay zekâ kullanmadan bakılır: art arda başarısız olan ya da kendini kapatan bir rutin, yarım günden uzun süredir yanıt bekleyen bir kart, oturumu kapanan bir bağlantın. Yeni bir şey varsa bir bot sohbetinde kısaca haber verir ve ne yapılabileceğini önerir; kendisi hiçbir şeyi değiştirmez. Söylenecek yeni bir şey yoksa sessiz kalır.',
   'skillSuggest.title': 'Beceri olabilecek işler',
   'skillSuggest.line':
     'Bu işi {bot} botundan {count} kez, {days} ayrı günde istedin; bot her seferinde birkaç adımda yaptı. Nasıl yaptığından ve sonra düzelttiklerinden bir beceri yazıldı.',

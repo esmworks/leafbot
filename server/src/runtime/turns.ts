@@ -1951,7 +1951,13 @@ export class TurnManager {
       if (verdict === 'deny') {
         return {
           behavior: 'deny',
-          message: t(reportOnlyTurn(turn) ? 'turn.reportOnly' : 'turn.readOnly'),
+          message: t(
+            !reportOnlyTurn(turn)
+              ? 'turn.readOnly'
+              : turn.source === 'followup'
+                ? 'turn.checkInOnly'
+                : 'turn.reportOnly',
+          ),
         };
       }
       // In work the person asked for, they said no to this very step and have not written since:

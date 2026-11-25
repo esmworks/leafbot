@@ -82,7 +82,9 @@ cannot turn right to left without a restart. [docs/i18n.md](docs/i18n.md) covers
   in a mail, a deadline said in the chat, a promise) it keeps track of by itself, without asking and without filling
   the list of routines, and brings it up the morning before, with the calendar checked, also in Telegram or WhatsApp.
 - **Today and usage** — a Today page of what the bots did and what waits for you; spending by bot, model and routine,
-  a monthly limit and a CSV export.
+  a monthly limit and a CSV export. Once a day a check-in looks, with no AI, for a routine that keeps failing or stands
+  still, a card left unanswered or a connection that signed out, and when something is new a bot tells you and
+  suggests what to do, changing nothing itself.
 - **Telegram and WhatsApp** — each bot can have its own Telegram bot, paired with your Telegram account only;
   WhatsApp links like WhatsApp Web, with a separate number or your own "Message yourself" chat, and `/bot <name>`
   switches the bot it talks to. Replies, files and approval cards go back to the app you last wrote from; passwords

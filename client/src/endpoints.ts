@@ -210,6 +210,8 @@ export interface Settings {
   memoryReviewEvery?: number;
   /** Whether the person's own requests are looked at for something asked again and again; missing on older servers. */
   routineSuggestions?: boolean;
+  /** Whether a bot tells the person, once a day, of what went wrong and waits on them; missing on older servers. */
+  checkIns?: boolean;
   /** The promise safety net after a bot's reply; missing on older servers. */
   promiseKeeper?: boolean;
   /** The time of day a reminder of the person's own promise arrives (HH:MM); missing on older servers. */

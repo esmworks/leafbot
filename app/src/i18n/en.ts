@@ -309,6 +309,10 @@ export const en: Catalog<MessageKey> = {
   'routineSuggest.setting.on': 'Suggest routines for what I keep asking',
   'routineSuggest.setting.hint':
     "Once a day, your own messages to bots from the last weeks are looked at for a request you made again and again. Today then offers to make it a routine; one short request on the bot's own account writes it. Nobody else sees your messages or the suggestions.",
+  'checkIn.setting.title': 'Daily check-in',
+  'checkIn.setting.on': 'Tell me when something breaks or waits on me',
+  'checkIn.setting.hint':
+    'Once a day, at your reminder time, your bots are looked over with no AI: a routine that keeps failing or switched itself off, a card left unanswered for more than half a day, a connection of yours that signed out. When something is new, a bot tells you briefly in your conversation and suggests what to do; it changes nothing itself. When there is nothing new, nobody hears of it.',
   'skillSuggest.title': 'Tasks that could be skills',
   'skillSuggest.line': {
     one: 'You asked {bot} for this once, on {days} day, and it took several steps. A skill was written from how it did it and what you corrected.',

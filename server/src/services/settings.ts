@@ -106,6 +106,12 @@ export const Settings = z.object({
    * model call; each person has their own.
    */
   routineSuggestions: z.boolean().default(true),
+  /**
+   * Once a day, at the person's reminder time, what has gone wrong and waits on them (a routine that
+   * keeps failing or stands still, a card left unanswered, a signed-out connection) is looked at with
+   * no AI, and when something is new a bot tells them. Off stops the looking; each person has their own.
+   */
+  checkIns: z.boolean().default(true),
   /** The time of day, in the person's time zone, that a reminder of their own promise arrives. */
   promiseRemindAt: z
     .string()
@@ -179,6 +185,7 @@ export const PERSONAL_SETTINGS = [
   'onboarded',
   'promiseRemindAt',
   'routineSuggestions',
+  'checkIns',
   // The language the app and the bots speak with the person.
   'language',
 ] as const satisfies readonly (keyof Settings)[];
@@ -193,6 +200,7 @@ const Profile = Settings.pick({
   onboarded: true,
   promiseRemindAt: true,
   routineSuggestions: true,
+  checkIns: true,
   language: true,
 });
 
