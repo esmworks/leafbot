@@ -643,6 +643,8 @@ const tr = {
   'job.replyFiles': 'Cevapla gelen dosyaların kopyaları:\n{files}',
   'job.emptyReply': '(boş cevap)',
   'job.failedReply': '(cevap verilemedi: {message})',
+  'job.restartedReply':
+    '(cevap verilemedi: sunucu yeniden başladığı için bu iş yarıda kaldı; bot cevap vermeyi reddetmedi. Cevap gerekiyorsa isteği yeniden gönder; cevap gelmeden sonucu varsayma.)',
   'job.done': 'tamamlandı',
   'job.failed': 'tamamlanamadı',
   'job.reply':
@@ -2881,6 +2883,8 @@ const en: Catalog<ServerKey> = {
   'job.replyFiles': 'Copies of the files that came with the answer:\n{files}',
   'job.emptyReply': '(empty reply)',
   'job.failedReply': '(no reply: {message})',
+  'job.restartedReply':
+    '(no reply: the server restarted and cut this request short; the bot did not decline to answer. If you need the answer, send the request again; do not assume what it would have said.)',
   'job.done': 'done',
   'job.failed': 'not done',
   'job.reply':

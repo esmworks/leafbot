@@ -35,6 +35,33 @@ describe('durdurma ve kaldığı yerden sürdürme', () => {
     expect(prompt).toContain('raporu hazırla');
   });
 
+  it('sunucu kapanırken yarıda kalan iş, sorana yeniden başlatma olarak ve yeniden sorulsun diye bildirilir', async () => {
+    const a = await t.bot({ name: 'Ali' });
+    const b = await t.bot({ name: 'Ayşe' });
+    const ta = await main(a.id);
+    const job = await t.services.jobs.send({
+      from: a,
+      to: b,
+      fromThreadId: ta.id,
+      parentJobId: null,
+      text: '[bekle:5000] portföy çeklerini oku',
+      kind: 'send',
+    });
+    await waitFor(async () => t.engine.requests.some((r) => r.botId === b.id));
+
+    // A deploy stops the server while the target is still answering.
+    await t.services.turns.shutdown();
+
+    const [row] = await t.db.db.select().from(schema.jobs).where(eq(schema.jobs.id, job.id));
+    expect(row!.status).toBe('stopped');
+    expect(row!.reply).toContain('sunucu yeniden başladığı için');
+    expect(row!.reply).toContain('yeniden gönder');
+    const [turn] = await t.db.db.select().from(schema.turns).where(eq(schema.turns.jobId, job.id));
+    expect(turn!.error).toBe('Sunucu yeniden başladı');
+    const note = (await t.messages(turn!.threadId)).find((m) => m.turnId === turn!.id && m.role === 'system');
+    expect(note!.text).toContain('yeniden başladığı');
+  });
+
   it('bot_stop yalnız o işi durdurur; aynı bota gönderilen öteki iş sürer', async () => {
     const a = await t.bot({ name: 'Ali' });
     const b = await t.bot({ name: 'Ayşe' });
