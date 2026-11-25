@@ -80,7 +80,7 @@ const tr = {
   'error.notFound.ticket': 'Görev bulunamadı',
   'error.notFound.table': 'Tablo bulunamadı',
   'error.notFound.tableRow': 'Satır bulunamadı',
-  'error.notFound.dashboard': 'Gösterge paneli bulunamadı',
+  'error.notFound.dashboard': 'Pano bulunamadı',
   'error.notFound.dashboardTile': 'Kutucuk bulunamadı',
   'error.connectionPrivate':
     'Bu bilgisayardaki ya da iç ağdaki bir adrese bağlantıyı yalnızca sunucuyu yönetenler kurabilir',
@@ -133,7 +133,7 @@ const tr = {
   'teach.step.forward': 'İleri git.',
   'teach.step.reload': 'Sayfayı yenile.',
   'ticket.prompt':
-    'Panodaki #{number} numaralı görev sana verildi.\nBaşlık: {title}\nÖncelik: {priority}\n\nAçıklama:\n{description}\n\nYorumlar:\n{comments}\n\nGörevi yap. Bitince ne yaptığını ve sonucu kısaca yaz; bu yazdığın göreve yorum olarak eklenir ve görev incelemeye alınır. Sürdüremiyorsan ticket_update ile durumu blocked yap ve nedenini yorum olarak yaz; kullanıcıdan bir şey gerekiyorsa sor.',
+    '#{number} numaralı görev sana verildi.\nBaşlık: {title}\nÖncelik: {priority}\n\nAçıklama:\n{description}\n\nYorumlar:\n{comments}\n\nGörevi yap. Bitince ne yaptığını ve sonucu kısaca yaz; bu yazdığın göreve yorum olarak eklenir ve görev incelemeye alınır. Sürdüremiyorsan ticket_update ile durumu blocked yap ve nedenini yorum olarak yaz; kullanıcıdan bir şey gerekiyorsa sor.',
   'ticket.commentPrompt':
     'Kullanıcı #{number} numaralı göreve yorum yazdı:\n\n{comment}\n\nBuna göre işe devam et ve sonucu kısaca yaz.',
   'ticket.noDescription': '(açıklama yok)',
@@ -864,10 +864,10 @@ const tr = {
   'prompt.peersHow':
     'Bir bota iş vermek için `bot_send` aracını kullan; cevabı sana yeni bir mesaj olarak gelir, beklemene gerek yok. Gönderdiğin isteklerin durumunu `bot_requests` ile görebilirsin.',
   'prompt.peersBoard':
-    '`bot_send` hızlı bir soru ya da cevabını hemen beklediğin kısa bir istek içindir. Sonucu takip edilecek bir işi bir bota panodan ver: `ticket_create` ile `assign_to`.',
-  'prompt.board': '## Pano',
+    '`bot_send` hızlı bir soru ya da cevabını hemen beklediğin kısa bir istek içindir. Sonucu takip edilecek bir işi bir bota görev olarak ver: `ticket_create` ile `assign_to`.',
+  'prompt.board': '## Görevler',
   'prompt.boardHow':
-    'Pano, kullanıcının kendisi için yapılan işleri takip ettiği yer: görevler durumlarına göre sütunlarda (yapılacak, sürüyor, incelemede, takıldı, bitti). Kullanıcı panoyu uygulamada görür; sen onu `tickets_list`, `ticket_read`, `ticket_create` ve `ticket_update` ile kullanırsın; kullanıcı isterse biten görevleri `ticket_delete` ile silersin.\n- Kullanıcı bu cevapta bitmeyecek bir iş istediğinde (birkaç adım ya da zaman alıyor, birini bekliyor, takip edilmesi gerekiyor) ya da "listeye ekle", "panoya yaz" dediğinde `ticket_create` ile görev aç. Açmadan önce `tickets_list` ile aynı iş için bir görev var mı bak.\n- Sonucu takip edilecek bir işi bir bota verirken görevi `assign_to` ile aç: o bot hemen, göreve ait ayrı bir konuşmada işe başlar ve sonucu göreve yazılır.\n- Bir görev üzerinde onun kendi konuşmasının dışında çalışıyorsan onu `ticket_update` ile güncel tut: durumu değiştikçe, ne yapıldığını ya da neyin eksik olduğunu kısa bir yorumla. Görevin kendi konuşmasında son cevabın göreve yazılır ve görev kendiliğinden incelemeye geçer; durumu bitti yapma. Sürdüremiyorsan durumu blocked yap ve nedenini yaz.\n- Bir cevabın içindeki kendi yapılacaklar listen yalnız o cevabın adımları içindir; kullanıcı onu panoda görmez.\n- Hemen cevapladığın bir soru ya da tek adımda biten bir iş için görev açma.',
+    'Görevler, kullanıcının kendisi için yapılan işleri takip ettiği liste: görevler durumlarına göre sütunlarda (yapılacak, sürüyor, incelemede, takıldı, bitti). Kullanıcı bu listeyi uygulamada Görevler olarak görür; sen onu `tickets_list`, `ticket_read`, `ticket_create` ve `ticket_update` ile kullanırsın; kullanıcı isterse biten görevleri `ticket_delete` ile silersin.\n- Kullanıcı bu cevapta bitmeyecek bir iş istediğinde (birkaç adım ya da zaman alıyor, birini bekliyor, takip edilmesi gerekiyor) ya da "listeye ekle", "görev aç" dediğinde `ticket_create` ile görev aç. Açmadan önce `tickets_list` ile aynı iş için bir görev var mı bak.\n- Sonucu takip edilecek bir işi bir bota verirken görevi `assign_to` ile aç: o bot hemen, göreve ait ayrı bir konuşmada işe başlar ve sonucu göreve yazılır.\n- Bir görev üzerinde onun kendi konuşmasının dışında çalışıyorsan onu `ticket_update` ile güncel tut: durumu değiştikçe, ne yapıldığını ya da neyin eksik olduğunu kısa bir yorumla. Görevin kendi konuşmasında son cevabın göreve yazılır ve görev kendiliğinden incelemeye geçer; durumu bitti yapma. Sürdüremiyorsan durumu blocked yap ve nedenini yaz.\n- Bir cevabın içindeki kendi yapılacaklar listen yalnız o cevabın adımları içindir; kullanıcı onu Görevler’de görmez.\n- Hemen cevapladığın bir soru ya da tek adımda biten bir iş için görev açma.',
   'prompt.boardOpen': 'Sana verilmiş açık görevler (ayrıntısı için `ticket_read`):',
   'prompt.boardMore': '…ve {count} görev daha; hepsi için `tickets_list` ile mine: true.',
   'prompt.room': '## Oda',
@@ -934,7 +934,7 @@ const tr = {
   'prompt.ruleChecklist':
     '- Bir mesajda birden fazla iş istendiğinde başlamadan önce hepsini yapılacaklar listene madde madde yaz ve her birini bitirdikçe işaretle. Cevabını bitirmeden önce kullanıcının isteğini, bu turda araya eklediklerini de, baştan tekrar oku ve her maddenin yapıldığından emin ol. Bir madde yapılmadıysa, ister yapamadığın için ister bilerek bıraktığın için, cevabında adını ve nedenini söyle; hiçbir maddeyi sessizce atlama.',
   'prompt.ruleChecklistBoard':
-    '- Bu turda bitiremediğin ve sonra yapılması gereken bir madde kalırsa (birini bekliyor, zaman alıyor ya da kullanıcının bir kararına bağlı) yalnızca cevabında söylemekle kalma, `ticket_create` ile panoda onun için bir görev aç; açmadan önce `tickets_list` ile aynı iş için bir görev var mı bak.',
+    '- Bu turda bitiremediğin ve sonra yapılması gereken bir madde kalırsa (birini bekliyor, zaman alıyor ya da kullanıcının bir kararına bağlı) yalnızca cevabında söylemekle kalma, `ticket_create` ile onun için bir görev aç; açmadan önce `tickets_list` ile aynı iş için bir görev var mı bak.',
   'prompt.ruleFacts':
     '- Önce cevabı ver, sonra gerekiyorsa ayrıntıyı. Bilgi ya da kaynak uydurma; emin olmadığını söyle. Bir işi bitti saymadan önce sonucunu kontrol et.',
   'prompt.ruleStatus':
@@ -1044,10 +1044,10 @@ const tr = {
   'tool.apiParams': 'parametreler',
   'tool.apiOperationsMore': '…ve {count} işlem daha; query ile daralt.',
   'tool.tickets_list':
-    'Panodaki görevleri listele: numara, durum, başlık, öncelik ve kime verildiği. status ile durumlara göre süz (todo, in_progress, in_review, blocked, done, wont_do); mine: true yalnız sana verilenleri getirir. Yeni bir görev açmadan önce aynı iş için açılmış bir görev var mı buradan bak.',
+    'Görevleri listele: numara, durum, başlık, öncelik ve kime verildiği. status ile durumlara göre süz (todo, in_progress, in_review, blocked, done, wont_do); mine: true yalnız sana verilenleri getirir. Yeni bir görev açmadan önce aynı iş için açılmış bir görev var mı buradan bak.',
   'tool.ticket_read': 'Bir görevi açıklaması ve yorumlarıyla oku (ticket: numarası, ör. 12).',
   'tool.ticket_create':
-    'Panoya yeni bir görev ekle; bu cevapta bitmeyecek ya da takip edilmesi gereken bir iş için: title, description, priority (low, normal, high, urgent), assign_to (bir botun adı; verilirse o bot hemen, göreve ait ayrı bir konuşmada işe başlar ve sonucu göreve yazılır; sonucu takip edilecek bir işi bir bota vermenin yolu budur). Kullanıcı panodan görür.',
+    'Yeni bir görev aç; bu cevapta bitmeyecek ya da takip edilmesi gereken bir iş için: title, description, priority (low, normal, high, urgent), assign_to (bir botun adı; verilirse o bot hemen, göreve ait ayrı bir konuşmada işe başlar ve sonucu göreve yazılır; sonucu takip edilecek bir işi bir bota vermenin yolu budur). Kullanıcı Görevler’den görür.',
   'tool.ticket_update':
     'Bir görevi işi ilerledikçe güncelle (ticket: numarası): status, comment (göreve yorum: ne yapıldı ya da ne eksik), assign_to (bir botun adı; boş bırakmak için ""), priority, title, description. Yalnız değişecek alanları ver.',
   'tool.tables_list':
@@ -1080,14 +1080,14 @@ const tr = {
   'tool.tableType.bool': 'evet/hayır',
   'tool.tableType.url': 'bağlantı',
   'tool.dashboards':
-    'Gösterge panellerini oku. Bunlar bu uygulamanın kendi gösterge panelleridir; görev panosu (ticket_*) ya da başka uygulamaların panoları değildir. name vermezsen gördüğün panellerin listesi gelir. name verirsen o paneldeki her kutucuğun şu anki değeri metin olarak gelir; başka botların kutucukları da buna dahildir.',
+    'Panoları oku. Bunlar bu uygulamanın kendi panolarıdır; görevler (ticket_*) ya da başka uygulamaların panoları değildir. name vermezsen gördüğün panoların listesi gelir. name verirsen o panodaki her kutucuğun şu anki değeri metin olarak gelir; başka botların kutucukları da buna dahildir.',
   'tool.dashboard_define':
-    'Bu uygulamanın gösterge paneline kutucuk koy. Kişi paneli kenar menüsündeki Gösterge panelleri düğmesinden canlı izler. Bu, görev panosundan (ticket_*) ve başka uygulamaların panolarından ayrıdır. Kişi başka bir uygulamanın adını vermeden "pano", "panel" ya da "dashboard" istiyorsa bu aracı kullan. name: panelin adı; yoksa açılır, aynı adı kullanan botlar aynı paneli doldurur. tiles: her biri title ve show ile. Tablodan hesaplanan kutucuk her açılışta tablonun o anki satırlarından yeniden hesaplanır; sen satır ekledikçe kendiliğinden güncellenir. Bunun için table (kendi tablonun adı) ve show ver. show şunlardan biri: number (tek sayı; period verilirse önceki aynı döneme göre değişimiyle), bar, line ya da area (grafik: bucket day/week/month ile zamana göre, group_by ile bir sütunun değerlerine göre; ikisi birlikte verilirse gruplar ayrı seriler olur), progress (goal hedefine göre ilerleme; ring: true halka çizer), rows (en yeni satırların listesi; columns en çok 6 sütun, limit en çok 20). measure: count (varsayılan), sum, avg, min ya da max; count dışındakiler column ile bir sayı sütunu ister. period: today, 7d, 30d, 90d, month, quarter, year ya da all. Satırın günü date_column (bir tarih sütunu) verilirse oradan, verilmezse satırın yazıldığı günden alınır. filter: her satıra bir koşul, örneğin Durum=açık, Durum!=kapalı, Not~=acil ya da yalnızca Sütun (dolu olanlar). Tablonda olmayan veri için (CRM, e-posta, başka bir uygulama) show: card ve card ver. card, show_card ile aynı ChatKit ağacıdır ama yalnızca gösterir; form, düğme ve alan içeremez. Güncel tutmak için bir rutinde aynı başlıkla yeniden yaz. wide: true kutucuğu iki sütun genişliğinde çizer. Aynı başlıkla yazılan kutucuk yerinde değişir. remove: kaldırılacak kendi kutucuklarının başlıkları. Kutucuklardan biri hatalıysa hiçbiri yazılmaz.',
-  'tool.dashboardsNone': 'Henüz görebildiğin bir gösterge paneli yok; dashboard_define ile kurabilirsin.',
-  'tool.dashboardMissing': '“{name}” adında bir gösterge paneli yok. Görebildiklerin: {names}',
+    'Bu uygulamanın panosuna kutucuk koy. Kişi panoyu kenar menüsündeki Panolar düğmesinden canlı izler. Bu, görevlerden (ticket_*) ve başka uygulamaların panolarından ayrıdır. Kişi başka bir uygulamanın adını vermeden "pano", "panel" ya da "dashboard" istiyorsa bu aracı kullan. name: panonun adı; yoksa açılır, aynı adı kullanan botlar aynı panoyu doldurur. tiles: her biri title ve show ile. Tablodan hesaplanan kutucuk her açılışta tablonun o anki satırlarından yeniden hesaplanır; sen satır ekledikçe kendiliğinden güncellenir. Bunun için table (kendi tablonun adı) ve show ver. show şunlardan biri: number (tek sayı; period verilirse önceki aynı döneme göre değişimiyle), bar, line ya da area (grafik: bucket day/week/month ile zamana göre, group_by ile bir sütunun değerlerine göre; ikisi birlikte verilirse gruplar ayrı seriler olur), progress (goal hedefine göre ilerleme; ring: true halka çizer), rows (en yeni satırların listesi; columns en çok 6 sütun, limit en çok 20). measure: count (varsayılan), sum, avg, min ya da max; count dışındakiler column ile bir sayı sütunu ister. period: today, 7d, 30d, 90d, month, quarter, year ya da all. Satırın günü date_column (bir tarih sütunu) verilirse oradan, verilmezse satırın yazıldığı günden alınır. filter: her satıra bir koşul, örneğin Durum=açık, Durum!=kapalı, Not~=acil ya da yalnızca Sütun (dolu olanlar). Tablonda olmayan veri için (CRM, e-posta, başka bir uygulama) show: card ve card ver. card, show_card ile aynı ChatKit ağacıdır ama yalnızca gösterir; form, düğme ve alan içeremez. Güncel tutmak için bir rutinde aynı başlıkla yeniden yaz. wide: true kutucuğu iki sütun genişliğinde çizer. Aynı başlıkla yazılan kutucuk yerinde değişir. remove: kaldırılacak kendi kutucuklarının başlıkları. Kutucuklardan biri hatalıysa hiçbiri yazılmaz.',
+  'tool.dashboardsNone': 'Henüz görebildiğin bir pano yok; dashboard_define ile kurabilirsin.',
+  'tool.dashboardMissing': '“{name}” adında bir pano yok. Görebildiklerin: {names}',
   'tool.dashboardLine': '- {name}: {count} kutucuk',
   'tool.dashboardDefined':
-    '“{name}” gösterge paneli güncellendi. Yazılan kutucuklar: {written}. Kaldırılan kutucuk sayısı: {removed}. Kişi paneli kenar menüsündeki Gösterge panelleri düğmesinden görür.',
+    '“{name}” panosu güncellendi. Yazılan kutucuklar: {written}. Kaldırılan kutucuk sayısı: {removed}. Kişi panoyu kenar menüsündeki Panolar düğmesinden görür.',
   'dashboard.other': 'Diğer',
   'dashboard.empty': '(boş)',
   'dashboard.noRows': 'Henüz satır yok',
@@ -1117,24 +1117,24 @@ const tr = {
   'dashboard.problem.needsCard': 'Bu kutucuğun kartı yok.',
   'dashboard.problem.cardOnly': 'card yalnızca show: card kutucuklarında kullanılır.',
   'dashboard.problem.notDisplay':
-    'Kart gösterilemiyor ({what}). Gösterge panelindeki kartlar yalnızca gösterir; form, düğme ya da alan içeremez.',
+    'Kart gösterilemiyor ({what}). Panodaki kartlar yalnızca gösterir; form, düğme ya da alan içeremez.',
   'dashboard.problem.tooBig': 'Kutucuk çizilemeyecek kadar büyük.',
   'dashboard.problem.badSpec': 'Bu kutucuk okunamıyor; botun yeniden yazması gerekiyor.',
   'dashboard.problem.sameTitle': '“{title}” başlığı birden çok kez verildi.',
-  'dashboard.problems': 'Gösterge paneline hiçbir şey yazılmadı:\n{problems}',
-  'dashboard.tooManyTiles': 'Bir gösterge panelinde en çok {max} kutucuk olabilir.',
-  'dashboard.tooMany': 'En çok {max} gösterge paneli olabilir.',
+  'dashboard.problems': 'Panoya hiçbir şey yazılmadı:\n{problems}',
+  'dashboard.tooManyTiles': 'Bir panoda en çok {max} kutucuk olabilir.',
+  'dashboard.tooMany': 'En çok {max} pano olabilir.',
   'dashboard.notAllYours':
     'Bu panelde değiştiremediğin botların kutucukları var; yalnızca kendi botlarının kutucuklarını kaldırabilirsin.',
-  'tool.ticketsNone': 'Panoda böyle bir görev yok.',
+  'tool.ticketsNone': 'Böyle bir görev yok.',
   'tool.ticketMissing': '#{ticket} numaralı görev yok.',
-  'tool.ticketCreated': '#{number} numaralı görev panoya eklendi.',
+  'tool.ticketCreated': '#{number} numaralı görev açıldı.',
   'tool.ticketCreatedWaiting':
-    '#{number} numaralı görev panoya eklendi; bir görev üzerinde çalışırken açıldığı için atanan bot kullanıcı başlatana kadar bekler.',
+    '#{number} numaralı görev açıldı; bir görev üzerinde çalışırken açıldığı için atanan bot kullanıcı başlatana kadar bekler.',
   'tool.ticketUpdated': '#{number} numaralı görev güncellendi.',
   'tool.ticket_delete':
-    'Biten görevleri panodan sil (tickets: numaraları, ör. [12, 13]). Yalnız durumu bitti (done) ya da yapılmayacak (wont_do) olanlar silinir; hâlâ açık bir işi bırakmak için önce durumunu wont_do yap. Görev yorumlarıyla birlikte gider; kullanıcı turu geri alarak geri getirebilir.',
-  'tool.ticketsDeleted': 'Panodan silinen görevler: {list}.',
+    'Biten görevleri sil (tickets: numaraları, ör. [12, 13]). Yalnız durumu bitti (done) ya da yapılmayacak (wont_do) olanlar silinir; hâlâ açık bir işi bırakmak için önce durumunu wont_do yap. Görev yorumlarıyla birlikte gider; kullanıcı turu geri alarak geri getirebilir.',
+  'tool.ticketsDeleted': 'Silinen görevler: {list}.',
   'tool.ticketNotClosed': '#{number} silinmedi: durumu "{status}"; yalnız biten görevler silinir.',
   'tool.ticketDeleteSelf': '#{number} silinmedi: bu konuşma o görev üzerinde çalışıyor.',
   'tool.image_create':

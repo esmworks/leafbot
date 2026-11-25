@@ -420,8 +420,8 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
         : '';
       return {
         tr: [
-          list ? `panodaki ${list} görevini` : 'panodaki biten görevleri',
-          list ? `panodaki ${list} görevini` : 'bu görevleri',
+          list ? `${list} görevini` : 'biten görevleri',
+          list ? `${list} görevini` : 'bu görevleri',
           DELETE,
         ],
         en: list
