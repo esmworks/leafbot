@@ -36,6 +36,8 @@ describe('object avatars', () => {
       const flat = objectDefinition(o)!;
       const fluffy = objectDefinition(o, 'fluffy')!;
       expect(objectDefinition(o, 'flat'), o).toBe(flat);
+      // Glass leaves the eyes uncovered, so they keep the flat size.
+      expect(objectDefinition(o, 'glass'), o).toBe(flat);
       expect(fluffy.eyes.scale, o).toBeCloseTo((flat.eyes.scale ?? 1) * FLUFFY_EYE_SCALE);
       expect(fluffy.body, o).toBe(flat.body);
       // The same drawing each time, so a mounted avatar is not mounted again.

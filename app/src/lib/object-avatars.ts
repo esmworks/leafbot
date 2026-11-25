@@ -112,12 +112,13 @@ const fluffyDrawings = new Map<string, AvatarDefinition>();
 
 /**
  * The drawing of an object avatar: one of the plain shapes or one of the engine's objects. A fluffy
- * body gets larger eyes (see `FLUFFY_EYE_SCALE`); the same drawing comes back each time, so a mounted
+ * body gets larger eyes (see `FLUFFY_EYE_SCALE`); flat and glass bodies show the eyes whole and keep
+ * them at the drawn size. The same drawing comes back each time, so a mounted
  * avatar is not drawn anew on every render.
  */
 export function objectDefinition(id: string, material: BotMaterial = 'flat'): AvatarDefinition | undefined {
   const flat = OWN[id] ?? getExample(id);
-  if (!flat || material === 'flat') return flat;
+  if (!flat || material !== 'fluffy') return flat;
   let fluffy = fluffyDrawings.get(id);
   if (!fluffy) {
     fluffy = { ...flat, eyes: { ...flat.eyes, scale: (flat.eyes.scale ?? 1) * FLUFFY_EYE_SCALE } };
