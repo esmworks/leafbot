@@ -192,6 +192,8 @@ interface Ctx {
   /** Checklist items, which stay open to ticks even once the card is answered. */
   live: Set<string>;
   tick(name: string, v: boolean): void;
+  /** A figure drawn without its own frame, as the only part of a tile that frames it. */
+  bare?: string;
 }
 
 /**
@@ -316,6 +318,12 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
   );
 }
 
+/** The figure that is all a card holds, if that is what it holds. */
+function loneStat(card: Card): string | undefined {
+  const only = card.root.children?.length === 1 ? card.root.children[0] : undefined;
+  return only?.type === 'Stat' ? only.id : undefined;
+}
+
 /**
  * A card that only shows, as a dashboard tile holds one: drawn as a bot's card is, with nothing in
  * it to change or press, and no frame of its own so the tile around it gives one.
@@ -331,6 +339,7 @@ export function ShownCard({ card }: { card: Card }) {
     c,
     live: new Set(),
     tick: () => {},
+    bare: loneStat(card),
   };
   return (
     <View style={styles.shown}>
@@ -517,7 +526,7 @@ function Part({ node, ctx }: { node: CardNode; ctx: Ctx }): ReactNode {
     case 'Chart':
       return <CardChart node={node} c={c} />;
     case 'Stat':
-      return <CardStat node={node} icon={ICONS[str(node.icon)]} c={c} />;
+      return <CardStat node={node} icon={ICONS[str(node.icon)]} c={c} bare={ctx.bare === node.id} />;
     case 'Progress':
       return <CardProgress node={node} c={c} />;
     default:
