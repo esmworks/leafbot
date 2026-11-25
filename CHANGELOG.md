@@ -7,6 +7,13 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Sharing a table with another bot: from the table's window, someone who may change both bots lets another bot
+  read the table, or read and write its rows. The other bot finds it among its tables as "Owner / Name"; its own
+  table of the same name comes first. The columns and the table stay with their bot, so the other bot cannot add
+  columns or delete the table. Taking the share back holds from the bot's next step. A guest's or WhatsApp
+  contact's turn does not reach shared tables, and someone who talks only to the other bot still cannot open the
+  table on the web. Rows the other bot writes do not start the owner's table routines, as no bot's writes do. Shares
+  are set on the web, not on the phone.
 - Table views: a table can be shown as a grid, a board, a gallery of cards or a list, grouped by one of its
   columns. On a board each value of the column (a status, a stage) is a lane, and dragging a card to another lane
   changes that cell, as editing it would; every field on a card can be edited in place too. The view is kept with

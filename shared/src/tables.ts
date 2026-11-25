@@ -57,6 +57,15 @@ export const BotTable = z.object({
 });
 export type BotTable = z.infer<typeof BotTable>;
 
+/**
+ * Another bot let into a bot's table: it reads the rows, and with `write` adds, changes and deletes
+ * them. The columns and the table itself stay its owner's.
+ */
+export const TableShare = z.object({ botId: z.string(), write: z.boolean() });
+export type TableShare = z.infer<typeof TableShare>;
+
+export const TableShareSet = z.object({ write: z.boolean().default(false) });
+
 export interface TableRow {
   id: string;
   values: Record<string, CellValue>;

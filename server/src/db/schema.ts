@@ -1853,6 +1853,27 @@ export const botTables = pgTable(
   (t) => [uniqueIndex('bot_tables_name_uq').on(t.botId, t.name)],
 );
 
+/**
+ * Tables another bot is let into: it reads the rows, and with `write` changes them. Goes with the
+ * table and with the bot let in.
+ */
+export const botTableShares = pgTable(
+  'bot_table_shares',
+  {
+    tableId: text('table_id')
+      .notNull()
+      .references(() => botTables.id, { onDelete: 'cascade' }),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    write: boolean('write').notNull().default(false),
+    /** The person who shared it. */
+    grantedBy: text('granted_by'),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.tableId, t.botId] }), index('bot_table_shares_bot_idx').on(t.botId)],
+);
+
 export const botTableRows = pgTable(
   'bot_table_rows',
   {

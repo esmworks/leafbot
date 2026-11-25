@@ -192,6 +192,7 @@ describe('botun tabloları', () => {
         t: ((k: string) => k) as never,
         note: async () => undefined,
         hasTables,
+        shared: true,
       }).map((x) => x.name);
     expect(names(false)).toEqual(['table_define', 'table_add']);
     expect(names(true)).toHaveLength(6);

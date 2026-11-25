@@ -116,6 +116,7 @@ import {
   ApiSourceCreate,
   TicketCommentCreate,
   RowValues,
+  TableShareSet,
   TableView,
   type TableRow,
   TicketCreate,
@@ -1042,6 +1043,21 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.delete('/api/tables/:id/rows/:rowId', async (req) => {
     const p = z.object({ id: z.string(), rowId: z.string() }).parse(req.params);
     return { deleted: await s.tables.deleteRows(p.id, [p.rowId]) };
+  });
+  // Letting another bot into a table puts its rows before everyone who talks to that bot, so it
+  // takes the right to change both bots; taking it back takes only the table's.
+  app.get('/api/tables/:id/shares', async (req) => s.tables.shares(IdParams.parse(req.params).id));
+  app.put('/api/tables/:id/shares/:botId', async (req) => {
+    const p = z.object({ id: z.string(), botId: z.string() }).parse(req.params);
+    const level = await s.access.level(me(req), p.botId);
+    if (level === 'none') throw notFound('bot');
+    if (level !== 'edit') throw new HttpError(403, 'error.tableShareEdit');
+    return s.tables.share(p.id, p.botId, TableShareSet.parse(req.body ?? {}).write, me(req).userId);
+  });
+  app.delete('/api/tables/:id/shares/:botId', async (req) => {
+    const p = z.object({ id: z.string(), botId: z.string() }).parse(req.params);
+    await s.tables.unshare(p.id, p.botId);
+    return { ok: true };
   });
   app.put('/api/tables/:id/view', async (req) =>
     s.tables.setView(IdParams.parse(req.params).id, TableView.parse(req.body)),

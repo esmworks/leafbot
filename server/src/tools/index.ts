@@ -2750,7 +2750,15 @@ export class ToolFactory {
       }),
     );
     tools.push(
-      ...tableTools({ def, services: s, botId: bot.id, t, note: journal, hasTables: opts.hasTables ?? true }),
+      ...tableTools({
+        def,
+        services: s,
+        botId: bot.id,
+        t,
+        note: journal,
+        hasTables: opts.hasTables ?? true,
+        shared: !guest && !opts.contact,
+      }),
       ...dashboardTools({ def, services: s, botId: bot.id, person, onlyOwn: team || guest, t }),
     );
     // With the internet off the bot gets neither its browser nor its desktop, which reach it too.

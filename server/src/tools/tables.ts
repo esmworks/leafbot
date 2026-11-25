@@ -34,17 +34,44 @@ export function tableTools(opts: {
   note: (c: ChangeNote) => Promise<void>;
   /** False for a bot with no table yet: it gets only what starts one, not six tools every turn. */
   hasTables: boolean;
+  /**
+   * Whether other bots' tables this bot was let into are reached in this turn: not in a guest's or
+   * a WhatsApp contact's, who were not let into that other bot.
+   */
+  shared: boolean;
 }): AppTool[] {
   const { def, services: s, botId, t, note } = opts;
   const yes = t('tool.tableYes');
   const no = t('tool.tableNo');
-  /** The bot's table by name, or the reason it has none, listing those it has. */
-  const table = async (name: string): Promise<BotTable | string> => {
+  const key = (name: string) => name.trim().toLocaleLowerCase('tr');
+  // Looked up at each call, so a share taken back holds from the next step on.
+  const sharedTables = async () => (opts.shared ? s.tables.sharedWith(botId) : []);
+  const fullName = (x: { owner: string; name: string }) => `${x.owner} / ${x.name}`;
+  /**
+   * A table by name: the bot's own first, then one it was let into, by its name or as "Owner /
+   * Name" when two bots' tables share a name. Otherwise the reason, listing those it reaches.
+   */
+  const table = async (
+    name: string,
+  ): Promise<{ x: BotTable; write: boolean; owner: string | null } | string> => {
     const { found, names } = await s.tables.find(botId, name);
-    if (found) return found;
-    return names.length
-      ? t('tool.tableMissing', { table: name, tables: names.join(', ') })
+    if (found) return { x: found, write: true, owner: null };
+    const shared = await sharedTables();
+    const named = shared.filter((x) => key(fullName(x)) === key(name));
+    const hits = named.length ? named : shared.filter((x) => key(x.name) === key(name));
+    if (hits.length === 1) return { x: hits[0]!, write: hits[0]!.write, owner: hits[0]!.owner };
+    if (hits.length > 1)
+      return t('tool.tableAmbiguous', { table: name, tables: hits.map(fullName).join(', ') });
+    const all = [...names, ...shared.map(fullName)];
+    return all.length
+      ? t('tool.tableMissing', { table: name, tables: all.join(', ') })
       : t('tool.tablesNone');
+  };
+  /** A table the bot may change rows in; another bot's only when it was let in to write. */
+  const writable = async (name: string) => {
+    const r = await table(name);
+    if (typeof r === 'string' || r.write) return r;
+    return t('tool.tableReadOnly', { table: r.x.name, bot: r.owner ?? '' });
   };
   const columnsLine = (x: BotTable) =>
     x.columns.map((c) => `${c.name} (${t(`tool.tableType.${c.type}`)})`).join(', ');
@@ -64,10 +91,17 @@ export function tableTools(opts: {
       {},
       async () => {
         const all = await s.tables.list(botId);
-        if (!all.length) return t('tool.tablesNone');
-        return all
-          .map((x) => `- ${x.name}: ${t('tool.tableRowCount', { count: x.rowCount })} · ${columnsLine(x)}`)
-          .join('\n');
+        const shared = await sharedTables();
+        if (!all.length && !shared.length) return t('tool.tablesNone');
+        return [
+          ...all.map(
+            (x) => `- ${x.name}: ${t('tool.tableRowCount', { count: x.rowCount })} · ${columnsLine(x)}`,
+          ),
+          ...shared.map(
+            (x) =>
+              `- ${fullName(x)} (${t(x.write ? 'tool.tableSharedWrite' : 'tool.tableSharedRead', { bot: x.owner })}): ${t('tool.tableRowCount', { count: x.rowCount })} · ${columnsLine(x)}`,
+          ),
+        ].join('\n');
       },
       'read',
     ),
@@ -99,8 +133,9 @@ export function tableTools(opts: {
         limit: z.number().int().min(1).max(PAGE).optional(),
       },
       async (a) => {
-        const x = await table(a.table);
-        if (typeof x === 'string') return x;
+        const got = await table(a.table);
+        if (typeof got === 'string') return got;
+        const x = got.x;
         let rows = await s.tables.rows(x.id);
         for (const [name, wanted] of Object.entries(a.where ?? {})) {
           const column = findColumn(x.columns, name);
@@ -139,8 +174,9 @@ export function tableTools(opts: {
       'table_add',
       { table: z.string(), rows: z.array(RowValues).min(1).max(100) },
       async (a) => {
-        const x = await table(a.table);
-        if (typeof x === 'string') return x;
+        const got = await writable(a.table);
+        if (typeof got === 'string') return got;
+        const x = got.x;
         const added = await s.tables.addRows(x.id, a.rows);
         for (const r of added) {
           await note({
@@ -163,8 +199,9 @@ export function tableTools(opts: {
       'table_update',
       { table: z.string(), id: z.string(), values: RowValues },
       async (a) => {
-        const x = await table(a.table);
-        if (typeof x === 'string') return x;
+        const got = await writable(a.table);
+        if (typeof got === 'string') return got;
+        const x = got.x;
         const prev = await s.tables.rowById(x.id, a.id);
         const row = await s.tables.updateRow(x.id, a.id, a.values);
         if (prev) {
@@ -190,8 +227,9 @@ export function tableTools(opts: {
       'table_delete_rows',
       { table: z.string(), ids: z.array(z.string()).min(1).max(200) },
       async (a) => {
-        const x = await table(a.table);
-        if (typeof x === 'string') return x;
+        const got = await writable(a.table);
+        if (typeof got === 'string') return got;
+        const x = got.x;
         const prev = (await Promise.all(a.ids.map((id) => s.tables.rowById(x.id, id)))).filter(
           (r): r is TableRow => !!r,
         );

@@ -94,6 +94,9 @@ const tr = {
   'error.tableColumns': 'Bir tabloda en çok 30 sütun olabilir.',
   'error.tableNoColumns': 'Yeni bir tablo için en az bir sütun ver.',
   'error.tableBoardGroup': 'Pano görünümü için şeritlerin hangi sütundan yapılacağını (group) seç.',
+  'error.tableShareOwn': 'Bot kendi tablosunu zaten kullanır; paylaşmaya gerek yok.',
+  'error.tableShareEdit':
+    'Tabloyu yalnızca ayarlarını değiştirebildiğin bir botla paylaşabilirsin; satırlar onunla konuşan herkese görünür.',
   'error.tableCount': 'Bir botun en çok 20 tablosu olabilir; yenisi için birini silin.',
   'error.tableExists': 'Bu adda bir tablo zaten var.',
   'error.tableRows': 'Bir tabloda en çok 5000 satır olabilir.',
@@ -1061,7 +1064,7 @@ const tr = {
   'tool.ticket_update':
     'Bir görevi işi ilerledikçe güncelle (ticket: numarası): status, comment (göreve yorum: ne yapıldı ya da ne eksik), assign_to (bir botun adı; boş bırakmak için ""), priority, title, description. Yalnız değişecek alanları ver.',
   'tool.tables_list':
-    'Kendi tablolarını listele: adı, satır sayısı ve sütunları (türleriyle). Tablolar, takip ettiğin kayıtları (müşteri adayları, fiyatlar, siparişler) satır satır tuttuğun yerdir; kullanıcı da görür, düzeltir ve dışa aktarır.',
+    'Kendi tablolarını ve başka botların seninle paylaştığı tabloları listele: adı, satır sayısı ve sütunları (türleriyle). Tablolar, takip ettiğin kayıtları (müşteri adayları, fiyatlar, siparişler) satır satır tuttuğun yerdir; kullanıcı da görür, düzeltir ve dışa aktarır. Paylaşılan bir tabloyu adıyla ya da “Sahibi / Adı” diye an; yalnızca okuman için paylaşılana satır yazamazsın, sütun da ekleyemezsin.',
   'tool.table_define':
     'Bir tablo kur ya da var olana sütun ekle: name (tablonun adı), columns (her biri name ve type: text, number, date, bool, url; varsayılan text). Aynı adda tablo varsa yalnız eksik sütunlar eklenir; sütun silinmez, türü değişmez. İstersen view ile tablonun ekranda nasıl görüneceğini de seç: kind (grid: satır ve sütun, board: bir sütunun her değeri için bir şerit, durum ya da aşama takibine uygun; gallery: kartlar; list: düz liste) ve group (satırların gruplanacağı sütun; board için gerekli).',
   'tool.table_rows':
@@ -1073,6 +1076,12 @@ const tr = {
   'tool.table_delete_rows': 'Bir tablodan satır sil: table (adı), ids (satırların kimlikleri).',
   'tool.tablesNone': 'Henüz tablon yok; table_define ile kurabilirsin.',
   'tool.tableMissing': '“{table}” adında bir tablon yok. Tabloların: {tables}',
+  'tool.tableAmbiguous':
+    '“{table}” adında birden çok bot tablosu var; hangisi olduğunu sahibiyle yaz: {tables}',
+  'tool.tableReadOnly':
+    '“{table}” tablosu {bot} botunun; seninle yalnızca okuman için paylaşıldı. Satır eklemek ya da değiştirmek için {bot} botuna ya da kullanıcıya söyle.',
+  'tool.tableSharedRead': '{bot} paylaştı, yalnızca okursun',
+  'tool.tableSharedWrite': '{bot} paylaştı, okur ve yazarsın',
   'tool.tableRowCount': 'satır sayısı {count}',
   'tool.tableDefined': '“{table}” tablosu hazır. Sütunlar: {columns}',
   'tool.tableUnchanged': '“{table}” tablosunda bu sütunlar zaten var: {columns}',
@@ -2499,6 +2508,9 @@ const en: Catalog<ServerKey> = {
   'error.tableColumns': 'A table can have at most 30 columns.',
   'error.tableNoColumns': 'Give at least one column for a new table.',
   'error.tableBoardGroup': 'For a board, choose the column (group) its lanes are made from.',
+  'error.tableShareOwn': 'A bot uses its own table already; there is nothing to share.',
+  'error.tableShareEdit':
+    'You can share a table only with a bot whose settings you may change, since its rows reach everyone who talks to it.',
   'error.tableCount': 'A bot can have at most 20 tables; delete one to make another.',
   'error.tableExists': 'A table with this name already exists.',
   'error.tableRows': 'A table can have at most 5000 rows.',
@@ -3474,7 +3486,7 @@ const en: Catalog<ServerKey> = {
   'tool.ticket_update':
     'Update a task as its work moves (ticket: its number): status, comment (a comment on it: what was done or what is missing), assign_to (a bot\'s name; "" to clear), priority, title, description. Give only the fields that change.',
   'tool.tables_list':
-    'List your tables: name, row count and columns (with their types). Tables are where you keep records you track (leads, prices, orders) row by row; the person sees, corrects and exports them too.',
+    'List your tables and those other bots shared with you: name, row count and columns (with their types). Tables are where you keep records you track (leads, prices, orders) row by row; the person sees, corrects and exports them too. Name a shared table by its name or as “Owner / Name”; you cannot write rows into one shared with you to read only, nor add columns to another bot’s table.',
   'tool.table_define':
     'Set up a table or add columns to one: name (the table name), columns (each a name and type: text, number, date, bool, url; text by default). If a table of that name exists only the missing columns are added; columns are never removed or retyped. Optionally choose with view how the table looks on screen: kind (grid: rows and columns; board: a lane for each value of a column, suited to tracking a status or stage; gallery: cards; list: a plain list) and group (the column rows are grouped by; needed for a board).',
   'tool.table_rows':
@@ -3486,6 +3498,11 @@ const en: Catalog<ServerKey> = {
   'tool.table_delete_rows': 'Delete rows from a table: table (its name), ids (the row ids).',
   'tool.tablesNone': 'You have no tables yet; set one up with table_define.',
   'tool.tableMissing': 'You have no table called “{table}”. Your tables: {tables}',
+  'tool.tableAmbiguous': 'More than one bot has a table called “{table}”; name it with its owner: {tables}',
+  'tool.tableReadOnly':
+    'Table “{table}” belongs to {bot} and was shared with you to read only. To add or change rows, ask {bot} or the user.',
+  'tool.tableSharedRead': 'shared by {bot}, read only',
+  'tool.tableSharedWrite': 'shared by {bot}, you read and write',
   'tool.tableRowCount': 'rows: {count}',
   'tool.tableDefined': 'Table “{table}” is ready. Columns: {columns}',
   'tool.tableUnchanged': 'Table “{table}” already has these columns: {columns}',

@@ -21,7 +21,9 @@ import {
   List,
   Plus,
   Search,
+  Share2,
   Table2,
+  X,
   Trash2,
   type LucideIcon,
 } from 'lucide-react';
@@ -33,6 +35,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLocale, useT } from '@/i18n';
 import { api } from '@/lib/api';
+import { useBots } from '@/lib/queries';
 import { cellDraft, cellLabel, filterRows, SHOWN_ROWS } from '@/lib/tableView';
 import { cn } from '@/lib/utils';
 
@@ -67,7 +70,14 @@ export function BotTables({ bot }: { bot: Bot }) {
           </button>
         ))}
       </div>
-      {open && <TableDialog table={open} onClose={() => setOpenId(null)} />}
+      {open && (
+        <TableDialog
+          table={open}
+          // Older servers send no level, and only let those who may change the bot see it.
+          canEdit={bot.yourLevel === undefined || bot.yourLevel === 'edit'}
+          onClose={() => setOpenId(null)}
+        />
+      )}
     </section>
   );
 }
@@ -92,8 +102,9 @@ const laneColumn = (columns: readonly TableColumn[]) =>
  * One table: search it, correct a cell in place, add and delete rows, download it, delete it, and
  * lay it out as a grid, a board, a gallery or a list, grouped by a column.
  */
-function TableDialog({ table, onClose }: { table: BotTable; onClose(): void }) {
+function TableDialog({ table, canEdit, onClose }: { table: BotTable; canEdit: boolean; onClose(): void }) {
   const t = useT();
+  const [sharing, setSharing] = useState(false);
   const locale = useLocale((s) => s.locale);
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
@@ -367,6 +378,11 @@ function TableDialog({ table, onClose }: { table: BotTable; onClose(): void }) {
           <Button size="sm" variant="secondary" disabled={add.isPending} onClick={() => add.mutate()}>
             <Plus /> {t('tables.addRow')}
           </Button>
+          {canEdit && (
+            <Button size="sm" variant={sharing ? 'secondary' : 'ghost'} onClick={() => setSharing((v) => !v)}>
+              <Share2 /> {t('tables.share')}
+            </Button>
+          )}
           <Button size="sm" variant="ghost" asChild>
             <a href={api.tableCsvUrl(table.id)} download>
               <Download /> {t('tables.download')}
@@ -382,6 +398,7 @@ function TableDialog({ table, onClose }: { table: BotTable; onClose(): void }) {
             <Trash2 /> {t('tables.delete')}
           </Button>
         </div>
+        {sharing && <TableSharing table={table} />}
         <div className="flex flex-wrap items-center gap-2">
           <div
             role="radiogroup"
@@ -456,6 +473,84 @@ function TableDialog({ table, onClose }: { table: BotTable; onClose(): void }) {
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/**
+ * The other bots let into the table: each reads its rows, and with write adds, changes and deletes
+ * them. Only bots the person may change are offered, as the rows reach everyone who talks to them.
+ */
+function TableSharing({ table }: { table: BotTable }) {
+  const t = useT();
+  const qc = useQueryClient();
+  const { data: bots = [] } = useBots();
+  const { data: shares = [] } = useQuery({
+    queryKey: ['table-shares', table.id],
+    queryFn: () => api.tableShares(table.id),
+  });
+  const refresh = () => void qc.invalidateQueries({ queryKey: ['table-shares', table.id] });
+  const fail = (e: unknown) => toast.error((e as Error).message);
+  const share = useMutation({
+    mutationFn: (v: { botId: string; write: boolean }) => api.shareTable(table.id, v.botId, v.write),
+    onSuccess: refresh,
+    onError: fail,
+  });
+  const unshare = useMutation({
+    mutationFn: (botId: string) => api.unshareTable(table.id, botId),
+    onSuccess: refresh,
+    onError: fail,
+  });
+  const name = (botId: string) => bots.find((b) => b.id === botId)?.name ?? t('tables.shareOtherBot');
+  const offered = bots.filter(
+    (b) =>
+      b.id !== table.botId &&
+      (b.yourLevel === undefined || b.yourLevel === 'edit') &&
+      !shares.some((x) => x.botId === b.id),
+  );
+  return (
+    <div className="space-y-2 rounded-2xl bg-secondary/50 p-3 text-sm">
+      <p className="text-muted-foreground">{t('tables.shareHint')}</p>
+      {shares.map((x) => (
+        <div key={x.botId} className="flex items-center gap-2">
+          <span className="min-w-0 flex-1 truncate font-medium">{name(x.botId)}</span>
+          <Select
+            value={x.write ? 'write' : 'read'}
+            onValueChange={(v) => share.mutate({ botId: x.botId, write: v === 'write' })}
+          >
+            <SelectTrigger className="h-8 w-44 rounded-full" aria-label={t('tables.shareLevel')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="read">{t('tables.shareRead')}</SelectItem>
+              <SelectItem value="write">{t('tables.shareWrite')}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-8"
+            aria-label={t('tables.unshare', { bot: name(x.botId) })}
+            onClick={() => unshare.mutate(x.botId)}
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
+      ))}
+      {offered.length > 0 && (
+        <Select value="" onValueChange={(botId) => share.mutate({ botId, write: false })}>
+          <SelectTrigger className="h-8 w-64 rounded-full" aria-label={t('tables.shareAdd')}>
+            <SelectValue placeholder={t('tables.shareAdd')} />
+          </SelectTrigger>
+          <SelectContent>
+            {offered.map((b) => (
+              <SelectItem key={b.id} value={b.id}>
+                {b.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
   );
 }
 
