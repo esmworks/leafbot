@@ -1,6 +1,6 @@
 import type { Bot, DashboardSummary, DashboardTileView } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, LayoutDashboard, MoreHorizontal, TriangleAlert, X } from 'lucide-react';
+import { ArrowLeft, ChartColumnBig, MoreHorizontal, TriangleAlert, X } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { BotAvatar } from '@/components/BotAvatar';
@@ -115,7 +115,7 @@ function Empty() {
   const t = useT();
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
-      <LayoutDashboard className="size-8 text-muted-foreground" aria-hidden />
+      <ChartColumnBig className="size-8 text-muted-foreground" aria-hidden />
       <p className="font-medium">{t('dashboards.emptyTitle')}</p>
       <p className="max-w-md text-sm text-muted-foreground">{t('dashboards.empty')}</p>
     </div>

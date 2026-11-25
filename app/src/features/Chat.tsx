@@ -38,7 +38,7 @@ import {
   Trash2,
   History,
   Webhook,
-  KanbanSquare,
+  ListTodo,
   UsersRound,
   X,
   SmilePlus,
@@ -662,7 +662,7 @@ function Header({
               name={name}
               waiting={waiting}
               onPick={selectThread}
-              icon={<KanbanSquare />}
+              icon={<ListTodo />}
             />
             <ThreadGroup
               label={t('chat.apiThreads')}
