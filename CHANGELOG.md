@@ -7,6 +7,14 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A routine's flow canvas can be zoomed (with its buttons, Ctrl or ⌘ with the wheel, a trackpad pinch, or Ctrl or ⌘
+  with plus, minus or zero), fitted to the view, arranged in one click and seen whole in a small overview, where a
+  click or a drag brings that place into view. Notes can be written on the canvas, moved, sized and coloured; they are
+  saved with the routine and are not part of its steps.
+- A routine can have inputs: names written as `{{name}}` in its instruction and in its steps' texts, each with a
+  usual value. Run now asks for this run's values, filled in with the usual ones, without changing the routine; a
+  scheduled or triggered run, and one waiting for the run before it, takes the usual values. The flow's boxes mark
+  the names, and the settings offer to add a name the texts use but that has no input yet.
 - A manager bot can set up a team of bots in one go with `bot_factory`: up to five bots with their instructions,
   skills, routines and notes, listed on one card. A yes sets all of it up at once and a no sets up nothing; the card
   is asked at every permission level. The bots start as one the manager creates does (auto level, off the internet,
