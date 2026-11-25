@@ -1605,7 +1605,6 @@ export const hi: Partial<Catalog<MessageKey>> = {
   'flow.fullScreen': 'विंडो भरें',
   'flow.exitFullScreen': 'पेज पर वापस',
   'flow.settings': 'ट्रिगर और सेटिंग्स',
-  'flow.closeSettings': 'सेटिंग्स बंद करें',
   'flow.options': 'चरण के विकल्प',
   'flow.onStartup': 'जब सर्वर शुरू होता है',
   'flow.webhook': 'जब इसका वेबहुक कॉल होता है',

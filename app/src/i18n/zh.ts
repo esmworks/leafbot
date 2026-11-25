@@ -1531,7 +1531,6 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'flow.fullScreen': '铺满窗口',
   'flow.exitFullScreen': '返回页面',
   'flow.settings': '触发条件与设置',
-  'flow.closeSettings': '关闭设置',
   'flow.options': '步骤选项',
   'flow.onStartup': '服务器启动时',
   'flow.webhook': '调用其 webhook 时',

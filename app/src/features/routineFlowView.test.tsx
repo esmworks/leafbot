@@ -70,8 +70,10 @@ const listed = () =>
     .map((el) => (el as HTMLTextAreaElement).value);
 /** The title bars of the boxes, in order: start, instruction, then each step. */
 const titles = () => flow().getAllByTitle('Drag to move the box');
-/** The panel beside the canvas, named after the box open in it. */
-const panel = (title: string) => within(flow().getByRole('complementary', { name: title }));
+/** The window over the canvas, named after the box open in it. */
+const panel = (title: string) => within(screen.getByRole('dialog', { name: title }));
+/** Closes it as Escape does. */
+const escape = () => fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
 /** Opens a box by a click on what it says. */
 const openBox = (title: string, i = 0) =>
   fireEvent.click(flow().getAllByRole('button', { name: `${title}. Open to edit` })[i]!);
@@ -90,11 +92,11 @@ describe('rutin akışı', () => {
     expect(start.getByText('Next run tomorrow')).toBeTruthy();
     expect(start.getByText('when mail arrives')).toBeTruthy();
     expect(flow().queryByText('Every day at 09:00')).toBeNull();
+    // No box holds a field of its own.
+    for (const box of flow().getAllByRole('region')) expect(within(box).queryByRole('textbox')).toBeNull();
     openBox('Start');
     expect(panel('Start').getByText('Every day at 09:00')).toBeTruthy();
     expect(panel('Start').getByText('Also starts when mail arrives.')).toBeTruthy();
-    // No box holds a field of its own.
-    for (const box of flow().getAllByRole('region')) expect(within(box).queryByRole('textbox')).toBeNull();
   });
 
   it('akışta eklenen adım hemen açılır; panelde değiştirilen adım listede ve kutuda da görünür', async () => {
@@ -104,17 +106,17 @@ describe('rutin akışı', () => {
     fireEvent.keyDown(add, { key: 'Enter' });
     fireEvent.click(await screen.findByRole('menuitem', { name: /Bot step/ }));
     expect(listed()).toEqual(['', 'Summarise it']);
-    // The new step is open beside the canvas, ready to be written.
+    // The new step is open in its window, ready to be written.
     fireEvent.change(panel('Bot step').getByRole('textbox', { name: 'Bot step' }), {
       target: { value: 'Pick the top three' },
     });
     expect(listed()).toEqual(['Pick the top three', 'Summarise it']);
+    // Escape closes the window; the boxes say what was written.
+    escape();
+    expect(screen.queryByRole('dialog')).toBeNull();
     const boxes = flow().getAllByRole('region', { name: 'Bot step' });
     expect(boxes[0]!.textContent).toContain('Pick the top three');
     expect(boxes[1]!.textContent).toContain('Summarise it');
-    // Escape closes the panel.
-    fireEvent.keyDown(window, { key: 'Escape' });
-    expect(flow().queryByRole('complementary')).toBeNull();
   });
 
   it('talimatın metni kutuda başıyla görünür, tamamı panelde yazılır', async () => {
@@ -125,8 +127,8 @@ describe('rutin akışı', () => {
     openBox('What should it do?');
     const long = Array.from({ length: 40 }, (_, i) => `${i + 1}. Check one more thing`).join('\n');
     fireEvent.change(panel('What should it do?').getByRole('textbox'), { target: { value: long } });
-    fireEvent.click(panel('What should it do?').getByRole('button', { name: 'Close the panel' }));
-    expect(flow().queryByRole('complementary')).toBeNull();
+    fireEvent.click(panel('What should it do?').getByRole('button', { name: 'Done' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
     expect(flow().getByRole('region', { name: 'What should it do?' }).textContent).toContain(
       '40. Check one more thing',
     );
@@ -198,10 +200,12 @@ describe('rutin akışı', () => {
     // The flow shows the same ways in each step's panel.
     openBox('Bot step', 0);
     first(panel('Bot step'));
+    escape();
     openBox('Bot step', 1);
     expect(panel('Bot step').getAllByRole('combobox', { name: 'Then' })[0]!.textContent).toContain(
       'End the run here',
     );
+    escape();
     // Two ways leave the first box for the last: the condition's other way and the way on failure.
     expect(flow().getByText('if not')).toBeTruthy();
     expect(flow().getByText('if it fails')).toBeTruthy();
@@ -237,9 +241,9 @@ describe('rutin akışı', () => {
     expect(listed()).toEqual(['One', 'Two']);
     // The click that ends a drag places the box; a click after it opens the box.
     fireEvent.click(titles()[0]!);
-    expect(flow().queryByRole('complementary')).toBeNull();
+    expect(screen.queryByRole('dialog')).toBeNull();
     fireEvent.click(titles()[0]!);
-    expect(flow().getByRole('complementary', { name: 'Start' })).toBeTruthy();
+    expect(screen.getByRole('dialog', { name: 'Start' })).toBeTruthy();
     // Every box keeps its place from then on.
     expect(Object.keys(saved.mock.calls[0]![0] as FlowLayout).sort()).toEqual(['a', 'b', 'prompt', 'start']);
     // A press on the title without moving saves nothing.

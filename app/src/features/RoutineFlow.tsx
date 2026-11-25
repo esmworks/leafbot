@@ -25,6 +25,7 @@ import {
   type ReactNode,
 } from 'react';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -70,7 +71,7 @@ const FALLBACK_WIDTH = 1100;
 /** How far an arrow key moves a box. */
 const NUDGE = 16;
 
-/** What the panel beside the canvas shows when it is the routine's settings rather than a box. */
+/** What the window over the canvas shows when it is the routine's settings rather than a box. */
 const SETTINGS = '__settings';
 
 /** Each kind of box's mark, tinted so the kinds tell apart at a glance across a long routine. */
@@ -88,7 +89,7 @@ const TINT: Record<StepForm['kind'] | 'start' | 'prompt', string> = {
 /**
  * The routine drawn as boxes on a canvas: what starts it, its own instruction and each step, joined
  * by lines in the order they run. A box says what its part does in a few lines; clicked, its fields
- * open in a panel beside the canvas, where there is room to write. A box is placed by dragging its
+ * open in a window over the canvas, where there is room to write, and the canvas stays as it is. A box is placed by dragging its
  * title (or with the arrow keys), and the order changes from its menu or with Alt and an arrow
  * key. While a run goes, each box shows how its part of the latest run went. Runs still go one
  * step after another, along the lines, as the server runs them.
@@ -120,7 +121,7 @@ export function RoutineFlow({
 }: {
   /** What else starts the routine, besides its schedule. */
   triggers: string[];
-  /** The schedule's fields, edited in the first box's panel. */
+  /** The schedule's fields, edited in the first box's window. */
   schedule: ReactNode;
   /** How often it runs, in words, shown on the first box. */
   scheduleSummary?: string;
@@ -150,8 +151,8 @@ export function RoutineFlow({
   /** Shown in the instruction's box under it, such as the apps it names that are not connected. */
   promptExtra?: ReactNode;
   /**
-   * What else starts the routine and how it runs, beyond the boxes: opened beside the canvas from
-   * the first box or the canvas's corner, so the whole routine is set from the flow.
+   * What else starts the routine and how it runs, beyond the boxes: opened over the canvas from the
+   * first box or the canvas's corner, so the whole routine is set from the flow.
    */
   settings?: ReactNode;
   /** Opens with the settings showing, as for a routine opened to see its latest runs. */
@@ -183,21 +184,20 @@ export function RoutineFlow({
   const [fullScreen, setFullScreen] = useState(false);
 
   /**
-   * What the panel beside the canvas shows: a box's fields by the box's id, the routine's settings,
+   * What the window over the canvas shows: a box's fields by the box's id, the routine's settings,
    * or nothing. A step is kept by its id, so moving it keeps it open and removing it closes it.
    */
   const [side, setSide] = useState<string | null>(settingsAtStart ? SETTINGS : null);
   const shown = side === SETTINGS || (side !== null && ids.includes(side)) ? side : null;
   const settingsOpen = shown === SETTINGS;
 
-  // Escape closes the panel, then brings the canvas back from covering the window; not while it
-  // closes a menu or a list open over them.
+  // Escape brings the canvas back from covering the window; not while it closes a box's window, a
+  // menu or a list open over the canvas.
   useEffect(() => {
-    if (!fullScreen && !shown) return;
+    if (!fullScreen || shown) return;
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (e.key !== 'Escape' || document.querySelector('[data-radix-popper-content-wrapper]')) return;
-      if (shown) setSide(null);
-      else setFullScreen(false);
+      setFullScreen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -397,7 +397,9 @@ export function RoutineFlow({
         className="h-7 rounded-full px-2 text-xs text-muted-foreground"
         disabled={!text.trim()}
         onClick={() => {
-          // The trial shows under the canvas, so a canvas covering the window makes way for it.
+          // The trial shows under the canvas, so the box's window and a canvas covering the window
+          // make way for it.
+          setSide(null);
           setFullScreen(false);
           onTry(text, step);
         }}
@@ -559,7 +561,7 @@ export function RoutineFlow({
   const promptStatus = partOf('prompt');
   const last = spots[ids[ids.length - 1]!]!;
 
-  // What the panel shows for the box open in it.
+  // What the window shows for the box open in it.
   const panelStep = steps.findIndex((x) => x.id === shown);
   const openStep = panelStep >= 0 ? steps[panelStep]! : null;
   const panelKind: keyof typeof TINT | null =
@@ -581,7 +583,7 @@ export function RoutineFlow({
         : openStep
           ? stepTitle(openStep)
           : '';
-  const panelBody = settingsOpen ? (
+  const panelBody = !shown ? null : settingsOpen ? (
     settings
   ) : shown === 'start' ? (
     <>
@@ -610,7 +612,7 @@ export function RoutineFlow({
         rows={10}
         label={t('routine.prompt')}
         placeholder={t('flow.emptyPrompt')}
-        className="scroll-thin max-h-[55dvh] overflow-y-auto rounded-xl text-sm leading-relaxed"
+        className="scroll-thin max-h-[55dvh] min-h-40 overflow-y-auto rounded-xl text-sm leading-relaxed"
       />
       {promptError && <p className="text-xs text-destructive">{t(promptError as MessageKey)}</p>}
       {promptExtra}
@@ -852,43 +854,47 @@ export function RoutineFlow({
             </div>
           </div>
         </div>
-        {shown && (shown !== SETTINGS || settings) && (
-          // Beside the canvas on a wide screen, over it on a phone. Positioned, so the hidden inputs of
-          // its switches and lists stay inside what it scrolls; sized by the canvas, never by its own
-          // fields, which would stretch the flow down the page.
-          <aside
-            aria-label={panelTitle}
-            className="scroll-thin relative w-[min(28rem,45%)] shrink-0 space-y-4 overflow-y-auto contain-size rounded-2xl border bg-card p-4 phone:absolute phone:inset-0 phone:z-20 phone:w-auto"
-          >
-            <div className="flex items-center gap-2.5">
-              {panelKind && (
-                <span
-                  className={cn(
-                    'flex size-7 shrink-0 items-center justify-center rounded-lg',
-                    TINT[panelKind],
-                  )}
-                  aria-hidden
-                >
-                  {panelIcon}
-                </span>
-              )}
-              <h3 className="min-w-0 flex-1 truncate text-sm font-semibold">{panelTitle}</h3>
-              {panelStep >= 0 && stepMenu(panelStep)}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="-me-1.5 size-7 rounded-full"
-                onClick={() => setSide(null)}
-                aria-label={t(settingsOpen ? 'flow.closeSettings' : 'flow.closeStep')}
-              >
-                <X className="size-4" />
-              </Button>
-            </div>
-            {panelBody}
-          </aside>
-        )}
       </div>
+      {/* Over the flow rather than beside it: the canvas keeps its width and its boxes their places. */}
+      <Dialog open={!!panelBody} onOpenChange={(open) => !open && setSide(null)}>
+        <DialogContent
+          showCloseButton={false}
+          className="flex max-h-[calc(100dvh-4rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
+          // The Escape that closes the window stops here: once it is closed, the canvas listens for
+          // Escape to leave full screen, and the same key press would reach it too.
+          onEscapeKeyDown={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-2.5 border-b px-5 py-3.5">
+            {panelKind && (
+              <span
+                className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg', TINT[panelKind])}
+                aria-hidden
+              >
+                {panelIcon}
+              </span>
+            )}
+            <DialogTitle className="min-w-0 flex-1 truncate text-base">{panelTitle}</DialogTitle>
+            <DialogDescription className="sr-only">{t('flow.openStep')}</DialogDescription>
+            {panelStep >= 0 && stepMenu(panelStep)}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="-me-1.5 size-8 rounded-full"
+              onClick={() => setSide(null)}
+              aria-label={t('common.close')}
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+          <div className="scroll-thin min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">{panelBody}</div>
+          <div className="flex justify-end border-t px-5 py-3">
+            <Button type="button" className="rounded-full" onClick={() => setSide(null)}>
+              {t('flow.done')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <p className="text-xs text-muted-foreground">{t('flow.pickHint')}</p>
     </div>
   );

@@ -1728,7 +1728,6 @@ export const ru: Partial<Catalog<MessageKey>> = {
   'flow.fullScreen': 'На весь экран',
   'flow.exitFullScreen': 'Вернуться на страницу',
   'flow.settings': 'Триггеры и настройки',
-  'flow.closeSettings': 'Закрыть настройки',
   'flow.options': 'Параметры шага',
   'flow.onStartup': 'при запуске сервера',
   'flow.webhook': 'при вызове его вебхука',

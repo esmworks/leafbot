@@ -1643,7 +1643,6 @@ export const pt: Partial<Catalog<MessageKey>> = {
   'flow.fullScreen': 'Preencher a janela',
   'flow.exitFullScreen': 'Voltar à página',
   'flow.settings': 'Gatilhos e configurações',
-  'flow.closeSettings': 'Fechar as configurações',
   'flow.options': 'Opções da etapa',
   'flow.onStartup': 'quando o servidor inicia',
   'flow.webhook': 'quando seu webhook é chamado',

@@ -1738,7 +1738,6 @@ export const uk: Partial<Catalog<MessageKey>> = {
   'flow.fullScreen': 'На все вікно',
   'flow.exitFullScreen': 'Повернутися до сторінки',
   'flow.settings': 'Тригери й налаштування',
-  'flow.closeSettings': 'Закрити налаштування',
   'flow.options': 'Параметри кроку',
   'flow.onStartup': 'старт сервера',
   'flow.webhook': 'виклик її вебхука',

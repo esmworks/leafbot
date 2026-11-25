@@ -1762,7 +1762,6 @@ export const ar: Partial<Catalog<MessageKey>> = {
   'flow.fullScreen': 'ملء النافذة',
   'flow.exitFullScreen': 'العودة إلى الصفحة',
   'flow.settings': 'المشغّلات والإعدادات',
-  'flow.closeSettings': 'إغلاق الإعدادات',
   'flow.options': 'خيارات الخطوة',
   'flow.onStartup': 'عند بدء الخادم',
   'flow.webhook': 'عند استدعاء الويب هوك',

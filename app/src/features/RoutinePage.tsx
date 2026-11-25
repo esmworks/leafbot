@@ -522,8 +522,8 @@ export function RoutinePage({
   });
 
   /**
-   * What else starts the routine and how it runs: under the steps in the list, beside the canvas
-   * in the flow, so either view sets all of it.
+   * What else starts the routine and how it runs: under the steps in the list, in a window over the
+   * canvas in the flow, so either view sets all of it.
    */
   const settingsFields = (
     <>

@@ -1607,7 +1607,6 @@ export const vi: Partial<Catalog<MessageKey>> = {
   'flow.fullScreen': 'Toàn cửa sổ',
   'flow.exitFullScreen': 'Quay lại trang',
   'flow.settings': 'Kích hoạt và cài đặt',
-  'flow.closeSettings': 'Đóng cài đặt',
   'flow.options': 'Tùy chọn bước',
   'flow.onStartup': 'khi máy chủ khởi động',
   'flow.webhook': 'khi webhook của nó được gọi',

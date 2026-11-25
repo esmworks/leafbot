@@ -1609,7 +1609,6 @@ export const id: Partial<Catalog<MessageKey>> = {
   'flow.fullScreen': 'Isi jendela',
   'flow.exitFullScreen': 'Kembali ke halaman',
   'flow.settings': 'Pemicu dan pengaturan',
-  'flow.closeSettings': 'Tutup pengaturan',
   'flow.options': 'Opsi langkah',
   'flow.onStartup': 'saat server dimulai',
   'flow.webhook': 'saat webhook-nya dipanggil',
