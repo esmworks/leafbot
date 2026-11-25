@@ -18,6 +18,8 @@ export const tr = {
     'Bu sunucu botun bilgisayarının canlı ekranını telefona göstermiyor. Sunucu güncellenince burada görünür; o zamana kadar bilgisayardaki uygulamadan izleyebilirsin.',
   'computer.unavailable': 'Bu sunucuda bota ait bir tarayıcı ya da bilgisayar yok.',
   'computer.windowHint': 'Bilgisayarında ayrı pencerede açık; bot bekliyor.',
+  'instructionsDoc.nothingWaits': 'Talimat belgesinde bekleyen bir değişiklik yok.',
+  'tables.phoneHint': 'Botun tuttuğu kayıtlar. Düzeltmek için bir hücreye dokun; bot aynı tabloyu okur.',
 };
 
 export const en: Record<keyof typeof tr, string> = {
@@ -39,4 +41,6 @@ export const en: Record<keyof typeof tr, string> = {
     "This server does not show the live screen of the bot's computer on the phone. It shows here once the server is updated; until then, watch it in the desktop app.",
   'computer.unavailable': 'This server has no browser or computer for the bot.',
   'computer.windowHint': 'Open in its own window on your computer; the bot waits.',
+  'instructionsDoc.nothingWaits': 'No change waits in the instructions document.',
+  'tables.phoneHint': 'Records the bot keeps. Tap a cell to correct it; the bot reads the same table.',
 };

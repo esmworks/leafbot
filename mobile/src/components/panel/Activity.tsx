@@ -15,11 +15,14 @@ import { toast, toastError } from '@/components/overlay';
 import { locale, t, type MessageKey } from '@/i18n';
 import { formatters } from '@/lib/format';
 import { nav } from '@/lib/nav';
-import { useConnections, useGroups, useRoutines, useSkills } from '@/lib/queries';
+import { useConnections, useGroups, useRoutines, useSkills, useSummaries } from '@/lib/queries';
 import { useApi, useServer } from '@/lib/server';
 import { useColors } from '@/lib/theme';
 import { AppLogo } from './AppLogo';
+import { BotSuggestions } from './BotSuggestions';
+import { BotTables } from './BotTables';
 import { ComputerCard } from './ComputerCard';
+import { InstructionsDocNotice } from './InstructionsDocNotice';
 import { Block, SectionHead, useBrowserAvailable } from './parts';
 import { describeSchedule } from './schedule';
 
@@ -38,9 +41,12 @@ export function Activity({ bot }: { bot: Bot }) {
     <View style={styles.stack}>
       {/* A bot with the internet off gets no browser. */}
       {browser && bot.internet !== false ? <ComputerCard bot={bot} /> : null}
+      <InstructionsDocNotice bot={bot} />
+      <BotSuggestions bot={bot} />
       <Upcoming bot={bot} />
       <BotApps bot={bot} />
       <BotSkills bot={bot} />
+      <BotTables bot={bot} />
       <BotFacts bot={bot} />
     </View>
   );
@@ -53,6 +59,9 @@ function Upcoming({ bot }: { bot: Bot }) {
   const { origin } = useServer();
   const { data: routines = [] } = useRoutines();
   const mine = routines.filter((r) => r.botId === bot.id);
+  const { data: summaries = [] } = useSummaries();
+  // Servers older than the field send no ids.
+  const failed = new Set(summaries.find((s) => s.botId === bot.id)?.failedRoutines ?? []);
   const toggle = useMutation({
     mutationFn: (r: Routine) => api.updateRoutine(r.id, { enabled: !r.enabled }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['routines', origin] }),
@@ -82,16 +91,29 @@ function Upcoming({ bot }: { bot: Bot }) {
       <View style={styles.list}>
         {mine.map((r) => (
           <Block key={r.id} style={styles.line}>
-            <Feather name="clock" size={20} color={c.mutedForeground} />
+            {failed.has(r.id) ? (
+              <Feather name="alert-circle" size={20} color={c.destructive} />
+            ) : (
+              <Feather name="clock" size={20} color={c.mutedForeground} />
+            )}
             <Pressable
               accessibilityRole="button"
               style={styles.grow}
-              onPress={() => nav.routine({ botId: bot.id, routineId: r.id })}
+              onPress={() =>
+                nav.routine({ botId: bot.id, routineId: r.id, showRuns: failed.has(r.id) ? '1' : undefined })
+              }
             >
               <Text style={[styles.name, { color: c.foreground }]} numberOfLines={1}>
                 {r.name}
               </Text>
               <Text style={[styles.sub, { color: c.mutedForeground }]} numberOfLines={2}>
+                {r.pausedReason === 'failures' && !r.enabled ? (
+                  <Text style={{ color: c.destructive }}>{`${t('panel.switchedOffFailures')} · `}</Text>
+                ) : r.signInWait ? (
+                  <Text style={{ color: c.destructive }}>{`${t('panel.signInWait')} · `}</Text>
+                ) : failed.has(r.id) ? (
+                  <Text style={{ color: c.destructive }}>{`${t('panel.lastRunFailed')} · `}</Text>
+                ) : null}
                 {describeSchedule(r.schedule)}
                 {r.enabled && r.nextRunAt
                   ? ` · ${t('panel.nextRun', { when: fmt.dayLabel(r.nextRunAt) })}`

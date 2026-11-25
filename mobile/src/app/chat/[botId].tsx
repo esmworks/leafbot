@@ -128,14 +128,19 @@ function Loaded({
           focus={focus}
           find={find}
           actions={actions}
+          mainId={mainId}
+          threads={threads}
           elsewhere={
-            <WaitingElsewhere
-              bot={bot}
-              threadId={threadId}
-              threads={threads}
-              waiting={waiting}
-              mainId={mainId}
-            />
+            // The main chat shows those cards themselves, at its end.
+            threadId === mainId ? null : (
+              <WaitingElsewhere
+                bot={bot}
+                threadId={threadId}
+                threads={threads}
+                waiting={waiting}
+                mainId={mainId}
+              />
+            )
           }
         />
       </KeyboardAvoidingView>

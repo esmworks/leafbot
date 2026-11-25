@@ -85,4 +85,9 @@ export const de: Partial<Record<OwnKey, string>> = {
   'chat.back': 'Zurück',
   'chat.loadFailed': 'Der Chat konnte nicht geladen werden',
   'chat.sendFailed': 'Die Nachricht konnte nicht gesendet werden',
+  'instructionsDoc.nothingWaits': 'Im Anweisungsdokument wartet keine Änderung.',
+  'tables.phoneHint':
+    'Einträge, die der Bot führt. Tippe auf eine Zelle, um sie zu korrigieren; der Bot liest dieselbe Tabelle.',
+  'routine.setElsewhere':
+    'Diese Routine hat auch Teile, die das Handy nicht ändern kann: {parts}. Ändere sie in der App auf dem Computer; Speichern hier lässt sie, wie sie sind.',
 };

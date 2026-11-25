@@ -338,6 +338,8 @@ function refresh(origin: string, e: RefreshScope, inv: (...key: unknown[]) => vo
       inv('approvals', origin);
       inv('second-yes', origin);
       inv('summaries', origin);
+      // An answered card counts toward ways to ask less.
+      inv('suggestions', origin);
       break;
     case 'promises':
       inv('promises', origin);
@@ -363,6 +365,11 @@ function refresh(origin: string, e: RefreshScope, inv: (...key: unknown[]) => vo
       break;
     case 'rules':
       inv('rules', origin);
+      inv('suggestions', origin);
+      break;
+    case 'tables':
+      inv('tables', origin, e.botId);
+      inv('table-rows', origin);
       break;
     case 'vault':
       inv('vault', origin);

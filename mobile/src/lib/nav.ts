@@ -19,8 +19,11 @@ export const nav = {
   panel: (botId: string) => router.push({ pathname: '/panel/[botId]', params: { botId } }),
   /** Create a bot, or edit one. */
   botEdit: (botId?: string) => router.push({ pathname: '/bot-edit', params: clean({ botId }) }),
-  /** Create a routine for a bot, or edit one. */
-  routine: (opts: { botId?: string; routineId?: string }) =>
+  /**
+   * Create a routine for a bot, or edit one; `showRuns` opens it at its latest runs, for a routine
+   * opened to see why a run failed.
+   */
+  routine: (opts: { botId?: string; routineId?: string; showRuns?: '1' }) =>
     router.push({ pathname: '/routine', params: clean(opts) }),
   /** A file of a bot's folders; `paths` are the files to step through, as JSON. */
   file: (botId: string, path: string, paths?: string[]) =>
@@ -40,6 +43,11 @@ export const nav = {
     router.push({ pathname: '/apps', params: clean(opts) }),
   /** A bot's switches for every app connection. */
   botApps: (botId: string) => router.push({ pathname: '/bot-apps/[botId]', params: { botId } }),
+  /** One of a bot's tables, its rows to read and search. */
+  table: (botId: string, tableId: string) =>
+    router.push({ pathname: '/table/[tableId]', params: { tableId, botId } }),
+  /** The change a bot's instructions document waits with, to accept or turn down. */
+  instructions: (botId: string) => router.push({ pathname: '/instructions/[botId]', params: { botId } }),
   /** The bot's browser or computer screen. */
   computer: (botId: string) => router.push({ pathname: '/computer/[botId]', params: { botId } }),
 };
