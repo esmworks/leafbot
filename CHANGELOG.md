@@ -7,6 +7,13 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A daily check-in: once a day, at the person's reminder time, their bots are looked over with no AI for what has
+  gone wrong and waits on them: a routine that keeps failing, switched itself off and is still off two days later, or
+  waits for a sign-in; a card left unanswered for more than twelve hours; a connection of theirs that signed out or
+  reports an error. When something is new, a manager bot they may talk with (else the bot they last wrote to) tells
+  them in their conversation and in the chat app they talk from, in a turn that may only look; nothing changes until
+  they answer. When nothing is new nobody hears of it, and what was told is not told again for a week while it
+  stands. Each person turns it off in their profile.
 - A room can start fresh from its menu, on the web and on the phone: every bot's session in the room ends, and its
   next one reads only what is said after the line the room leaves there. The room then opens empty; the earlier
   conversation is not deleted and shows again from a button at its top, and the room's own notes stay. It is refused

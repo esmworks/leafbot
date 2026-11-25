@@ -118,6 +118,16 @@ export function ProfileSection() {
               />
             </Section>
           ) : null}
+          {/* A server older than the check-ins does not offer them. */}
+          {settings.checkIns !== undefined ? (
+            <Section title={t('checkIn.setting.title')} footer={t('checkIn.setting.hint')}>
+              <SwitchRow
+                label={t('checkIn.setting.on')}
+                value={settings.checkIns}
+                onChange={(checkIns) => save.mutate({ checkIns })}
+              />
+            </Section>
+          ) : null}
         </>
       ) : null}
       <ChatAccountLinks />
