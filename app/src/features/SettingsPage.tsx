@@ -306,69 +306,75 @@ export function SettingsPage() {
       className="screen-edges sidebar-top fixed inset-0 z-40 flex animate-in bg-background duration-150 fade-in-0 phone:flex-col"
     >
       {(!phone || listing) && (
-        <nav className="scroll-thin flex shrink-0 flex-col gap-1 overflow-y-auto bg-sidebar px-3 pb-3 phone:min-h-0 phone:flex-1 roomy:w-64 roomy:border-e">
-          {/* Room for the window buttons; empty in a browser. */}
-          <div className="window-drag h-12 shrink-0 phone:hidden" />
-          {/* The title goes back as well as the arrow: it is the larger mark, and where a hand reaches for. */}
-          <h1 className="flex shrink-0 pb-3 phone:pt-1">
-            <Button
-              variant="ghost"
-              onClick={close}
-              title={t('settings.close')}
-              className="h-9 gap-1 ps-2 pe-3 text-base font-semibold phone:text-lg"
-            >
-              <ChevronLeft className="size-5 rtl:-scale-x-100" />
-              {t('settings.title')}
-            </Button>
-          </h1>
-          <Input
-            ref={searchRef}
-            value={find}
-            onChange={(e) => setFind(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
-              if (shownTabs[0]) open(shownTabs[0].id);
-              else openAppsFound();
-            }}
-            placeholder={t('settings.search')}
-            aria-label={t('settings.search')}
-            className="mb-2 h-8 shrink-0 rounded-full text-sm phone:h-10 phone:text-base"
-          />
-          {shownTabs.map((tb, i) => (
-            <Fragment key={tb.id}>
-              {tb.group !== 'own' && tb.group !== shownTabs[i - 1]?.group && (
-                <h2 className="shrink-0 px-3 pt-4 pb-1 text-xs font-medium text-muted-foreground phone:text-sm">
-                  {t(`settings.group.${tb.group}`)}
-                </h2>
-              )}
-              <button
-                onClick={() => open(tb.id)}
-                aria-current={!phone && current.id === tb.id ? 'page' : undefined}
-                className={cn(
-                  'flex shrink-0 items-center gap-3 rounded-xl px-3 py-2 text-sm whitespace-nowrap transition-colors hover:bg-accent [&>svg]:size-4 phone:py-3 phone:text-base',
-                  !phone && current.id === tb.id && 'bg-accent font-medium',
-                )}
+        <nav className="flex min-h-0 shrink-0 flex-col bg-sidebar phone:flex-1 roomy:w-64 roomy:border-e">
+          {/* The title and the search stay put while the sections scroll under them: scrolled with
+              the list, the title would slide in under the window buttons. */}
+          <div className="flex shrink-0 flex-col gap-1 px-3">
+            {/* Room for the window buttons; empty in a browser. */}
+            <div className="window-drag h-12 shrink-0 phone:hidden" />
+            {/* The title goes back as well as the arrow: it is the larger mark, and where a hand reaches for. */}
+            <h1 className="flex shrink-0 pb-3 phone:pt-1">
+              <Button
+                variant="ghost"
+                onClick={close}
+                title={t('settings.close')}
+                className="h-9 gap-1 ps-2 pe-3 text-base font-semibold phone:text-lg"
               >
-                {tb.icon}
-                <span className="flex-1 text-start">{t(`settings.tab.${tb.id}`)}</span>
-                {phone && <ChevronRight className="text-muted-foreground rtl:-scale-x-100" />}
+                <ChevronLeft className="size-5 rtl:-scale-x-100" />
+                {t('settings.title')}
+              </Button>
+            </h1>
+            <Input
+              ref={searchRef}
+              value={find}
+              onChange={(e) => setFind(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
+                if (shownTabs[0]) open(shownTabs[0].id);
+                else openAppsFound();
+              }}
+              placeholder={t('settings.search')}
+              aria-label={t('settings.search')}
+              className="mb-2 h-8 shrink-0 rounded-full text-sm phone:h-10 phone:text-base"
+            />
+          </div>
+          <div className="scroll-thin flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 pb-3">
+            {shownTabs.map((tb, i) => (
+              <Fragment key={tb.id}>
+                {tb.group !== 'own' && tb.group !== shownTabs[i - 1]?.group && (
+                  <h2 className="shrink-0 px-3 pt-4 pb-1 text-xs font-medium text-muted-foreground phone:text-sm">
+                    {t(`settings.group.${tb.group}`)}
+                  </h2>
+                )}
+                <button
+                  onClick={() => open(tb.id)}
+                  aria-current={!phone && current.id === tb.id ? 'page' : undefined}
+                  className={cn(
+                    'flex shrink-0 items-center gap-3 rounded-xl px-3 py-2 text-sm whitespace-nowrap transition-colors hover:bg-accent [&>svg]:size-4 phone:py-3 phone:text-base',
+                    !phone && current.id === tb.id && 'bg-accent font-medium',
+                  )}
+                >
+                  {tb.icon}
+                  <span className="flex-1 text-start">{t(`settings.tab.${tb.id}`)}</span>
+                  {phone && <ChevronRight className="text-muted-foreground rtl:-scale-x-100" />}
+                </button>
+              </Fragment>
+            ))}
+            {appsFound && (
+              <button
+                onClick={openAppsFound}
+                className="flex shrink-0 items-center gap-3 rounded-xl px-3 py-2 text-sm whitespace-nowrap transition-colors hover:bg-accent [&>svg]:size-4 phone:py-3 phone:text-base"
+              >
+                <Plug />
+                <span className="flex-1 truncate text-start">
+                  {appsFound.name
+                    ? t('settings.appsResultFor', { name: appsFound.name })
+                    : t('settings.appsResult')}
+                </span>
+                <ExternalLink className="text-muted-foreground" />
               </button>
-            </Fragment>
-          ))}
-          {appsFound && (
-            <button
-              onClick={openAppsFound}
-              className="flex shrink-0 items-center gap-3 rounded-xl px-3 py-2 text-sm whitespace-nowrap transition-colors hover:bg-accent [&>svg]:size-4 phone:py-3 phone:text-base"
-            >
-              <Plug />
-              <span className="flex-1 truncate text-start">
-                {appsFound.name
-                  ? t('settings.appsResultFor', { name: appsFound.name })
-                  : t('settings.appsResult')}
-              </span>
-              <ExternalLink className="text-muted-foreground" />
-            </button>
-          )}
+            )}
+          </div>
         </nav>
       )}
       {!listing && (
