@@ -1,11 +1,12 @@
 import { INTL_LOCALE, type DashboardTileView } from '@leafbot/shared';
 import Feather from '@expo/vector-icons/Feather';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { ShownCard } from '@/components/message/ChatCard';
 import { confirm, toastError } from '@/components/overlay';
-import { back, Empty, IconButton, Loading, Page, Row } from '@/components/page';
+import { back, Empty, IconButton, Loading, Page, Row, Sheet } from '@/components/page';
 import { locale, t } from '@/i18n';
 import { nav } from '@/lib/nav';
 import { useBots, useDashboard, useDashboards } from '@/lib/queries';
@@ -137,13 +138,7 @@ function Tile({
     onSuccess: onChanged,
     onError: toastError,
   });
-  const menu = () =>
-    Alert.alert(tile.title, undefined, [
-      ...(first ? [] : [{ text: t('dashboards.moveEarlier'), onPress: () => move.mutate('earlier') }]),
-      ...(last ? [] : [{ text: t('dashboards.moveLater'), onPress: () => move.mutate('later') }]),
-      { text: t('dashboards.removeTile'), style: 'destructive' as const, onPress: () => remove.mutate() },
-      { text: t('common.cancel'), style: 'cancel' as const },
-    ]);
+  const [menu, setMenu] = useState(false);
   const source =
     tile.show === 'card'
       ? t('dashboards.written', { time: when.format(new Date(tile.updatedAt)) })
@@ -172,13 +167,45 @@ function Tile({
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={t('dashboards.tileMenu')}
-          onPress={menu}
+          onPress={() => setMenu(true)}
           hitSlop={8}
           style={({ pressed }) => [styles.more, pressed && { backgroundColor: c.accent }]}
         >
           <Feather name="more-horizontal" size={18} color={c.mutedForeground} />
         </Pressable>
       </View>
+      {/* A sheet rather than an alert: Android's alert holds three buttons, and this menu may need four. */}
+      <Sheet
+        open={menu}
+        onClose={() => setMenu(false)}
+        title={tile.title}
+        items={[
+          ...(first
+            ? []
+            : [
+                {
+                  icon: 'arrow-up' as const,
+                  label: t('dashboards.moveEarlier'),
+                  onPress: () => move.mutate('earlier'),
+                },
+              ]),
+          ...(last
+            ? []
+            : [
+                {
+                  icon: 'arrow-down' as const,
+                  label: t('dashboards.moveLater'),
+                  onPress: () => move.mutate('later'),
+                },
+              ]),
+          {
+            icon: 'trash-2',
+            label: t('dashboards.removeTile'),
+            destructive: true,
+            onPress: () => remove.mutate(),
+          },
+        ]}
+      />
     </View>
   );
 }

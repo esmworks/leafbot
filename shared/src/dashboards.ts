@@ -211,10 +211,11 @@ export function periodDays(
   today: number,
 ): { from: number; to: number; before: { from: number; to: number } } | null {
   const { y, m } = parts(today);
+  // Up to the same point of the span before, but never into this one: 31 March against February.
   const span = (from: number, to: number, prevFrom: number) => ({
     from,
     to,
-    before: { from: prevFrom, to: prevFrom + (today - from) },
+    before: { from: prevFrom, to: Math.min(prevFrom + (today - from), from - 1) },
   });
   switch (period) {
     case 'all':
@@ -265,6 +266,10 @@ function aggregate(measure: TileMeasure, rows: TableRow[], column: string | unde
 }
 
 const round = (n: number) => Math.round(n * 100) / 100;
+/** Text cut to `max` characters with an ellipsis, for cells and names shown in a tile. */
+const cut = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+const CELL_CHARS = 120;
+const NAME_CHARS = 60;
 
 export interface TileContext {
   now: Date;
@@ -311,14 +316,30 @@ export function tableTileCard(
 
   // Each row's day: its date column's, or the day it was written, in the server's time zone.
   const dateColumn = col(spec.dateColumn)?.name;
+  // Worked out once per row: a chart asks for each row's day in every bucket it fills. Rows
+  // written in the same hour fall on the same day, so the time zone is asked once per hour.
+  const hours = new Map<string, number>();
   const written = (iso: string) => {
-    const w = wallClock(new Date(iso), cx.timeZone);
-    return dayFrom(w.year, w.month - 1, w.day);
+    const hour = iso.slice(0, 13);
+    let day = hours.get(hour);
+    if (day === undefined) {
+      const w = wallClock(new Date(iso), cx.timeZone);
+      day = dayFrom(w.year, w.month - 1, w.day);
+      hours.set(hour, day);
+    }
+    return day;
   };
+  const days = new Map<TableRow, number | null>();
   const dayAt = (r: TableRow): number | null => {
-    if (!dateColumn) return written(r.createdAt);
-    const v = r.values[dateColumn];
-    return typeof v === 'string' ? dayOf(v) : null;
+    if (days.has(r)) return days.get(r)!;
+    let day: number | null;
+    if (!dateColumn) day = written(r.createdAt);
+    else {
+      const v = r.values[dateColumn];
+      day = typeof v === 'string' ? dayOf(v) : null;
+    }
+    days.set(r, day);
+    return day;
   };
   const nowClock = wallClock(cx.now, cx.timeZone);
   const today = dayFrom(nowClock.year, nowClock.month - 1, nowClock.day);
@@ -385,7 +406,7 @@ export function tableTileCard(
       const text = (r: TableRow, name: string) => {
         const v: CellValue | undefined = r.values[name];
         if (typeof v === 'number') return number.format(v);
-        return cellText(v, cx.yes, cx.no);
+        return cut(cellText(v, cx.yes, cx.no), CELL_CHARS);
       };
       const lines = order.slice(0, limit).map((r) => {
         const [first, ...rest] = shownColumns;
@@ -418,7 +439,7 @@ export function tableTileCard(
       const type = spec.show as 'bar' | 'line' | 'area';
       const group = col(spec.groupBy)?.name;
       const groupKey = (r: TableRow) => (group ? cellText(r.values[group], cx.yes, cx.no) : '');
-      const groupWord = (k: string) => k || cx.say('dashboard.empty');
+      const groupWord = (k: string) => (k ? cut(k, NAME_CHARS) : cx.say('dashboard.empty'));
       // Groups by how much they weigh in the whole period, so the largest keep their own bar or line.
       const ranked = (limit: number) => {
         const by = new Map<string, TableRow[]>();
@@ -447,15 +468,20 @@ export function tableTileCard(
         for (let s = from; s <= to; s = nextBucket(bucket, s)) starts.push(s);
         const kept = starts.slice(-CARD_LIMITS.chartPoints);
         const label = bucketLabel(bucket, cx.locale, kept);
-        const inBucket = (s: number) => (r: TableRow) => {
+        const byBucket = new Map<number, TableRow[]>();
+        for (const r of rows) {
           const d = dayAt(r);
-          return d !== null && bucketStart(bucket, d) === s;
-        };
+          if (d === null) continue;
+          const s = bucketStart(bucket, d);
+          const list = byBucket.get(s);
+          if (list) list.push(r);
+          else byBucket.set(s, [r]);
+        }
         const groups = group ? ranked(TOP_SERIES) : { top: [''], other: false };
         const keys = groups.top.map((_, i) => `s${i}`);
         if (groups.other) keys.push('other');
         data = kept.map((s) => {
-          const here = rows.filter(inBucket(s));
+          const here = byBucket.get(s) ?? [];
           const point: Record<string, string | number | null> = { x: label(s) };
           groups.top.forEach((g, i) => {
             const v = aggregate(measure, group ? here.filter((r) => groupKey(r) === g) : here, column);

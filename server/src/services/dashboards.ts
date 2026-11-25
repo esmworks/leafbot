@@ -352,6 +352,7 @@ export class DashboardService {
     if (!tile) throw notFound('dashboardTile');
     const sees = await this.reached({ userId });
     if (!sees(tile.botId)) throw notFound('dashboardTile');
+    await this.s.access.requireBot(await this.s.access.viewerOf(userId), tile.botId, 'edit');
     const all = await this.ctx.db
       .select({ id: schema.dashboardTiles.id, botId: schema.dashboardTiles.botId })
       .from(schema.dashboardTiles)

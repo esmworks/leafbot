@@ -149,6 +149,10 @@ describe('gösterge panelleri', () => {
     // Talking with a bot is not changing it: its tiles and the page stay.
     expect((await mert.api('DELETE', `/api/dashboard-tiles/${seen.tiles[0]!.id}`)).status).toBe(403);
     expect((await mert.api('DELETE', `/api/dashboards/${page!.id}`)).status).toBe(403);
+    expect(
+      (await mert.api('POST', `/api/dashboard-tiles/${seen.tiles[0]!.id}/move`, { direction: 'earlier' }))
+        .status,
+    ).toBe(403);
 
     // A bot working for the owner reads the other bot's tile too.
     const read = await say(a.id, tool('dashboards', { name: '3E' }));

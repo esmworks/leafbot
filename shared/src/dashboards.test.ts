@@ -79,6 +79,10 @@ describe('periodDays', () => {
       day('2026-11-18'),
     ]);
   });
+  it('never reaches into this month from a shorter one before it', () => {
+    const p = periodDays('month', day('2026-03-31'))!;
+    expect([p.before.from, p.before.to]).toEqual([day('2026-02-01'), day('2026-02-28')]);
+  });
   it('has nothing to cut for all time', () => {
     expect(periodDays('all', 1)).toBeNull();
   });
@@ -212,6 +216,13 @@ describe('tableTileCard', () => {
     const col = find(root, 'Col')!;
     expect(col.children?.[0]?.children?.map((c) => c.value)).toEqual(['Yeni', undefined, '1,250.5']);
     expect(root.children?.at(-1)?.value).toBe('dashboard.moreRows(1)');
+  });
+
+  it('cuts a long cell so the tile stays within the card limit', () => {
+    const rows = Array.from({ length: 20 }, () => row({ Firma: 'x'.repeat(2000), Durum: 'y'.repeat(2000) }));
+    const root = made({ show: 'rows', columns: ['Firma', 'Durum'], limit: 20 }, rows);
+    const first = find(root, 'Col')!.children![0]!.children![0]!;
+    expect(String(first.value)).toHaveLength(120);
   });
 
   it('shows how far along a goal is', () => {
