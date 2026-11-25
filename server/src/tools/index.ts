@@ -61,6 +61,7 @@ import { errorText, HttpError, newId, notFound, truncate } from '../util';
 import { replayHandOver, replaySteps } from '../browser/replay';
 import { browserTools, type AskCard, type AskContact, type AskLogin } from './browser';
 import { computerTools } from './computer';
+import { personCommandTools } from './person-commands';
 import { personComputerTools } from './person-computer';
 import { callTools } from './calls';
 import { personPhoneTools } from './person-phone';
@@ -625,6 +626,9 @@ export type ToolName =
   | 'person_computer_key'
   | 'person_computer_scroll'
   | 'person_computer_drag'
+  | 'person_command_run'
+  | 'person_command_status'
+  | 'person_command_stop'
   | 'person_phone_calendar'
   | 'person_phone_contacts'
   | 'person_phone_location'
@@ -2900,6 +2904,34 @@ export class ToolFactory {
     ) {
       tools.push(...personComputerTools({ def, botId: bot.id, botName: bot.name, t, computer: mac }));
     }
+    // Commands on that person's computer, under the same conditions, when its desktop app lets
+    // bots run them. Through the desktop app only, never the server's own helper: the switch that
+    // allows commands is on that computer. Looked up at each step, so a reconnect does not matter.
+    const commandsAt = ownThread && writer ? (this.ctx.macs?.commandsFor(writer) ?? null) : null;
+    if (
+      commandsAt &&
+      writer &&
+      bot.personComputer &&
+      turn.source === 'user' &&
+      !team &&
+      !turn.guest &&
+      bot.permissionMode !== 'readonly'
+    ) {
+      tools.push(
+        ...personCommandTools({
+          def,
+          t,
+          s,
+          bot,
+          threadId: thread.id,
+          turn: { id: turn.id, rehearsalId: turn.rehearsalId ?? null },
+          person: writer,
+          signal,
+          timeoutMs: unattended,
+          computer: () => this.ctx.macs?.commandsFor(writer) ?? null,
+        }),
+      );
+    }
     // The person's own phone, for what they switched on in the phone app: only in work their own
     // message started, in their own conversation, and not for a bot that may only read (it would
     // not be asked, and their phone is theirs to answer for). A guest has no phone here.
@@ -3135,6 +3167,8 @@ export class ToolFactory {
             .max(10),
         },
         async ({ answers }) => {
+          // An answer lets another bot act: a manager that may only look answers nothing.
+          if (manager.permissionMode === 'readonly') return t('cards.readonly');
           const open = new Map((await waiting()).map((c) => [c.id, c]));
           const bots = await s.bots.list({ includeArchived: true });
           const names = new Map(bots.map((b) => [b.id, b.name]));

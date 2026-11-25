@@ -1648,6 +1648,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const { seen, answerable } = await s.access.summaryScope(me(req));
     return s.approvals.list({ ...q, seen, answerable });
   });
+  // Stops a command a bot runs on the person's own computer: theirs only.
+  app.post('/api/person-jobs/:id/stop', async (req) => ({
+    stopped: await s.personJobs.stop(IdParams.parse(req.params).id, me(req).userId),
+  }));
   app.get('/api/approvals/:id', async (req) => s.approvals.get(IdParams.parse(req.params).id));
   app.post('/api/approvals/:id', async (req) =>
     s.approvals.answer(IdParams.parse(req.params).id, ApprovalDecision.parse(req.body), me(req).userId),
@@ -1736,7 +1740,11 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   };
   app.get('/api/rules', async (req) => {
     const editable = new Set(await s.access.botIds(me(req), 'edit'));
-    return (await s.approvals.rules()).filter((r) => !r.botId || editable.has(r.botId));
+    // A command someone allowed on their own computer is theirs to see and take back, whatever
+    // else they may change on the bot.
+    return (await s.approvals.rules()).filter(
+      (r) => !r.botId || editable.has(r.botId) || r.userId === me(req).userId,
+    );
   });
   app.post('/api/rules', async (req) => {
     const body = PermissionRuleCreate.parse(req.body);
@@ -1747,7 +1755,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const id = IdParams.parse(req.params).id;
     const rule = (await s.approvals.rules()).find((r) => r.id === id);
     if (!rule) throw new HttpError(404, 'error.notFound');
-    await checkRuleBot(req, rule.botId);
+    if (rule.userId !== me(req).userId) await checkRuleBot(req, rule.botId);
     await s.approvals.removeRule(id);
     return { ok: true };
   });

@@ -37,7 +37,15 @@ import { readSpellingOn, spellingEntries, spellingLanguages, writeSpellingOn } f
 import { isLocale } from '@leafbot/shared/i18n';
 import { loadLocale, locale, saveLocale, setLocale, t, type DesktopKey } from './i18n';
 import { LINK_SCHEMES, linkInArgs, parseLink, type AppLink } from './links';
-import { type MacGate, readMacOn, startMacBridge, writeMacOn } from './mac-bridge';
+import { CommandJobs } from './commands';
+import {
+  type MacGate,
+  readCommandsOn,
+  readMacOn,
+  startMacBridge,
+  writeCommandsOn,
+  writeMacOn,
+} from './mac-bridge';
 import { claimQuickKey, isThreadId, quickBounds, quickUrl, readQuickOn, writeQuickOn } from './quick';
 import { ServerProcess } from './server-process';
 import { startUpdates, type Updates } from './updates';
@@ -942,6 +950,7 @@ function startMac() {
     driver: helper.driver,
     shot: helper.shot,
     ask: (bot, signal) => askForMac(bot, new URL(remote.url).host, signal),
+    commands: readCommandsOn(userData) ? commandJobs(new URL(remote.url).host) : null,
     onChange: (active) => {
       macInUse = active;
       // A sleeping display makes the bot's screenshots black: kept on while the use goes on, which
@@ -954,6 +963,16 @@ function startMac() {
   });
   macGate = bridge.gate;
   stopMac = bridge.stop;
+}
+
+/** The commands bots run here; made once, so jobs outlive a connection that drops. */
+let jobs: CommandJobs | null = null;
+function commandJobs(host: string): CommandJobs {
+  jobs ??= new CommandJobs({
+    ask: (bot, command, place, signal) => askForCommand(bot, host, command, place, signal),
+    onChange: () => rebuildMenu(),
+  });
+  return jobs;
 }
 
 let macRestart: ReturnType<typeof setTimeout> | null = null;
@@ -984,7 +1003,11 @@ function watchMacSignIn() {
     macRestart = setTimeout(() => {
       macRestart = null;
       void sessionCookie(url).then((now) => {
-        if (stopMac && now !== macSignIn) startMac();
+        // Commands started for the one signed in before are theirs: they stop with the change.
+        if (stopMac && now !== macSignIn) {
+          jobs?.stopAll();
+          startMac();
+        }
       });
     }, 1_000);
   });
@@ -1024,9 +1047,39 @@ async function askForMac(bot: string, host: string, signal: AbortSignal): Promis
   return response === 0 && !signal.aborted;
 }
 
+/**
+ * Asks on this computer before a command that names a place where keys are kept runs: the server's
+ * card is not enough for those. Default is no.
+ */
+async function askForCommand(
+  bot: string,
+  host: string,
+  command: string,
+  place: string,
+  signal: AbortSignal,
+): Promise<boolean> {
+  const name =
+    bot
+      .replace(/[\p{Cc}\p{Cf}]/gu, ' ')
+      .trim()
+      .slice(0, 60) || t('mac.someBot');
+  app.focus({ steal: true });
+  const { response } = await dialog.showMessageBox({
+    type: 'warning',
+    message: t('mac.commandAskTitle', { bot: name, host, place }),
+    detail: t('mac.commandAskDetail', { command: command.slice(0, 2000) }),
+    buttons: [t('mac.allow'), t('mac.deny')],
+    defaultId: 1,
+    cancelId: 1,
+    signal,
+  });
+  return response === 0 && !signal.aborted;
+}
+
 /** The menu bar's part for this Mac: the switch, and while a bot uses it, a way to stop that. */
 function macMenu(): Electron.MenuItemConstructorOptions[] {
   if (!canOfferMac()) return [];
+  const running = jobs?.running().length ?? 0;
   return [
     {
       label: t('mac.offer'),
@@ -1035,11 +1088,33 @@ function macMenu(): Electron.MenuItemConstructorOptions[] {
       click: (item) => {
         writeMacOn(userData, item.checked);
         if (item.checked) startMac();
-        else stopMacOffer();
+        else {
+          jobs?.stopAll();
+          stopMacOffer();
+        }
         rebuildMenu();
       },
     },
     ...(macInUse ? [{ label: t('mac.stop'), click: () => macGate?.stop() }] : []),
+    {
+      label: t('mac.commands'),
+      type: 'checkbox',
+      checked: readCommandsOn(userData),
+      enabled: readMacOn(userData),
+      click: (item) => {
+        writeCommandsOn(userData, item.checked);
+        // Off stops what runs; either way the connection tells the server again what it may ask.
+        if (!item.checked) jobs?.stopAll();
+        if (readMacOn(userData)) startMac();
+        rebuildMenu();
+      },
+    },
+    ...(running > 0
+      ? [
+          { label: t('mac.jobs', { count: String(running) }), enabled: false },
+          { label: t('mac.stopJobs'), click: () => jobs?.stopAll() },
+        ]
+      : []),
     { type: 'separator' },
   ];
 }
@@ -1189,6 +1264,8 @@ function rebuildMenu() {
 app.on('activate', () => showWindow());
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  // A command does not outlive the app that answers for it.
+  jobs?.stopAll();
   stopMacOffer();
   stopDisplayWatch();
 });

@@ -282,10 +282,14 @@ export const MAC_ASK_MS = 55_000;
 const coord = z.number().int().min(0).max(20_000);
 const shift = z.number().int().min(-30).max(30);
 
+/** A job's id: the server makes it, so it stays the same across reconnects. */
+const jobId = z.string().regex(/^[\w-]{1,64}$/);
+
 /**
  * Everything a server may ask of a Mac across the network. The desktop app checks each request
- * against this before the helper sees it: nothing else reaches the Mac, no commands and no files.
- * The limits are those of the bots' tools.
+ * against this before the helper sees it: nothing else reaches the Mac and no files. Commands
+ * (`where`, `run`, `stop`, `jobs`) run only while the person has "Bots may run commands" on in
+ * the desktop app's menu, and never through the helper. The limits are those of the bots' tools.
  */
 export const MacRequest = z.discriminatedUnion('op', [
   z.object({ op: z.literal('status') }),
@@ -311,6 +315,19 @@ export const MacRequest = z.discriminatedUnion('op', [
   }),
   z.object({ op: z.literal('scroll'), x: coord, y: coord, dx: shift, dy: shift }),
   z.object({ op: z.literal('drag'), fromX: coord, fromY: coord, toX: coord, toY: coord }),
+  // The folder a command would run in, as the computer resolves it, before anyone is asked.
+  z.object({ op: z.literal('where'), cwd: z.string().max(1000) }),
+  z.object({
+    op: z.literal('run'),
+    id: jobId,
+    command: z.string().min(1).max(20_000),
+    cwd: z.string().min(1).max(1000),
+    bot: z.string().max(200),
+    /** How long the answer waits for the command to end; it goes on in the background after. */
+    waitMs: z.number().int().min(0).max(25_000),
+  }),
+  z.object({ op: z.literal('stop'), id: jobId }),
+  z.object({ op: z.literal('jobs') }),
 ]);
 export type MacRequest = z.infer<typeof MacRequest>;
 
@@ -323,3 +340,63 @@ export const MAC_TOUCHES: ReadonlySet<MacRequest['op']> = new Set([
   'scroll',
   'drag',
 ]);
+
+/** Requests that run commands: each needs "Bots may run commands" on in the desktop app. */
+export const MAC_COMMANDS: ReadonlySet<MacRequest['op']> = new Set(['where', 'run', 'stop', 'jobs']);
+
+/** The events a desktop app sends by itself: a job's progress or end, and the jobs it still knows. */
+export const MAC_JOB_EVENT = 'job';
+export const MAC_JOBS_EVENT = 'jobs';
+
+/** How many commands run at once on one computer. */
+export const MAC_JOBS_MAX = 4;
+/** How long a command may run before the computer stops it. */
+export const MAC_JOB_MAX_MS = 2 * 60 * 60 * 1000;
+/** The last part of a job's output an event carries. */
+export const MAC_JOB_TAIL = 4000;
+
+/** A job's progress or end, as the desktop app reports it. */
+export const MacJobEvent = z.object({
+  id: jobId,
+  running: z.boolean(),
+  /** The last of the output, at most `MAC_JOB_TAIL` characters. */
+  tail: z.string().max(MAC_JOB_TAIL * 2),
+  exitCode: z.number().int().nullable(),
+  /** Stopped by a person or by the time limit. */
+  stopped: z.boolean().optional(),
+});
+export type MacJobEvent = z.infer<typeof MacJobEvent>;
+
+/** The jobs a desktop app knows of, sent each time it connects. */
+export const MacJobsSnapshot = z.object({ running: z.array(jobId).max(100) });
+
+/** Colours and cursor moves a terminal program writes, which mean nothing in a card. */
+export function stripAnsi(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007]*(\u0007|\u001b\\)|\u001b[@-Z\\-_]/g, '');
+}
+
+/**
+ * Places that hold keys and passwords: a command that names one, or runs in one, is asked about
+ * each time and never let through by a rule. Matched on the text only, so a script that reaches
+ * one by itself is not caught: it is a second look, not a wall.
+ */
+const SECRET_PLACES: [RegExp, string][] = [
+  [/(^|[\s/~"'=:])\.ssh(\/|\b)/i, '.ssh'],
+  [/(^|[\s/~"'=:])\.aws(\/|\b)/i, '.aws'],
+  [/(^|[\s/~"'=:])\.gnupg(\/|\b)/i, '.gnupg'],
+  [/(^|[\s/~"'=:])\.kube(\/|\b)/i, '.kube'],
+  [/(^|[\s/~"'=:])\.docker(\/|\b)/i, '.docker'],
+  [/(^|[\s/~"'=:])\.config\/(gcloud|gh)(\/|\b)/i, '.config'],
+  [/(^|[\s/~"'=:])\.(netrc|npmrc|pypirc|pgpass|git-credentials)\b/i, 'credentials'],
+  [/(^|[\s/~"'=:])\.env(\.[\w-]+)?\b/i, '.env'],
+  [/\bKeychains?\b|\bsecurity\s+(find|dump)-/i, 'Keychain'],
+  [/\bid_(rsa|ed25519|ecdsa|dsa)\b|\.pem\b|\.p12\b|\.pfx\b/i, 'key file'],
+  [/\bcredentials(\.json)?\b|\bsecrets?\.(json|ya?ml|toml)\b/i, 'credentials'],
+];
+
+/** The secret place a command or folder names, or null for none. */
+export function secretPlace(...texts: string[]): string | null {
+  for (const text of texts) for (const [re, name] of SECRET_PLACES) if (re.test(text)) return name;
+  return null;
+}

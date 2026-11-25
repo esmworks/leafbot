@@ -13,6 +13,15 @@ interface Offer {
   gone: boolean;
   /** Ends the requests still waiting on this Mac, when it goes away. */
   waiting: Set<() => void>;
+  /** Whether the person lets bots run commands there, as its desktop app said on connecting. */
+  commands: boolean;
+  ask(req: Record<string, unknown>, timeoutMs: number): Promise<Record<string, unknown>>;
+}
+
+/** A computer that runs commands: where they go, straight to its desktop app. */
+export interface CommandComputer {
+  device: string;
+  ask(req: Record<string, unknown>, timeoutMs: number): Promise<Record<string, unknown>>;
 }
 
 const OFFLINE = { ok: false, error: 'offline' } as const;
@@ -40,7 +49,7 @@ export class MacBridge {
     this.send = send;
   }
 
-  offer(socketId: string, userId: string, device: string) {
+  offer(socketId: string, userId: string, device: string, commands = false) {
     const ask = async (req: Record<string, unknown>, timeoutMs: number): Promise<Record<string, unknown>> => {
       if (offer.gone || !this.send) return OFFLINE;
       let raw: unknown;
@@ -89,6 +98,8 @@ export class MacBridge {
       at: ++this.seq,
       gone: false,
       waiting: new Set(),
+      commands,
+      ask,
     };
     this.drop(socketId);
     this.offers.set(socketId, offer);
@@ -112,6 +123,23 @@ export class MacBridge {
   /** This person's Mac connected now, the most recent one; null when none is. */
   for(userId: string): PersonComputer | null {
     return this.latest(userId)?.computer ?? null;
+  }
+
+  /**
+   * This person's computer that runs commands, the most recent one; null when none does. Asked at
+   * each step, not kept by a turn: a command needs no screen the bot has seen.
+   */
+  commandsFor(userId: string): CommandComputer | null {
+    let best: Offer | null = null;
+    for (const o of this.offers.values())
+      if (o.userId === userId && o.commands && !o.gone && (!best || o.at > best.at)) best = o;
+    return best ? { device: best.device, ask: best.ask } : null;
+  }
+
+  /** Sends one request to every computer of this person that runs commands, as Stop does. */
+  async toAll(userId: string, req: Record<string, unknown>, timeoutMs = this.requestMs) {
+    const asks = [...this.offers.values()].filter((o) => o.userId === userId && o.commands && !o.gone);
+    return Promise.all(asks.map((o) => o.ask(req, timeoutMs)));
   }
 
   /** The name of the Mac `for` gives. */

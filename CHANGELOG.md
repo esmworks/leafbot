@@ -7,6 +7,16 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Bots can run commands on your own computer through the desktop app, when you turn on "Bots may run commands"
+  beside "Bots may use this computer" in the Leaf Bot icon's menu (off until you do; with the server elsewhere). The
+  computer resolves the folder first and each command asks on a card at every permission level; "always allow"
+  keeps that command in that folder for you alone, never full access, and a shared bot still asks other people on
+  their computers. Commands that name a place where keys are kept (`.ssh`, `.aws`, `.env` and the like) also ask on
+  the computer itself every time and get no "always allow"; this is a check of the command's text, so a script that
+  reaches such a place by itself is not caught. At most four run at once, each for at most two hours. A command that
+  outlasts its wait goes on with a card showing its last lines and a Stop button, on the web and on the phone, and
+  the bot is woken in the same conversation when it ends. The menu shows how many run and stops them all; turning
+  the switch off, a change of who is signed in or quitting the app stops them too.
 - A manager bot answers the cards waiting on you in your words, such as "say yes to the mail and tell the writer to
   keep it warm". When you said it in your own conversation with the manager, and the manager has read nothing from
   outside, it answers straight away; otherwise you see all its answers on one card first, at every permission level.
