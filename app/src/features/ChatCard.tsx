@@ -1,4 +1,5 @@
 import {
+  cardChecklist,
   cardDefaults,
   cardLink,
   cardPress,
@@ -248,6 +249,9 @@ interface Ctx {
   locked: boolean;
   /** The part the person pressed, once answered. */
   pressed?: string;
+  /** Checklist items, which stay open to ticks even once the card is answered. */
+  live: Set<string>;
+  tick(name: string, v: boolean): void;
   fieldId(name: string): string;
 }
 
@@ -269,6 +273,34 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
   const answer = m.props.cardAnswered === true ? (m.props.cardAnswer as Answer | undefined) : undefined;
   const [values, setValues] = useState<CardValues>(() => ({ ...cardDefaults(card), ...answer?.values }));
   const [problem, setProblem] = useState<string | null>(null);
+  // Ticks shown at once. One the server took stays shown until the card's copy here changes,
+  // so the box does not flick back while the conversation is read again.
+  const [pending, setPending] = useState<Record<string, { value: boolean; done: boolean; before: string }>>(
+    {},
+  );
+  const live = new Set(cardChecklist(card).map((f) => f.name));
+  const serverTicks = m.props.cardTicks as CardValues | undefined;
+  const server = JSON.stringify(serverTicks ?? {});
+  const ticked: CardValues = { ...values, ...serverTicks };
+  for (const [name, x] of Object.entries(pending)) if (!x.done || x.before === server) ticked[name] = x.value;
+  const forget = (name: string, value: boolean) =>
+    setPending((p) => {
+      if (p[name]?.value !== value) return p;
+      const { [name]: _, ...rest } = p;
+      return rest;
+    });
+  const tick = useMutation({
+    mutationFn: (o: { name: string; value: boolean }) => api.tickCard(m.id, { ...o, rev }),
+    onSuccess: (_d, o) =>
+      setPending((p) => {
+        const x = p[o.name];
+        return x?.value === o.value ? { ...p, [o.name]: { ...x, done: true } } : p;
+      }),
+    onError: (err: Error, o) => {
+      forget(o.name, o.value);
+      toast.error(err.message);
+    },
+  });
   const send = useMutation({
     mutationFn: (o: { node: string; values: CardValues }) =>
       api.answerCard(m.id, { node: o.node, rev, values: o.values }),
@@ -284,7 +316,7 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
       window.open(link, '_blank', 'noopener,noreferrer');
       return;
     }
-    const checked = checkCardValues(p, values);
+    const checked = checkCardValues(p, ticked);
     if (!checked.ok) {
       setProblem(t(`card.value.${checked.issue}`, { field: checked.field.label }));
       return;
@@ -294,7 +326,7 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
   };
   const ctx: Ctx = {
     card,
-    values,
+    values: ticked,
     // A change may fix what the last press found missing, so its message goes; the next press checks again.
     set: (name, v) => {
       setProblem(null);
@@ -304,6 +336,11 @@ function CardBody({ m, card, rev }: { m: Message; card: Card; rev: number }) {
     locked,
     pressed: answer?.node,
     fieldId: (name) => `card-${m.id}-${name}`,
+    live,
+    tick: (name, value) => {
+      setPending((p) => ({ ...p, [name]: { value, done: false, before: server } }));
+      tick.mutate({ name, value });
+    },
   };
   const root = card.root;
   const ends = (['confirm', 'cancel'] as const)
@@ -667,15 +704,21 @@ function Field({ node, ctx }: { node: CardNode; ctx: Ctx }) {
         </div>
       );
     }
-    case 'Checkbox':
+    case 'Checkbox': {
+      const live = ctx.live.has(name);
+      // A checklist item is ticked on its own, answered card or not.
+      const off = live ? node.disabled === true : disabled;
+      const toggle = (v: boolean) => (live ? ctx.tick(name, v) : ctx.set(name, v));
+      if (live && node.variant !== 'chip')
+        return <ChecklistItem node={node} on={value === true} off={off} toggle={toggle} />;
       if (node.variant === 'chip') {
         return (
           <button
             id={id}
             type="button"
             aria-pressed={value === true}
-            disabled={disabled}
-            onClick={() => ctx.set(name, value !== true)}
+            disabled={off}
+            onClick={() => toggle(value !== true)}
             className={cn(
               'flex w-fit shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition-colors enabled:hover:bg-accent disabled:opacity-60',
               value === true && 'border-primary bg-primary/10 font-medium enabled:hover:bg-primary/15',
@@ -687,7 +730,7 @@ function Field({ node, ctx }: { node: CardNode; ctx: Ctx }) {
         );
       }
       return (
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-start gap-2 text-sm">
           <input
             id={id}
             type="checkbox"
@@ -695,11 +738,17 @@ function Field({ node, ctx }: { node: CardNode; ctx: Ctx }) {
             disabled={disabled}
             required={required}
             onChange={(e) => ctx.set(name, e.target.checked)}
-            className="size-4 accent-primary"
+            className="mt-0.5 size-4 accent-primary"
           />
-          {str(node.label)}
+          <span>
+            {str(node.label)}
+            {typeof node.description === 'string' && (
+              <span className="block text-xs text-muted-foreground">{node.description}</span>
+            )}
+          </span>
         </label>
       );
+    }
     case 'Textarea':
       return (
         <Textarea
@@ -792,5 +841,49 @@ function Stepper({ node, ctx }: { node: CardNode; ctx: Ctx }) {
         <Plus />
       </Button>
     </div>
+  );
+}
+
+/** A checklist item: a round tick that fills when done, the item quieter once it is. */
+function ChecklistItem({
+  node,
+  on,
+  off,
+  toggle,
+}: {
+  node: CardNode;
+  on: boolean;
+  off: boolean;
+  toggle: (v: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={on}
+      disabled={off}
+      onClick={() => toggle(!on)}
+      className="group flex w-full items-start gap-3 rounded-lg py-1 text-start disabled:opacity-60"
+    >
+      {on ? (
+        <CircleCheck
+          aria-hidden
+          className="mt-px size-5 shrink-0 fill-emerald-600 text-card dark:fill-emerald-500"
+        />
+      ) : (
+        <Circle
+          aria-hidden
+          className="mt-px size-5 shrink-0 text-muted-foreground/50 group-enabled:group-hover:text-muted-foreground"
+        />
+      )}
+      <span className="min-w-0">
+        <span className={cn('block text-[15px] leading-snug', on && 'text-muted-foreground')}>
+          {str(node.label)}
+        </span>
+        {typeof node.description === 'string' && (
+          <span className="block text-xs text-muted-foreground">{node.description}</span>
+        )}
+      </span>
+    </button>
   );
 }

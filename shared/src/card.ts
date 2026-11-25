@@ -341,6 +341,8 @@ const SPECS: Record<string, Spec> = {
     props: {
       ...field,
       label: str(CARD_LIMITS.title),
+      /** A second, quieter line under the label. */
+      description: str(CARD_LIMITS.title),
       defaultChecked: bool,
       /** `chip`: a word that is on or off, for picking any of a few side by side. */
       variant: oneOf('chip'),
@@ -585,6 +587,10 @@ function walk(raw: unknown, path: string, depth: number, w: Walk, parent: string
       node.onClickAction = action(raw.onClickAction, `${path}.onClickAction`);
     }
   }
+  // A checklist item: ticked on and off while the card stays open, and kept as it is ticked.
+  if (type === 'Checkbox' && raw.onChangeAction !== undefined && raw.onChangeAction !== null) {
+    node.onChangeAction = action(raw.onChangeAction, `${path}.onChangeAction`);
+  }
   if ((type === 'ListViewItem' && raw.onClickAction) || (type === 'Form' && raw.onSubmitAction)) {
     const key = type === 'Form' ? 'onSubmitAction' : 'onClickAction';
     node[key] = action(raw[key], `${path}.${key}`);
@@ -616,8 +622,10 @@ function walk(raw: unknown, path: string, depth: number, w: Walk, parent: string
     w.names.add(name as string);
     if (w.names.size > CARD_LIMITS.fields) refuse(path, 'tooManyFields', String(CARD_LIMITS.fields));
     if (type === 'Input' && raw.inputType === 'password') refuse(path, 'secret', name as string);
+    // Only a field the person types into can carry a secret; a box or a choice ("QA pass") cannot.
+    const typed = type === 'Input' || type === 'Textarea';
     const words = [name, node.label, node.placeholder, node.ariaLabel].filter((x) => typeof x === 'string');
-    if (words.some((x) => SECRET.test(x as string))) refuse(path, 'secret', name as string);
+    if (typed && words.some((x) => SECRET.test(x as string))) refuse(path, 'secret', name as string);
     if (type === 'Select' || type === 'RadioGroup') {
       node.options = options(raw.options, `${path}.options`);
       const chosen = node.defaultValue;
@@ -718,6 +726,35 @@ function chartText(n: CardNode): string[] {
     const range = values.length > 2 ? ` (${lo}–${hi})` : '';
     return `${s.label}: ${values[0]} → ${values[values.length - 1]}${range}${span}`;
   });
+}
+
+/**
+ * A card's checklist items: checkboxes outside a form with an `onChangeAction`, ticked one at a
+ * time while the card stays open, even once it is answered, and kept on the card by name.
+ */
+export function cardChecklist(card: Card): CardField[] {
+  // A box in a form goes with the form's answer, whatever it says it does on change.
+  const inForms = new Set<string>();
+  visit(card.root, (n, up) => {
+    if (n.type === 'Checkbox' && up.some((x) => x.type === 'Form')) inForms.add(n.id);
+  });
+  return cardFields(card).filter(
+    (f) => f.type === 'Checkbox' && f.node.onChangeAction !== undefined && !inForms.has(f.node.id),
+  );
+}
+
+/**
+ * The ticks a card keeps after the bot shows a new version of it: the person's tick on an item
+ * still there stays, unless the bot changed that item's own tick, which then wins.
+ */
+export function keptTicks(before: Card, after: Card, ticks: CardValues): CardValues {
+  const was = new Map(cardChecklist(before).map((f) => [f.name, f.node.defaultChecked === true]));
+  const out: CardValues = {};
+  for (const f of cardChecklist(after)) {
+    const v = ticks[f.name];
+    if (typeof v === 'boolean' && was.get(f.name) === (f.node.defaultChecked === true)) out[f.name] = v;
+  }
+  return out;
 }
 
 /** The words a row of a list or a group shows, joined on one line. */
@@ -896,8 +933,9 @@ export function cardLink(act: CardAction | undefined): string | null {
 /**
  * The card as plain text, for chat apps that cannot draw it, search, and the bot reading back the
  * card an answer replies to: titles and text as lines, fields as `label: …`, buttons as `[label]`.
+ * A checkbox reads ☑ or ☐ as it stands: its checklist tick, else how it starts.
  */
-export function cardText(card: Card): string {
+export function cardText(card: Card, ticks: CardValues = {}): string {
   const fields = new Map(cardFields(card).map((f) => [f.node.id, f]));
   const lines: string[] = [];
   const line = (n: CardNode): string | null => {
@@ -916,8 +954,11 @@ export function cardText(card: Card): string {
         return chartText(n).join('\n');
       case 'Button':
         return n.label ? `[${String(n.label)}]` : null;
-      case 'Checkbox':
-        return `☐ ${fields.get(n.id)?.label ?? String(n.name)}`;
+      case 'Checkbox': {
+        const on = ticks[String(n.name)] ?? n.defaultChecked === true;
+        const more = typeof n.description === 'string' && n.description ? ` (${n.description})` : '';
+        return `${on === true ? '☑' : '☐'} ${fields.get(n.id)?.label ?? String(n.name)}${more}`;
+      }
       case 'Select':
       case 'RadioGroup': {
         const opts = (n.options as CardOption[]).map((o) => o.label).join(' / ');

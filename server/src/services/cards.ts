@@ -1,12 +1,16 @@
 import {
+  cardChecklist,
   cardLink,
   cardPress,
   cardText,
+  keptTicks,
   cardValueText,
   checkCardValues,
   parseCard,
   storedCard,
   type Bot,
+  type CardTick,
+  type CardValues,
   type Message,
   type Thread,
 } from '@leafbot/shared';
@@ -77,13 +81,29 @@ export class CardService {
     }
     const rev = Number(row.props.cardRev ?? 1);
     // Replaced in one step with the check, so a press made meanwhile either lands on the old card
-    // first (and the card stays answered) or is refused as made on an older one.
+    // first (and the card stays answered) or is refused as made on an older one. The rest of the
+    // props are merged, not written back, so a checklist tick made meanwhile is not lost.
     const done = await this.ctx.db
       .update(schema.messages)
-      .set({ text, props: { ...row.props, card, cardRev: rev + 1 } })
+      .set({
+        text,
+        props: sql`${schema.messages.props} || ${JSON.stringify({ card, cardRev: rev + 1 })}::jsonb`,
+      })
       .where(and(eq(schema.messages.id, row.id), unanswered(), sameRev(rev)))
-      .returning({ id: schema.messages.id });
+      .returning({ props: schema.messages.props });
     if (!done.length) return t('tool.cardAnswered');
+    // The person's ticks carry over to the items still there, unless the bot changed that item.
+    const before = storedCard(row.props.card)!;
+    const ticks = keptTicks(before, card, (done[0]!.props.cardTicks ?? {}) as CardValues);
+    await this.ctx.db
+      .update(schema.messages)
+      .set({
+        text: cardText(card, ticks),
+        props: sql`(${schema.messages.props} - 'cardTicks') || ${JSON.stringify(
+          Object.keys(ticks).length ? { cardTicks: ticks } : {},
+        )}::jsonb`,
+      })
+      .where(and(eq(schema.messages.id, row.id), sameRev(rev + 1)));
     this.ctx.bus.refresh({ scope: 'thread', threadId: thread.id, botId: thread.botId });
     return t('tool.cardUpdated', { id: row.id });
   }
@@ -124,7 +144,9 @@ export class CardService {
     };
     const claimed = await this.ctx.db
       .update(schema.messages)
-      .set({ props: { ...row.props, cardAnswered: true, cardAnswer: answer } })
+      .set({
+        props: sql`${schema.messages.props} || ${JSON.stringify({ cardAnswered: true, cardAnswer: answer })}::jsonb`,
+      })
       .where(and(eq(schema.messages.id, row.id), unanswered(), sameRev(input.rev)))
       .returning({ id: schema.messages.id });
     if (!claimed.length) throw new HttpError(409, 'error.cardAnswered');
@@ -147,6 +169,69 @@ export class CardService {
     }
     this.ctx.bus.refresh({ scope: 'thread', threadId: row.threadId, botId: thread.botId });
     return this.services.threads.message(row.id);
+  }
+
+  /**
+   * The person ticks or unticks a checklist item. The card stays open, even once answered; the
+   * tick is kept by the item's name, the card's text follows it, and the bot is told the
+   * checklist as it stands with the person's next message here.
+   */
+  async tick(messageId: string, input: CardTick): Promise<Message> {
+    const row = await this.row(messageId);
+    const card = row ? storedCard(row.props.card) : null;
+    if (!row || !card) throw new HttpError(400, 'error.notCard');
+    if (Number(row.props.cardRev ?? 1) !== input.rev) throw new HttpError(409, 'error.cardChanged');
+    if (!cardChecklist(card).some((f) => f.name === input.name && f.node.disabled !== true)) {
+      throw new HttpError(400, 'error.cardNoSuchPart');
+    }
+    const thread = await this.services.threads.row(row.threadId);
+    // One item changes in one step, so two ticks made at once both land.
+    const [done] = await this.ctx.db
+      .update(schema.messages)
+      .set({
+        props: sql`jsonb_set(${schema.messages.props} || '{"cardTicksNew":true}'::jsonb, '{cardTicks}', coalesce(${schema.messages.props}->'cardTicks', '{}'::jsonb) || ${JSON.stringify({ [input.name]: input.value })}::jsonb)`,
+      })
+      .where(and(eq(schema.messages.id, row.id), sameRev(input.rev)))
+      .returning({ props: schema.messages.props });
+    if (!done) throw new HttpError(409, 'error.cardChanged');
+    const ticks = (done.props.cardTicks ?? {}) as CardValues;
+    // The text is written for these ticks only while no later tick has changed them.
+    await this.ctx.db
+      .update(schema.messages)
+      .set({ text: cardText(card, ticks) })
+      .where(
+        and(
+          eq(schema.messages.id, row.id),
+          sql`${schema.messages.props}->'cardTicks' = ${JSON.stringify(ticks)}::jsonb`,
+        ),
+      );
+    this.ctx.bus.refresh({ scope: 'thread', threadId: row.threadId, botId: thread.botId });
+    return this.services.threads.message(row.id);
+  }
+
+  /**
+   * What the bot is told with the person's next message about checklists ticked since its last
+   * turn here, each as it now stands. Taken once: the next message does not repeat it.
+   */
+  async ticksForBot(threadId: string, t: T): Promise<string> {
+    const rows = await this.ctx.db
+      .update(schema.messages)
+      .set({ props: sql`${schema.messages.props} - 'cardTicksNew'` })
+      .where(
+        and(eq(schema.messages.threadId, threadId), sql`${schema.messages.props}->>'cardTicksNew' = 'true'`),
+      )
+      .returning({ id: schema.messages.id, props: schema.messages.props });
+    const notes = rows.flatMap((r) => {
+      const card = storedCard(r.props.card);
+      if (!card) return [];
+      const ticks = (r.props.cardTicks ?? {}) as CardValues;
+      const items = cardChecklist(card).map((f) => {
+        const on = ticks[f.name] ?? f.node.defaultChecked === true;
+        return `${on === true ? '☑' : '☐'} ${f.label}`;
+      });
+      return items.length ? [t('card.ticksForBot', { id: r.id, items: items.join('\n') })] : [];
+    });
+    return notes.join('\n\n');
   }
 
   /** Opens a card again for another answer: its answer was taken back before the bot read it. */

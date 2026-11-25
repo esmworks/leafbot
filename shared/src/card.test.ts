@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CARD_LIMITS,
+  cardChecklist,
   cardDefaults,
   cardFields,
   cardLink,
@@ -9,6 +10,7 @@ import {
   cardText,
   cardValueText,
   checkCardValues,
+  keptTicks,
   parseCard,
   storedCard,
   type Card,
@@ -88,6 +90,18 @@ describe('parseCard', () => {
       ok: false,
       error: { issue: 'unsupported', detail: 'Image:send_file' },
     });
+  });
+
+  it('reads "pass" on a box or a choice as a word, not a secret', () => {
+    expect(
+      parseCard({
+        type: 'Card',
+        children: [
+          { type: 'Checkbox', name: 'qa', label: 'QA pass' },
+          { type: 'Select', name: 'pass', options: ['Boarding pass'] },
+        ],
+      }).ok,
+    ).toBe(true);
   });
 
   it('refuses a field that asks for a secret', () => {
@@ -464,5 +478,45 @@ describe('field variants', () => {
       ok: true,
       values: { ticket: 'std', guests: '2', note: '', design: true },
     });
+  });
+});
+
+describe('checklists', () => {
+  const list = ok({
+    type: 'Card',
+    children: [
+      { type: 'Checkbox', name: 'a', label: 'A', defaultChecked: true, onChangeAction: { type: 'tick' } },
+      { type: 'Checkbox', name: 'b', label: 'B', onChangeAction: { type: 'tick' }, description: 'waiting' },
+      { type: 'Checkbox', name: 'c', label: 'C' },
+    ],
+  });
+
+  it('finds the items ticked on their own', () => {
+    expect(cardChecklist(list).map((f) => f.name)).toEqual(['a', 'b']);
+  });
+
+  it('leaves a box in a form to the form, whatever it does on change', () => {
+    const form = ok({
+      type: 'Form',
+      onSubmitAction: { type: 'save' },
+      children: [{ type: 'Checkbox', name: 'x', label: 'X', onChangeAction: { type: 'tick' } }],
+    });
+    expect(cardChecklist(form)).toEqual([]);
+  });
+
+  it('writes each box as it stands', () => {
+    expect(cardText(list)).toBe('☑ A\n☐ B (waiting)\n☐ C');
+    expect(cardText(list, { a: false, b: true })).toBe('☐ A\n☑ B (waiting)\n☐ C');
+  });
+
+  it('keeps the person’s ticks on items the bot left alone', () => {
+    const next = ok({
+      type: 'Card',
+      children: [
+        { type: 'Checkbox', name: 'a', label: 'A', onChangeAction: { type: 'tick' } },
+        { type: 'Checkbox', name: 'b', label: 'B', onChangeAction: { type: 'tick' } },
+      ],
+    });
+    expect(keptTicks(list, next, { a: true, b: true, gone: true })).toEqual({ b: true });
   });
 });

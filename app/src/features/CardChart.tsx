@@ -406,7 +406,7 @@ export function CardProgress({ node }: { node: CardNode }) {
                 {text.value}
               </span>
               {text.of && (
-                <span className="text-xs text-muted-foreground tabular-nums">&nbsp;/ {text.of}</span>
+                <span className="text-xs text-muted-foreground tabular-nums">{`\u00a0/ ${text.of}`}</span>
               )}
             </span>
           </div>

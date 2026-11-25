@@ -46,6 +46,7 @@ import {
   MemoryCreate,
   MemoryUpdate,
   CardAnswer,
+  CardTick,
   MessageReaction,
   patchOf,
   PermissionRuleCreate,
@@ -1383,6 +1384,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.post('/api/messages/:id/card', async (req) => {
     const input = CardAnswer.parse(req.body);
     return s.chatCards.answer(IdParams.parse(req.params).id, input, me(req).userId);
+  });
+  // A tick on a card's checklist item: kept on the card, which stays open.
+  app.post('/api/messages/:id/card/tick', async (req) => {
+    return s.chatCards.tick(IdParams.parse(req.params).id, CardTick.parse(req.body));
   });
 
   // Hand a waiting message to the turn running now, so the bot reads it at its next step.

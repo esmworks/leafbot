@@ -456,6 +456,14 @@ export const CardAnswer = z.object({
 });
 export type CardAnswer = z.infer<typeof CardAnswer>;
 
+/** A tick on one of a card's checklist items, made on the card's revision given. */
+export const CardTick = z.object({
+  name: z.string().min(1).max(64),
+  value: z.boolean(),
+  rev: z.number().int().min(1),
+});
+export type CardTick = z.infer<typeof CardTick>;
+
 /** What a reply keeps of the message it answers, to show above it. */
 export interface ReplyQuote {
   id: string;

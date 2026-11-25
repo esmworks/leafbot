@@ -5,9 +5,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '@/lib/api';
 import { ChatCard } from './ChatCard';
 
-vi.mock('@/lib/api', () => ({ api: { answerCard: vi.fn() } }));
+vi.mock('@/lib/api', () => ({ api: { answerCard: vi.fn(), tickCard: vi.fn() } }));
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }));
 const answerCard = vi.mocked(api.answerCard);
+const tickCard = vi.mocked(api.tickCard);
 
 const tree = {
   type: 'Card',
@@ -106,5 +107,60 @@ describe('ChatCard', () => {
     expect((screen.getByLabelText('Konu') as HTMLInputElement).disabled).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: 'Vazgeç' }));
     expect(answerCard).not.toHaveBeenCalled();
+  });
+
+  const drawn = (tree: unknown, props: Record<string, unknown> = {}) => {
+    const r = parseCard(tree);
+    if (!r.ok) throw new Error('card refused');
+    return { ...message(), props: { card: r.card, cardRev: 1, ...props } } as Message;
+  };
+
+  it('ticks a checklist item on an answered card without answering it again', async () => {
+    tickCard.mockResolvedValue(message() as never);
+    draw(
+      drawn(
+        {
+          type: 'Card',
+          children: [
+            { type: 'Checkbox', name: 'qa', label: 'QA', onChangeAction: { type: 'tick' } },
+            { type: 'Checkbox', name: 'copy', label: 'Metin', onChangeAction: { type: 'tick' } },
+          ],
+          confirm: { label: 'Bitti' },
+        },
+        {
+          cardAnswered: true,
+          cardAnswer: { node: 'confirm', label: 'Bitti', values: {} },
+          cardTicks: { copy: true },
+        },
+      ),
+    );
+    expect(screen.getByRole('checkbox', { name: 'Metin' }).getAttribute('aria-checked')).toBe('true');
+    const qa = screen.getByRole('checkbox', { name: 'QA' });
+    fireEvent.click(qa);
+    expect(qa.getAttribute('aria-checked')).toBe('true');
+    await waitFor(() => expect(tickCard).toHaveBeenCalledWith('m1', { name: 'qa', value: true, rev: 1 }));
+    expect(answerCard).not.toHaveBeenCalled();
+    // Taken by the server before the conversation is read again: the box stays ticked.
+    await waitFor(() => expect(tickCard.mock.results[0]?.type).toBe('return'));
+    await Promise.resolve();
+    expect(qa.getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('draws a chart that also opens as a table of its numbers', () => {
+    draw(
+      drawn({
+        type: 'Chart',
+        data: [
+          { day: 'Pzt', signups: 1200 },
+          { day: 'Sal', signups: 1350 },
+        ],
+        series: [{ type: 'line', dataKey: 'signups', label: 'Kayıt' }],
+        xAxis: 'day',
+      }),
+    );
+    expect(screen.getByRole('img', { name: 'Kayıt' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /table|tablo/i }));
+    expect(screen.getByRole('columnheader', { name: 'Kayıt' })).toBeTruthy();
+    expect(screen.getByRole('cell', { name: 'Sal' })).toBeTruthy();
   });
 });

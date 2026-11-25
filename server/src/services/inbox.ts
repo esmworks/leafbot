@@ -259,7 +259,12 @@ export class Inbox {
     const said = `${history}${name ? `${name}: ` : ''}${written}`;
     // Said aloud in a call, and the answer will be read aloud: the bot is told to keep it speakable.
     const spoken = extra.spoken === true ? `\n\n${t('inbox.spoken')}` : '';
-    const forBot = input.forBot ? `\n\n${input.forBot}` : '';
+    // Checklist items the person ticked since the bot's last turn here, as they now stand.
+    const ticked = await s.chatCards.ticksForBot(threadId, t);
+    const forBot = [input.forBot, ticked]
+      .filter(Boolean)
+      .map((x) => `\n\n${x}`)
+      .join('');
     const prompt = `${await this.prompt(said, dir, files, answered)}${spoken}${forBot}`;
     const turn = await s.turns.enqueue({
       threadId,
