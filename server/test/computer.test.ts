@@ -498,13 +498,20 @@ describe('botun bilgisayarı', () => {
     expect(computer.state(bot.id).waiting).toBe(false);
     computer.forget('kişi');
 
-    computer.watch(bot.id, 'izleyen');
+    // Within the quiet time it stays up; a person in control keeps it however long they hold it.
+    await computer.tick(Date.now() + 30_000);
+    expect(fake.status.get(bot.id)).toBe('running');
+    computer.setControl(bot.id, 'kişi', true);
     await computer.tick(Date.now() + 120_000);
     expect(fake.status.get(bot.id)).toBe('running');
-    computer.unwatch(bot.id, 'izleyen');
+    computer.forget('kişi');
+
+    // A screen left open in the app does not keep an idle desktop: it sleeps all the same.
+    computer.watch(bot.id, 'izleyen');
     await computer.tick(Date.now() + 120_000);
     expect(fake.status.get(bot.id)).toBe('off');
     expect(computer.state(bot.id).status).toBe('off');
+    computer.unwatch(bot.id, 'izleyen');
 
     // The bot's next step wakes it again.
     expect(await text('computer_screenshot', {})).toContain('1280x800');
