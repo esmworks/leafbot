@@ -1496,7 +1496,7 @@ const tr = {
   'cards.refused': 'Kullanıcı bu yanıtları onaylamadı; hiçbir kart yanıtlanmadı.',
   'cards.declined': '[{id}] {bot}: reddedildi.',
   'cards.failed': '[{id}] {bot}: yanıtlanamadı: {message}',
-  'approval.viaManager': '{answer}\n(Bu yanıtı yönetici {manager}, kullanıcının söylediğiyle verdi.)',
+  'approval.viaManager': '(Bu yanıtı yönetici {manager}, kullanıcının söylediğiyle verdi.)',
   'tool.my_activity':
     'Kendi diğer sohbetlerinde son günlerde neler konuşulduğunu oku ("bugün ne yaptık?" gibi sorular için). days kaç gün geriye bakılacağını, query bir sözcükle süzmeyi verir.',
   'tool.bot_create':
@@ -3831,7 +3831,7 @@ const en: Catalog<ServerKey> = {
   'cards.refused': 'The user did not approve these answers; no card was answered.',
   'cards.declined': '[{id}] {bot}: declined.',
   'cards.failed': '[{id}] {bot}: could not be answered: {message}',
-  'approval.viaManager': '{answer}\n(The manager {manager} gave this answer, from what the user said.)',
+  'approval.viaManager': '(The manager {manager} gave this answer, from what the user said.)',
   'tool.my_activity':
     'Read what was said in your own other conversations in the last days (for questions such as "what did we do today?"). days says how far back to look; query filters by a word.',
   'tool.bot_create':

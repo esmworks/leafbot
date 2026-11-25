@@ -47,7 +47,7 @@ import {
   wallClock,
   zonedTime,
 } from '@leafbot/shared';
-import { and, desc, eq, inArray } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, or } from 'drizzle-orm';
 import { z } from 'zod';
 import type { Ctx } from '../context';
 import { schema } from '../db';
@@ -453,6 +453,9 @@ const GUEST_OFF = new Set<string>([
   'browser_login',
   'browser_code',
   'browser_email_code',
+  // The cards waiting on the person are theirs to see and answer, not a stranger's.
+  'cards_waiting',
+  'cards_answer',
 ]);
 
 /** Tool builder for one turn: descriptions and results are written in the turn's language. */
@@ -1100,7 +1103,8 @@ export class ToolFactory {
             const given = answers[i] || t('tool.emptyAnswer');
             return `- ${q.question} → ${q.secret && answers[i] ? t('tool.secretAnswer', { answer: given }) : given}`;
           });
-          return t('tool.answers', { lines: lines.join('\n'), id: r.approvalId });
+          const said = t('tool.answers', { lines: lines.join('\n'), id: r.approvalId });
+          return r.via ? `${said}\n${t('approval.viaManager', { manager: r.via })}` : said;
         },
         'internal',
       ),
@@ -3069,19 +3073,26 @@ export class ToolFactory {
           const managers = new Set(bots.filter((b) => b.isManager).map((b) => b.id));
           const locale = await s.settings.locale();
           const now = Date.now();
-          // A card's words may come from outside text (a mail, a page): reading them counts so.
+          // A card's words may come from outside text (a mail, a page, a stranger) that the turn
+          // asking it read: reading them counts so, and the manager then answers nothing unasked.
           const outside = await this.ctx.db
             .select({ id: schema.approvals.id })
             .from(schema.approvals)
+            .leftJoin(schema.turns, eq(schema.turns.id, schema.approvals.turnId))
             .where(
               and(
                 inArray(
                   schema.approvals.id,
                   cards.map((c) => c.id),
                 ),
-                eq(schema.approvals.outside, true),
+                or(
+                  eq(schema.approvals.outside, true),
+                  isNotNull(schema.turns.outside),
+                  eq(schema.turns.guest, true),
+                ),
               ),
-            );
+            )
+            .limit(1);
           if (outside.length) await inbox.shows('stored');
           const out: string[] = [];
           for (const c of cards.slice(0, 30)) {

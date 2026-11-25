@@ -546,6 +546,8 @@ type Outcome = {
   timedOut?: boolean;
   /** The person wrote in the chat instead of answering; `answer` holds their words. */
   typed?: boolean;
+  /** The manager bot that answered for the person, by name. */
+  via?: string;
 };
 
 interface Waiter {
@@ -868,18 +870,8 @@ export class ApprovalService {
     let answer = d.answers ? JSON.stringify(d.answers) : (d.answer ?? null);
     /** What the waiting bot gets, when it differs from what the card keeps. */
     let given: string | null | undefined;
-    // A step's refusal carries the words given with it to the waiting bot: signed the same way.
-    if (opts.via && current.kind !== 'question' && answer) {
-      const t = await serverTranslator(this.ctx);
-      given = t('approval.viaManager', { manager: opts.via.name, answer });
-    }
     if (current.kind === 'question' && status === 'allowed') {
       const { items } = questionItems(current);
-      // The waiting bot hears that the answer came through the manager, not from the card.
-      if (opts.via) {
-        const t = await serverTranslator(this.ctx);
-        given = t('approval.viaManager', { manager: opts.via.name, answer: answer ?? '' });
-      }
       if (items.some((q) => q.secret)) {
         // A secret answer reaches the waiting bot and nothing else: the card, the database and
         // every screen that shows the card keep it blank.
@@ -945,7 +937,14 @@ export class ApprovalService {
         botId: stored.botId,
       });
     }
-    this.waiters.get(id)?.resolve({ status, answer: given ?? answer, ...(login && { login }) });
+    // The waiting bot hears that a manager answered, beside the answer, which stays as given: an
+    // option's label is compared as it is.
+    this.waiters.get(id)?.resolve({
+      status,
+      answer: given ?? answer,
+      ...(login && { login }),
+      ...(opts.via && { via: opts.via.name }),
+    });
     this.waiters.delete(id);
     if (remembered) await this.allowAllWaiting(stored.botId, id, by);
     this.ctx.bus.refresh({ scope: 'approvals' });
@@ -1250,10 +1249,14 @@ export class ApprovalService {
   }
 
   toAnswer(
-    r: { status: string; answer: string | null; timedOut?: boolean; typed?: boolean },
+    r: { status: string; answer: string | null; timedOut?: boolean; typed?: boolean; via?: string },
     t: T,
   ): PermissionAnswer {
     if (r.status === 'allowed') return { behavior: 'allow' };
+    if (r.via) {
+      const why = r.answer ? t('approval.deniedWith', { answer: r.answer }) : t('approval.denied');
+      return { behavior: 'deny', message: `${why}\n${t('approval.viaManager', { manager: r.via })}` };
+    }
     if (r.typed) return { behavior: 'deny', message: t('approval.typedInstead', { text: r.answer ?? '' }) };
     if (r.timedOut) return { behavior: 'deny', message: t('approval.timedOut') };
     if (r.status === 'expired') return { behavior: 'deny', message: t('approval.expired') };

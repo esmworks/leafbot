@@ -61,10 +61,12 @@ describe('a manager answering waiting cards', () => {
 
   it('asks the person on one card once a card’s words came from outside', async () => {
     const worker = await asking('Yazar');
-    await t.db.db
-      .update(schema.approvals)
-      .set({ outside: true })
+    // The turn that asked had read a mail, as a turn records it: the question may quote it.
+    const [row] = await t.db.db
+      .select()
+      .from(schema.approvals)
       .where(eq(schema.approvals.id, worker.card.id));
+    await t.db.db.update(schema.turns).set({ outside: 'email' }).where(eq(schema.turns.id, row!.turnId!));
     const m = await t.bot({ name: 'Müdür', isManager: true, permissionMode: 'auto' });
     const home = await main(m.id);
     await t.send(
@@ -81,6 +83,73 @@ describe('a manager answering waiting cards', () => {
     await t.api('POST', `/api/approvals/${asked.id}`, { decision: 'allow' });
     await said(home.id, 'yanıtlandı');
     expect(await card(worker.card.id)).toMatchObject({ status: 'allowed', answeredVia: m.id });
+  });
+
+  it('asks the person when another bot, not the person, tells the manager to answer', async () => {
+    const g = (await t.api<{ id: string }>('POST', '/api/groups', { name: 'Ekip' })).body;
+    const worker = await asking('Yazar');
+    const m = await t.bot({ name: 'Müdür', isManager: true, permissionMode: 'auto', groupId: g.id });
+    const other = await t.bot({ name: 'Haberci', permissionMode: 'auto', groupId: g.id });
+    const said = answer([{ card: worker.card.id, bot: 'Yazar', decision: 'yes', answer: 'Ankara' }]);
+    await t.send(
+      (await main(other.id)).id,
+      `[araç:bot_send ${JSON.stringify({ bot: 'Müdür', message: said })}]`,
+    );
+    const asked = await waitFor(async () => (await pending()).find((x) => x.botId === m.id));
+    expect(asked.toolName).toBe('cards_answer');
+    expect((await card(worker.card.id)).status).toBe('pending');
+    await t.api('POST', `/api/approvals/${asked.id}`, { decision: 'deny' });
+    await waitFor(async () => (await pending()).every((x) => x.botId !== m.id));
+    expect((await card(worker.card.id)).status).toBe('pending');
+  });
+
+  it('hands each answer of a several-question card to its question, with the manager named', async () => {
+    const bot = await t.bot({ name: 'Teklifçi' });
+    const thread = await main(bot.id);
+    const call = {
+      questions: [
+        { question: 'Kondenser hangisi olsun?', options: ['GBOX 50', 'GBOX 40'] },
+        { question: 'Ödeme şekli ne olsun?', options: ['Peşin', 'Vadeli'] },
+      ],
+    };
+    await t.send(thread.id, `[araç:ask_user ${JSON.stringify(call)}]`);
+    const c = await waitFor(async () => (await pending()).find((x) => x.botId === bot.id));
+    const m = await t.bot({ name: 'Müdür', isManager: true });
+    const home = await main(m.id);
+    await t.send(
+      home.id,
+      answer([{ card: c.id, bot: 'Teklifçi', decision: 'yes', answers: ['GBOX 50', 'Peşin'] }]),
+    );
+    const heard = await said(thread.id, 'Peşin');
+    expect(heard).toContain('Kondenser hangisi olsun? → GBOX 50');
+    expect(heard).toContain('Ödeme şekli ne olsun? → Peşin');
+    expect(heard).toContain('Müdür');
+  });
+
+  it('keeps an option the manager picks as it is, so an approve button still approves', async () => {
+    const bot = await t.bot({ name: 'Yazar' });
+    const m = await t.bot({ name: 'Müdür', isManager: true });
+    const thread = await main(bot.id);
+    const waiting = t.services.approvals.ask({
+      threadId: thread.id,
+      botId: bot.id,
+      turnId: null,
+      kind: 'question',
+      toolName: 'app_add',
+      input: {},
+      summary: 'Uygulama açılsın mı?',
+      options: ['Onayla', 'Reddet'],
+    });
+    const c = await waitFor(async () => (await pending()).find((x) => x.botId === bot.id));
+    await t.services.approvals.answer(
+      c.id,
+      { decision: 'allow', answer: 'Onayla', remember: false },
+      OWNER_ID,
+      {
+        via: { botId: m.id, name: m.name },
+      },
+    );
+    expect(await waiting).toMatchObject({ status: 'allowed', answer: 'Onayla', via: 'Müdür' });
   });
 
   it('turns a step down with the person’s words, signed, and never remembers it', async () => {
