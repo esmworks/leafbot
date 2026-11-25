@@ -51,10 +51,12 @@ export function DashboardsDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
         showCloseButton={false}
-        className="screen-edges flex h-[calc(100dvh-7rem)] w-[calc(100vw-2rem)] max-w-[1600px] flex-col gap-0 overflow-hidden rounded-3xl p-0 sm:max-w-[1600px] phone:h-dvh phone:max-h-none phone:w-full phone:max-w-full phone:rounded-none"
+        // The whole window: a page of figures and charts reads best with all the room there is.
+        className="screen-edges flex h-dvh max-h-none w-screen max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 shadow-none sm:max-w-none"
       >
         <DialogDescription className="sr-only">{t('dashboards.description')}</DialogDescription>
-        <header className="flex items-center gap-3 border-b px-5 py-3.5 phone:px-4">
+        {/* In the desktop app the window buttons sit over its top left corner. */}
+        <header className="window-drag flex items-center gap-3 border-b px-5 py-3.5 frameless:ps-[88px] phone:px-4">
           {current && !listOnPhone && (
             <Button
               variant="ghost"
@@ -197,7 +199,10 @@ function Page({ page, className }: { page: DashboardSummary; className?: string 
       {view && !tiles.length && (
         <p className="px-5 text-sm text-muted-foreground">{t('dashboards.noTiles')}</p>
       )}
-      <div className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),1fr))] gap-4 px-5 pb-6 phone:px-4">
+      {/* Rows that wrap and grow rather than a grid: a wide tile that does not fit beside the ones
+          before it would leave an empty column at the end of their row; here they stretch over it,
+          and the tiles in a row share its height. */}
+      <div className="flex flex-wrap items-stretch gap-4 px-5 pb-6 phone:px-4">
         {tiles.map((tile, i) => (
           <Tile key={tile.id} tile={tile} first={i === 0} last={i === tiles.length - 1} onChanged={refresh} />
         ))}
@@ -256,7 +261,7 @@ function Tile({
       aria-label={tile.title}
       className={cn(
         'flex min-w-0 flex-col gap-3 rounded-2xl border bg-card p-4',
-        tile.wide && '@min-[39rem]:col-span-2',
+        tile.wide ? 'grow-[2] basis-[min(100%,38rem)]' : 'grow basis-[min(100%,20rem)]',
       )}
     >
       {tile.card ? (

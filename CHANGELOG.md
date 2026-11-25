@@ -191,6 +191,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Changed
 
+- Dashboards open over the whole window. Their tiles fill each row instead of leaving an empty column beside a wide
+  chart, and tiles in a row are the same height.
+- A row of figures on a card or a dashboard wraps where the figures do not fit side by side, so a number stays on one
+  line with its unit and a label shows in full on up to two lines; framed figures in a line are the same height.
 - A bot's computer goes to sleep after its quiet time even while its screen is open in the app, instead of staying
   on for as long as the panel is shown. A bot step, a command left running and a person in control still keep it on;
   it wakes again on the bot's next step or with Wake.

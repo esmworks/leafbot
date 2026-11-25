@@ -333,9 +333,10 @@ export function CardStat({ node, icon: Glyph, bare }: { node: CardNode; icon?: L
   return (
     <div
       className={cn(
-        'flex min-w-0 items-center gap-3',
-        // Shares a row with other figures in a frame of its own; bare, it stands alone in a column.
-        !bare && 'flex-1 basis-36 rounded-xl border bg-background/50 p-3',
+        'flex items-center gap-3',
+        // Shares a row with other figures in a frame of its own, never narrower than its number (the
+        // row wraps instead); bare, it stands alone in a column.
+        bare ? 'min-w-0' : 'flex-1 basis-36 rounded-xl border bg-background/50 p-3',
       )}
       style={flexStyle(node)}
     >
@@ -350,10 +351,15 @@ export function CardStat({ node, icon: Glyph, bare }: { node: CardNode; icon?: L
           <Glyph className="size-4.5" aria-hidden />
         </span>
       )}
-      <div className="min-w-0">
-        <div className="truncate text-xs text-muted-foreground">{String(node.label)}</div>
+      <div className={cn(bare ? 'min-w-0' : 'flex-1')}>
+        {/* Width 0 and at least the box's: a long label is cut to the box, never widens it. */}
+        <div className="line-clamp-2 w-0 min-w-full text-xs text-muted-foreground" title={String(node.label)}>
+          {String(node.label)}
+        </div>
         <div className="flex flex-wrap items-baseline gap-x-1.5">
-          <span className="text-2xl leading-tight font-semibold tabular-nums">{String(node.value)}</span>
+          <span className="text-2xl leading-tight font-semibold whitespace-nowrap tabular-nums">
+            {String(node.value)}
+          </span>
           {typeof node.delta === 'string' && (
             <span className={cn('flex items-center gap-0.5 text-xs font-medium tabular-nums', TONE[tone])}>
               {Arrow && <Arrow className="size-3.5" aria-hidden />}
@@ -362,7 +368,9 @@ export function CardStat({ node, icon: Glyph, bare }: { node: CardNode; icon?: L
           )}
         </div>
         {typeof node.caption === 'string' && (
-          <div className="truncate text-xs text-muted-foreground">{node.caption}</div>
+          <div className="w-0 min-w-full truncate text-xs text-muted-foreground" title={node.caption}>
+            {node.caption}
+          </div>
         )}
       </div>
     </div>
