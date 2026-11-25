@@ -230,6 +230,7 @@ export class Services {
     this.skillSuggestions = new SkillSuggestionService(ctx, this, engineFor, clock);
     this.followUps = new FollowUpService(ctx, this, engineFor, clock);
     this.checkIns = new CheckInService(ctx, this, clock);
+    this.turns.onFinished((t, o) => this.checkIns.onTurnFinished(t, o));
     this.calls = new CallService(ctx, this, clock);
     this.turns.onFinished((t, o) => this.followUps.onTurnFinished(t, o));
     this.meetings = new MeetingService(ctx, this, engineFor, clock);

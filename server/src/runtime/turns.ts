@@ -269,7 +269,7 @@ const GUEST_READS: ReadonlySet<string> = new Set([
 
 /**
  * The app's own tools that go on without a card in a run that only looks and reports (a report-only
- * routine's). Every other tool of the app that is not a plain read is refused there: most are
+ * routine's, or a check-in's). Every other tool of the app that is not a plain read is refused there: most are
  * "internal" only in the sense that they need no card at the bot's level (a table's rows, a ticket,
  * a browser click or typed text, a message in a chat, another bot's or a new conversation's work), and
  * a run held to reading must not change those. What stays is the bot's own bookkeeping (its notes,
@@ -1250,9 +1250,10 @@ export class TurnManager {
     const threadRow = await threads.row(turn.threadId);
     const thread = rehearsing?.slackChannel ? { ...threadRow, kind: 'team' as const } : threadRow;
     const botRow = await bots.get(turn.botId);
-    // A turn held to reading (a report-only routine's) is built as for a bot that may only read, not
-    // just checked at each step: its tools, its sandbox and what it may hand to another bot follow
-    // that level too. A bot already at it, or a cap that is not that strict, leaves the bot as it is.
+    // A turn held to reading (a report-only routine's, or a check-in) is built as for a bot that may
+    // only read, not just checked at each step: its tools, its sandbox and what it may hand to
+    // another bot follow that level too. A bot already at it, or a cap that is not that strict,
+    // leaves the bot as it is.
     const bot: typeof botRow =
       reportOnlyTurn(turn) && botRow.permissionMode !== 'readonly'
         ? { ...botRow, permissionMode: 'readonly' }

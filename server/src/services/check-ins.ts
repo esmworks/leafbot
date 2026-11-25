@@ -2,7 +2,9 @@ import { wallClock, type Bot, type RoutineHealthFindingId } from '@leafbot/share
 import { and, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
+import type { TurnOutcome } from '../engine/types';
 import { translator, type T } from '../i18n';
+import type { TurnRow } from '../runtime/turns';
 import { OWNER_ID } from '../users';
 import { atLeast } from './access';
 import { DAY_UNTIL } from './follow-ups';
@@ -50,6 +52,8 @@ const GRACE_MS: Record<CheckInFinding['kind'], number> = {
 interface CheckInState {
   seen: Record<string, string>;
   told: Record<string, string>;
+  /** The turn that last told the person, and what it told: taken back if that turn fails. */
+  turn?: { id: string; keys: string[] };
 }
 
 export type CheckInResult = 'off' | 'notNow' | 'quiet' | 'noBot' | 'told';
@@ -80,6 +84,24 @@ export function dueFindings(findings: CheckInFinding[], state: CheckInState, now
     const told = Date.parse(state.told[f.key] ?? '');
     return !(now.getTime() - told < CHECK_IN_TELL_AGAIN_MS);
   });
+}
+
+/**
+ * The findings that fit in `max` lines, as `findingLines` writes them: the cards of one bot share a
+ * line, so a bot with many waiting cards does not push out everything else.
+ */
+export function capFindings(findings: CheckInFinding[], max: number): CheckInFinding[] {
+  const kept: CheckInFinding[] = [];
+  const cardBots = new Set<string>();
+  let lines = 0;
+  for (const f of findings) {
+    const newLine = f.kind !== 'card' || !cardBots.has(f.bot);
+    if (newLine && lines >= max) continue;
+    if (newLine) lines++;
+    if (f.kind === 'card') cardBots.add(f.bot);
+    kept.push(f);
+  }
+  return kept;
 }
 
 /** The findings as lines for the bot to read: names and counts only, cards counted per bot. */
@@ -186,7 +208,7 @@ export class CheckInService {
       state.seen[f.key] = was.seen?.[f.key] ?? now.toISOString();
       if (was.told?.[f.key]) state.told[f.key] = was.told[f.key]!;
     }
-    const due = dueFindings(findings, state, now).slice(0, CHECK_IN_MAX_FINDINGS);
+    const due = capFindings(dueFindings(findings, state, now), CHECK_IN_MAX_FINDINGS);
     if (!due.length) {
       await this.write(stateKey(userId), state);
       await this.write(lookedKey(userId), now.toISOString());
@@ -201,7 +223,7 @@ export class CheckInService {
     }
     const t = translator(settings.language ?? (await this.services.settings.locale()));
     const thread = await this.services.threads.main(bot.id, userId);
-    await this.services.turns.enqueue({
+    const turn = await this.services.turns.enqueue({
       threadId: thread.id,
       botId: bot.id,
       // Said as a follow-up is: once, in the person's conversation and the chat app they talk from.
@@ -212,9 +234,23 @@ export class CheckInService {
       userId,
     });
     for (const f of due) state.told[f.key] = now.toISOString();
+    state.turn = { id: turn.id, keys: due.map((f) => f.key) };
     await this.write(stateKey(userId), state);
     await this.write(lookedKey(userId), now.toISOString());
     return 'told';
+  }
+
+  /**
+   * After a check-in's turn: one that failed told the person nothing, so what it was to tell counts
+   * as untold and comes up at the next day's look rather than a week later.
+   */
+  async onTurnFinished(turn: TurnRow, outcome: TurnOutcome): Promise<void> {
+    if (outcome.ok || turn.source !== 'followup' || turn.modeCap !== 'readonly' || !turn.userId) return;
+    const state = await this.read<CheckInState>(stateKey(turn.userId));
+    if (state?.turn?.id !== turn.id) return;
+    for (const key of state.turn.keys) delete state.told[key];
+    delete state.turn;
+    await this.write(stateKey(turn.userId), state);
   }
 
   /** What may need the person now, among the bots and the connections that are theirs to see to. */
@@ -258,25 +294,32 @@ export class CheckInService {
       }
     }
 
-    // Cards waiting on the person: in their own conversations, or for their second yes.
+    // Cards waiting on the person, as their notices go: in their own conversations, in a routine's
+    // run (an approval step, which waits for days and outlives a restart) or a team conversation
+    // where they asked, or for their second yes once someone gave the first.
     const cards = await this.ctx.db
-      .select({ id: schema.approvals.id, botId: schema.approvals.botId })
+      .select({
+        id: schema.approvals.id,
+        botId: schema.approvals.botId,
+        threadId: schema.approvals.threadId,
+        needsSecond: schema.approvals.needsSecond,
+        secondUserId: schema.approvals.secondUserId,
+      })
       .from(schema.approvals)
-      .leftJoin(schema.threads, eq(schema.threads.id, schema.approvals.threadId))
       .where(
         and(
           eq(schema.approvals.status, 'pending'),
           lt(schema.approvals.createdAt, new Date(now.getTime() - CHECK_IN_CARD_WAIT_MS)),
-          or(
-            and(eq(schema.threads.userId, userId), eq(schema.threads.kind, 'user')),
-            and(eq(schema.approvals.needsSecond, true), eq(schema.approvals.secondUserId, userId)),
-          ),
         ),
       )
       .orderBy(desc(schema.approvals.createdAt));
     for (const c of cards) {
       const bot = bots.get(c.botId);
-      if (bot) out.push({ kind: 'card', key: `card:${c.id}`, bot: bot.name });
+      if (!bot) continue;
+      const theirs = c.needsSecond
+        ? c.secondUserId === userId
+        : (await this.services.access.noticeAudience(c.threadId)).includes(userId);
+      if (theirs) out.push({ kind: 'card', key: `card:${c.id}`, bot: bot.name });
     }
 
     // The person's own connections; the server's shared ones are the owner's to see to.
@@ -309,7 +352,10 @@ export class CheckInService {
   private async teller(userId: string): Promise<Bot | null> {
     const viewer = await this.services.access.viewerOf(userId);
     const levels = await this.services.access.levels(viewer);
-    const open = (await this.services.bots.list()).filter((b) => atLeast(levels.get(b.id) ?? 'none', 'chat'));
+    // A coding agent on the computer starts only on the owner's own words, never on a turn like this.
+    const open = (await this.services.bots.list()).filter(
+      (b) => b.engine !== 'acp' && atLeast(levels.get(b.id) ?? 'none', 'chat'),
+    );
     if (!open.length) return null;
     const recent = await this.ctx.db
       .select({ botId: schema.threads.botId })

@@ -1,10 +1,17 @@
-import type { Bot, Routine, Thread } from '@leafbot/shared';
+import type { Bot, Message, Routine, Thread } from '@leafbot/shared';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
 import { translator } from '../src/i18n';
+import type { TurnOutcome } from '../src/engine/types';
 import { reportOnlyTurn } from '../src/services/approvals';
-import { checkInHour, dueFindings, findingLines, type CheckInFinding } from '../src/services/check-ins';
+import {
+  capFindings,
+  checkInHour,
+  dueFindings,
+  findingLines,
+  type CheckInFinding,
+} from '../src/services/check-ins';
 import { OWNER_ID } from '../src/users';
 import { testServer, type TestServer } from './helpers';
 
@@ -145,6 +152,54 @@ describe('günlük kontrol: bozulanı ve bekleyeni kendiliğinden söylemek', ()
     expect(prompt).toMatch(/\b2\b/);
   });
 
+  it('bu tür bir turda botun kendi araçlarıyla bir şeyi değiştiren adım da reddedilir', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    await t.services.turns.enqueue({
+      threadId: thread.id,
+      botId: bot.id,
+      source: 'followup',
+      modeCap: 'readonly',
+      prompt: 'Bak [araç:table_add {"table":"isler","row":{"ad":"yeni"}}] ',
+      userId: OWNER_ID,
+    });
+    await t.services.turns.idle();
+    const said = (await t.messages(thread.id)).filter((m: Message) => m.role === 'assistant').at(-1);
+    expect(said?.text).toContain('table_add: reddedildi');
+    expect(await t.db.db.select().from(schema.botTables)).toHaveLength(0);
+  });
+
+  it('bir rutinin onay adımında günlerdir bekleyen kartı da anar', async () => {
+    const bot = await t.bot({ name: 'Onaycı' });
+    await t.send((await main(bot.id)).id, 'merhaba');
+    await t.services.turns.idle();
+    // A routine's run has a conversation of its own, with nobody's name on it: its bot's people.
+    await t.db.db.insert(schema.threads).values({ id: 'run-thread', botId: bot.id, kind: 'routine' });
+    await t.db.db.insert(schema.approvals).values({
+      id: 'step-card',
+      threadId: 'run-thread',
+      botId: bot.id,
+      kind: 'question',
+      toolName: 'routine_approval',
+      status: 'pending',
+      createdAt: new Date(t.now.value.getTime() - 3 * DAY),
+    });
+    expect(await run()).toBe('told');
+    expect((await checkInTurns())[0]!.prompt).toContain('Onaycı');
+  });
+
+  it('turu başarısız olan bir kontrolün söyleyecekleri ertesi gün yeniden gelir', async () => {
+    const bot = await t.bot();
+    await t.send((await main(bot.id)).id, 'merhaba');
+    await t.services.turns.idle();
+    await failing(await routine(bot, 'Rapor'));
+    expect(await run()).toBe('told');
+    const [turn] = await checkInTurns();
+    await t.services.checkIns.onTurnFinished(turn!, { ok: false, message: 'x' } as unknown as TurnOutcome);
+    later(DAY);
+    expect(await run()).toBe('told');
+  });
+
   it('kişi kapattıysa bakılmaz', async () => {
     const bot = await t.bot();
     await t.send((await main(bot.id)).id, 'merhaba');
@@ -194,6 +249,20 @@ describe('günlük kontrol: bozulanı ve bekleyeni kendiliğinden söylemek', ()
       expect(lines).toHaveLength(2);
       expect(lines.join('\n')).not.toContain('</findings>');
       expect(lines[1]).toContain('2 card');
+    });
+
+    it('bir botun kartları tek satır sayılır; sınır satır sayısıdır', () => {
+      const f: CheckInFinding[] = [
+        ...Array.from({ length: 20 }, (_, i) => ({ kind: 'card' as const, key: `c${i}`, bot: 'A' })),
+        { kind: 'connection', key: 'n', name: 'Notion', status: 'error' },
+        { kind: 'card', key: 'd', bot: 'B' },
+        { kind: 'card', key: 'e', bot: 'C' },
+      ];
+      const kept = capFindings(f, 3);
+      expect(kept.filter((x) => x.kind === 'card' && x.bot === 'A')).toHaveLength(20);
+      expect(kept.some((x) => x.kind === 'connection')).toBe(true);
+      expect(kept.some((x) => x.kind === 'card' && x.bot === 'C')).toBe(false);
+      expect(findingLines(kept, translator('en'))).toHaveLength(3);
     });
 
     it('bekleme süresi ve yeniden söyleme', () => {
