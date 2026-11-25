@@ -1738,8 +1738,15 @@ function ApprovalCard({
   if (!a) return <AnsweredLine text={fallback} />;
   const bot = bots.get(a.botId);
   const botName = bot?.name ?? t('common.bot');
+  // Answered by a manager for the person: said under the card, so nobody takes it for their own.
+  const via = a.answeredVia ? <ViaNote name={bots.get(a.answeredVia)?.name ?? t('common.bot')} /> : null;
   if (a.kind === 'question' && a.status !== 'denied' && a.status !== 'expired') {
-    return <QuestionCard a={a} color={bot?.color ?? BRAND_COLOR} />;
+    return (
+      <>
+        <QuestionCard a={a} color={bot?.color ?? BRAND_COLOR} />
+        {via}
+      </>
+    );
   }
   // A question nobody answered in time (a routine's, overnight) stays readable and can still be
   // answered: the reply quotes it and reaches the bot as an ordinary message.
@@ -1816,19 +1823,28 @@ function ApprovalCard({
   const mail = a.kind === 'tool' ? emailPreview(a.toolName, a.input) : null;
   if (mail) {
     return (
-      <EmailApprovalCard
-        a={a}
-        mail={mail}
-        service={service}
-        connectionId={connection?.id}
-        notes={notes}
-        offerAlways={!heldBy && !askRule && !outside && !resembles && !a.needsSecond}
-        busy={decide.isPending}
-        onDecide={(d) => decide.mutate(d)}
-      />
+      <>
+        <EmailApprovalCard
+          a={a}
+          mail={mail}
+          service={service}
+          connectionId={connection?.id}
+          notes={notes}
+          offerAlways={!heldBy && !askRule && !outside && !resembles && !a.needsSecond}
+          busy={decide.isPending}
+          onDecide={(d) => decide.mutate(d)}
+        />
+        {via}
+      </>
     );
   }
-  if (a.status !== 'pending') return <AnsweredLine text={answeredText(a, botName, t, locale, service)} />;
+  if (a.status !== 'pending')
+    return (
+      <>
+        <AnsweredLine text={answeredText(a, botName, t, locale, service)} />
+        {via}
+      </>
+    );
   const action = describeAction(a.toolName, a.input, { bot: botName, locale, service });
   return (
     <div className="wallpaper-frost [--frost-tint:color-mix(in_oklab,var(--color-amber-500)_5%,transparent)] max-w-(--bubble-width) space-y-3 rounded-3xl border border-amber-500/40 bg-amber-500/5 px-5 py-4">
@@ -2000,6 +2016,16 @@ export function answeredText(a: Approval, botName: string, t: T, locale: Locale,
   if (a.status === 'allowed') return a.remembered ? action.always : action.once;
   if (a.status === 'denied') return action.wont;
   return t(timedOut ? 'approval.timedOut' : 'approval.expired');
+}
+
+/** The line under a card a manager answered for the person. */
+function ViaNote({ name }: { name: string }) {
+  const t = useT();
+  return (
+    <div className="max-w-(--bubble-width) self-end px-2 text-end text-xs text-muted-foreground">
+      {t('approval.answeredVia', { manager: name })}
+    </div>
+  );
 }
 
 function AnsweredLine({ text }: { text: string }) {

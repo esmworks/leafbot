@@ -2,6 +2,8 @@ import {
   APPROVAL_TIMED_OUT,
   type Approver,
   hideSecretAnswers,
+  PERSON_COMPUTER,
+  PERSON_PHONE,
   questionItems,
   ROUTINE_APPROVAL_TOOL,
   type Approval,
@@ -27,7 +29,7 @@ import {
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import type { PermissionAnswer } from '../engine/types';
-import type { T } from '../i18n';
+import type { ServerKey, T } from '../i18n';
 import { HttpError, newId, notFound, truncate } from '../util';
 import { toApproval, toRule } from './mappers';
 import { serverTranslator } from './settings';
@@ -364,6 +366,38 @@ function sameShape(value: unknown): string {
         )
       : v,
   );
+}
+
+/** Steps whose card stays with the person even when they tell a manager what to answer. */
+const PERSON_ONLY_TOOLS: Record<string, ServerKey> = {
+  browser_card: 'cards.keep.payment',
+  browser_login: 'cards.keep.secret',
+  browser_code: 'cards.keep.secret',
+  browser_email_code: 'cards.keep.secret',
+  credential_request: 'cards.keep.secret',
+  call_listen: 'cards.keep.device',
+};
+
+/**
+ * Why a manager may not answer a card for the person, as a catalog key; null when it may. What
+ * hands over a secret or money, works on the person's own computer or phone, wants a second
+ * person, or comes from a site that imitates another stays theirs; so does a manager's own card,
+ * which asks the person about what that manager wants to do.
+ */
+export function managerMayNotAnswer(
+  card: Pick<Approval, 'kind' | 'toolName' | 'input' | 'options' | 'summary' | 'needsSecond' | 'botId'>,
+  line: Record<string, unknown>,
+  manager: string,
+  managers: ReadonlySet<string> = new Set([manager]),
+): ServerKey | null {
+  if (card.kind === 'login') return 'cards.keep.secret';
+  if (card.needsSecond) return 'cards.keep.second';
+  if (card.botId === manager || managers.has(card.botId)) return 'cards.keep.manager';
+  if (card.kind === 'question' && questionItems(card).items.some((q) => q.secret)) return 'cards.keep.secret';
+  if (card.toolName.startsWith(PERSON_COMPUTER) || card.toolName.startsWith(PERSON_PHONE))
+    return 'cards.keep.device';
+  if (typeof line.resembles === 'string') return 'cards.keep.lookalike';
+  return PERSON_ONLY_TOOLS[card.toolName] ?? null;
 }
 
 /**
@@ -788,12 +822,29 @@ export class ApprovalService {
     id: string,
     d: ApprovalDecision,
     by: string | null = null,
-    opts: { fromList?: boolean } = {},
+    opts: {
+      fromList?: boolean;
+      /** A manager bot answers for `by`, in their words: never what `managerMayNotAnswer` keeps. */
+      via?: { botId: string; name: string };
+    } = {},
   ): Promise<Approval> {
     const stored = await this.row(id);
     const current = toApproval(stored);
     // A card that wants two people's yes (see `needsSecond`) is answered by the rules below.
     const twoKeys = stored.needsSecond && current.kind === 'tool';
+    if (opts.via) {
+      const line = (await this.threads.cardLines([stored])).get(stored.id) ?? {};
+      // Every manager's own card stays with the person, not only the answering manager's.
+      const managers = await this.ctx.db
+        .select({ id: schema.bots.id })
+        .from(schema.bots)
+        .where(eq(schema.bots.isManager, true));
+      const ids = new Set(managers.map((m) => m.id));
+      if (current.status === 'pending' && managerMayNotAnswer(current, line, opts.via.botId, ids))
+        throw new HttpError(403, 'error.cardNotYours');
+      // What a manager answers counts for this time only.
+      d = { ...d, remember: false };
+    }
     if (opts.fromList && !(twoKeys && stored.firstAt)) throw notFound('approval');
     if (current.status !== 'pending') throw new HttpError(409, 'error.cardAnswered');
     if (twoKeys) {
@@ -817,8 +868,18 @@ export class ApprovalService {
     let answer = d.answers ? JSON.stringify(d.answers) : (d.answer ?? null);
     /** What the waiting bot gets, when it differs from what the card keeps. */
     let given: string | null | undefined;
+    // A step's refusal carries the words given with it to the waiting bot: signed the same way.
+    if (opts.via && current.kind !== 'question' && answer) {
+      const t = await serverTranslator(this.ctx);
+      given = t('approval.viaManager', { manager: opts.via.name, answer });
+    }
     if (current.kind === 'question' && status === 'allowed') {
       const { items } = questionItems(current);
+      // The waiting bot hears that the answer came through the manager, not from the card.
+      if (opts.via) {
+        const t = await serverTranslator(this.ctx);
+        given = t('approval.viaManager', { manager: opts.via.name, answer: answer ?? '' });
+      }
       if (items.some((q) => q.secret)) {
         // A secret answer reaches the waiting bot and nothing else: the card, the database and
         // every screen that shows the card keep it blank.
@@ -855,6 +916,7 @@ export class ApprovalService {
         decidedBy: 'person',
         decidedByUserId: by ?? (twoKeys ? OWNER_ID : null),
         decidedAt: new Date(),
+        answeredViaBotId: opts.via?.botId ?? null,
       })
       .where(
         and(

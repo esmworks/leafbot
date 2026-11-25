@@ -119,8 +119,19 @@ export function ApprovalCard({
   if (!a) return <AnsweredLine text={fallback} />;
   const bot = bots.get(a.botId);
   const botName = bot?.name ?? t('common.bot');
+  // Answered by a manager for the person: said under the card, so nobody takes it for their own.
+  const via = a.answeredVia ? (
+    <AnsweredLine
+      text={t('approval.answeredVia', { manager: bots.get(a.answeredVia)?.name ?? t('common.bot') })}
+    />
+  ) : null;
   if (a.kind === 'question' && a.status !== 'denied' && a.status !== 'expired') {
-    return <QuestionCard a={a} color={bot?.color ?? c.brand} />;
+    return (
+      <>
+        <QuestionCard a={a} color={bot?.color ?? c.brand} />
+        {via}
+      </>
+    );
   }
   // A question nobody answered in time stays readable and can still be answered: the reply quotes
   // it and reaches the bot as an ordinary message.
@@ -147,7 +158,13 @@ export function ApprovalCard({
     }
   }
   if (a.kind === 'login' && a.status === 'pending') return <LoginCard a={a} />;
-  if (a.status !== 'pending') return <AnsweredLine text={answeredText(a, botName, locale, service)} />;
+  if (a.status !== 'pending')
+    return (
+      <>
+        <AnsweredLine text={answeredText(a, botName, locale, service)} />
+        {via}
+      </>
+    );
   const action = describeAction(a.toolName, a.input, { bot: botName, locale, service });
   // A step that needs two people's yes, and has the first: it waits for the second.
   const waitingSecond = !!a.needsSecond && !!a.firstAt;

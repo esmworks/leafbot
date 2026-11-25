@@ -231,6 +231,7 @@ const TURN_OFF: Verb = ['kapatmak', 'kapatabilir', 'kapatmayacak'];
 const DELETE: Verb = ['silmek', 'silebilir', 'silmeyecek'];
 const CREATE: Verb = ['oluşturmak', 'oluşturabilir', 'oluşturmayacak'];
 const TRANSCRIBE: Verb = ['yazıya dökmek', 'yazıya dökebilir', 'yazıya dökmeyecek'];
+const ANSWER: Verb = ['yanıtlamak', 'yanıtlayabilir', 'yanıtlamayacak'];
 
 /**
  * The start of the names of the tools that use the person's own Mac: the screen, the mouse and the
@@ -544,6 +545,13 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
           ? [`archive "${bot}"`, `archive "${bot}"`]
           : ['archive a bot', 'archive this bot', 'archive bots'],
       };
+    case 'cards_answer': {
+      const n = Array.isArray(input.answers) ? input.answers.length : 0;
+      return {
+        tr: [`senin adına ${n} kartı`, 'bu kartları senin adına', ANSWER],
+        en: [`answer ${n} card(s) for you`, 'answer these cards for you', 'answer cards for you'],
+      };
+    }
     case 'bot_send':
       return {
         tr: [
@@ -605,6 +613,16 @@ function detailFor(name: string, input: Record<string, unknown>, locale: Locale)
       return str(input.content);
     case 'memory_flag':
       return str(input.about);
+    case 'cards_answer':
+      return Array.isArray(input.answers)
+        ? input.answers
+            .map((x) => {
+              const o = (x && typeof x === 'object' ? x : {}) as Record<string, unknown>;
+              const words = Array.isArray(o.answers) ? o.answers.map(String).join(' / ') : str(o.answer);
+              return `${str(o.bot)} [${str(o.card)}]: ${o.decision === 'yes' ? '✓' : '✗'}${words ? ` ${words}` : ''}`;
+            })
+            .join('\n')
+        : null;
     case 'image_create':
     case 'video_create':
       return str(input.prompt);

@@ -41,7 +41,8 @@ cannot turn right to left without a restart. [docs/i18n.md](docs/i18n.md) covers
 ## Features
 
 - **Bots** — create as many as you like, group them, give each a name, avatar, instructions and model. A manager bot
-  can create, update and delegate work to other bots; bot-to-bot messages are guarded against loops.
+  can create, update and delegate work to other bots, and answer the cards waiting on you in your words (money, keys,
+  sign-ins and your own devices stay with you); bot-to-bot messages are guarded against loops.
 - **Engines** — Claude through the Claude Agent SDK (with a Claude subscription token or an Anthropic API key), or
   models from other providers through the Pi engine: with your own key, or by signing in with your ChatGPT or GitHub
   Copilot plan. In the desktop app a bot can also run on a coding agent installed on your computer (Gemini CLI, Codex,
