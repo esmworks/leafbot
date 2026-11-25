@@ -196,6 +196,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
   the time between two of its slots, so a routine that reads a page every half hour until something is there no
   longer reads it twice. A longer wait, or a run held for an approval or an event, still lets the schedule go on, as
   it may wait for days.
+- Files on a message are listed one under another, each with an icon coloured by its kind (document, PDF, web page,
+  sheet, slides, code, archive) and a download button beside it, so a file the preview can show no longer has to be
+  opened to be saved. Pictures and players still sit side by side, and the download-all button comes after the list.
 
 ### Fixed
 
