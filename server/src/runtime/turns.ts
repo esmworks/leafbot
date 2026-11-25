@@ -203,6 +203,12 @@ export const LIMIT_RETRY_DELAY_MS = 30_000;
 
 /** Why a turn was stopped when its bot was paused, as its controller's abort reason. */
 const PAUSED = 'paused';
+/**
+ * Why a turn was stopped when the server shut down (a deploy, a restart), as its controller's abort
+ * reason: the turn ends as cut short by the restart, not as stopped by someone, so a bot that asked
+ * for it knows to ask again and a scheduled run can be tried once more.
+ */
+const SHUTDOWN = 'shutdown';
 
 /** The longest a stop waits for the turns it stopped to end before it goes on. */
 const SETTLE_MS = 10_000;
@@ -986,7 +992,7 @@ export class TurnManager {
     for (const f of this.folding.values()) f.controller.abort();
     // A fill already under way may still start a turn; let it, so the abort below reaches it.
     await this.scheduling;
-    for (const r of this.running.values()) r.controller.abort();
+    for (const r of this.running.values()) r.controller.abort(SHUTDOWN);
     await Promise.allSettled([
       ...[...this.running.values()].map((r) => r.done),
       ...[...this.folding.values()].map((f) => f.done),
@@ -2527,6 +2533,9 @@ export class TurnManager {
     if (controller.signal.reason === PAUSED && !outcome.ok && outcome.kind === 'interrupted') {
       outcome = { ...outcome, message: t('turn.botPaused'), paused: true };
     }
+    if (controller.signal.reason === SHUTDOWN && !outcome.ok && outcome.kind === 'interrupted') {
+      outcome = { ...outcome, message: t('turn.serverRestarted'), restarted: true };
+    }
     if (watchdog.stalled && !outcome.ok && outcome.kind === 'interrupted') {
       outcome = { ...outcome, kind: 'stalled', message: stallText(watchdog.stalled, t) };
     }
@@ -2679,7 +2688,9 @@ export class TurnManager {
             : outcome.kind === 'interrupted'
               ? outcome.paused
                 ? t('turn.botPaused')
-                : t('turn.stopped')
+                : outcome.restarted
+                  ? t('turn.interruptedByRestart')
+                  : t('turn.stopped')
               : outcome.kind === 'stalled'
                 ? outcome.message
                 : contextFull(outcome)

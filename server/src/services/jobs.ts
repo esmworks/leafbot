@@ -225,9 +225,13 @@ export class JobService {
     if (job && job.fromThreadId === turn.threadId) await this.recountAnswered(job);
     if (!job || job.toThreadId !== turn.threadId || job.status !== 'pending') return;
     const t = await serverTranslator(this.ctx);
+    const said = outcome.text.trim();
+    // A request the restart cut short says so, under whatever was written before it: the asker
+    // would otherwise read the bare stop as the target having no answer, and answer in its place.
     const reply =
-      outcome.text.trim() ||
-      (outcome.ok ? t('job.emptyReply') : t('job.failedReply', { message: outcome.message }));
+      !outcome.ok && outcome.kind === 'interrupted' && outcome.restarted
+        ? [said, t('job.restartedReply')].filter(Boolean).join('\n\n')
+        : said || (outcome.ok ? t('job.emptyReply') : t('job.failedReply', { message: outcome.message }));
     const status = outcome.ok ? 'done' : outcome.kind === 'interrupted' ? 'stopped' : 'error';
     await this.ctx.db
       .update(schema.jobs)
@@ -281,7 +285,7 @@ export class JobService {
         const [ended] = await this.ctx.db
           .update(schema.jobs)
           .set({
-            reply: answer?.reply ?? t('job.failedReply', { message: t('turn.serverRestarted') }),
+            reply: answer?.reply ?? t('job.restartedReply'),
             status: answer?.status ?? 'error',
             finishedAt: new Date(),
             ...(job.createdAt.getTime() < fresh && { deliveredAt: new Date() }),
