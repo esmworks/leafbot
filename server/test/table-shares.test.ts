@@ -2,6 +2,7 @@ import type { BotTable, TableRow, TableShare, Thread } from '@leafbot/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ToolResult } from '../src/engine/types';
 import { translator } from '../src/i18n';
+import { OWNER_ID } from '../src/users';
 import type { Define } from '../src/tools';
 import { tableTools } from '../src/tools/tables';
 import { testServer, type Person, type TestServer } from './helpers';
@@ -122,6 +123,24 @@ describe('başka botla paylaşılan tablo', () => {
     };
     expect(await list(true)).toContain('Ali / Müşteriler');
     expect(await list(false)).toContain('Henüz tablon yok');
+  });
+
+  it('dışarıdan birinin turunda (Discord misafiri, WhatsApp kişisi) ne paylaşılan tablo ne ortak bilgi var', async () => {
+    const { veli, table } = await setUp();
+    await shareAs(t, table.id, veli.id);
+    await t.api('POST', '/api/memory', { scope: 'common', content: 'İç kural: indirim yok' });
+    const th = await main(veli.id);
+    // As the chat apps hand over someone with no account here.
+    await t.services.inbox.send(th.id, { text: tool('tables_list', {}), userId: OWNER_ID, guest: true });
+    await t.services.turns.idle();
+    expect(t.engine.requests.at(-1)!.systemPrompt).not.toContain('İç kural');
+    const guestReply = (await t.messages(th.id)).at(-1)!.text;
+    expect(guestReply).toContain('tables_list: Henüz tablon yok');
+    expect(guestReply).not.toContain('Ali / Müşteriler');
+
+    // The person's own turn has both.
+    expect(await say(th.id, tool('tables_list', {}))).toContain('Ali / Müşteriler');
+    expect(t.engine.requests.at(-1)!.systemPrompt).toContain('İç kural: indirim yok');
   });
 
   it('tablo ya da içine alınan bot silinince paylaşım da gider', async () => {
