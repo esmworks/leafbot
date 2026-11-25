@@ -176,6 +176,7 @@ describe('taking back what one turn changed', () => {
       tableTrigger: null,
       tableFilter: '',
       flowLayout: null,
+      flowNotes: [{ id: 'why', x: 24, y: 400, w: 240, h: 160, text: 'Why it runs.', color: 'yellow' }],
       condition: null,
     });
     await say(thread.id, `[araç:routine_update ${JSON.stringify({ routine: 'Noon', prompt: 'Say bye.' })}]`);
@@ -193,6 +194,7 @@ describe('taking back what one turn changed', () => {
       prompt: 'Say hi.',
       steps: [{ id: 'tell', kind: 'notify', text: 'Done.', withBefore: true }],
       slackReaction: 'eyes',
+      flowNotes: [{ id: 'why', text: 'Why it runs.' }],
     });
 
     await say(thread.id, `[araç:routine_update ${JSON.stringify({ routine: 'Noon', prompt: 'Say bye.' })}]`);

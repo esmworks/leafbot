@@ -1,0 +1,1 @@
+ALTER TABLE "routines" ADD COLUMN "flow_notes" jsonb DEFAULT '[]'::jsonb NOT NULL;

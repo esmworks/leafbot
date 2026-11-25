@@ -2,7 +2,10 @@ import { FLOW_LAYOUT_MAX, FlowLayout, ROUTINE_STEP_MAX, type RoutineRun } from '
 import { describe, expect, it } from 'vitest';
 import {
   BOX_W,
+  boxesReach,
   canvasSize,
+  clampZoom,
+  fitZoom,
   insertStep,
   jumpLink,
   keepLayout,
@@ -11,8 +14,12 @@ import {
   placeBoxes,
   removeStep,
   runPart,
+  scrollAfterZoom,
   snap,
   takenWays,
+  zoomBy,
+  ZOOM_MAX,
+  ZOOM_MIN,
   type RunPart,
 } from './routineFlow';
 
@@ -111,6 +118,35 @@ describe('routine flow places', () => {
     expect(snap(FLOW_LAYOUT_MAX + 5000)).toBe(FLOW_LAYOUT_MAX);
     const kept = keepLayout({ a: { x: 99_999, y: 25_000 } }, ['a']);
     expect(FlowLayout.safeParse(kept).success).toBe(true);
+  });
+});
+
+describe('routine flow zoom', () => {
+  it('zooms by steps within its bounds, in whole percents', () => {
+    expect(zoomBy(1, 1)).toBe(1.2);
+    expect(zoomBy(1, -1)).toBe(0.83);
+    expect(zoomBy(ZOOM_MAX, 1)).toBe(ZOOM_MAX);
+    expect(zoomBy(ZOOM_MIN, -1)).toBe(ZOOM_MIN);
+    expect(clampZoom(0.333)).toBe(0.33);
+  });
+
+  it('fits every box in the view, never larger than they are', () => {
+    const reach = boxesReach([
+      { x: 0, y: 0 },
+      { x: 1200, y: 700 },
+    ]);
+    expect(reach.width).toBe(1200 + BOX_W + 24);
+    const z = fitZoom(reach, { width: 800, height: 600 });
+    expect(reach.width * z).toBeLessThanOrEqual(800);
+    expect(reach.height * z).toBeLessThanOrEqual(600);
+    expect(fitZoom({ width: 300, height: 200 }, { width: 1000, height: 800 })).toBe(1);
+    expect(fitZoom({ width: 99_000, height: 99_000 }, { width: 400, height: 300 })).toBe(ZOOM_MIN);
+  });
+
+  it('keeps the place under the pointer still while zooming', () => {
+    // At 100% scrolled 200 in, the pointer 100 into the view is over 300; at 200% that is 600.
+    expect(scrollAfterZoom(200, 100, 1, 2)).toBe(500);
+    expect(scrollAfterZoom(0, 0, 1, 0.5)).toBe(0);
   });
 });
 

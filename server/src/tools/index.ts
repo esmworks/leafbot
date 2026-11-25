@@ -1364,6 +1364,7 @@ export class ToolFactory {
               tableTrigger: watched?.id ?? null,
               tableFilter: a.table_filter ?? '',
               flowLayout: null,
+              flowNotes: [],
             },
             person,
           );

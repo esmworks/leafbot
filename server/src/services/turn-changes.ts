@@ -706,6 +706,7 @@ export const ROUTINE_KEYS = [
   'tableTrigger',
   'tableFilter',
   'flowLayout',
+  'flowNotes',
 ];
 export const routineShape = (r: object) => pick(r as Json, ROUTINE_KEYS);
 export const skillShape = (k: { description: string; body: string }) => ({

@@ -1,4 +1,4 @@
-import type { FlowLayout, RoutineRun } from '@leafbot/shared';
+import type { FlowLayout, FlowNote, RoutineRun } from '@leafbot/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render as draw, screen, within } from '@testing-library/react';
 import { useState, type ReactNode } from 'react';
@@ -25,11 +25,14 @@ function Both({
   initial,
   run = null,
   onLayout,
+  onNotes,
 }: {
   initial: StepForm[];
   run?: RoutineRun | null;
   onLayout?(next: FlowLayout): void;
+  onNotes?(next: FlowNote[]): void;
 }) {
+  const [notes, setNotes] = useState<FlowNote[]>([]);
   const [steps, setSteps] = useState(initial);
   const [prompt, setPrompt] = useState('Read the news');
   const [layout, setLayout] = useState<FlowLayout | null>(null);
@@ -51,6 +54,11 @@ function Both({
           onLayout={(next) => {
             setLayout(next);
             onLayout?.(next);
+          }}
+          notes={notes}
+          onNotes={(next) => {
+            setNotes(next);
+            onNotes?.(next);
           }}
         />
       </div>
@@ -304,5 +312,48 @@ describe('rutin akışı', () => {
     expect(list().getAllByLabelText("The step's model")).toHaveLength(1);
     openBox('Bot step: Ayşe');
     expect(panel('Bot step: Ayşe').queryByLabelText("The step's model")).toBeNull();
+  });
+
+  it('yakınlaştırma düğmeleri ve Ctrl ile + tuvali büyütür, yüzdeye tıklamak gerçek boyuta döndürür', () => {
+    render(<Both initial={[agent('a', 'Summarise it')]} />);
+    const view = within(flow().getByRole('toolbar', { name: 'View' }));
+    expect(view.getByRole('button', { name: /^At 100%/ })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: /^Zoom in/ }));
+    expect(view.getByRole('button', { name: /^At 120%/ })).toBeTruthy();
+    fireEvent.keyDown(flow().getByRole('group', { name: 'Flow' }), { key: '=', ctrlKey: true });
+    expect(view.getByRole('button', { name: /^At 144%/ })).toBeTruthy();
+    fireEvent.click(view.getByRole('button', { name: /^At 144%/ }));
+    expect(view.getByRole('button', { name: /^At 100%/ })).toBeTruthy();
+    // Zooming changes only the view: no box gets a place of its own.
+    expect(boxAt('Start')).toEqual({ x: 24, y: 24 });
+  });
+
+  it('dizmek her kutuya çalışma sırasıyla yeni bir yer verir', () => {
+    const onLayout = vi.fn();
+    render(<Both initial={[agent('a', 'One'), agent('b', 'Two')]} onLayout={onLayout} />);
+    fireEvent.click(flow().getByRole('button', { name: 'Arrange the boxes in the order they run' }));
+    const placed = onLayout.mock.calls.at(-1)![0] as FlowLayout;
+    expect(Object.keys(placed)).toEqual(['start', 'prompt', 'a', 'b']);
+    expect(placed.start!.x).toBeLessThan(placed.prompt!.x);
+  });
+
+  it('tuvale not eklenir, yazılır, rengi değişir ve silinir; kutulardan ayrı durur', async () => {
+    const onNotes = vi.fn();
+    render(<Both initial={[agent('a', 'Summarise it')]} onNotes={onNotes} />);
+    fireEvent.click(flow().getByRole('button', { name: 'Add a note' }));
+    const note = within(flow().getByRole('note', { name: 'Note' }));
+    const text = note.getByRole('textbox', { name: 'Note' });
+    // A note just added is ready to be written.
+    expect(document.activeElement).toBe(text);
+    fireEvent.change(text, { target: { value: 'Weekly, for the team' } });
+    expect(onNotes.mock.calls.at(-1)![0]).toMatchObject([{ text: 'Weekly, for the team', color: 'yellow' }]);
+    fireEvent.pointerDown(note.getByRole('button', { name: 'Note colour' }), { button: 0 });
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Blue' }));
+    expect(onNotes.mock.calls.at(-1)![0]).toMatchObject([{ color: 'blue' }]);
+    // A note is no box: the boxes still hold no field of their own.
+    for (const box of flow().getAllByRole('region')) expect(within(box).queryByRole('textbox')).toBeNull();
+    fireEvent.click(within(flow().getByRole('note')).getByRole('button', { name: 'Delete the note' }));
+    expect(flow().queryByRole('note')).toBeNull();
+    expect(onNotes.mock.calls.at(-1)![0]).toEqual([]);
   });
 });

@@ -467,6 +467,29 @@ export const FlowLayout = z.record(
 );
 export type FlowLayout = z.infer<typeof FlowLayout>;
 
+/** The most notes a routine's flow view holds, and how much each says. */
+export const FLOW_NOTES_MAX = 30;
+export const FLOW_NOTE_TEXT_MAX = 2000;
+/** A note's size on the canvas, in pixels: from a label to a paragraph. */
+export const FLOW_NOTE_W = { min: 160, max: 480 } as const;
+export const FLOW_NOTE_H = { min: 96, max: 480 } as const;
+export const FLOW_NOTE_COLORS = ['yellow', 'orange', 'pink', 'blue', 'green', 'purple'] as const;
+/**
+ * A note written on a routine's flow view, to say what the routine is for or how its parts fit:
+ * only people read it; the bot and its runs never do.
+ */
+export const FlowNote = z.object({
+  id: z.string().min(1).max(64),
+  x: z.number().int().min(0).max(FLOW_LAYOUT_MAX),
+  y: z.number().int().min(0).max(FLOW_LAYOUT_MAX),
+  w: z.number().int().min(FLOW_NOTE_W.min).max(FLOW_NOTE_W.max),
+  h: z.number().int().min(FLOW_NOTE_H.min).max(FLOW_NOTE_H.max),
+  text: z.string().max(FLOW_NOTE_TEXT_MAX),
+  color: z.enum(FLOW_NOTE_COLORS),
+});
+export type FlowNote = z.infer<typeof FlowNote>;
+export const FlowNotes = z.array(FlowNote).max(FLOW_NOTES_MAX);
+
 export const Routine = z.object({
   /** The person whose work it runs as; null for the bot's owner. Missing on older servers. */
   createdByUserId: z.string().nullable().optional(),
@@ -544,6 +567,8 @@ export const Routine = z.object({
   webhookSecretSet: z.boolean().optional(),
   /** Where its flow view's boxes were placed; null until someone moves one. Missing on older servers. */
   flowLayout: FlowLayout.nullable().optional(),
+  /** The notes on its flow view. Missing on older servers. */
+  flowNotes: FlowNotes.optional(),
 });
 export type Routine = z.infer<typeof Routine>;
 
@@ -656,6 +681,8 @@ export const RoutineCreate = z.object({
   tableFilter: z.string().max(2000).default(''),
   /** Where its flow view's boxes sit; null places them in order. */
   flowLayout: FlowLayout.nullable().default(null),
+  /** The notes written on its flow view. */
+  flowNotes: FlowNotes.default([]),
 });
 export type RoutineCreate = z.infer<typeof RoutineCreate>;
 export const RoutineUpdate = patchOf(RoutineCreate.omit({ botId: true }));

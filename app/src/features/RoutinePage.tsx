@@ -15,6 +15,7 @@ import {
   SHORT_DAY_NAMES,
   stepRoutes,
   type FlowLayout,
+  type FlowNote,
   type Routine,
   type RoutineRevision,
   type RoutineCondition,
@@ -340,12 +341,21 @@ export function RoutinePage({
   // Where the flow's boxes sit; saved with the routine. The page is drawn anew for each routine,
   // so it starts from that routine's saved places.
   const [layout, setLayout] = useState<FlowLayout | null>(routine?.flowLayout ?? null);
+  // The notes written on the flow; saved with the routine as well.
+  const [notes, setNotes] = useState<FlowNote[]>(routine?.flowNotes ?? []);
+  const notesChanged = useRef(false);
+  const writeNotes = (next: FlowNote[]) => {
+    notesChanged.current = true;
+    setNotes(next);
+  };
   // Leaving with changes not saved, from this page or by opening something in its place, asks first.
   // Read while drawing, so the form keeps track of it in either view; the question below reads it
   // again when asked, to see the changes made by then.
   const dirty = form.formState.isDirty;
   useEffect(() => {
-    askBeforeLeavingPage(() => !form.formState.isDirty || confirm(t('routine.leaveConfirm')));
+    askBeforeLeavingPage(
+      () => !(form.formState.isDirty || notesChanged.current) || confirm(t('routine.leaveConfirm')),
+    );
     return () => askBeforeLeavingPage(null);
   }, [t, form]);
   // What a box's "Try" hands the rehearsal: its own instruction, and whether it is a step's.
@@ -420,6 +430,7 @@ export function RoutinePage({
         condition: f.condition?.checks.length ? f.condition : null,
         model: f.model.trim(),
         flowLayout: layout && keepLayout(layout, ['start', 'prompt', ...f.steps.map((x) => x.id)]),
+        flowNotes: notes,
       };
       return routine
         ? api.updateRoutine(routine.id, body)
@@ -866,6 +877,8 @@ export function RoutinePage({
                 botId={botId}
                 layout={layout}
                 onLayout={setLayout}
+                notes={notes}
+                onNotes={writeNotes}
                 promptExtra={<MissingApps text={values.prompt ?? ''} botId={botId} />}
                 settings={
                   <>

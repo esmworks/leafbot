@@ -222,3 +222,51 @@ export function runPart(run: RoutineRun | null | undefined, stepId: string | nul
   }
   return run.steps?.find((s) => s.stepId === stepId);
 }
+
+/** How far the canvas zooms out and in, and how much a button press zooms. */
+export const ZOOM_MIN = 0.25;
+export const ZOOM_MAX = 2;
+const ZOOM_STEP = 1.2;
+
+/** A zoom within its bounds, kept to whole percents so the shown figure is what it is. */
+export function clampZoom(zoom: number): number {
+  return Math.round(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom)) * 100) / 100;
+}
+
+/** One press further in (`1`) or out (`-1`). */
+export function zoomBy(zoom: number, dir: 1 | -1): number {
+  return clampZoom(dir > 0 ? zoom * ZOOM_STEP : zoom / ZOOM_STEP);
+}
+
+/**
+ * The zoom that shows every box at once in a view of `view`'s size, with room around them; never
+ * larger than the boxes' own size, since a short routine would otherwise be blown up.
+ */
+export function fitZoom(
+  content: { width: number; height: number },
+  view: { width: number; height: number },
+): number {
+  const room = 32;
+  if (view.width <= 0 || view.height <= 0) return 1;
+  const z = Math.min(1, (view.width - room) / content.width, (view.height - room) / content.height);
+  return clampZoom(Math.floor(z * 100) / 100);
+}
+
+/**
+ * Where a view scrolled to `scroll` is after zooming from `from` to `to` around `at` (a point in
+ * the view, from its top left): the place under `at` stays under it.
+ */
+export function scrollAfterZoom(scroll: number, at: number, from: number, to: number): number {
+  return Math.max(0, ((scroll + at) / from) * to - at);
+}
+
+/** About how tall a box is, for what must show of it: a few lines of summary and its tags. */
+const BOX_H = 200;
+
+/** How far the boxes reach, from the canvas's top left: what fitting them in the view must show. */
+export function boxesReach(spots: readonly Spot[]): { width: number; height: number } {
+  return {
+    width: Math.max(0, ...spots.map((s) => s.x)) + BOX_W + EDGE,
+    height: Math.max(0, ...spots.map((s) => s.y)) + BOX_H,
+  };
+}
