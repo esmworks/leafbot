@@ -351,7 +351,9 @@ export function CardStat({ node, icon: Glyph, bare }: { node: CardNode; icon?: L
           <Glyph className="size-4.5" aria-hidden />
         </span>
       )}
-      <div className={cn(bare ? 'min-w-0' : 'flex-1')}>
+      {/* The text takes all the room beside the icon: sized to its number alone, a short number
+          ("5") would cut the label and caption over it to a letter or two. */}
+      <div className={cn('flex-1', bare && 'min-w-0')}>
         {/* Width 0 and at least the box's: a long label is cut to the box, never widens it. */}
         <div className="line-clamp-2 w-0 min-w-full text-xs text-muted-foreground" title={String(node.label)}>
           {String(node.label)}
