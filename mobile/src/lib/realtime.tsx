@@ -379,6 +379,12 @@ function refresh(origin: string, e: RefreshScope, inv: (...key: unknown[]) => vo
     case 'tables':
       inv('tables', origin, e.botId);
       inv('table-rows', origin);
+      // A dashboard's table tiles are worked out from the rows as they are now.
+      inv('dashboard', origin);
+      break;
+    case 'dashboards':
+      inv('dashboards', origin);
+      inv('dashboard', origin);
       break;
     case 'vault':
       inv('vault', origin);
