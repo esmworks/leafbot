@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { keepUpright } from '@/lib/orientation';
 import { RealtimeProvider } from '@/lib/realtime';
 import { ServerProvider } from '@/lib/server';
 import { Overlays } from '@/components/overlay';
@@ -20,6 +21,7 @@ function useRefetchOnForeground() {
 }
 
 export default function RootLayout() {
+  useEffect(keepUpright, []);
   useRefetchOnForeground();
   useAppUpdates();
   const c = useColors();
