@@ -1,3 +1,4 @@
+import { ScreenWatch } from '../computer/screen-watch';
 import {
   BRAND_COLOR,
   BotCreate,
@@ -2930,6 +2931,8 @@ export class ToolFactory {
         );
       }
     }
+    // One watch over the screens this turn looks at, the desktop's and the person's computer's alike.
+    const screens = new ScreenWatch();
     if (this.ctx.computer && bot.internet) {
       // Commands run in the thread's own work folder, which the desktop sees at the same path.
       const cwd = workspacePaths(this.ctx.config.dataDir, bot.id, thread.id, bot.groupId).threadDir;
@@ -2940,6 +2943,7 @@ export class ToolFactory {
         computer: this.ctx.computer,
         cwd,
         signal,
+        watch: screens,
         // A person's own GitHub only for work their own message started in their own conversation,
         // or that another bot handed on from such a message with no outside text read on the way
         // (asked at each command, so a page read before it counts): a routine, a mail, a
@@ -2975,7 +2979,9 @@ export class ToolFactory {
       !turn.guest &&
       bot.permissionMode !== 'readonly'
     ) {
-      tools.push(...personComputerTools({ def, botId: bot.id, botName: bot.name, t, computer: mac }));
+      tools.push(
+        ...personComputerTools({ def, botId: bot.id, botName: bot.name, t, computer: mac, watch: screens }),
+      );
     }
     // Commands on that person's computer, under the same conditions, when its desktop app lets
     // bots run them. Through the desktop app only, never the server's own helper: the switch that

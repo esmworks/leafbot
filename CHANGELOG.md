@@ -7,6 +7,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A bot that goes round in circles on a screen (its own desktop or your computer) is stopped: after 40 screens in a
+  row that show nothing it has not seen in its last few, it may not look at or touch the screen again in that turn
+  and is told to say what it was trying, what it tried and what blocks it. Small changes such as a blinking cursor
+  or a clock do not count as new; a slowly filling progress bar does in time. Commands on the bot's own desktop
+  still run. The count goes by screens, not time, so a bot waiting on your answer is not stopped for it.
 - Common knowledge: notes every bot on the server reads, such as the company address or a team rule. Those who
   look after the server write them on the memory screen and they apply at once; everyone else sees them there. A bot
   only proposes adding, changing or deleting one, and the proposal waits under "Waiting for approval" for someone who

@@ -2064,6 +2064,8 @@ const tr = {
   'shell.stopped': 'Tur durdurulduğu için komut kesildi.',
   'shell.noOutput': '(çıktı yok)',
   'shell.cut': '… ({count} karakter atlandı) …',
+  'screen.stuck':
+    'Durduruldun: ekran art arda {count} adımdır yeni bir şey göstermiyor; bu turda ekranı kullanma. Kullanıcıya ne yapmaya çalıştığını, neyi denediğini ve seni neyin engellediğini (açılmayan bir sayfa, çalışmayan bir düğme, beklenen bir onay) kısaca söyle; onun yapmasını ya da yol göstermesini iste.',
   'shell.kept':
     '… ({count} karakter atlandı; çıktının tamamı saklandı: {tool} ile oku, id "{id}", offset {offset}) …',
   'shell.failed': 'Komut sandbox içinde başlatılamadı.',
@@ -4475,6 +4477,8 @@ const en: Catalog<ServerKey> = {
   'shell.stopped': 'The command was cut off because the turn was stopped.',
   'shell.noOutput': '(no output)',
   'shell.cut': '… ({count} characters left out) …',
+  'screen.stuck':
+    'You are stopped: the screen has shown nothing new for {count} steps in a row; do not use the screen again this turn. Tell the user briefly what you were trying to do, what you tried and what blocks you (a page that does not load, a button that does nothing, an approval it waits for), and ask them to do it or to show you the way.',
   'shell.kept':
     '… ({count} characters left out; the whole output is kept: read it with {tool}, id "{id}", offset {offset}) …',
   'shell.failed': 'The command could not be started in the sandbox.',

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { keyPresses, type PersonAction, type PersonComputer, PersonComputerError } from '../computer/person';
+import { STUCK_AFTER, type ScreenWatch } from '../computer/screen-watch';
 import { screenshotImage } from '../engine/fit-image';
 import type { AppTool, ToolResult } from '../engine/types';
 import type { T } from '../i18n';
@@ -33,10 +34,15 @@ export function personComputerTools(opts: {
   botName: string;
   t: T;
   computer: PersonComputer;
+  /** The turn's screens, to stop a bot going round in circles (see `ScreenWatch`). */
+  watch?: ScreenWatch;
 }): AppTool[] {
-  const { def, botId, botName, t, computer } = opts;
+  const { def, botId, botName, t, computer, watch } = opts;
+  const stuck = () => t('screen.stuck', { count: STUCK_AFTER });
 
   const guard = async (fn: () => Promise<ToolResult>): Promise<ToolResult> => {
+    // Stopped going round in circles: no more steps on the screen this turn.
+    if (watch?.stuck) return stuck();
     try {
       return await computer.use(botId, fn, Date.now(), botName);
     } catch (err) {
@@ -46,6 +52,7 @@ export function personComputerTools(opts: {
 
   const look = async (): Promise<ToolResult> => {
     const shot = await computer.screenshot();
+    if (await watch?.seen(shot.data)) return stuck();
     const system = shot.os === 'windows' ? 'Windows' : 'macOS';
     const screen = t('personComputer.screen', { system, width: shot.width, height: shot.height });
     return {
