@@ -199,6 +199,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- A WhatsApp message a routine drafted could later be taken for unsent. The bot was told the card's outcome would come
+  with its next message in that conversation, but it is written in the main one, so the routine noted "on the card"
+  and another routine read that as not sent though the person had sent it. A draft made outside the main conversation
+  now tells the bot where its outcome goes and to check the chat instead, and `whatsapp_history` shows the bot's
+  drafts not sent yet next to the messages that went, so any run can tell which happened.
 - A bot that committed on its computer made up its own author, as git there had none, and GitHub credited those commits
   to whichever stranger's account owned the made-up address. A command's commits are now written by the account of the
   GitHub key the command uses (the person's own, or the team's), with GitHub's private address for it, so they reach

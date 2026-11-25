@@ -1179,6 +1179,56 @@ describe('WhatsApp: rutinlerin okuduğu sohbetler', () => {
     expect(prompt).toContain('120.000 TL');
   });
 
+  it('rutinde hazırlanan taslağın gidip gitmediği, başka bir rutinden sohbete bakınca görünür', async () => {
+    const { wa, asistan } = await setUp();
+    await t.api('PUT', '/api/whatsapp', { mode: 'own', phone: PERSON, botId: asistan.id, chats: true });
+    wa.chat(`${CUSTOMER}@s.whatsapp.net`, { conversation: 'Liste?' }, {}, 'Ahmet');
+    await waitFor(async () => (await t.db.db.select().from(schema.whatsappMessages)).length === 1);
+    const pending = async () =>
+      (await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body.find(
+        (a) => a.toolName === 'whatsapp_send',
+      );
+
+    // The morning routine drafts the list in its own conversation; the card waits in the main one.
+    const morning = await routine(asistan.id, {
+      name: 'Sabah listesi',
+      inMain: false,
+      prompt: `[araç:whatsapp_send {"chat":"${CUSTOMER}@s.whatsapp.net","text":"Bugünün listesi"}]`,
+    });
+    await t.api('POST', `/api/routines/${morning.id}/run`);
+    const [run] = await runs(morning.id);
+    await t.services.turns.idle();
+    const card = await waitFor(pending);
+    // It is not promised a note it will never see there, and is told where to look instead.
+    const told = (await t.messages(run!.threadId!)).map((m) => m.text).join('\n');
+    expect(told).not.toContain('bu sohbetteki bir sonraki mesajla');
+    expect(told).toContain('ana sohbetine yazılır');
+    expect(told).toContain('whatsapp_history');
+
+    // A reminder routine looks at the chat: the list has not gone yet, and says so.
+    /** What a reminder routine's run read in the chat. */
+    const look = async (name: string) => {
+      const reminder = await routine(asistan.id, {
+        name,
+        inMain: false,
+        prompt: `[araç:whatsapp_history {"chat":"${CUSTOMER}@s.whatsapp.net"}]`,
+      });
+      await t.api('POST', `/api/routines/${reminder.id}/run`);
+      const [last] = await runs(reminder.id);
+      await t.services.turns.idle();
+      const said = (await t.messages(last!.threadId!)).filter((m) => m.text.includes('WhatsApp sohbeti'));
+      return said.at(-1)?.text ?? '';
+    };
+    expect(await look('Liste hatırlatma')).toContain('henüz gitmedi (kartta');
+
+    // Once the card is answered, the list is in the chat as the person's line and no longer waiting.
+    await t.api('POST', `/api/approvals/${card.id}`, { decision: 'allow', answer: 'Gönder' });
+    await waitFor(async () => wa.sent.some((x) => x.jid === `${CUSTOMER}@s.whatsapp.net`));
+    const after = await look('Akşam hatırlatma');
+    expect(after).toContain('Siz: Bugünün listesi');
+    expect(after).not.toContain('henüz gitmedi (kartta');
+  });
+
   it('bot daha yazarken onaylanan kartın notu botun cevabının altına düşer; arada yazılan mesaj onu okur', async () => {
     const { wa, asistan } = await setUp();
     await t.api('PUT', '/api/whatsapp', { mode: 'own', phone: PERSON, botId: asistan.id, chats: true });
