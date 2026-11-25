@@ -177,6 +177,9 @@ export const tr = {
   'room.roundsN': '{count} tur sonra dururlar',
   'room.create': 'Odayı aç',
   'room.edit': 'Odayı düzenle',
+  'room.reset': 'Baştan başla',
+  'room.resetConfirm':
+    'Oda baştan başlasın mı? Botlar bu noktadan önce konuşulanları artık okumaz; mesajlar burada kalır.',
   'room.delete': 'Odayı sil',
   'room.deleteConfirm': '“{name}” odası ve içindeki konuşma silinsin mi? Bu geri alınamaz.',
   'room.placeholder': 'Odaya yaz… Belirli bir bota sormak için @ad',

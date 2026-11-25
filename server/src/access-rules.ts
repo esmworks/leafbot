@@ -265,6 +265,7 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'DELETE /api/rooms/:id': read(),
   'POST /api/rooms/:id/messages': write(),
   'POST /api/rooms/:id/stop': read(),
+  'POST /api/rooms/:id/reset': read(),
   // A room's meetings and minutes are the room's: its person reads, starts, ends and approves them.
   'GET /api/rooms/:id/meetings': read(),
   'POST /api/rooms/:id/meetings': write(),

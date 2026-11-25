@@ -435,6 +435,7 @@ export function endpoints(send: Transport, base = '') {
     sendToRoom: (id: string, clientId: string, text: string, replyTo?: string) =>
       http.post<Message>(`/api/rooms/${id}/messages`, { clientId, text, replyTo }),
     stopRoom: (id: string) => http.post<{ stopped: boolean }>(`/api/rooms/${id}/stop`),
+    resetRoom: (id: string) => http.post<{ ok: true }>(`/api/rooms/${id}/reset`),
     meetings: (roomId: string) => http.get<Meeting[]>(`/api/rooms/${roomId}/meetings`),
     startMeeting: (roomId: string) => http.post<Meeting>(`/api/rooms/${roomId}/meetings`),
     answerMeeting: (roomId: string, id: string, answer: MeetingAnswer['answer']) =>

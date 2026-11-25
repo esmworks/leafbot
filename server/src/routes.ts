@@ -1554,6 +1554,11 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.post('/api/rooms/:id/stop', async (req) => ({
     stopped: await s.rooms.stop(IdParams.parse(req.params).id),
   }));
+  // The room starts afresh for its bots; refused while one of them speaks or waits.
+  app.post('/api/rooms/:id/reset', async (req) => {
+    await s.rooms.reset(IdParams.parse(req.params).id, await s.settings.translator());
+    return { ok: true };
+  });
 
   // A room's meetings: asked about when a talk starts, their minutes written once they end, and
   // approved by the person, who chooses which bots are to know them.
