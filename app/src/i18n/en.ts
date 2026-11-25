@@ -1134,6 +1134,7 @@ export const en: Catalog<MessageKey> = {
   'personJob.done': 'Done, exit code {code}',
   'personJob.stopped': 'Stopped',
   'personJob.lost': 'The computer went away; how it ended is not known',
+  'personJob.refused': 'Did not run',
   'personJob.where': '{device} · {cwd}',
   'personJob.noOutput': 'No output yet',
   'personJob.stop': 'Stop',

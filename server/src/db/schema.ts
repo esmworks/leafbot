@@ -491,7 +491,8 @@ export const personJobs = pgTable(
     device: text('device').notNull(),
     command: sealedText('command').notNull(),
     cwd: text('cwd').notNull(),
-    status: text('status', { enum: ['running', 'done', 'stopped', 'lost'] })
+    /** `refused` when the computer would not start it; `lost` when it never said how it ended. */
+    status: text('status', { enum: ['running', 'done', 'stopped', 'lost', 'refused'] })
       .notNull()
       .default('running'),
     exitCode: integer('exit_code'),

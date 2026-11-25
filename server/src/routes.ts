@@ -1740,7 +1740,11 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   };
   app.get('/api/rules', async (req) => {
     const editable = new Set(await s.access.botIds(me(req), 'edit'));
-    return (await s.approvals.rules()).filter((r) => !r.botId || editable.has(r.botId));
+    // A command someone allowed on their own computer is theirs to see and take back, whatever
+    // else they may change on the bot.
+    return (await s.approvals.rules()).filter(
+      (r) => !r.botId || editable.has(r.botId) || r.userId === me(req).userId,
+    );
   });
   app.post('/api/rules', async (req) => {
     const body = PermissionRuleCreate.parse(req.body);
@@ -1751,7 +1755,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const id = IdParams.parse(req.params).id;
     const rule = (await s.approvals.rules()).find((r) => r.id === id);
     if (!rule) throw new HttpError(404, 'error.notFound');
-    await checkRuleBot(req, rule.botId);
+    if (rule.userId !== me(req).userId) await checkRuleBot(req, rule.botId);
     await s.approvals.removeRule(id);
     return { ok: true };
   });

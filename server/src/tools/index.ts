@@ -2928,7 +2928,6 @@ export class ToolFactory {
           person: writer,
           signal,
           timeoutMs: unattended,
-          reads,
           computer: () => this.ctx.macs?.commandsFor(writer) ?? null,
         }),
       );

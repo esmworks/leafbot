@@ -23,11 +23,13 @@ const CARD_EVERY_MS = 10_000;
 const LOST_AFTER_MS = MAC_JOB_MAX_MS + 10 * 60_000;
 /** How long the answer to a run may take beyond the wait: the computer may first ask its person. */
 const RUN_SLACK_MS = 60_000;
+/** What a computer answers when it will not start a command; anything else may have started it. */
+const REFUSALS = new Set(['refused', 'tooMany', 'noFolder', 'commandsOff', 'badRequest']);
 
 /** What starting a command came to. */
 export type JobStart =
   | { error: string }
-  | { id: string; running: true; output: string }
+  | { id: string; running: true; output: string; unsure?: boolean }
   | {
       id: string;
       running: false;
@@ -45,6 +47,20 @@ export type JobStart =
 export class PersonJobService {
   /** When each running job's card last took new lines. */
   private written = new Map<string, number>();
+  /**
+   * The writes waiting for each job, in order: a card's progress written after its end would show
+   * a finished job as running.
+   */
+  private queue = new Map<string, Promise<unknown>>();
+
+  private serial<R>(id: string, fn: () => Promise<R>): Promise<R> {
+    const next = (this.queue.get(id) ?? Promise.resolve()).catch(() => undefined).then(fn);
+    const kept = next.finally(() => {
+      if (this.queue.get(id) === kept) this.queue.delete(id);
+    });
+    this.queue.set(id, kept);
+    return next;
+  }
 
   constructor(
     private ctx: Ctx,
@@ -126,20 +142,32 @@ export class PersonJobService {
       { op: 'run', id, command: o.command, cwd: o.cwd, bot: o.bot.name, waitMs: o.waitMs },
       o.waitMs + RUN_SLACK_MS,
     );
+    const error = typeof r.error === 'string' ? r.error : 'failed';
+    if (r.ok !== true && !REFUSALS.has(error)) {
+      // No answer: the computer may well be running it. The card stays and the bot is woken when
+      // the computer, back again, tells how it ended or that it has no such job.
+      await this.ctx.db
+        .update(schema.personJobs)
+        .set({ wake: true })
+        .where(and(eq(schema.personJobs.id, id), eq(schema.personJobs.status, 'running')));
+      return { id, running: true, output: '', unsure: true };
+    }
     if (r.ok !== true) {
-      // It never started: the card says so, and nothing wakes for it.
-      await this.end(id, o.userId, { status: 'lost', exitCode: null, tail: '' });
-      return { error: typeof r.error === 'string' ? r.error : 'failed' };
+      // The computer said no: it never started, the card says so and nothing wakes for it.
+      await this.serial(id, () => this.end(id, o.userId, { status: 'refused', exitCode: null, tail: '' }));
+      return { error };
     }
     const output = typeof r.output === 'string' ? stripAnsi(r.output) : '';
     if (r.running !== true) {
       const exitCode = typeof r.exitCode === 'number' ? r.exitCode : null;
       const stopped = r.stopped === true;
-      await this.end(id, o.userId, {
-        status: stopped ? 'stopped' : 'done',
-        exitCode,
-        tail: output.slice(-MAC_JOB_TAIL),
-      });
+      await this.serial(id, () =>
+        this.end(id, o.userId, {
+          status: stopped ? 'stopped' : 'done',
+          exitCode,
+          tail: output.slice(-MAC_JOB_TAIL),
+        }),
+      );
       return { id, running: false, exitCode, stopped, output, truncated: r.truncated === true };
     }
     // Going on after the wait: its end wakes the bot. Unless it ended in between, told by an event.
@@ -169,7 +197,7 @@ export class PersonJobService {
   private async end(
     id: string,
     userId: string,
-    e: { status: 'done' | 'stopped' | 'lost'; exitCode: number | null; tail: string },
+    e: { status: 'done' | 'stopped' | 'lost' | 'refused'; exitCode: number | null; tail: string },
   ): Promise<void> {
     const [row] = await this.ctx.db
       .update(schema.personJobs)
@@ -223,7 +251,10 @@ export class PersonJobService {
   async onEvent(userId: string, raw: unknown) {
     const parsed = MacJobEvent.safeParse(raw);
     if (!parsed.success) return;
-    const e = parsed.data;
+    await this.serial(parsed.data.id, () => this.told(userId, parsed.data));
+  }
+
+  private async told(userId: string, e: MacJobEvent) {
     const tail = stripAnsi(e.tail).slice(-MAC_JOB_TAIL);
     if (!e.running) {
       await this.end(e.id, userId, {
@@ -269,7 +300,8 @@ export class PersonJobService {
           ...(parsed.data.running.length ? [notInArray(schema.personJobs.id, parsed.data.running)] : []),
         ),
       );
-    for (const r of rows) await this.end(r.id, userId, { status: 'lost', exitCode: null, tail: '' });
+    for (const r of rows)
+      await this.serial(r.id, () => this.end(r.id, userId, { status: 'lost', exitCode: null, tail: '' }));
   }
 
   /** Jobs past the computer's own time limit that never said how they ended: the computer went away. */
@@ -283,7 +315,10 @@ export class PersonJobService {
           lt(schema.personJobs.startedAt, new Date(this.clock().getTime() - LOST_AFTER_MS)),
         ),
       );
-    for (const r of rows) await this.end(r.id, r.userId, { status: 'lost', exitCode: null, tail: r.tail });
+    for (const r of rows)
+      await this.serial(r.id, () =>
+        this.end(r.id, r.userId, { status: 'lost', exitCode: null, tail: r.tail }),
+      );
   }
 
   /** Asks the person's computers to stop a job of theirs; false when it is not running. */
@@ -291,9 +326,10 @@ export class PersonJobService {
     const row = await this.get(id, userId);
     if (row?.status !== 'running') return false;
     const answers = await this.ctx.macs?.toAll(userId, { op: 'stop', id });
-    // No computer of theirs is there to stop it: it cannot be heard of again.
-    if (!answers?.some((a) => a.ok === true))
-      await this.end(id, userId, { status: 'lost', exitCode: null, tail: row.tail });
+    // No computer of theirs has it to stop: it cannot be heard of again. One that does tells its
+    // end as usual.
+    if (!answers?.some((a) => a.ok === true && a.stopped === true))
+      await this.serial(id, () => this.end(id, userId, { status: 'lost', exitCode: null, tail: row.tail }));
     return true;
   }
 }

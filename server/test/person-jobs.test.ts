@@ -234,6 +234,75 @@ describe('commands on the person’s own computer', () => {
     expect((await jobs())[0]!.status).toBe('lost');
   });
 
+  it('offers "always allow" for a new command after the conversation read a command’s output', async () => {
+    t.services.ctx.macs!.offer('s1', 'ayse', 'Ayşe’nin Mac’i', true);
+    const mine = await thread(ayse);
+    await sendAs(ayse, mine.id, run({ command: 'ls', cwd: '~/shop' }));
+    const first = await waitFor(async () => (await pending())[0]);
+    await ayse.api('POST', `/api/approvals/${first.id}`, { decision: 'allow' });
+    await said(mine.id, 'çıkış kodu 0');
+
+    await sendAs(ayse, mine.id, run({ command: 'git status', cwd: '~/shop' }));
+    const card = await waitFor(async () => (await pending())[0]);
+    const line = (await messages(mine.id)).find((m) => m.props?.approvalId === card.id);
+    expect(line?.props?.noAlways).toBeUndefined();
+    await ayse.api('POST', `/api/approvals/${card.id}`, { decision: 'allow', remember: true });
+    await t.services.turns.idle();
+    const rules = await t.db.db.select().from(schema.permissionRules);
+    expect(rules.map((r) => r.pattern)).toEqual(['person_command_run(git status @ /Users/ayse/shop)']);
+  });
+
+  it('shows a command the computer would not start as not run, and wakes nothing for it', async () => {
+    t.services.ctx.macs!.offer('s1', 'ayse', 'Ayşe’nin Mac’i', true);
+    desk.run = { ok: false, error: 'refused' };
+    const mine = await thread(ayse);
+    await sendAs(ayse, mine.id, run({ command: 'make deploy' }));
+    const card = await waitFor(async () => (await pending())[0]);
+    await ayse.api('POST', `/api/approvals/${card.id}`, { decision: 'allow' });
+    await t.services.turns.idle();
+    expect((await jobs())[0]).toMatchObject({ status: 'refused', wake: false });
+    expect(await jobCard(mine.id)).toMatchObject({ status: 'refused' });
+  });
+
+  it('keeps a job open when the computer does not answer, and wakes the bot when it tells the end', async () => {
+    t.services.ctx.macs!.offer('s1', 'ayse', 'Ayşe’nin Mac’i', true);
+    const handle = desk.handle.bind(desk);
+    desk.handle = async (req) => {
+      if (req.op === 'run') throw new Error('gone');
+      return handle(req);
+    };
+    const mine = await thread(ayse);
+    await sendAs(ayse, mine.id, run({ command: 'npm run build' }));
+    const card = await waitFor(async () => (await pending())[0]);
+    await ayse.api('POST', `/api/approvals/${card.id}`, { decision: 'allow' });
+    await said(mine.id, 'yanıt vermedi');
+    const [job] = await jobs();
+    expect(job).toMatchObject({ status: 'running', wake: true });
+
+    await t.services.personJobs.onEvent('ayse', { id: job!.id, running: false, tail: 'bitti', exitCode: 0 });
+    await t.services.turns.idle();
+    const wakes = await t.db.db
+      .select()
+      .from(schema.turns)
+      .where(and(eq(schema.turns.threadId, mine.id), eq(schema.turns.source, 'followup')));
+    expect(wakes).toHaveLength(1);
+  });
+
+  it('counts a stop as done only when a computer stopped the job', async () => {
+    t.services.ctx.macs!.offer('s1', 'ayse', 'Ayşe’nin Mac’i', true);
+    desk.run = { ok: true, running: true, exitCode: null, output: '' };
+    const handle = desk.handle.bind(desk);
+    desk.handle = async (req) => (req.op === 'stop' ? { ok: true, stopped: false } : handle(req));
+    const mine = await thread(ayse);
+    await sendAs(ayse, mine.id, run({ command: 'sleep 100', wait_seconds: 0 }));
+    const card = await waitFor(async () => (await pending())[0]);
+    await ayse.api('POST', `/api/approvals/${card.id}`, { decision: 'allow' });
+    await said(mine.id, 'arka planda sürüyor');
+    const [job] = await jobs();
+    expect(await t.services.personJobs.stop(job!.id, 'ayse')).toBe(true);
+    expect((await jobs())[0]!.status).toBe('lost');
+  });
+
   it('keeps a command card with the person, out of a manager’s reach', () => {
     const card = {
       kind: 'tool',

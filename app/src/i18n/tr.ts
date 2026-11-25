@@ -1094,6 +1094,7 @@ export const tr = {
   'personJob.done': 'Bitti, çıkış kodu {code}',
   'personJob.stopped': 'Durduruldu',
   'personJob.lost': 'Bilgisayarla bağlantı koptu; nasıl bittiği bilinmiyor',
+  'personJob.refused': 'Çalışmadı',
   'personJob.where': '{device} · {cwd}',
   'personJob.noOutput': 'Henüz çıktı yok',
   'personJob.stop': 'Durdur',

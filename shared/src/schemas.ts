@@ -1620,8 +1620,8 @@ export const PersonJobCard = z.object({
   cwd: z.string(),
   /** The computer's name. */
   device: z.string(),
-  /** `lost` when the computer went away and never said how it ended. */
-  status: z.enum(['running', 'done', 'stopped', 'lost']),
+  /** `lost` when the computer went away and never said how it ended; `refused` when it would not start it. */
+  status: z.enum(['running', 'done', 'stopped', 'lost', 'refused']),
   exitCode: z.number().int().nullable(),
   /** The last of its output. */
   tail: z.string(),

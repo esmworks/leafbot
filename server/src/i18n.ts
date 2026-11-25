@@ -1606,6 +1606,9 @@ const tr = {
   'personJob.status.done': 'bitti',
   'personJob.status.stopped': 'durduruldu',
   'personJob.status.lost': 'bilgisayar bağlantısı koptu, nasıl bittiği bilinmiyor',
+  'personJob.status.refused': 'bilgisayar komutu başlatmadı',
+  'personJob.unsure':
+    'Bilgisayar yanıt vermedi; komut [{id}] başlamış olabilir. Kartı açık kalıyor; bilgisayar dönünce nasıl bittiği ya da hiç başlamadığı belli olur ve bu sohbette yeniden çağrılırsın.',
   'personJob.noOutput': '(çıktı yok)',
   'personJob.cut': '(çıktının yalnızca sonu)',
   'personJob.error.tooMany':
@@ -3992,6 +3995,9 @@ const en: Catalog<ServerKey> = {
   'personJob.status.done': 'done',
   'personJob.status.stopped': 'stopped',
   'personJob.status.lost': 'the computer went away; how it ended is not known',
+  'personJob.status.refused': 'the computer did not start the command',
+  'personJob.unsure':
+    'The computer did not answer; the command [{id}] may have started. Its card stays open; when the computer is back it is known how it ended, or that it never started, and you are called again in this conversation.',
   'personJob.noOutput': '(no output)',
   'personJob.cut': '(only the end of the output)',
   'personJob.error.tooMany':

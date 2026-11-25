@@ -72,11 +72,15 @@ export interface CommandJobsOptions {
   askMs?: number;
 }
 
-/** The shell that runs a command: the person's login shell, or PowerShell on Windows. */
+/**
+ * The shell that runs a command: the person's own shell as their terminal opens it (login and
+ * interactive, so the tools their shell settings add, such as a Node version manager, are found),
+ * or PowerShell on Windows. Its input is closed, so nothing in those settings waits on a question.
+ */
 export function systemShell(command: string): { file: string; args: string[] } {
   if (process.platform === 'win32')
     return { file: 'powershell.exe', args: ['-NoProfile', '-NonInteractive', '-Command', command] };
-  return { file: process.env.SHELL || '/bin/zsh', args: ['-lc', command] };
+  return { file: process.env.SHELL || '/bin/zsh', args: ['-ilc', command] };
 }
 
 /** The app's own settings stay out of a command's environment, which the login shell fills in. */

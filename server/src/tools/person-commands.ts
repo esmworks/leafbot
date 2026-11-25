@@ -1,4 +1,4 @@
-import { commandRulePattern, describeAction, PERSON_COMMAND_RUN, type OutsideTrigger } from '@leafbot/shared';
+import { commandRulePattern, describeAction, PERSON_COMMAND_RUN } from '@leafbot/shared';
 import { secretPlace } from '@leafbot/shared/mac';
 import { z } from 'zod';
 import type { CommandComputer } from '../computer/bridge';
@@ -19,8 +19,8 @@ const KNOWN = new Set(['tooMany', 'refused', 'noFolder', 'commandsOff', 'offline
 /**
  * Commands on the person's own computer, through their desktop app with "Bots may run commands"
  * on. Each command asks on a card at every permission level, with the folder the computer resolved,
- * unless the person allowed that very command in that very folder before, the turn read no outside
- * text, and the command names no place where keys are kept (those also ask on the computer).
+ * unless the person allowed that very command in that very folder before and it names no place
+ * where keys are kept (those also ask on the computer, and are never remembered).
  */
 export function personCommandTools(o: {
   def: Define;
@@ -33,8 +33,6 @@ export function personCommandTools(o: {
   person: string;
   signal: AbortSignal;
   timeoutMs?: number;
-  /** The outside text the turn has read so far, if any. */
-  reads: () => OutsideTrigger | null;
   /** Their computer that runs commands, looked up at each step; null when none is connected. */
   computer: () => CommandComputer | null;
 }): AppTool[] {
@@ -99,8 +97,9 @@ export function personCommandTools(o: {
         if (may.refused) return may.refused;
         if (may.card) {
           const input = { command: a.command, cwd, device: computer.device };
-          // Outside text read, or a place keys are kept: this time only, no "always allow".
-          const once = !!secret || !!o.reads();
+          // A place keys are kept: this time only, no "always allow". After outside text it is still
+          // offered: the card shows the very command and folder it would keep, nothing wider.
+          const once = !!secret;
           const r = await s.approvals.ask({
             threadId: o.threadId,
             botId: o.bot.id,
@@ -142,6 +141,7 @@ export function personCommandTools(o: {
           waitMs: (a.wait_seconds ?? 20) * 1000,
         });
         if ('error' in job) return failed(job.error);
+        if (job.running && job.unsure) return t('personJob.unsure', { id: job.id });
         if (job.running) return t('personJob.started', { id: job.id, output: output(job.output) });
         return t(job.stopped ? 'personJob.stoppedResult' : 'personJob.result', {
           id: job.id,
