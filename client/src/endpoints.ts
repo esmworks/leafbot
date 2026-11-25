@@ -23,6 +23,7 @@ import type {
   DashboardView,
   RowValues,
   TableRow,
+  TableView,
   TelegramStatus,
   DiscordConnect,
   DiscordStatus,
@@ -710,6 +711,8 @@ export function endpoints(send: Transport, base = '') {
     deleteTableRow: (id: string, rowId: string) =>
       http.del<{ deleted: number }>(`/api/tables/${id}/rows/${rowId}`),
     removeTable: (id: string) => http.del<{ ok: true }>(`/api/tables/${id}`),
+    /** Lays the table out another way, for everyone who opens it. */
+    setTableView: (id: string, view: TableView) => http.put<BotTable>(`/api/tables/${id}/view`, view),
     dashboards: () => http.get<DashboardSummary[]>('/api/dashboards'),
     dashboard: (id: string) => http.get<DashboardView>(`/api/dashboards/${id}`),
     removeDashboard: (id: string) => http.del<{ ok: true }>(`/api/dashboards/${id}`),

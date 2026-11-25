@@ -1,6 +1,7 @@
 import {
   cellText,
   cellValue,
+  DEFAULT_TABLE_VIEW,
   findColumn,
   MAX_COLUMNS,
   MAX_ROWS,
@@ -10,6 +11,7 @@ import {
   type RowValues,
   type TableColumn,
   type TableRow,
+  type TableView,
 } from '@leafbot/shared';
 import { and, asc, count, eq, inArray } from 'drizzle-orm';
 import type { Ctx } from '../context';
@@ -66,6 +68,7 @@ export class TableService {
       botId: r.botId,
       name: r.name,
       columns: r.columns,
+      view: r.view ?? DEFAULT_TABLE_VIEW,
       rowCount,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
@@ -157,6 +160,25 @@ export class TableService {
       if (isUniqueViolation(err)) throw new HttpError(409, 'error.tableExists');
       throw err;
     }
+  }
+
+  /**
+   * Lays the table out another way. The group column must be one the table has, and a board needs
+   * one for its lanes.
+   */
+  async setView(tableId: string, view: TableView): Promise<BotTable> {
+    const table = await this.get(tableId);
+    const group = view.group ? findColumn(table.columns, view.group) : undefined;
+    if (view.group && !group)
+      throw new HttpError(400, 'error.tableNoColumn', {
+        column: view.group,
+        columns: table.columns.map((c) => c.name).join(', '),
+      });
+    if (view.kind === 'board' && !group) throw new HttpError(400, 'error.tableBoardGroup');
+    const next: TableView = { kind: view.kind, group: group?.name ?? null };
+    await this.ctx.db.update(schema.botTables).set({ view: next }).where(eq(schema.botTables.id, tableId));
+    this.changed(table.botId);
+    return { ...table, view: next };
   }
 
   /** Every row, oldest first. */

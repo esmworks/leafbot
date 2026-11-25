@@ -3450,6 +3450,16 @@ export const tr = {
   'tables.type.date': 'tarih',
   'tables.type.bool': 'evet/hayır',
   'tables.type.url': 'bağlantı',
+  'tables.view': 'Görünüm',
+  'tables.view.grid': 'Tablo',
+  'tables.view.board': 'Pano',
+  'tables.view.gallery': 'Galeri',
+  'tables.view.list': 'Liste',
+  'tables.groupBy': 'Gruplama',
+  'tables.groupByColumn': 'Gruplama: {column}',
+  'tables.noGroup': 'Gruplama yok',
+  'tables.noValue': 'Boş',
+  'tables.boardHint': 'Bir kartı başka bir şeride sürükleyerek “{column}” değerini değiştirebilirsin.',
 } satisfies Catalog;
 
 export type MessageKey = keyof typeof tr;

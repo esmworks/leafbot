@@ -157,6 +157,32 @@ describe('botun tabloları', () => {
     expect(res.body).toBe('\uFEFFÜrün,Fiyat,Var\r\n"Çay, siyah",-2.5,evet\r\n\'=1+1,,hayır\r\n');
   });
 
+  it('görünüm tabloyla saklanır: kişi ya da bot seçer, olmayan sütunla pano kurulmaz', async () => {
+    const a = await t.bot({ name: 'Ali' });
+    const th = await main(a.id);
+    const said = await say(
+      th.id,
+      '[araç:table_define {"name":"İşler","columns":[{"name":"İş"},{"name":"Durum"}],"view":{"kind":"board","group":"durum"}}]',
+    );
+    expect(said).toContain('Görünüm: pano, gruplama: Durum');
+    const [table] = await tables(a.id);
+    expect(table!.view).toEqual({ kind: 'board', group: 'Durum' });
+
+    const put = (view: object) => t.api<BotTable>('PUT', `/api/tables/${table!.id}/view`, view);
+    expect((await put({ kind: 'gallery', group: null })).body.view).toEqual({ kind: 'gallery', group: null });
+    expect((await put({ kind: 'board' })).status).toBe(400);
+    expect((await put({ kind: 'list', group: 'Öncelik' })).status).toBe(400);
+    expect((await tables(a.id))[0]!.view).toEqual({ kind: 'gallery', group: null });
+
+    // Someone who may only talk to the bot reads the table but does not lay it out for everyone.
+    const ayse = await t.person('ayse');
+    await t.api('PUT', `/api/bots/${a.id}/access`, { everyone: 'chat', people: {} });
+    expect((await ayse.api('GET', `/api/tables/${table!.id}/rows`)).status).toBe(200);
+    expect(
+      (await ayse.api('PUT', `/api/tables/${table!.id}/view`, { kind: 'list', group: null })).status,
+    ).toBe(403);
+  });
+
   it('tablosu olmayan bot yalnız tablo kurup doldurmanın araçlarını alır', () => {
     const names = (hasTables: boolean) =>
       tableTools({

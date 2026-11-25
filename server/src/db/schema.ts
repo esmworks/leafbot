@@ -1845,6 +1845,8 @@ export const botTables = pgTable(
     columns: jsonb('columns')
       .$type<{ name: string; type: 'text' | 'number' | 'date' | 'bool' | 'url' }[]>()
       .notNull(),
+    /** How the table is laid out on screen (`TableView`); null for the grid. */
+    view: jsonb('view').$type<{ kind: 'grid' | 'board' | 'gallery' | 'list'; group: string | null }>(),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },

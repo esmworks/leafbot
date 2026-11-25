@@ -93,6 +93,7 @@ const tr = {
     'Koşuldaki "{column}" tabloda bir sütun değil. Sütun adlarını aynen yazın: {columns}',
   'error.tableColumns': 'Bir tabloda en çok 30 sütun olabilir.',
   'error.tableNoColumns': 'Yeni bir tablo için en az bir sütun ver.',
+  'error.tableBoardGroup': 'Pano görünümü için şeritlerin hangi sütundan yapılacağını (group) seç.',
   'error.tableCount': 'Bir botun en çok 20 tablosu olabilir; yenisi için birini silin.',
   'error.tableExists': 'Bu adda bir tablo zaten var.',
   'error.tableRows': 'Bir tabloda en çok 5000 satır olabilir.',
@@ -1062,7 +1063,7 @@ const tr = {
   'tool.tables_list':
     'Kendi tablolarını listele: adı, satır sayısı ve sütunları (türleriyle). Tablolar, takip ettiğin kayıtları (müşteri adayları, fiyatlar, siparişler) satır satır tuttuğun yerdir; kullanıcı da görür, düzeltir ve dışa aktarır.',
   'tool.table_define':
-    'Bir tablo kur ya da var olana sütun ekle: name (tablonun adı), columns (her biri name ve type: text, number, date, bool, url; varsayılan text). Aynı adda tablo varsa yalnız eksik sütunlar eklenir; sütun silinmez, türü değişmez.',
+    'Bir tablo kur ya da var olana sütun ekle: name (tablonun adı), columns (her biri name ve type: text, number, date, bool, url; varsayılan text). Aynı adda tablo varsa yalnız eksik sütunlar eklenir; sütun silinmez, türü değişmez. İstersen view ile tablonun ekranda nasıl görüneceğini de seç: kind (grid: satır ve sütun, board: bir sütunun her değeri için bir şerit, durum ya da aşama takibine uygun; gallery: kartlar; list: düz liste) ve group (satırların gruplanacağı sütun; board için gerekli).',
   'tool.table_rows':
     'Bir tablonun satırlarını oku: table (adı), where (sütun adı → tam eşleşecek değer), search (herhangi bir hücrede geçen metin), offset ve limit (en çok 200, varsayılan 50). Her satır [kimliği] ile gelir; değiştirmek ya da silmek için bu kimliği kullan.',
   'tool.table_add':
@@ -1075,6 +1076,11 @@ const tr = {
   'tool.tableRowCount': 'satır sayısı {count}',
   'tool.tableDefined': '“{table}” tablosu hazır. Sütunlar: {columns}',
   'tool.tableUnchanged': '“{table}” tablosunda bu sütunlar zaten var: {columns}',
+  'tool.tableView': 'Görünüm: {view}, gruplama: {group}',
+  'tool.tableViewKind.grid': 'tablo',
+  'tool.tableViewKind.board': 'pano',
+  'tool.tableViewKind.gallery': 'galeri',
+  'tool.tableViewKind.list': 'liste',
   'tool.tableNoRows': '“{table}” tablosunda buna uyan satır yok.',
   'tool.tableRowsHeader': '“{table}”: {total} satırdan {shown} tanesi',
   'tool.tableMore': '…kalan satır sayısı {count}; devamı için offset: {offset} ver.',
@@ -2492,6 +2498,7 @@ const en: Catalog<ServerKey> = {
     '"{column}" in the conditions is not a column of the table. Write the column names exactly: {columns}',
   'error.tableColumns': 'A table can have at most 30 columns.',
   'error.tableNoColumns': 'Give at least one column for a new table.',
+  'error.tableBoardGroup': 'For a board, choose the column (group) its lanes are made from.',
   'error.tableCount': 'A bot can have at most 20 tables; delete one to make another.',
   'error.tableExists': 'A table with this name already exists.',
   'error.tableRows': 'A table can have at most 5000 rows.',
@@ -3469,7 +3476,7 @@ const en: Catalog<ServerKey> = {
   'tool.tables_list':
     'List your tables: name, row count and columns (with their types). Tables are where you keep records you track (leads, prices, orders) row by row; the person sees, corrects and exports them too.',
   'tool.table_define':
-    'Set up a table or add columns to one: name (the table name), columns (each a name and type: text, number, date, bool, url; text by default). If a table of that name exists only the missing columns are added; columns are never removed or retyped.',
+    'Set up a table or add columns to one: name (the table name), columns (each a name and type: text, number, date, bool, url; text by default). If a table of that name exists only the missing columns are added; columns are never removed or retyped. Optionally choose with view how the table looks on screen: kind (grid: rows and columns; board: a lane for each value of a column, suited to tracking a status or stage; gallery: cards; list: a plain list) and group (the column rows are grouped by; needed for a board).',
   'tool.table_rows':
     'Read rows of a table: table (its name), where (column name → value to match exactly), search (text found in any cell), offset and limit (at most 200, 50 by default). Each row comes with its [id]; use it to change or delete the row.',
   'tool.table_add':
@@ -3482,6 +3489,11 @@ const en: Catalog<ServerKey> = {
   'tool.tableRowCount': 'rows: {count}',
   'tool.tableDefined': 'Table “{table}” is ready. Columns: {columns}',
   'tool.tableUnchanged': 'Table “{table}” already has these columns: {columns}',
+  'tool.tableView': 'View: {view}, grouped by: {group}',
+  'tool.tableViewKind.grid': 'grid',
+  'tool.tableViewKind.board': 'board',
+  'tool.tableViewKind.gallery': 'gallery',
+  'tool.tableViewKind.list': 'list',
   'tool.tableNoRows': 'No rows in “{table}” match.',
   'tool.tableRowsHeader': '“{table}”: {shown} of {total} rows',
   'tool.tableMore': '…rows left: {count}; pass offset: {offset} for the rest.',

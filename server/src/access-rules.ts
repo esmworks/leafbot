@@ -202,6 +202,7 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'POST /api/tables/:id/rows': edit('table'),
   'PATCH /api/tables/:id/rows/:rowId': edit('table'),
   'DELETE /api/tables/:id/rows/:rowId': edit('table'),
+  'PUT /api/tables/:id/view': edit('table'),
   'DELETE /api/tables/:id': edit('table'),
   // Dashboards: shared by their bots, so the service keeps each person to the tiles of bots they reach.
   'GET /api/dashboards': 'self',

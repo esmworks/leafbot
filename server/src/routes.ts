@@ -116,6 +116,7 @@ import {
   ApiSourceCreate,
   TicketCommentCreate,
   RowValues,
+  TableView,
   type TableRow,
   TicketCreate,
   TicketUpdate,
@@ -1042,6 +1043,9 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const p = z.object({ id: z.string(), rowId: z.string() }).parse(req.params);
     return { deleted: await s.tables.deleteRows(p.id, [p.rowId]) };
   });
+  app.put('/api/tables/:id/view', async (req) =>
+    s.tables.setView(IdParams.parse(req.params).id, TableView.parse(req.body)),
+  );
   app.delete('/api/tables/:id', async (req) => {
     await s.tables.remove(IdParams.parse(req.params).id);
     return { ok: true };

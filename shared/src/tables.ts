@@ -28,11 +28,29 @@ export type TableColumn = z.infer<typeof TableColumn>;
 
 export type CellValue = string | number | boolean | null;
 
+/**
+ * How a table is laid out on screen: the grid of rows and columns, a board with a lane for each
+ * value of a column (a status, a stage), a gallery of cards or a plain list. The view belongs to
+ * the table, so everyone who opens it, and the bot, sees the same.
+ */
+export const TABLE_VIEW_KINDS = ['grid', 'board', 'gallery', 'list'] as const;
+export type TableViewKind = (typeof TABLE_VIEW_KINDS)[number];
+
+export const TableView = z.object({
+  kind: z.enum(TABLE_VIEW_KINDS).default('grid'),
+  /** Rows grouped by this column's value; a board's lanes. */
+  group: ColumnName.nullable().default(null),
+});
+export type TableView = z.infer<typeof TableView>;
+
+export const DEFAULT_TABLE_VIEW: TableView = { kind: 'grid', group: null };
+
 export const BotTable = z.object({
   id: z.string(),
   botId: z.string(),
   name: z.string(),
   columns: z.array(TableColumn),
+  view: TableView,
   rowCount: z.number().int(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -149,4 +167,49 @@ export function cellText(value: CellValue | undefined, yes = 'true', no = 'false
 export function findColumn(columns: readonly TableColumn[], name: string): TableColumn | undefined {
   const key = name.trim().toLocaleLowerCase('tr');
   return columns.find((c) => c.name.toLocaleLowerCase('tr') === key);
+}
+
+/**
+ * The view a table is drawn with: a group column it no longer has is dropped, and a board with
+ * nothing to make lanes of falls back to the grid, so a view saved before a change still draws.
+ */
+export function tableView(table: { columns: readonly TableColumn[]; view?: TableView | null }): TableView {
+  const v = table.view ?? DEFAULT_TABLE_VIEW;
+  const kind = (TABLE_VIEW_KINDS as readonly string[]).includes(v.kind) ? v.kind : 'grid';
+  const group = v.group ? (findColumn(table.columns, v.group)?.name ?? null) : null;
+  return { kind: kind === 'board' && !group ? 'grid' : kind, group };
+}
+
+/** Rows that share a value in the group column; `key` is that value as text, "" for an empty cell. */
+export interface RowGroup {
+  key: string;
+  value: CellValue;
+  rows: TableRow[];
+}
+
+/**
+ * The rows split by a column's value, in the order each value first appears and with the empty
+ * cells last. A yes/no column always has both of its groups, so a board has a lane to move a row
+ * into.
+ */
+export function groupRows(rows: readonly TableRow[], column: TableColumn): RowGroup[] {
+  const groups = new Map<string, RowGroup>();
+  if (column.type === 'bool') {
+    groups.set('true', { key: 'true', value: true, rows: [] });
+    groups.set('false', { key: 'false', value: false, rows: [] });
+  }
+  let empty: RowGroup | null = null;
+  for (const r of rows) {
+    const value = r.values[column.name] ?? null;
+    const key = cellText(value);
+    if (!key) {
+      empty ??= { key: '', value: null, rows: [] };
+      empty.rows.push(r);
+      continue;
+    }
+    let g = groups.get(key);
+    if (!g) groups.set(key, (g = { key, value, rows: [] }));
+    g.rows.push(r);
+  }
+  return [...groups.values(), ...(empty ? [empty] : [])];
 }

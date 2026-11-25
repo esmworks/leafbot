@@ -7,6 +7,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Table views: a table can be shown as a grid, a board, a gallery of cards or a list, grouped by one of its
+  columns. On a board each value of the column (a status, a stage) is a lane, and dragging a card to another lane
+  changes that cell, as editing it would; every field on a card can be edited in place too. The view is kept with
+  the table, so everyone who opens it sees the same; changing it needs the same right as editing the table. A bot can
+  choose the view when it sets up the table. On the phone rows stay cards, grouped the same way.
 - A bot that goes round in circles on a screen (its own desktop or your computer) is stopped: after 40 screens in a
   row that show nothing it has not seen in its last few, it may not look at or touch the screen again in that turn
   and is told to say what it was trying, what it tried and what blocks it. Small changes such as a blinking cursor

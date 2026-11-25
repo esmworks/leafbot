@@ -6,6 +6,7 @@ import {
   RowValues,
   TableColumn,
   TableName,
+  TableView,
   type BotTable,
   type TableRow,
 } from '@leafbot/shared';
@@ -75,11 +76,16 @@ export function tableTools(opts: {
       {
         name: TableName,
         columns: z.array(TableColumn).min(1).max(MAX_COLUMNS),
+        view: TableView.optional(),
       },
-      async ({ name, columns }) => {
+      async ({ name, columns, view }) => {
         const { table: x, added } = await s.tables.define(botId, name, columns);
-        if (!added.length) return t('tool.tableUnchanged', { table: x.name, columns: columnsLine(x) });
-        return t('tool.tableDefined', { table: x.name, columns: columnsLine(x) });
+        const said = added.length
+          ? t('tool.tableDefined', { table: x.name, columns: columnsLine(x) })
+          : t('tool.tableUnchanged', { table: x.name, columns: columnsLine(x) });
+        if (!view) return said;
+        const v = (await s.tables.setView(x.id, view)).view;
+        return `${said}\n${t('tool.tableView', { view: t(`tool.tableViewKind.${v.kind}`), group: v.group ?? '—' })}`;
       },
       'internal',
     ),
