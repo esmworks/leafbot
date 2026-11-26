@@ -201,6 +201,8 @@ describe('kayıtlı API anahtarları', () => {
     };
     const mainOf = async (p: Person, botId: string) =>
       (await p.api<Thread>('GET', `/api/bots/${botId}/main-thread`)).body;
+    const lastSaid = async (threadId: string) =>
+      (await ayse.api<{ text: string }[]>('GET', `/api/threads/${threadId}/messages`)).body.at(-1)!;
 
     it('üyenin kartta yazdığı anahtar kendisinindir; ekibin anahtarı değişmez, başkasının işinde kullanılmaz', async () => {
       const bot = await shared('Ortak');
@@ -258,7 +260,7 @@ describe('kayıtlı API anahtarları', () => {
       // Saved by a member, a key is their own.
       const own = await mert.api<ApiCredential>('POST', '/api/api-keys', {
         name: 'kendi',
-        origin,
+        origin: 'https://kendi.example',
         value: 'z',
       });
       expect(own.body.userId).toBe('mert');
@@ -266,6 +268,8 @@ describe('kayıtlı API anahtarları', () => {
 
     it('kişinin kendi anahtarı, kendi işinde ekibin aynı adlı anahtarından önce gelir', async () => {
       const bot = await shared('Sıra');
+      // Ayşe looks after the server here, so her own key may go to the test service on this computer.
+      await t.db.db.update(schema.users).set({ role: 'admin' }).where(eq(schema.users.id, 'ayse'));
       await t.services.apiCredentials.create({ name: 'servis', origin, value: 'ekip-anahtari-123456' }, null);
       await t.services.apiCredentials.create(
         { name: 'servis', origin, value: 'ayse-anahtari-123456' },
@@ -280,9 +284,55 @@ describe('kayıtlı API anahtarları', () => {
       expect((await t.services.apiCredentials.forBot(bot.id, null)).map((k) => k.userId)).toEqual([null]);
     });
 
+    it('üyenin kendi anahtarı bu bilgisayara, iç ağa ya da bulutun üst veri adresine gitmez', async () => {
+      const bot = await shared('İç ağ');
+      for (const to of [origin, 'http://169.254.169.254', 'http://localhost:8080', 'http://[::1]:9000']) {
+        const r = await ayse.api<{ error: string }>('POST', '/api/api-keys', {
+          name: 'ic',
+          origin: to,
+          value: 'x',
+        });
+        expect(r.status).toBe(400);
+      }
+      expect((await ayse.api<ApiCredential[]>('GET', '/api/api-keys')).body).toEqual([]);
+      // Those who look after the server may point a key at a service next to it.
+      const admin = await t.person('yonetici', 'admin');
+      expect(
+        (await admin.api('POST', '/api/api-keys', { name: 'ic', origin, value: 'x', team: false })).status,
+      ).toBe(200);
+
+      // A key saved before this was checked, or moved to a member since, is refused as it is sent.
+      const team = await t.services.apiCredentials.create(
+        { name: 'eski', origin, value: 'eski-123456' },
+        null,
+      );
+      expect((await ayse.api('PATCH', `/api/api-keys/${team.id}`, { team: false })).status).toBe(403);
+      await t.db.db
+        .update(schema.apiCredentials)
+        .set({ userId: 'ayse' })
+        .where(eq(schema.apiCredentials.id, team.id));
+      const thread = await mainOf(ayse, bot.id);
+      await say(ayse, thread.id, `[araç:api_request ${JSON.stringify({ key: 'eski', url: '/oku' })}]`);
+      await t.services.turns.idle();
+      expect(svc.seen).toHaveLength(0);
+      expect((await lastSaid(thread.id)).text).toContain('127.0.0.1');
+
+      // A bot asking her to type a key for such an address is told so before any card.
+      await say(
+        ayse,
+        thread.id,
+        `[araç:credential_request ${JSON.stringify({ key: 'ic2', origin: 'http://169.254.169.254', label: 'Üst veri' })}]`,
+      );
+      await t.services.turns.idle();
+      expect((await ayse.api<Approval[]>('GET', '/api/approvals?status=pending')).body).toEqual([]);
+      expect((await lastSaid(thread.id)).text).toContain('169.254.169.254');
+    });
+
     it('başka bota açık kayıtlı anahtar kartta seçilip bu bota da açılabilir ya da yenisi yazılır', async () => {
       const bot = await shared('Yeni');
       const other = await shared('Eski');
+      // Ayşe looks after the server here, so her own key may go to the test service on this computer.
+      await t.db.db.update(schema.users).set({ role: 'admin' }).where(eq(schema.users.id, 'ayse'));
       const mine = await t.services.apiCredentials.create(
         { name: 'servis', origin, value: 'ayse-anahtari-123456', botIds: [other.id] },
         'ayse',

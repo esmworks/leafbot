@@ -152,6 +152,28 @@ describe('parola yöneticileri', () => {
     expect(existsSync(dir)).toBe(false);
   });
 
+  it('kişinin kendi Bitwarden sunucusu bu bilgisayarda ya da iç ağda olamaz; sunucuyu yöneten verebilir', async () => {
+    const fake = fakeManager(logins());
+    t.services.passwordManagers.useDrivers(fake.make);
+    const bitwarden = (server: string) => ({
+      kind: 'bitwarden',
+      server,
+      clientId: 'user.x',
+      clientSecret: 'y',
+      password: 'z',
+      scope: 'Botlar',
+    });
+    for (const server of ['https://127.0.0.1:8443', 'https://169.254.169.254', 'https://localhost']) {
+      expect((await ayse.api('POST', '/api/password-managers', bitwarden(server))).status).toBe(400);
+    }
+    // Refused before the manager is read, so nothing went to that address.
+    expect(fake.seen.setups).toEqual([]);
+    const admin = await t.person('yonetici', 'admin');
+    const made = await admin.api('POST', '/api/password-managers', bitwarden('https://127.0.0.1:8443'));
+    expect(made.status).toBe(200);
+    expect(fake.seen.setups.map((s) => s.server)).toEqual(['https://127.0.0.1:8443']);
+  });
+
   it('sayfanın sitesine ait girişleri kasadakilerin ardından verir; parolayı yalnız gerektiğinde okur', async () => {
     const fake = fakeManager(logins());
     t.services.passwordManagers.useDrivers(fake.make);

@@ -14,6 +14,9 @@ import { and, asc, desc, eq, isNull, or } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import { HttpError, newId, notFound } from '../util';
+import { publicDispatcher } from '../connections/client';
+import { keptPublic, refusePrivate } from './access';
+import { privateHost } from './skill-link';
 import type { VaultService } from './vault';
 import { envEntries } from './vault-import';
 
@@ -138,7 +141,7 @@ export interface ApiResult {
 /** Why a call was refused before it left: the bot is told in its own words. */
 export class ApiCallError extends Error {
   constructor(
-    readonly reason: 'noKey' | 'notAllowed' | 'badUrl' | 'origin' | 'header',
+    readonly reason: 'noKey' | 'notAllowed' | 'badUrl' | 'origin' | 'header' | 'private',
     readonly detail = '',
   ) {
     super(reason);
@@ -270,6 +273,7 @@ export class ApiCredentialService {
   /** Saves a key, `userId`'s own or the team's when null. */
   async create(raw: CreateInput, userId: string | null): Promise<ApiCredential> {
     const input = ApiCredentialCreate.parse(raw);
+    await refusePrivate(this.ctx, input.origin, userId);
     if (await this.byName(input.name, userId)) throw new HttpError(409, 'error.apiKeyNameTaken');
     const id = newId();
     const [row] = await this.ctx.db
@@ -324,6 +328,9 @@ export class ApiCredentialService {
     )
       throw new HttpError(409, 'error.apiKeyTrap');
     const origin = input.origin ?? old.origin;
+    if (input.origin !== undefined || (owner !== undefined && owner !== old.userId)) {
+      await refusePrivate(this.ctx, origin, owner === undefined ? old.userId : owner);
+    }
     // A new origin needs the key bound to it: a key not typed anew is sealed again for it.
     const secret =
       input.value !== undefined
@@ -432,7 +439,13 @@ export class ApiCredentialService {
     }
     const auth = ApiAuth.parse(row.auth);
     const value = this.vault.open(row.secret, keyBinding(row.id, row.origin));
-    const result = await this.send(row.origin, { auth, value }, req, signal);
+    const result = await this.send(
+      row.origin,
+      { auth, value },
+      req,
+      signal,
+      await keptPublic(this.ctx, row.userId),
+    );
     await this.ctx.db
       .update(schema.apiCredentials)
       .set({ lastUsedAt: new Date() })
@@ -478,6 +491,7 @@ export class ApiCredentialService {
     key: { auth: ApiAuth; value: string } | null,
     req: ApiCall,
     signal?: AbortSignal,
+    publicOnly = false,
   ): Promise<ApiResult> {
     let url: URL;
     try {
@@ -486,6 +500,9 @@ export class ApiCredentialService {
       throw new ApiCallError('badUrl', req.url);
     }
     if (url.origin !== origin || url.username || url.password) throw new ApiCallError('origin', origin);
+    // Looked at again as it is sent, for a key saved before this was checked or a name that has
+    // since moved; then connected only to the addresses that lookup found public.
+    if (publicOnly && (await privateHost(url.hostname))) throw new ApiCallError('private', url.host);
     const headers = new Headers();
     for (const [k, v] of Object.entries(req.headers ?? {})) {
       const lower = k.toLowerCase();
@@ -522,7 +539,8 @@ export class ApiCredentialService {
       body: method === 'GET' || method === 'HEAD' ? undefined : body,
       redirect: 'manual',
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-    });
+      ...(publicOnly && { dispatcher: publicDispatcher() }),
+    } as RequestInit);
     const text = await readLimited(res, MAX_RESPONSE_BYTES);
     const clean = key ? scrub(text, key.value, key.auth) : text;
     const location = res.headers.get('location');

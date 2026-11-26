@@ -5,6 +5,7 @@ import { schema } from '../db';
 import { OWNER_ID } from '../users';
 import type { SummaryScope, ThreadScope } from './threads';
 import { HttpError, notFound } from '../util';
+import { privateHost } from './skill-link';
 
 /** Who is asking: a signed-in person, or the access key standing for the owner. */
 export interface Viewer {
@@ -19,6 +20,30 @@ export const atLeast = (level: BotLevel, wanted: BotLevel) => RANK[level] >= RAN
 
 /** Whether a role looks after the whole server: its owner and the admins. */
 export const managesServer = (role: Role) => role === 'owner' || role === 'admin';
+
+/**
+ * Whether an address someone keeps must stay on the public internet: a person's own, unless they
+ * look after the server. The server sends those requests itself, so an address on this machine,
+ * its private network or a cloud's metadata service would let anyone with an account read what is
+ * there. What the team keeps (null) only those who look after the server set, and they may point
+ * it at a service next to the server.
+ */
+export async function keptPublic(ctx: Ctx, owner: string | null): Promise<boolean> {
+  if (!owner || owner === OWNER_ID) return false;
+  const [person] = await ctx.db
+    .select({ role: schema.users.role, disabledAt: schema.users.disabledAt })
+    .from(schema.users)
+    .where(eq(schema.users.id, owner))
+    .limit(1);
+  return !person || !!person.disabledAt || !managesServer(person.role);
+}
+
+/** Refuses an address on this machine or a private network that `owner` may not give. */
+export async function refusePrivate(ctx: Ctx, url: string, owner: string | null): Promise<void> {
+  if ((await keptPublic(ctx, owner)) && (await privateHost(new URL(url).hostname))) {
+    throw new HttpError(400, 'error.addressPrivate');
+  }
+}
 
 /**
  * What a person may do with a bot: the server's owner and admins and the bot's own owner may

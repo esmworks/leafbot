@@ -84,6 +84,8 @@ const tr = {
   'error.notFound.dashboardTile': 'Kutucuk bulunamadı',
   'error.connectionPrivate':
     'Bu bilgisayardaki ya da iç ağdaki bir adrese bağlantıyı yalnızca sunucuyu yönetenler kurabilir',
+  'error.addressPrivate':
+    'Bu bilgisayardaki ya da iç ağdaki bir adresi yalnızca sunucuyu yönetenler verebilir',
   'error.notFound.person': 'Kişi bulunamadı',
   'error.ownerManagesAdmins': 'Yöneticileri yalnızca sunucunun sahibi ekleyip değiştirebilir',
   'error.notYourself': 'Kendi hesabınızı buradan değiştiremezsiniz; Hesap bölümünü kullanın',
@@ -1051,6 +1053,8 @@ const tr = {
   'tool.apiRefused.badUrl': 'Adres anlaşılamadı: {detail}',
   'tool.apiRefused.origin': 'Bu anahtar yalnızca {detail} adresine gönderilebilir.',
   'tool.apiRefused.header': '"{detail}" başlığını sen koyamazsın; anahtarı sunucu ekler.',
+  'tool.apiRefused.private':
+    '{detail} bu bilgisayarda ya da özel ağda; kişinin kendi anahtarı yalnızca internetteki bir servise gönderilir.',
   'tool.api_operations':
     'Kullanıcının eklediği API’lerin (OpenAPI belgeleri) işlemlerini listele. api verilmezse API’leri listeler; api ile o API’nin işlemlerini kimliği, yöntemi, yolu, parametreleri (* zorunlu) ve gövde şemasıyla verir; query ile süz. Sonra api_call ile çağır.',
   'tool.api_call':
@@ -2519,6 +2523,8 @@ const en: Catalog<ServerKey> = {
   'error.notFound.dashboardTile': 'Tile not found',
   'error.connectionPrivate':
     'Only those who look after the server can connect an address on this computer or its private network',
+  'error.addressPrivate':
+    'Only those who look after the server can give an address on this computer or its private network',
   'error.notFound.person': 'Person not found',
   'error.ownerManagesAdmins': 'Only the owner of this server can add or change admins',
   'error.notYourself': 'You cannot change your own account here; use the Account section',
@@ -3493,6 +3499,8 @@ const en: Catalog<ServerKey> = {
   'tool.apiRefused.badUrl': 'The address could not be read: {detail}',
   'tool.apiRefused.origin': 'This key can only be sent to {detail}.',
   'tool.apiRefused.header': 'You cannot set the "{detail}" header; the server adds the key.',
+  'tool.apiRefused.private':
+    '{detail} is on this computer or a private network; a person’s own key is only sent to a service on the internet.',
   'tool.api_operations':
     "List the operations of the APIs (OpenAPI documents) the user added. Without api it lists the APIs; with api it gives that API's operations with id, method, path, parameters (* required) and body schema; filter with query. Then call one with api_call.",
   'tool.api_call':

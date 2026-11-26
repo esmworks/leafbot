@@ -3,8 +3,9 @@ import { z } from 'zod';
 import type { AppTool } from '../engine/types';
 import type { T } from '../i18n';
 import type { Services } from '../services';
-import { managesServer } from '../services/access';
+import { keptPublic, managesServer } from '../services/access';
 import { ApiCallError, GITHUB_ORIGIN } from '../services/api-credentials';
+import { privateHost } from '../services/skill-link';
 import type { TurnRow } from '../runtime/turns';
 import { askPerson, type Define } from './index';
 
@@ -67,6 +68,10 @@ export function apiTools(opts: {
         if (!where.success) return t('tool.credentialBadOrigin');
         // The key typed on the card is the person's own; a team conversation has no one to own it.
         if (!own) return t('tool.credentialTeam');
+        // Said before the card, so the person is not asked to type a key that could not be kept.
+        if ((await keptPublic(s.ctx, own)) && (await privateHost(new URL(where.data).hostname))) {
+          return t('tool.apiRefused.private', { detail: new URL(where.data).host });
+        }
         const existing = await s.apiCredentials.owned(name.data, own);
         // Their own key under that name, kept for other bots: the person may open it to this bot
         // as it is, or type a new one, which this bot may then use as well.
