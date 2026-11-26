@@ -309,6 +309,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
 - Claude bots no longer switch into Claude Code's plan mode, whose approval the app had no card for.
 - A coding agent's step that is reported only once it has finished is no longer held as running, which kept the
   turn's watchdog at the long limit of a running tool.
+- On Telegram and WhatsApp a bot that hands the work to another bot and says nothing yet no longer sends "There
+  was no answer to this request": the answer comes once the other bot replies.
+- On Telegram, replying to a message the bot does not know (one forwarded to it, or from before the chat was
+  paired) now brings that message's words to the bot, quoted above the reply, as outside text. Before, the bot only
+  saw "do this" and not what "this" was.
 - Work a server restart cut short now picks up where it left off. A person's request or a routine's run that was
   under way when the server stopped (a deploy, an update, a crash) goes on by itself once the server is back, in the
   same conversation and engine session, and the bot is told to look at what the cut attempt already did before going

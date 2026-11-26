@@ -251,6 +251,26 @@ describe('Telegram', () => {
     expect(turn!.outside).toBe('forward');
   });
 
+  it('burada bilinmeyen bir mesaja verilen yanıt o mesajı alıntılayarak bota götürür', async () => {
+    const { bot, code } = await setUp();
+    await pair(code);
+    tg.write('bunu özetle', PERSON, {
+      reply_to_message: {
+        message_id: 777,
+        chat: { id: PERSON.id, type: 'private' },
+        date: 1,
+        text: 'Toplantı perşembe 14:00\nGündem: bütçe',
+        forward_origin: { type: 'user', sender_user: { first_name: 'Mehmet' } },
+        forward_date: 1,
+      },
+    });
+    const thread = await main(bot.id);
+    const said = await waitFor(async () => (await t.messages(thread.id)).find((m) => m.role === 'user'));
+    expect(said.text).toBe('> Toplantı perşembe 14:00\n> Gündem: bütçe\n\nbunu özetle');
+    expect(said.props).toMatchObject({ via: 'telegram', outside: 'forward', forwardedFrom: 'Mehmet' });
+    await waitFor(async () => (await t.messages(thread.id)).find((m) => m.role === 'assistant'));
+  });
+
   it("kişi uygulamadan yazınca yanıt Telegram'a gitmez", async () => {
     const { bot, code } = await setUp();
     await pair(code);
