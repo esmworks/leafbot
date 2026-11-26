@@ -30,31 +30,36 @@ vi.mock('@anthropic-ai/claude-agent-sdk', async (real) => ({
 
 const { ClaudeEngine, STOP_GRACE_MS } = await import('../src/engine/claude');
 
+const request = (
+  onActivity?: TurnRequest['onActivity'],
+  signal = new AbortController().signal,
+): TurnRequest => ({
+  onActivity,
+  turnId: 't',
+  threadId: 'th',
+  botId: 'b',
+  model: 'haiku',
+  prompt: 'merhaba',
+  sessionId: null,
+  systemPrompt: '',
+  locale: 'tr',
+  sandbox: {
+    cwd: '/tmp',
+    additionalDirectories: [],
+    writable: ['/tmp'],
+    internet: true,
+    readOnly: false,
+  },
+  shell: 'sandbox',
+  tools: [],
+  canUseTool: async () => ({ behavior: 'deny', message: 'hayır' }),
+  onText: () => {},
+  onSession: () => {},
+  signal,
+});
+
 const run = (onActivity?: TurnRequest['onActivity'], signal = new AbortController().signal) =>
-  new ClaudeEngine({ credential: async () => null }).run({
-    onActivity,
-    turnId: 't',
-    threadId: 'th',
-    botId: 'b',
-    model: 'haiku',
-    prompt: 'merhaba',
-    sessionId: null,
-    systemPrompt: '',
-    locale: 'tr',
-    sandbox: {
-      cwd: '/tmp',
-      additionalDirectories: [],
-      writable: ['/tmp'],
-      internet: true,
-      readOnly: false,
-    },
-    shell: 'sandbox',
-    tools: [],
-    canUseTool: async () => ({ behavior: 'deny', message: 'hayır' }),
-    onText: () => {},
-    onSession: () => {},
-    signal,
-  });
+  new ClaudeEngine({ credential: async () => null }).run(request(onActivity, signal));
 
 const apiError = (error: string, text: string) => ({
   type: 'assistant',
@@ -113,6 +118,30 @@ describe('Claude API hatası', () => {
     const out = await run();
     expect(out).toMatchObject({ ok: false, billing: true });
     if (!out.ok) expect(out.message).toContain('bakiye');
+  });
+
+  it('başka bir servise giden anahtarın bakiye hatası o servisin adını söyler', async () => {
+    const { gatewayName } = await import('../src/engine/claude');
+    expect(gatewayName({ kind: 'apiKey', value: 'k', baseUrl: 'https://gw.example.com/v1' })).toBe(
+      'gw.example.com',
+    );
+    expect(gatewayName({ kind: 'apiKey', value: 'k', baseUrl: 'https://api.anthropic.com' })).toBeNull();
+    expect(gatewayName({ kind: 'token', value: 't' })).toBeNull();
+    const said =
+      'API Error: 402 {"type":"error","error":{"type":"billing_error","message":"Credit balance is too low"}}';
+    frames.current = [
+      apiError('billing_error', said),
+      { type: 'result', subtype: 'success', is_error: true, result: said },
+    ];
+    const engine = new ClaudeEngine({
+      credential: async () => ({ kind: 'apiKey', value: 'k', baseUrl: 'https://gw.example.com/v1' }),
+    });
+    const out = await engine.run(request());
+    expect(out).toMatchObject({ ok: false, billing: true });
+    if (!out.ok) {
+      expect(out.message).toContain('gw.example.com');
+      expect(out.message).not.toContain('Claude');
+    }
   });
 
   it('kaldırılmış model yedeğe geçilebilir diye işaretlenir', async () => {

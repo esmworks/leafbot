@@ -436,6 +436,17 @@ export function resetTime(at: number | undefined): Date | null {
   return new Date(at < 1e12 ? at * 1000 : at);
 }
 
+/** The host of the gateway an API key goes to instead of Anthropic, when it has one. */
+export function gatewayName(credential: ClaudeCredential | null): string | null {
+  if (credential?.kind !== 'apiKey' || !credential.baseUrl) return null;
+  try {
+    const host = new URL(credential.baseUrl).hostname;
+    return host === 'api.anthropic.com' ? null : host;
+  } catch {
+    return null;
+  }
+}
+
 export class ClaudeEngine implements Engine {
   readonly kind = 'claude';
   private loaded = new LoadedTools();
@@ -487,7 +498,10 @@ export class ClaudeEngine implements Engine {
     const hidden = [home, ...(this.opts.hidden ?? [])];
     if (this.opts.configDir) hidden.push(this.opts.configDir);
     const failures = failureStreak((tool, count) => req.onRepeatedFailure?.(tool, count));
-    const base = (await this.baseOptions()).options;
+    const { options: base, credential } = await this.baseOptions();
+    // A key sent to another Anthropic-compatible service: its errors name that service, not Claude,
+    // so an empty balance there is not looked for in Claude's own account.
+    const provider = gatewayName(credential) ?? 'Claude';
     // A bot with internet reaches the web from its commands through a proxy of this run's own.
     const proxy =
       req.sandbox.internet && req.shell !== 'computer'
@@ -517,6 +531,10 @@ export class ClaudeEngine implements Engine {
         'ScheduleWakeup',
         'ReportFindings',
         'ListAgents',
+        // Plan mode would end in an approval the app has no card for, only a bare "ExitPlanMode"
+        // ask; a bot shows its plan with TodoWrite instead.
+        'EnterPlanMode',
+        'ExitPlanMode',
         // Commands go to the bot's desktop through run_command.
         ...(req.shell === 'computer' ? ['Bash', 'BashOutput', 'KillShell', 'KillBash'] : []),
         ...(req.sandbox.internet ? [] : ['WebFetch', 'WebSearch']),
@@ -877,13 +895,13 @@ export class ClaudeEngine implements Engine {
       // An API failure in words the person can act on: an empty balance, an overloaded server.
       const cause = errorMessage ?? apiError;
       // The CLI words a model it cannot use on its own, with no API error before it.
-      const said = cause && (apiError || MODEL_GONE.test(cause)) ? providerTrouble(cause, 'Claude', t) : null;
+      const said = cause && (apiError || MODEL_GONE.test(cause)) ? providerTrouble(cause, provider, t) : null;
       const billing = billingFailed || said?.billing === true;
       if (refused) {
         return {
           ok: false,
           kind: 'engine',
-          message: `${t('engine.providerRefused', { provider: 'Claude' })} (${readableError(refused.trim(), 300)})`,
+          message: `${t('engine.providerRefused', { provider })} (${readableError(refused.trim(), 300)})`,
           text,
           sessionId,
           refused: true,
@@ -898,7 +916,7 @@ export class ClaudeEngine implements Engine {
         kind: 'engine',
         message:
           billingFailed && cause && !said?.billing
-            ? `${t('engine.providerBilling', { provider: 'Claude' })} (${readableError(cause.trim(), 300)})`
+            ? `${t('engine.providerBilling', { provider })} (${readableError(cause.trim(), 300)})`
             : (said?.message ?? cause ?? t('engine.unfinished')),
         text,
         sessionId,

@@ -1,3 +1,5 @@
 {
-  "CommandLineFlagSecurityWarningsEnabled": false
+  "CommandLineFlagSecurityWarningsEnabled": false,
+  "PrintingEnabled": false,
+  "DefaultGeolocationSetting": 2
 }

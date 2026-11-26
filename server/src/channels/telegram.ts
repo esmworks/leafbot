@@ -67,6 +67,9 @@ type Forward = {
  * Who a forwarded message came from, as a name; null when the message is the person's own. A
  * forward is someone else's words, whatever account sent it on.
  */
+/** How much of an answered message comes along quoted. */
+const QUOTE_MAX = 2000;
+
 export function forwardedFrom(m: TgMessage): string | null {
   const f = m as TgMessage & Forward;
   if (!f.forward_origin && !f.forward_date && !f.forward_from && !f.forward_from_chat) return null;
@@ -419,10 +422,20 @@ export class TelegramChannels {
     const got = await this.received(api, m, thread.id, t);
     const files = got.names;
     if (!text && !files.length) return;
-    const said = withMissingFiles(text, got, t);
-    const replyTo = m.reply_to_message
-      ? await this.ours(row.id, String(m.reply_to_message.message_id))
-      : null;
+    const answered = m.reply_to_message;
+    const replyTo = answered ? await this.ours(row.id, String(answered.message_id)) : null;
+    // A reply to a message not known here (one forwarded to the bot, the person's own, one from
+    // before it was paired): its words come along quoted, or the bot would not know what "this"
+    // is. They may be anyone's words, so the message is outside text and never a command.
+    const quote = answered && !replyTo ? (answered.text || answered.caption || '').trim() : '';
+    const quoteBlock = quote
+      ? `${truncate(quote, QUOTE_MAX)
+          .split('\n')
+          .map((l) => `> ${l}`)
+          .join('\n')}\n\n`
+      : '';
+    const quotedForward = quote && answered ? forwardedFrom(answered) : null;
+    const said = withMissingFiles(`${quoteBlock}${text}`, got, t);
     // Known before the bot starts, so "typing…" and its reply find their way back here.
     await this.patchSettings(row.id, { threadId: thread.id });
     // Noted before the turn can start, so a restart in the middle leaves a trace to settle.
@@ -438,7 +451,13 @@ export class TelegramChannels {
         ...(replyTo && { replyTo }),
         props: {
           via: 'telegram',
-          ...(forward !== null && { outside: 'forward', ...(forward && { forwardedFrom: forward }) }),
+          ...(forward !== null
+            ? { outside: 'forward', ...(forward && { forwardedFrom: forward }) }
+            : quotedForward !== null
+              ? { outside: 'forward', ...(quotedForward && { forwardedFrom: quotedForward }) }
+              : quote
+                ? { outside: 'stored' }
+                : {}),
         },
       }));
     } catch (err) {

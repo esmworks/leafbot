@@ -59,7 +59,8 @@ export interface TgMessage {
   video?: TgFile;
   video_note?: TgFile;
   animation?: TgFile;
-  reply_to_message?: { message_id: number };
+  /** The message this one answers, as Telegram sends it (without its own reply, one level only). */
+  reply_to_message?: Omit<TgMessage, 'reply_to_message'>;
 }
 
 export interface TgCallback {

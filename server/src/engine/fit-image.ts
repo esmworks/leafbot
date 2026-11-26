@@ -56,6 +56,33 @@ export async function fitImage(image: ToolImage): Promise<ToolImage> {
   }
 }
 
+/** The longest side of a picture's small copy in a conversation: twice what it is shown at. */
+export const THUMB_SIDE = 512;
+/** A picture under this size is sent whole: making a copy would save little. */
+const THUMB_WORTH_BYTES = 200 * 1024;
+
+/**
+ * A small WebP copy of a picture for showing in a conversation, so a phone on a joined server does
+ * not download every photo at full size. Null when the picture is small already, an animation, or
+ * cannot be read here; the caller then sends the file itself.
+ */
+export async function thumbnail(input: Buffer): Promise<Buffer | null> {
+  if (input.length <= THUMB_WORTH_BYTES) return null;
+  const sharp = await library();
+  if (!sharp) return null;
+  try {
+    const meta = await sharp(input).metadata();
+    if ((meta.pages ?? 1) > 1) return null;
+    return await sharp(input)
+      .rotate()
+      .resize({ width: THUMB_SIDE, height: THUMB_SIDE, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 78 })
+      .toBuffer();
+  } catch {
+    return null;
+  }
+}
+
 /**
  * A screenshot of a desktop for the model as JPEG: it is a photo of a screen, and a PNG of one
  * costs several times the bytes for no more that the model can read. The size is kept exactly,

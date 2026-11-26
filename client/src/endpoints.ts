@@ -698,8 +698,9 @@ export function endpoints(send: Transport, base = '') {
 
     library: (botId: string) => http.get<LibraryFile[]>(`/api/bots/${botId}/library`),
     /** `inline`: an image to show on the page rather than a download. */
-    fileUrl: (botId: string, path: string, opts: { inline?: boolean } = {}) =>
-      `${base}/api/bots/${botId}/library/file?path=${encodeURIComponent(path)}${opts.inline ? '&inline=1' : ''}`,
+    /** `thumb` asks for a small copy of a picture, for showing it in a conversation. */
+    fileUrl: (botId: string, path: string, opts: { inline?: boolean; thumb?: boolean } = {}) =>
+      `${base}/api/bots/${botId}/library/file?path=${encodeURIComponent(path)}${opts.inline ? '&inline=1' : ''}${opts.thumb ? '&thumb=1' : ''}`,
     /** A page the bot made, served to run in the app's sandboxed frame. */
     pageUrl: (botId: string, path: string, height?: number) =>
       `${base}/api/bots/${botId}/library/page?path=${encodeURIComponent(path)}${height ? `&h=${height}` : ''}`,
@@ -826,10 +827,16 @@ export function endpoints(send: Transport, base = '') {
     /** Whether the server can turn speech into text (an OpenAI or Groq key is saved). */
     transcribeStatus: () => http.get<{ available: boolean }>('/api/transcribe'),
     /** A recording from the message box, written out by the provider whose key the server has. */
-    transcribe: (audio: Blob, lang: string) =>
-      send<{ text?: string } | null>('POST', `/api/transcribe?lang=${encodeURIComponent(lang)}`, audio, {
-        headers: { 'content-type': audio.type || 'audio/webm' },
-      }).then((data) => ({ text: data?.text ?? '' })),
+    /** With no language the service works out which one was spoken. */
+    transcribe: (audio: Blob, lang?: string) =>
+      send<{ text?: string } | null>(
+        'POST',
+        lang ? `/api/transcribe?lang=${encodeURIComponent(lang)}` : '/api/transcribe',
+        audio,
+        {
+          headers: { 'content-type': audio.type || 'audio/webm' },
+        },
+      ).then((data) => ({ text: data?.text ?? '' })),
     /** Writes a sealed backup of everything on the server, ready for one download at `/api/backup/<id>`. */
     createBackup: (password: string) => http.post<{ id: string; size: number }>('/api/backup', { password }),
     /** Replaces everything with a backup; the server starts again after. The body is the file itself. */

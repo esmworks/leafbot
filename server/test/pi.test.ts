@@ -2186,6 +2186,20 @@ describe('sağlayıcı hataları', () => {
       message: expect.stringContaining('çok büyük'),
     });
     expect(CONTEXT_FULL.test(providerTrouble('413 Payload Too Large', 'openai', t).message)).toBe(true);
+    // A reply the client could not read goes to the backup model like a busy provider.
+    for (const raw of [
+      'Unexpected token < in JSON at position 0',
+      'Unexpected end of JSON input',
+      'Failed to parse response from provider',
+      'No choices in response',
+    ]) {
+      expect(providerTrouble(raw, 'openrouter', t), raw).toMatchObject({
+        kind: 'engine',
+        transient: true,
+        message: expect.stringContaining('okunamayan'),
+      });
+    }
+    expect(providerTrouble('Something odd happened', 'openai', t).transient).toBeUndefined();
     for (const raw of [
       'The model refused to complete the request',
       'Provider finish_reason: content_filter',

@@ -6,7 +6,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { AcpEngine, agentEnv, appToolCall, pickOption, stepAsk } from '../src/engine/acp';
+import {
+  AcpEngine,
+  agentEnv,
+  appToolCall,
+  pickOption,
+  serveTools,
+  stepAsk,
+  thoughtLevel,
+} from '../src/engine/acp';
+import { translator } from '../src/i18n';
 import { fakeAgent } from './fixtures/fake-acp-agent';
 import type { AppTool, PermissionAsk, PermissionAnswer, TurnRequest } from '../src/engine/types';
 
@@ -185,6 +194,85 @@ describe('ACP motoru', () => {
     expect(seen.toolResults[2]).toMatchObject({ isError: true });
   });
 
+  it('botun düşünme düzeyini ajanın kendi düzey ayarına, yoksa en yakınına koyar', async () => {
+    const levels = {
+      id: 'reasoning',
+      name: 'Reasoning',
+      category: 'thought_level',
+      type: 'select',
+      currentValue: 'medium',
+      options: [
+        { value: 'low', name: 'Low' },
+        { value: 'medium', name: 'Medium' },
+        { value: 'high', name: 'High' },
+      ],
+    };
+    expect(thoughtLevel([levels as never], 'high')).toEqual({ configId: 'reasoning', value: 'high' });
+    expect(thoughtLevel([levels as never], 'max')).toEqual({ configId: 'reasoning', value: 'high' });
+    expect(thoughtLevel([levels as never], 'medium')).toBeNull();
+    expect(thoughtLevel([{ ...levels, category: 'model' } as never], 'high')).toBeNull();
+
+    const { app, seen } = fakeAgent({ configOptions: [levels], onPrompt: async () => 'end_turn' });
+    expect((await engineWith(app).run(request({ effort: 'xhigh' }).req)).ok).toBe(true);
+    expect(seen.configs).toEqual(['reasoning=high']);
+  });
+
+  it('kart açıkken ajan beklemeyi bırakırsa geç gelen onayla araç çalışmaz', async () => {
+    const handler = vi.fn(async () => 'gönderildi');
+    const tool: AppTool = {
+      name: 'mail_send',
+      description: 'Posta gönder',
+      input: {},
+      readOnly: false,
+      internal: true,
+      handler,
+    };
+    const r = request({ tools: [tool] });
+    let approve!: () => void;
+    const asked = new Promise<void>((asking) => {
+      r.req.canUseTool = () =>
+        new Promise((resolve) => {
+          approve = () => resolve({ behavior: 'allow' });
+          asking();
+        });
+    });
+    const served = await serveTools(r.req, translator('tr'));
+    const mcp = new Client({ name: 'fake', version: '1' });
+    await mcp.connect(new StreamableHTTPClientTransport(new URL(served.url)));
+    const giveUp = new AbortController();
+    const call = mcp.callTool({ name: 'mail_send', arguments: {} }, undefined, { signal: giveUp.signal });
+    await asked;
+    giveUp.abort();
+    await expect(call).rejects.toThrow();
+    await new Promise((settle) => setTimeout(settle, 50));
+    approve();
+    await new Promise((settle) => setTimeout(settle, 50));
+    expect(handler).not.toHaveBeenCalled();
+    await mcp.close();
+    await served.close();
+  });
+
+  it('MCP-HTTP almayan ajanda araçların gelmediğini yeni oturumda bir kez söyler', async () => {
+    const tool: AppTool = {
+      name: 'memory_save',
+      description: 'Not al',
+      input: { text: z.string() },
+      readOnly: false,
+      internal: true,
+      handler: async () => 'ok',
+    };
+    const notes: string[] = [];
+    const { app } = fakeAgent({ http: false, onPrompt: async () => 'end_turn' });
+    const out = await engineWith(app).run(request({ tools: [tool], onNote: (n) => notes.push(n) }).req);
+    expect(out.ok).toBe(true);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toContain('Gemini');
+    const quiet: string[] = [];
+    const { app: other } = fakeAgent({ http: false, onPrompt: async () => 'end_turn' });
+    await engineWith(other).run(request({ onNote: (n) => quiet.push(n) }).req);
+    expect(quiet).toEqual([]);
+  });
+
   it('bilinmeyen ajan ve kurulu olmayan araç anlaşılır hata verir', async () => {
     const unknown = await new AcpEngine({ version: 't' }).run(request({ model: 'nope' }).req);
     expect(unknown).toMatchObject({ ok: false, kind: 'engine' });
@@ -218,6 +306,33 @@ describe('ACP motoru', () => {
         ANTHROPIC_API_KEY: 'a',
       }),
     ).toEqual({ PATH: '/bin', HOME: '/h' });
+  });
+
+  it('OpenCode komutları, dosya değişikliklerini ve klasör dışını sormaya ayarlanır; kişinin ayarı kalır', () => {
+    expect(agentEnv({ PATH: '/bin' }, 'gemini')).toEqual({ PATH: '/bin' });
+    const own = JSON.stringify({
+      model: 'x/y',
+      permissions: [{ action: 'read', resource: '*', effect: 'allow' }],
+    });
+    const env = agentEnv({ PATH: '/bin', OPENCODE_CONFIG_CONTENT: own }, 'opencode');
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT!) as {
+      model: string;
+      permission: Record<string, string>;
+      permissions: { action: string; effect: string }[];
+    };
+    expect(config.model).toBe('x/y');
+    expect(config.permission).toEqual({ bash: 'ask', edit: 'ask', external_directory: 'ask' });
+    expect(config.permissions.map((p) => `${p.action}:${p.effect}`)).toEqual([
+      'read:allow',
+      'shell:ask',
+      'edit:ask',
+      'external_directory:ask',
+    ]);
+    expect(
+      JSON.parse(agentEnv({ OPENCODE_CONFIG_CONTENT: '{bozuk' }, 'opencode').OPENCODE_CONFIG_CONTENT!),
+    ).toMatchObject({
+      permission: { bash: 'ask' },
+    });
   });
 
   it('aracı kendi klasöründe ayrı bir süreç olarak başlatır, sırları vermez; çökmesini anlatır', async () => {

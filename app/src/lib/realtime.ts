@@ -6,6 +6,8 @@ import {
 } from '@leafbot/shared';
 import type { QueryClient } from '@tanstack/react-query';
 import { io, type Socket } from 'socket.io-client';
+import { toast } from 'sonner';
+import { getT } from '@/i18n';
 import { browserSocketClosed, onBrowserReconnect, useBrowsers } from './browser';
 import { computerSocketClosed, onComputerReconnect, useComputers } from './computer';
 import { catchUp, catchUpWatched } from './liveCatchUp';
@@ -141,6 +143,19 @@ function refresh(qc: QueryClient, e: RefreshScope) {
     case 'memory':
       inv('memory');
       break;
+    case 'routineMade': {
+      // Set up while the person may be reading something else; the routine is a click away.
+      const open = useUi.getState().routine;
+      if (open?.routineId === e.routineId) break;
+      toast.success(getT()('routines.made', { name: e.name }), {
+        id: `routine-${e.routineId}`,
+        action: {
+          label: getT()('routines.madeOpen'),
+          onClick: () => useUi.getState().openRoutine({ botId: e.botId, routineId: e.routineId }),
+        },
+      });
+      break;
+    }
     case 'routines':
       inv('routines');
       // A routine's instruction may have changed, by a bot or on another device.

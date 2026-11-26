@@ -23,6 +23,7 @@ import {
 import log from 'electron-log/main';
 import { autoUpdater } from 'electron-updater';
 import {
+  lockedRemote,
   normalizeRemoteUrl,
   readDesktopConfig,
   writeDesktopConfig,
@@ -230,9 +231,34 @@ async function boot() {
   watchMacSignIn();
   registerQuickKey();
   watchForUpdates();
-  config = readDesktopConfig(userData, safeStorage);
+  config = await readConfigOnceUnlocked();
   await connect();
   void offerMove();
+}
+
+/**
+ * A remote server's key is kept in the keychain. When the keychain is not open yet, the app waits
+ * a little for it, then asks, so it never swaps the chosen server for this computer's own without
+ * saying so. Using this computer's server here is for this run only; the saved choice stays.
+ */
+async function readConfigOnceUnlocked(): Promise<DesktopConfig> {
+  for (;;) {
+    for (let i = 0; i < 20 && lockedRemote(userData, safeStorage); i++) {
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    const host = lockedRemote(userData, safeStorage);
+    if (!host) return readDesktopConfig(userData, safeStorage);
+    log.warn(`the key for ${host} cannot be read; the keychain is not open`);
+    const { response } = await dialog.showMessageBox({
+      type: 'warning',
+      message: t('dialog.keychainLocked', { host }),
+      detail: t('dialog.keychainLockedDetail'),
+      buttons: [t('dialog.retry'), t('dialog.useLocal')],
+      defaultId: 0,
+      cancelId: 0,
+    });
+    if (response === 1) return { mode: 'local' };
+  }
 }
 
 /**
@@ -359,11 +385,24 @@ async function connect() {
   } catch (err) {
     log.error('server failed to start', err);
     setStatus('status.failed');
-    await dialog.showMessageBox({
-      type: 'error',
-      message: t('dialog.failed'),
-      detail: (err as Error).message,
-    });
+    // Before, the box only had OK and the app stayed in the menu bar with nothing open.
+    for (;;) {
+      const { response } = await dialog.showMessageBox({
+        type: 'error',
+        message: t('dialog.failed'),
+        detail: (err as Error).message,
+        // Closing leaves the app in the menu bar, where another server can be chosen.
+        buttons: [t('dialog.retry'), t('menu.showLogs'), t('dialog.close')],
+        defaultId: 0,
+        cancelId: 2,
+      });
+      if (response === 1) {
+        shell.showItemInFolder(log.transports.file.getFile().path);
+        continue;
+      }
+      if (response === 0) await switchTo(config);
+      return;
+    }
   }
 }
 

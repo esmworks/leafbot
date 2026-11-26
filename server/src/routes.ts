@@ -164,6 +164,7 @@ import { replaySteps } from './browser/replay';
 import { stepsText } from './browser/teach';
 import { findLinkedFile, workspacePaths } from './workspace';
 import { uniqueName, zip } from './zip';
+import { thumbnail } from './engine/fit-image';
 import { TEAMS_PATH } from './channels/teams';
 
 /** Where services start routines by their secret address; needs no access key. */
@@ -180,6 +181,8 @@ const MAX_PAYLOAD = 50_000;
 const WEBHOOK_BODY_MAX = 5 * 1024 * 1024;
 /** Most bytes put in one ZIP download; it is built in memory. */
 const MAX_ZIP_BYTES = 200 * 1024 * 1024;
+/** Larger pictures are sent whole rather than read into memory to be made small. */
+const THUMB_SOURCE_MAX = 40 * 1024 * 1024;
 /** The app's id for one attached file, the same on each of its tries (see `saveStagedUpload`). */
 const UploadId = z.string().regex(/^[\w-]{8,64}$/);
 import { eq } from 'drizzle-orm';
@@ -773,7 +776,14 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     if (body.groupId !== (await s.bots.get(id)).groupId) await checkGroup(req, body.groupId);
     return s.bots.move(id, body);
   });
-  app.post('/api/bots/:id/archive', async (req) => s.bots.archive(IdParams.parse(req.params).id));
+  app.post('/api/bots/:id/archive', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    const bot = await s.bots.archive(id);
+    // An archived bot runs nothing: work it was in the middle of stops rather than going on
+    // against a bot that is put away, and later deleted with its folders.
+    await s.turns.stopBots([id], 'archived');
+    return bot;
+  });
   // A paused bot's running work stops at once; a person's waiting message starts on the resume.
   app.post('/api/bots/:id/pause', async (req) => {
     const id = IdParams.parse(req.params).id;
@@ -801,6 +811,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     await requireBotOwner(req, id);
     // An archived bot leaves its rooms first, so a room it started is not removed with it.
     if ((await s.bots.get(id)).archivedAt) await s.rooms.removeBot(id);
+    // Work started after it was archived (a queued run, say) ends before its rows go.
+    await s.turns.stopBots([id], 'archived');
     await s.bots.purge(id);
     await s.ctx.browser.close(id).catch(() => {});
     // Its folders go with it: files, conversations, the browser profile.
@@ -2910,8 +2922,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       .send(callbackPage(t('share.gone.title'), t('share.gone.title'), t('share.gone.body')));
   });
   app.get('/api/bots/:id/library/file', async (req, reply) => {
-    const { path, inline } = z
-      .object({ path: z.string().min(1), inline: z.enum(['1']).optional() })
+    const { path, inline, thumb } = z
+      .object({ path: z.string().min(1), inline: z.enum(['1']).optional(), thumb: z.enum(['1']).optional() })
       .parse(req.query);
     const { full, st } = await libraryFile(IdParams.parse(req.params).id, path, me(req));
     // Only images, PDFs, sound and video are shown on the page; anything else (HTML included)
@@ -2929,6 +2941,16 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     reply.header('x-content-type-options', 'nosniff');
     // A bot may rewrite the file at any time; the preview asks again rather than trusting a copy.
     reply.header('cache-control', 'no-cache');
+    // A conversation shows pictures small; the full file is fetched only when one is opened.
+    if (thumb && type?.startsWith('image/') && type !== 'image/svg+xml' && st.size <= THUMB_SOURCE_MAX) {
+      // The copy is made again only when the file changed; asked again, the browser keeps its own.
+      const tag = `"t${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
+      reply.header('etag', tag);
+      if (req.headers['if-none-match'] === tag) return reply.code(304).send();
+      const small = await thumbnail(await readFile(full));
+      if (small) return reply.type('image/webp').send(small);
+      reply.removeHeader('etag');
+    }
     reply.header('accept-ranges', 'bytes');
     reply.type(type ?? 'application/octet-stream');
     // A player asks for parts of the file to seek in it.

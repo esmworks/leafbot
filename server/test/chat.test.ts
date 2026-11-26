@@ -1540,6 +1540,20 @@ describe('sohbet', () => {
     expect(msgs.at(-1)!.role).toBe('assistant');
   });
 
+  it('kesilen yanıtın ikinci denemesi araya alınmış mesajı da taşır', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    await t.send(thread.id, '[bekle:800] [araç:memory_search {"query":"x"}] [kesik] dükkan nasıl');
+    await waitFor(async () => t.services.turns.isRunning(thread.id));
+    const extra = await t.send(thread.id, 'faturayı da ekle');
+    expect((await t.api('POST', `/api/messages/${extra.id}/steer`)).status).toBe(200);
+    await t.services.turns.idle();
+    const [first, second] = t.engine.requests.slice(-2);
+    expect(second!.turnId).toBe(first!.turnId);
+    expect(first!.prompt).not.toContain('faturayı da ekle');
+    expect(second!.prompt).toContain('faturayı da ekle');
+  });
+
   it('ikinci deneme de kesilirse iş yedek modele geçer', async () => {
     const bot = await t.bot();
     const thread = await main(bot.id);

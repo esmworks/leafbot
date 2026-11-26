@@ -727,6 +727,12 @@ export class ToolFactory {
     plan?: (items: PlanItem[]) => Promise<void>;
     /** Whether the bot keeps any table; without one it gets only the tools to start one. */
     hasTables?: boolean;
+    /**
+     * Whether whom the turn works for may change the bot; unset counts as yes. Without it a new
+     * skill cannot be saved, so the bot is not led to offer one: the skill tool stays only to
+     * suggest fixes to skills it has.
+     */
+    mayEditBot?: boolean;
     /** The outside text the turn has read so far, if any. */
     outside?: () => OutsideTrigger | null;
     /** Tells the turn a tool showed it outside text. */
@@ -1537,6 +1543,13 @@ export class ToolFactory {
           );
           // What the bot promised is now set up: the promise safety net leaves this turn's reply alone.
           s.promises.routineTouched(turn.id);
+          this.ctx.bus.refresh({
+            scope: 'routineMade',
+            threadId: turn.threadId,
+            botId: r.botId,
+            routineId: r.id,
+            name: r.name,
+          });
           await journal({
             kind: 'routine',
             op: 'create',
@@ -3207,8 +3220,17 @@ export class ToolFactory {
         if (MANAGER_MEMORY_TOOLS.has(x.name)) x.description = `${x.description} ${t('tool.memoryManager')}`;
       }
     }
+    if (opts.mayEditBot === false) {
+      const save = tools.find((x) => x.name === 'skill_save');
+      if (save) save.description = `${save.description} ${t('tool.skillSaveFixOnly')}`;
+    }
     // With memory off the bot can neither read nor write it.
-    const kept = tools.filter((x) => !(team && TEAM_OFF.has(x.name)) && !(guest && GUEST_OFF.has(x.name)));
+    const kept = tools.filter(
+      (x) =>
+        !(team && TEAM_OFF.has(x.name)) &&
+        !(guest && GUEST_OFF.has(x.name)) &&
+        !(x.name === 'skill_save' && opts.mayEditBot === false && !skills.length),
+    );
     return bot.memory ? kept : kept.filter((x) => !MEMORY_TOOLS.has(x.name));
   }
 
@@ -3893,6 +3915,8 @@ export class ToolFactory {
           const target = await reach(ref);
           if (target.isManager) return t('tool.managerArchive');
           const archived = await s.bots.archive(target.id);
+          // Its running work stops as it does when the person archives it; not waited for here.
+          void s.turns.stopBots([target.id], 'archived');
           await audit('archive', target.id, target, archived);
           await note({
             kind: 'bot',

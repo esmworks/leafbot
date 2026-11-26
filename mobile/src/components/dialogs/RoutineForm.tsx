@@ -41,7 +41,17 @@ import { ordered } from '@/lib/bots';
 
 const fmt = formatters(locale, t);
 
-const TYPES = ['daily', 'weekdays', 'weekly', 'monthly', 'hourly', 'interval', 'cron', 'once'] as const;
+const TYPES = [
+  'daily',
+  'weekdays',
+  'weekly',
+  'monthly',
+  'hourly',
+  'interval',
+  'cron',
+  'once',
+  'unscheduled',
+] as const;
 type Type = (typeof TYPES)[number];
 
 interface Form {
@@ -103,6 +113,8 @@ function toSchedule(f: Form): Schedule {
       return { type: 'cron', expr: f.expr.trim() };
     case 'once':
       return { type: 'once', date: f.date, time: f.time };
+    case 'unscheduled':
+      return { type: 'unscheduled' };
   }
 }
 

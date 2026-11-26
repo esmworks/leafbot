@@ -14,6 +14,29 @@ version is 0.x, a minor release may change the data format or the API; the serve
   systemd timer (`leafbot refresh-name`), names not renewed for 30 days are removed, and
   `https://names.leafbot.app/<IP>` leads to the name of a server set up from user data. When no name can be had, or
   with `--sslip`, the installer uses an sslip.io name as before; installed servers keep their address.
+- A coding agent bot's effort is now set as the agent's own thinking level, or the nearest level it has, when
+  the agent offers one. The effort field shows for these bots too; an agent without such a setting ignores it.
+- Routines can have no schedule ("No schedule" under When). Such a routine runs only when one of its events
+  comes (a webhook call, an email, a table row, a Slack reaction, the server starting) or when run by hand.
+  Before, a routine meant only to answer events needed a schedule it did not want, and ran on it too. Page
+  watching, an app's check and a condition happen before a scheduled run, so they are refused on one with no
+  schedule. Bots can set one up with routine_create. Older phone apps show such a routine without its schedule.
+- Dictation language under Settings → General: the app's language (as before), detect automatically, or a set
+  language. People often write to bots in another language than the interface's, and dictation held to the
+  interface language wrote their speech out wrong. Kept on each device.
+- An "only unread" button beside the sidebar search lists just the bots with replies not seen yet or waiting on
+  you, so a long list can be caught up on. Dragging bots is off while it hides part of the list.
+- When a bot sets up a routine, those who see the conversation get a notice with Open, which goes straight to the
+  routine.
+- A server's own OAuth app can be entered on its page after it was added (Use my own OAuth app), which then
+  signs in again. Before, a server that turned out to take no registrations on its own had to be removed and
+  added again to get one.
+- Pictures in a conversation are shown from a small copy (512 pixels on the longest side) and the full file is
+  fetched only when one is opened, so a phone on a joined server no longer downloads every photo at full size.
+- A bot can open a site that asks for its own browser sign-in box (HTTP Basic). When a page answers with that box,
+  the browser tool tells the bot the site wants its own sign-in, and `browser_login` with no fields signs in with the
+  password saved for that site in the vault. The password never reaches the bot or the conversation, and the page
+  reloads signed in. Before, the bot only saw an error page and had no way past it.
 - Advisor model for Claude bots: under Providers → Claude, a stronger Claude model (Fable, Opus or Sonnet) can be
   chosen that Claude bots may ask for advice when they are stuck, before a large step and before they call their
   work done. The bot decides when to ask; the advisor sees the whole conversation, answers only the bot, and its
@@ -299,6 +322,62 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- Deleting a bot first stops any work it still had going, such as a run queued after it was archived, so
+  nothing writes to a bot whose rows are being removed.
+
+- A coding agent bot (Gemini, Codex, OpenCode, Kimi) that stopped waiting for an approval card no longer has
+  the step run when the card is approved later. The agent had already counted the step as failed and might
+  try it again, so an email, say, could go twice. While a card is open, the app also tells an agent that asks
+  for progress that the step is still under way, so it can keep waiting.
+
+- Clicking Send kept the cursor in the message box, so the next message can be typed at once. Before, the
+  click took focus away and another click on the box was needed.
+- A routine switched off by hand now says Paused in the bot's panel and in Settings → Routines; only the switch
+  showed it before.
+- Reading a reply aloud on a device with no voice for its language now says so and how to add one, instead of a
+  voice for another language reading it as nonsense.
+
+- When the server on this computer cannot start, the desktop app's error box now offers Try again, Show logs and
+  Close. Before, it only had OK, and the app stayed in the menu bar with nothing open and no way to retry.
+- A desktop app set to a remote server no longer starts this computer's own server when the system keychain is
+  not open yet, which happens on Linux when the keyring comes up after the app. It waits a few seconds for the
+  keychain, then asks whether to try again or use this computer's server for this run; the remote choice stays
+  saved. Before, it quietly switched servers and the person's bots seemed to be gone.
+
+- The bot's desktop browser no longer opens a print dialog or asks to share its location. Both dialogs are Chrome's
+  own windows, which the bot cannot see or close from the page, so a site that asked for either left the browser
+  stuck behind a box. Printing is now off and location requests are refused by the browser's policy.
+
+- An OpenCode bot at "Ask first" now asks before running a command, changing a file or reaching outside its folder.
+  OpenCode lets every step through unless its settings say otherwise, and the app only hears about the steps an
+  agent asks about, so these ran with no card. Leaf Bot now starts OpenCode with those three kinds of steps set to
+  ask, over whatever the person's own OpenCode settings say; both OpenCode 1 and 2 read the rule.
+- A message added to a running turn is no longer lost when the provider cuts the reply and the same request is
+  tried once more: the second try carries it. Before, the message counted as answered and went unread.
+- A reply the provider sent empty or broken (no answer, unreadable JSON) now moves the turn to the backup model,
+  as a busy provider does, as long as the turn has not changed anything yet. Before, the turn ended with the error.
+- A connected app whose tool lists allowed values without a type no longer fails turns on Google models: the type
+  is taken from the values. Google refuses such a field and with it the whole tool list.
+- A coding agent bot whose agent cannot take MCP servers over HTTP now says once, as its conversation with the agent
+  begins, that it works without Leaf Bot's tools. Before, it could only claim to have saved a note or sent a message.
+- An API key pointed at another Anthropic-compatible service now names that service when it refuses for its
+  balance or its content rules, not Claude's own account.
+- Claude bots no longer switch into Claude Code's plan mode, whose approval the app had no card for.
+- A coding agent's step that is reported only once it has finished is no longer held as running, which kept the
+  turn's watchdog at the long limit of a running tool.
+- On Telegram and WhatsApp a bot that hands the work to another bot and says nothing yet no longer sends "There
+  was no answer to this request": the answer comes once the other bot replies.
+- On Telegram, replying to a message the bot does not know (one forwarded to it, or from before the chat was
+  paired) now brings that message's words to the bot, quoted above the reply, as outside text. Before, the bot only
+  saw "do this" and not what "this" was.
+- Archiving a bot now stops the work it was in the middle of, with a note in its conversation, whether the person
+  or a manager bot archives it. Before, a running turn went on against a bot that was put away, and could still be
+  at work when the bot was deleted with its folders.
+- A bot talking to someone who may only chat with it no longer offers to save a new skill it cannot save; it may
+  still suggest fixes to the skills it has.
+- The server now starts when one of its parts cannot (a stored row it cannot read during recovery, a chat app whose
+  service does not answer): that part is written to the log and the rest opens. Before, the whole server stopped,
+  and the desktop app only said it kept stopping.
 - Work a server restart cut short now picks up where it left off. A person's request or a routine's run that was
   under way when the server stopped (a deploy, an update, a crash) goes on by itself once the server is back, in the
   same conversation and engine session, and the bot is told to look at what the cut attempt already did before going

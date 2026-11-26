@@ -16,14 +16,19 @@ import {
   type PermissionOption,
   type RequestPermissionRequest,
   type RequestPermissionResponse,
+  type SessionConfigOption,
   type SessionUpdate,
   type Stream,
   type ToolCallUpdate,
 } from '@agentclientprotocol/sdk';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { ACP_AGENTS, type AcpAgentId } from '@leafbot/shared';
+import {
+  CallToolRequestSchema,
+  CancelledNotificationSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
+import { ACP_AGENTS, type AcpAgentId, type Effort } from '@leafbot/shared';
 import { z } from 'zod';
 import { translator, type T } from '../i18n';
 import {
@@ -136,8 +141,45 @@ export interface AcpEngineOptions {
 /** Variables the server holds for itself, which no agent tool needs. */
 const PRIVATE_ENV = /^(LEAFBOT_|DATABASE_URL$|PG|ANTHROPIC_|CLAUDE_CODE_OAUTH_TOKEN$)/;
 
-export function agentEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return Object.fromEntries(Object.entries(env).filter(([k]) => !PRIVATE_ENV.test(k)));
+/**
+ * OpenCode lets every step through unless its settings say to ask, and the app hears only about
+ * the steps an agent asks about: an "Ask first" bot on it would run commands and change files with
+ * no card. Its commands, file changes and reach outside its folder are made to ask, so they meet the
+ * bot's cards and rules as the other agents' steps do. OpenCode 1 reads `permission` and OpenCode 2
+ * reads `permissions`; each takes its own spelling and leaves the other alone.
+ */
+const OPENCODE_ASK = {
+  permission: { bash: 'ask', edit: 'ask', external_directory: 'ask' },
+  permissions: ['shell', 'edit', 'external_directory'].map((action) => ({
+    action,
+    resource: '*',
+    effect: 'ask',
+  })),
+};
+
+/** OpenCode's inline settings with the asking rules last, over whatever the person set there. */
+function openCodeConfig(own: string | undefined): string {
+  let base: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = own ? JSON.parse(own) : {};
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed))
+      base = parsed as Record<string, unknown>;
+  } catch {
+    // Settings OpenCode could not read either: the asking rules alone.
+  }
+  const permission = base.permission && typeof base.permission === 'object' ? base.permission : {};
+  const permissions = Array.isArray(base.permissions) ? base.permissions : [];
+  return JSON.stringify({
+    ...base,
+    permission: { ...permission, ...OPENCODE_ASK.permission },
+    permissions: [...permissions, ...OPENCODE_ASK.permissions],
+  });
+}
+
+export function agentEnv(env: NodeJS.ProcessEnv, agent?: AcpAgentId): NodeJS.ProcessEnv {
+  const out = Object.fromEntries(Object.entries(env).filter(([k]) => !PRIVATE_ENV.test(k)));
+  if (agent === 'opencode') out.OPENCODE_CONFIG_CONTENT = openCodeConfig(env.OPENCODE_CONFIG_CONTENT);
+  return out;
 }
 
 function startProcess(
@@ -252,6 +294,33 @@ export function appToolCall(call: ToolCallUpdate, exposed: ReadonlySet<string>):
     .some((word) => [...exposed].some((name) => word === name || word.endsWith(`__${name}`)));
 }
 
+/** Thinking levels, lowest first, as agents name them; the bot's effort maps onto the nearest one. */
+const LEVELS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+
+/**
+ * The agent's own thinking-level choice set to the bot's effort: the same value, or the nearest
+ * one it offers. Null when the agent offers none or already stands there. Without it, a bot set to
+ * think harder on an agent ran at the agent's default all the same.
+ */
+export function thoughtLevel(
+  options: SessionConfigOption[],
+  effort: Effort,
+): { configId: string; value: string } | null {
+  const option = options.find((o) => o.category === 'thought_level' && o.type === 'select');
+  if (!option || option.type !== 'select') return null;
+  const values = option.options.flatMap((o) => ('options' in o ? o.options : [o]));
+  const rank = (v: { value: string; name: string }) =>
+    Math.max(LEVELS.indexOf(v.value.toLowerCase()), LEVELS.indexOf(v.name.toLowerCase()));
+  const want = LEVELS.indexOf(effort);
+  const ranked = values.filter((v) => rank(v) >= 0);
+  if (!ranked.length) return null;
+  const best = ranked.reduce((a, b) => (Math.abs(rank(b) - want) < Math.abs(rank(a) - want) ? b : a));
+  return best.value === option.currentValue ? null : { configId: option.id, value: best.value };
+}
+
+/** How often a tool call waiting on a card tells the agent it is still under way. */
+const PROGRESS_MS = 15_000;
+
 /**
  * The app's tools as an MCP server on this computer alone, for one turn: its address carries a
  * secret made for the turn, and every call asks, or is let through, exactly as it would for any
@@ -260,8 +329,14 @@ export function appToolCall(call: ToolCallUpdate, exposed: ReadonlySet<string>):
 export async function serveTools(req: TurnRequest, t: T): Promise<{ url: string; close(): Promise<void> }> {
   const byName = new Map(req.tools.map((tool) => [exposedName(tool), tool]));
   const secret = randomBytes(24).toString('base64url');
+  // Each request has a server of its own, so an agent's "I stopped waiting" for a call arrives at
+  // another one: the calls still under way are kept here, across them.
+  const waiting = new Map<string | number, AbortController>();
   const mcp = () => {
     const server = new Server({ name: 'leafbot', version: '1' }, { capabilities: { tools: {} } });
+    server.setNotificationHandler(CancelledNotificationSchema, ({ params }) => {
+      if (params.requestId !== undefined) waiting.get(params.requestId)?.abort();
+    });
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [...byName].map(([name, tool]) => ({
         name,
@@ -272,7 +347,7 @@ export async function serveTools(req: TurnRequest, t: T): Promise<{ url: string;
         },
       })),
     }));
-    server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
+    server.setRequestHandler(CallToolRequestSchema, async ({ params }, extra) => {
       const fail = (text: string) => ({ content: [{ type: 'text' as const, text }], isError: true });
       const tool = byName.get(params.name);
       if (!tool) return fail(t('engine.unknownTool', { name: params.name }));
@@ -286,11 +361,34 @@ export async function serveTools(req: TurnRequest, t: T): Promise<{ url: string;
       const refused = await req.screen?.({ toolName: perm, input });
       if (refused) return fail(refused);
       if (req.signal.aborted) return fail(t('engine.stopped'));
-      const answer = await req.canUseTool({ toolName: perm, input });
-      if (answer.behavior !== 'allow') return fail(answer.message);
+      // A card may stay open for minutes, past the agent's own limit for a tool call; progress
+      // tells an agent that heeds it to keep waiting.
+      const token = params._meta?.progressToken;
+      let beat = 0;
+      const pulse =
+        token === undefined
+          ? undefined
+          : setInterval(() => {
+              void extra
+                .sendNotification({
+                  method: 'notifications/progress',
+                  params: { progressToken: token, progress: ++beat },
+                })
+                .catch(() => {});
+            }, PROGRESS_MS);
       const id = randomBytes(6).toString('hex');
-      req.onActivity?.({ id, name: perm, running: true });
+      let started = false;
+      const gaveUp = new AbortController();
+      waiting.set(extra.requestId, gaveUp);
+      extra.signal.addEventListener('abort', () => gaveUp.abort());
       try {
+        const answer = await req.canUseTool({ toolName: perm, input });
+        if (answer.behavior !== 'allow') return fail(answer.message);
+        // The agent stopped waiting while the card was open and counts the step as failed: run
+        // now, it would act behind the agent's back, and the agent may try it again.
+        if (gaveUp.signal.aborted) return fail(t('engine.toolGaveUp'));
+        req.onActivity?.({ id, name: perm, running: true });
+        started = true;
         const result = await tool.handler(answer.updatedInput ?? input);
         return {
           content: [
@@ -305,7 +403,9 @@ export async function serveTools(req: TurnRequest, t: T): Promise<{ url: string;
       } catch (err) {
         return fail((err as Error).message);
       } finally {
-        req.onActivity?.({ id, name: perm, running: false });
+        clearInterval(pulse);
+        if (waiting.get(extra.requestId) === gaveUp) waiting.delete(extra.requestId);
+        if (started) req.onActivity?.({ id, name: perm, running: false });
       }
     });
     return server;
@@ -394,7 +494,7 @@ export class AcpEngine implements Engine {
       const env = this.opts.env ?? { ...process.env, PATH: await shellPath() };
       proc = this.opts.start
         ? this.opts.start(agent.id, req.sandbox.cwd)
-        : startProcess(this.command(agent.id), req.sandbox.cwd, agentEnv(env));
+        : startProcess(this.command(agent.id), req.sandbox.cwd, agentEnv(env, agent.id));
     } catch (err) {
       return fail(t('engine.acpMissing', { agent: agent.name, detail: (err as Error).message }));
     }
@@ -415,8 +515,11 @@ export class AcpEngine implements Engine {
           return;
         case 'tool_call': {
           const { toolName } = stepAsk(u);
-          running.add(u.toolCallId);
-          req.onActivity?.({ id: u.toolCallId, name: toolName, running: true });
+          // A step told of only once it is over never gets an update that ends it: counted as open,
+          // it would hold the watchdog to the long limit of a running tool.
+          const over = u.status === 'completed' || u.status === 'failed';
+          if (!over) running.add(u.toolCallId);
+          req.onActivity?.({ id: u.toolCallId, name: toolName, running: !over });
           // What a fetch brings back is outside text, as a command reaching a host would be.
           if (u.kind === 'fetch') {
             const host = hostOf(u);
@@ -509,9 +612,10 @@ export class AcpEngine implements Engine {
         : [];
       const base = { cwd: req.sandbox.cwd, mcpServers };
       let fresh = false;
+      let options: SessionConfigOption[] = [];
       if (sessionId && caps.loadSession) {
         try {
-          await early(peer.request('session/load', { ...base, sessionId }));
+          options = (await early(peer.request('session/load', { ...base, sessionId }))).configOptions ?? [];
         } catch (err) {
           // A missing login is told as such; anything else means the session is gone.
           if ((err as { code?: unknown }).code === AUTH_REQUIRED) throw err;
@@ -522,13 +626,27 @@ export class AcpEngine implements Engine {
         // over as it does when a session is lost.
         if (sessionId) return { ok: false, kind: 'lostSession', message: '', text: '', sessionId: null };
         const created: NewSessionResponse = await early(peer.request('session/new', base));
+        options = created.configOptions ?? [];
         sessionId = created.sessionId;
         req.onSession(created.sessionId);
         fresh = true;
+        // Without them the bot cannot take a note, send a message or ask with a card, and would
+        // only say it did: the person hears it once, as its conversation with the agent begins.
+        if (req.tools.length && !tools) req.onNote?.(t('engine.acpNoTools', { agent: agent.name }));
       }
       live = true;
       startDone();
       const sid = sessionId!;
+      const level = req.effort && thoughtLevel(options, req.effort);
+      if (level) {
+        await peer
+          .request('session/set_config_option', {
+            sessionId: sid,
+            configId: level.configId,
+            value: level.value,
+          })
+          .catch((err: unknown) => console.warn(`${agent.name} kept its thinking level: ${String(err)}`));
+      }
       // Told to stop; an agent that does not is ended, along with what it started.
       let grace: NodeJS.Timeout | undefined;
       const onAbort = () => {

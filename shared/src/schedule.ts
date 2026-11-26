@@ -49,6 +49,12 @@ export const Schedule = z.discriminatedUnion('type', [
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'validation.date'),
     time,
   }),
+  /**
+   * No clock at all: the routine runs when one of its events comes (a webhook call, an email, a
+   * table row, the server starting) or when started by hand. Without it, a routine meant only to
+   * answer events needed a schedule it did not want, and ran on it too.
+   */
+  z.object({ type: z.literal('unscheduled') }),
 ]);
 export type Schedule = z.infer<typeof Schedule>;
 
@@ -983,6 +989,7 @@ function matches(s: Schedule, w: WallClock): boolean {
     case 'interval':
     case 'once':
     case 'cron':
+    case 'unscheduled':
       return false;
   }
 }
@@ -1009,6 +1016,7 @@ const MINUTE = 60_000;
  * Returns null if nothing matches within ~62 days (e.g. monthly day 31 never appears).
  */
 export function nextRun(s: Schedule, tz: string, after: Date, lastRun?: Date | null): Date | null {
+  if (s.type === 'unscheduled') return null;
   if (s.type === 'once') {
     const at = zonedTime(s.date, s.time, tz);
     // Its one slot: due until it has run, even when it went by while the server was off.
@@ -1187,6 +1195,7 @@ const SCHEDULE_TEXT: Record<Locale, Catalog> = {
     weekly: '{days} {time}',
     monthly: 'Her ayın {day}. günü {time}',
     once: '{date} {time} (bir kez)',
+    unscheduled: 'Zamanlamasız: olayla ya da elle',
     hours: '{count} saatte bir',
     minutes: '{count} dakikada bir',
     between: '{from}–{to} arası',
@@ -1199,6 +1208,7 @@ const SCHEDULE_TEXT: Record<Locale, Catalog> = {
     weekly: '{days} at {time}',
     monthly: 'Monthly on day {day} at {time}',
     once: 'Once, on {date} at {time}',
+    unscheduled: 'No schedule: by an event or by hand',
     hours: { one: 'Every hour', other: 'Every {count} hours' },
     minutes: { one: 'Every minute', other: 'Every {count} minutes' },
     between: 'between {from} and {to}',
@@ -1444,5 +1454,7 @@ export function describeSchedule(s: Schedule, locale: Locale = DEFAULT_LOCALE): 
       });
       return t('once', { date, time: s.time });
     }
+    case 'unscheduled':
+      return t('unscheduled');
   }
 }
