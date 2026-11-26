@@ -95,6 +95,8 @@ export interface PiEngineOptions {
    * plan gives a token and, for Copilot, the address of that plan. Preferred over `apiKey`.
    */
   auth?(provider: string): Promise<ModelAuth | null>;
+  /** Whether `auth` would have something for the provider, without refreshing a sign-in; `apiKey` when unset. */
+  hasAuth?(provider: string): Promise<boolean>;
   /** Tests swap these for an offline provider. */
   resolveModel?: (provider: string, id: string) => Model<string> | undefined;
   /** A model on one of the person's own endpoints, which no built-in list holds. */
@@ -398,6 +400,11 @@ export class PiEngine implements Engine {
     };
   }
 
+  /** Whether the provider has a key, a sign-in or an endpoint kept, without refreshing anything. */
+  private async hasAuth(provider: string): Promise<boolean> {
+    return this.opts.hasAuth ? this.opts.hasAuth(provider) : !!(await this.opts.apiKey(provider));
+  }
+
   private async resolve(provider: string, id: string): Promise<Model<string> | undefined> {
     const resolveModel =
       this.opts.resolveModel ??
@@ -607,8 +614,14 @@ export class PiEngine implements Engine {
     // that is gone or whose provider lost its key is left out, so the bot does not spend calls on it.
     const advisorRef =
       req.advisorModel && req.advisorModel !== req.model ? splitModel(req.advisorModel) : null;
-    const advisorFound = !toolless && advisorRef && (await this.resolve(advisorRef.provider, advisorRef.id));
-    if (advisorRef && advisorFound && (await this.authorize(advisorRef.provider, advisorFound))) {
+    // Only whether a key or sign-in is kept: a sign-in is refreshed when the advisor is asked, not here,
+    // so a slow or failing refresh never holds up a turn that does not ask.
+    const advisorOffered =
+      !toolless &&
+      !!advisorRef &&
+      !!(await this.resolve(advisorRef.provider, advisorRef.id)) &&
+      (await this.hasAuth(advisorRef.provider));
+    if (advisorRef && advisorOffered) {
       byName.set(ADVISOR_TOOL, { perm: ADVISOR_TOOL });
       tools.push(advisorTool({ t, ask: (question, signal) => askAdvisor(advisorRef, question, signal) }));
     }
@@ -790,14 +803,13 @@ export class PiEngine implements Engine {
       toolCall,
       args,
     }: Pick<BeforeToolCallContext, 'toolCall' | 'args'>): Promise<BeforeToolCallResult | undefined> => {
-      // Looking tools up only reads the list; a kept result is what this conversation already got. Asking
-      // the advisor changes nothing: it goes to the model the person chose for it.
-      if (toolCall.name === FIND_TOOL || toolCall.name === RESULT_TOOL || toolCall.name === ADVISOR_TOOL)
-        return undefined;
-      // Starting a helper changes nothing by itself: each of its own calls is looked at and asked for.
-      if (toolCall.name === SUBAGENT_TOOL) {
+      // Looking tools up only reads the list; a kept result is what this conversation already got.
+      if (toolCall.name === FIND_TOOL || toolCall.name === RESULT_TOOL) return undefined;
+      // Starting a helper or asking the advisor changes nothing by itself, so neither asks the person.
+      // Both still pass the trip-wires: each sends the bot's words on, and a tripped turn sends none.
+      if (toolCall.name === SUBAGENT_TOOL || toolCall.name === ADVISOR_TOOL) {
         const refused = await req.screen?.({
-          toolName: SUBAGENT_TOOL,
+          toolName: toolCall.name,
           input: (args ?? {}) as Record<string, unknown>,
         });
         return refused ? { block: true, reason: refused } : undefined;

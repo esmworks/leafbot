@@ -121,7 +121,9 @@ describe('planla oturum açma', () => {
     expect(s.provider).toBe('github-copilot');
     expect((await t.api('DELETE', `/api/sign-ins/${s.id}`)).status).toBe(200);
     // A key comes before a sign-in for the same provider.
+    expect(await t.services.keys.hasAuth('openai')).toBe(false);
     await t.api('PUT', '/api/providers/openai/key', { key: 'sk-test-123456789' });
+    expect(await t.services.keys.hasAuth('openai')).toBe(true);
     expect(await t.services.keys.auth('openai')).toEqual({ apiKey: 'sk-test-123456789' });
   });
 });

@@ -930,11 +930,13 @@ export function ModelSearch({
   );
 }
 
-/** Tries the model with one short request, then makes it what new bots start with. */
-/** Tries a `provider/model` and stores it for new bots, or as the backup model with `backup`. */
 /** The settings a tried model can be saved to besides the start of new bots. */
 export type PiModelField = 'backupModel' | 'piAdvisorModel';
 
+/**
+ * Tries a `provider/model` with one short request, then makes it what new bots start with, or with
+ * `field` stores it as the backup or the advisor model instead.
+ */
 export function useSavePiModel(onSaved?: () => void, field?: PiModelField) {
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
