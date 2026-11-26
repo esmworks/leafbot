@@ -470,7 +470,7 @@ export function MessageFiles({
     if (href && isImage(f.name)) {
       const picture = (
         <img
-          src={api.fileUrl(botId!, f.path, { inline: true })}
+          src={api.fileUrl(botId!, f.path, { inline: true, thumb: true })}
           alt={f.name}
           className="max-h-56 max-w-full rounded-2xl border object-cover"
         />

@@ -1543,6 +1543,13 @@ export class ToolFactory {
           );
           // What the bot promised is now set up: the promise safety net leaves this turn's reply alone.
           s.promises.routineTouched(turn.id);
+          this.ctx.bus.refresh({
+            scope: 'routineMade',
+            threadId: turn.threadId,
+            botId: r.botId,
+            routineId: r.id,
+            name: r.name,
+          });
           await journal({
             kind: 'routine',
             op: 'create',

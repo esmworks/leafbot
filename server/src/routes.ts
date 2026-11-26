@@ -164,6 +164,7 @@ import { replaySteps } from './browser/replay';
 import { stepsText } from './browser/teach';
 import { findLinkedFile, workspacePaths } from './workspace';
 import { uniqueName, zip } from './zip';
+import { thumbnail } from './engine/fit-image';
 import { TEAMS_PATH } from './channels/teams';
 
 /** Where services start routines by their secret address; needs no access key. */
@@ -180,6 +181,8 @@ const MAX_PAYLOAD = 50_000;
 const WEBHOOK_BODY_MAX = 5 * 1024 * 1024;
 /** Most bytes put in one ZIP download; it is built in memory. */
 const MAX_ZIP_BYTES = 200 * 1024 * 1024;
+/** Larger pictures are sent whole rather than read into memory to be made small. */
+const THUMB_SOURCE_MAX = 40 * 1024 * 1024;
 /** The app's id for one attached file, the same on each of its tries (see `saveStagedUpload`). */
 const UploadId = z.string().regex(/^[\w-]{8,64}$/);
 import { eq } from 'drizzle-orm';
@@ -2917,8 +2920,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       .send(callbackPage(t('share.gone.title'), t('share.gone.title'), t('share.gone.body')));
   });
   app.get('/api/bots/:id/library/file', async (req, reply) => {
-    const { path, inline } = z
-      .object({ path: z.string().min(1), inline: z.enum(['1']).optional() })
+    const { path, inline, thumb } = z
+      .object({ path: z.string().min(1), inline: z.enum(['1']).optional(), thumb: z.enum(['1']).optional() })
       .parse(req.query);
     const { full, st } = await libraryFile(IdParams.parse(req.params).id, path, me(req));
     // Only images, PDFs, sound and video are shown on the page; anything else (HTML included)
@@ -2936,6 +2939,11 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     reply.header('x-content-type-options', 'nosniff');
     // A bot may rewrite the file at any time; the preview asks again rather than trusting a copy.
     reply.header('cache-control', 'no-cache');
+    // A conversation shows pictures small; the full file is fetched only when one is opened.
+    if (thumb && type?.startsWith('image/') && type !== 'image/svg+xml' && st.size <= THUMB_SOURCE_MAX) {
+      const small = await thumbnail(await readFile(full));
+      if (small) return reply.type('image/webp').send(small);
+    }
     reply.header('accept-ranges', 'bytes');
     reply.type(type ?? 'application/octet-stream');
     // A player asks for parts of the file to seek in it.

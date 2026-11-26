@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dictationError } from './dictation';
+import { dictationError, spokenLanguage } from './dictation';
 
 describe('dictationError', () => {
   it('says where to turn the microphone on when permission is refused', () => {
@@ -20,5 +20,13 @@ describe('dictationError', () => {
 
   it('keeps the browser message for anything else', () => {
     expect(dictationError('TypeError', 'odd', false)).toEqual({ message: 'odd' });
+  });
+});
+
+describe('spokenLanguage', () => {
+  it('asks for the app language, a set one, or none so the service can tell', () => {
+    expect(spokenLanguage('app', 'tr')).toBe('tr');
+    expect(spokenLanguage('en', 'tr')).toBe('en');
+    expect(spokenLanguage('auto', 'tr')).toBeUndefined();
   });
 });

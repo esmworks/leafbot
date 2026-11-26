@@ -7,6 +7,19 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Dictation language under Settings → General: the app's language (as before), detect automatically, or a set
+  language. People often write to bots in another language than the interface's, and dictation held to the
+  interface language wrote their speech out wrong. Kept on each device.
+- An "only unread" button beside the sidebar search lists just the bots with replies not seen yet or waiting on
+  you, so a long list can be caught up on. Dragging bots is off while it hides part of the list.
+- When a bot sets up a routine, those who see the conversation get a notice with Open, which goes straight to the
+  routine.
+- A server's own OAuth app can be entered on its page after it was added (Use my own OAuth app), which then
+  signs in again. Before, a server that turned out to take no registrations on its own had to be removed and
+  added again to get one.
+- Pictures in a conversation are shown from a small copy (512 pixels on the longest side) and the full file is
+  fetched only when one is opened, so a phone on a joined server no longer downloads every photo at full size.
+
 - A bot can open a site that asks for its own browser sign-in box (HTTP Basic). When a page answers with that box,
   the browser tool tells the bot the site wants its own sign-in, and `browser_login` with no fields signs in with the
   password saved for that site in the vault. The password never reaches the bot or the conversation, and the page
@@ -296,6 +309,13 @@ version is 0.x, a minor release may change the data format or the API; the serve
   opened to be saved. Pictures and players still sit side by side, and the download-all button comes after the list.
 
 ### Fixed
+
+- Clicking Send kept the cursor in the message box, so the next message can be typed at once. Before, the
+  click took focus away and another click on the box was needed.
+- A routine switched off by hand now says Paused in the bot's panel and in Settings → Routines; only the switch
+  showed it before.
+- Reading a reply aloud on a device with no voice for its language now says so and how to add one, instead of a
+  voice for another language reading it as nonsense.
 
 - When the server on this computer cannot start, the desktop app's error box now offers Try again, Show logs and
   Quit. Before, it only had OK, and the app stayed in the menu bar with nothing open and no way to retry.

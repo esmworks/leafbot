@@ -1063,6 +1063,9 @@ function Detail({
           </form>
         )}
 
+        {c.auth === 'oauth' && (c.clientId || c.status !== 'connected') && (
+          <OwnApp key={c.clientId ?? ''} connection={c} onSaved={() => signIn.mutate()} />
+        )}
         <RequestHeaders connection={c} onSaved={done} />
         <Owned connection={c} />
         <BotAccess connection={c} bots={live} />
@@ -1070,6 +1073,76 @@ function Detail({
         <Tools connection={c} />
       </div>
     </>
+  );
+}
+
+/**
+ * The OAuth app a server signs in with, entered after it was added. A server that turns out to
+ * take no registrations on its own could only be removed and added again to get one before.
+ * Saving starts a new sign-in, since tokens from another app do not carry over.
+ */
+function OwnApp({ connection: c, onSaved }: { connection: Connection; onSaved(): void }) {
+  const t = useT();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [clientId, setClientId] = useState(c.clientId ?? '');
+  const [clientSecret, setClientSecret] = useState('');
+  const save = useMutation({
+    mutationFn: () =>
+      api.updateConnection(c.id, {
+        clientId: clientId.trim(),
+        ...(clientSecret.trim() ? { clientSecret: clientSecret.trim() } : {}),
+      }),
+    onSuccess: async () => {
+      setOpen(false);
+      setClientSecret('');
+      await qc.invalidateQueries({ queryKey: ['connections'] });
+      onSaved();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  if (!open) {
+    return (
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="min-w-0 truncate text-muted-foreground">
+          {c.clientId ? t('apps.ownAppSaved', { id: c.clientId }) : t('apps.ownAppHint')}
+        </span>
+        <Button size="sm" variant="ghost" className="shrink-0 rounded-full" onClick={() => setOpen(true)}>
+          {c.clientId ? t('apps.ownAppChange') : t('apps.ownApp')}
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <form
+      className="space-y-3 rounded-2xl bg-secondary/60 px-4 py-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (clientId.trim()) save.mutate();
+      }}
+    >
+      <RedirectUrl />
+      <Field label={t('apps.clientId')}>
+        <Input value={clientId} onChange={(e) => setClientId(e.target.value)} autoComplete="off" />
+      </Field>
+      <Field label={t('apps.clientSecret')} hint={t('apps.clientSecretHint')}>
+        <Input
+          type="password"
+          value={clientSecret}
+          onChange={(e) => setClientSecret(e.target.value)}
+          autoComplete="off"
+          placeholder={c.clientId ? '••••••••' : ''}
+        />
+      </Field>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="ghost" className="rounded-full" onClick={() => setOpen(false)}>
+          {t('common.cancel')}
+        </Button>
+        <Button type="submit" className="rounded-full" disabled={!clientId.trim() || save.isPending}>
+          {t('apps.ownAppSave')}
+        </Button>
+      </div>
+    </form>
   );
 }
 

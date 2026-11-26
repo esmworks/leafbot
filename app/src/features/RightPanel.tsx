@@ -205,6 +205,9 @@ function Upcoming({ bot }: { bot: Bot }) {
               <div className="truncate text-[13px] text-muted-foreground">
                 {r.pausedReason === 'failures' && !r.enabled ? (
                   <span className="text-destructive">{t('panel.switchedOffFailures')} · </span>
+                ) : !r.enabled ? (
+                  // Only the switch said it was off, which is easy to miss at a glance.
+                  <span>{t('pause.badge')} · </span>
                 ) : r.signInWait ? (
                   <span className="text-destructive">{t('panel.signInWait')} · </span>
                 ) : (

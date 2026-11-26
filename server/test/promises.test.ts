@@ -207,6 +207,23 @@ describe('söz bekçisi', () => {
     expect(await list()).toEqual([]);
   });
 
+  it('bot rutin kurunca konuşmayı görenlere açma önerisi gider', async () => {
+    const b = await bot();
+    const th = await main(b.id);
+    const made: unknown[] = [];
+    t.services.ctx.bus.on('refresh', (e) => {
+      if (e.scope === 'routineMade') made.push(e);
+    });
+    await say(
+      th.id,
+      `[araç:routine_create ${JSON.stringify({ name: 'Fiyat', prompt: 'Fiyata bak.', schedule: ONCE })}]`,
+    );
+    const [r] = await t.services.routines.list(b.id);
+    expect(made).toEqual([
+      { scope: 'routineMade', threadId: th.id, botId: b.id, routineId: r!.id, name: 'Fiyat' },
+    ]);
+  });
+
   it('turda rutin güncellendiyse de model çağrılmaz', async () => {
     const b = await bot();
     const th = await main(b.id);

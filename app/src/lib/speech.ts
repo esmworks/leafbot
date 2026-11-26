@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { create } from 'zustand';
-import { INTL_LOCALE, type Locale } from '@leafbot/shared';
+import { INTL_LOCALE, LOCALE_NAMES, type Locale } from '@leafbot/shared';
 import { getT } from '@/i18n';
 import { api } from './api';
 
@@ -266,6 +266,9 @@ function speakSystem(id: string, markdown: string, locale: Locale) {
     u.rate = useSpeech.getState().rate;
     const voice = pickVoice(voices, lang);
     if (voice) u.voice = voice;
+    // With no voice for the language the system reads with another one, which sounds like
+    // nonsense; the person is told how to get one rather than left to guess why.
+    else if (voices.length) notice(getT()('speech.noVoice', { language: LOCALE_NAMES[lang] }));
     const done = () => {
       if (useSpeech.getState().speaking === id) useSpeech.setState({ speaking: null });
     };

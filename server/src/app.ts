@@ -853,7 +853,8 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
   // A refresh only says what to fetch again, but one about a conversation or a bot also says it
   // exists and is busy: it goes only to those who see it. The rest are lists each fetches as theirs.
   bus.on('refresh', (e) => {
-    if (e.scope === 'thread') sendToThread(e.threadId, (to) => to.emit('refresh', e));
+    if (e.scope === 'thread' || e.scope === 'routineMade')
+      sendToThread(e.threadId, (to) => to.emit('refresh', e));
     else if (e.scope === 'threads' || e.scope === 'tables' || e.scope === 'actions')
       void toBotPeople(e.botId).then((to) => to.emit('refresh', e));
     else io.emit('refresh', e);

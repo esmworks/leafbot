@@ -8,6 +8,7 @@ import {
   utimesSync,
   writeFileSync,
 } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
@@ -187,6 +188,33 @@ describe('dosya ekleme', () => {
       headers: { ...AUTH, host: 'localhost' },
     });
     expect([403, 404]).toContain(out.statusCode);
+  });
+
+  it('sohbette büyük resmin küçük kopyası gider; küçük resim ve SVG olduğu gibi', async () => {
+    const sharp = (await import('sharp')).default;
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    // Noise does not compress, so the picture is well over the size worth shrinking.
+    const raw = randomBytes(1600 * 1200 * 3);
+    const big = await sharp(raw, { raw: { width: 1600, height: 1200, channels: 3 } })
+      .png()
+      .toBuffer();
+    const get = async (name: string, content: Buffer | string) => {
+      await upload(thread.id, name, content);
+      const path = filesOf((await send(thread.id, { files: [name] })).body)[0]!.path;
+      return t.app.inject({
+        method: 'GET',
+        url: `/api/bots/${bot.id}/library/file?path=${encodeURIComponent(path)}&inline=1&thumb=1`,
+        headers: { ...AUTH, host: 'localhost' },
+      });
+    };
+    const small = await get('foto.png', big);
+    expect(small.headers['content-type']).toBe('image/webp');
+    const meta = await sharp(small.rawPayload).metadata();
+    expect(Math.max(meta.width!, meta.height!)).toBe(512);
+    expect(small.rawPayload.length).toBeLessThan(big.length);
+    expect((await get('ufak.png', 'x')).headers['content-type']).toBe('image/png');
+    expect((await get('cizim.svg', '<svg/>')).headers['content-type']).toBe('image/svg+xml');
   });
 
   it('oynatıcı dosyanın bir parçasını isteyebilir', async () => {

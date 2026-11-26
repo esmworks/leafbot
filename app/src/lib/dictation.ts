@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
-import { INTL_LOCALE, type Locale } from '@leafbot/shared';
+import { create } from 'zustand';
+import { INTL_LOCALE, LOCALES, type Locale } from '@leafbot/shared';
 import { api } from './api';
 import { desktop } from './desktop';
 
@@ -80,6 +81,46 @@ function recordingType(): string | undefined {
   return undefined;
 }
 
+/**
+ * Which language dictation listens for: the app's own, whatever is spoken, or a set one. People
+ * often write to bots in a language other than the interface's, and dictation held to the
+ * interface language wrote their speech out as nonsense.
+ */
+export type DictationLanguage = 'app' | 'auto' | Locale;
+const LANGUAGE_KEY = 'leafbot.dictationLanguage';
+
+function readLanguage(): DictationLanguage {
+  try {
+    const v = localStorage.getItem(LANGUAGE_KEY);
+    return v === 'auto' || (LOCALES as readonly string[]).includes(v ?? '')
+      ? (v as DictationLanguage)
+      : 'app';
+  } catch {
+    return 'app';
+  }
+}
+
+/** Kept per device, like the microphone it is spoken into. */
+export const useDictationLanguage = create<{ language: DictationLanguage; set(l: DictationLanguage): void }>(
+  (set) => ({
+    language: readLanguage(),
+    set: (language) => {
+      try {
+        localStorage.setItem(LANGUAGE_KEY, language);
+      } catch {
+        // Held for this page.
+      }
+      set({ language });
+    },
+  }),
+);
+
+/** The language to ask for, or none to let the service tell. */
+export function spokenLanguage(choice: DictationLanguage, appLocale: Locale): Locale | undefined {
+  if (choice === 'auto') return undefined;
+  return choice === 'app' ? appLocale : choice;
+}
+
 export function useDictation(opts: {
   locale: Locale;
   /** Text to add to the message box: each finished phrase, or the whole recording at once. */
@@ -92,9 +133,10 @@ export function useDictation(opts: {
   const supported = server || !!Browser;
   const [state, setState] = useState<DictationState>('idle');
   const stopRef = useRef<(() => void) | null>(null);
-  const latest = useRef(opts);
+  const choice = useDictationLanguage((s) => s.language);
+  const latest = useRef({ ...opts, choice });
   useEffect(() => {
-    latest.current = opts;
+    latest.current = { ...opts, choice };
   });
   // Leaving the conversation stops listening.
   useEffect(() => () => stopRef.current?.(), []);
@@ -120,7 +162,10 @@ export function useDictation(opts: {
       if (!blob.size) return setState('idle');
       setState('working');
       try {
-        const { text } = await api.transcribe(blob, latest.current.locale);
+        const { text } = await api.transcribe(
+          blob,
+          spokenLanguage(latest.current.choice, latest.current.locale),
+        );
         if (text) latest.current.onText(text);
       } catch (e) {
         latest.current.onError({ message: (e as Error).message });
@@ -137,7 +182,9 @@ export function useDictation(opts: {
 
   const startBrowser = () => {
     const r = new Browser!();
-    r.lang = INTL_LOCALE[latest.current.locale];
+    // The browser's recognizer cannot tell the language itself; with no set one it uses the app's.
+    r.lang =
+      INTL_LOCALE[spokenLanguage(latest.current.choice, latest.current.locale) ?? latest.current.locale];
     r.continuous = true;
     r.interimResults = false;
     r.onresult = (e) => {
