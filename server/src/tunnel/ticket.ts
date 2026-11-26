@@ -15,6 +15,8 @@ const JWKS_RETRY_MS = 30_000;
 const JWKS_MAX_AGE_MS = 60 * 60_000;
 /** Ticket ids remembered at once; past it new tickets wait until older ones expire. */
 const MAX_SEEN = 50_000;
+/** Expired ticket ids are swept out at most this often, not on every check. */
+const PRUNE_MS = 5_000;
 
 export interface TicketCheckerOptions {
   /** The account service, e.g. `https://api.leafbot.app`; tickets from any other are refused. */
@@ -41,6 +43,7 @@ export class TicketChecker {
   /** Ticket id → the time (Unix seconds) after which it would be refused as expired anyway. */
   private seen = new Map<string, number>();
   private counter = 0;
+  private prunedAt = 0;
 
   constructor(private opts: TicketCheckerOptions) {}
 
@@ -94,7 +97,10 @@ export class TicketChecker {
     if (c.exp < c.iat || c.exp - c.iat > TICKET_TTL_S + TICKET_SKEW_S) throw new TunnelRefusal('ticket');
     if (c.epoch < this.counter) throw new TunnelRefusal('revoked');
 
-    for (const [id, until] of this.seen) if (until < now) this.seen.delete(id);
+    if (Date.now() - this.prunedAt >= PRUNE_MS || this.seen.size >= MAX_SEEN) {
+      this.prunedAt = Date.now();
+      for (const [id, until] of this.seen) if (until < now) this.seen.delete(id);
+    }
     if (this.seen.has(c.jti)) throw new TunnelRefusal('ticket');
     if (this.seen.size >= MAX_SEEN) throw new TunnelRefusal('busy');
     this.seen.set(c.jti, c.exp + TICKET_SKEW_S);
@@ -105,7 +111,9 @@ export class TicketChecker {
   private async key(kid: string): Promise<KeyObject | undefined> {
     const age = Date.now() - this.fetchedAt;
     if (this.keys.has(kid) && age < JWKS_MAX_AGE_MS) return this.keys.get(kid);
-    if (age >= JWKS_RETRY_MS || this.keys.size === 0) await this.refresh();
+    // Never fetched yet, or not for a while. A failed fetch counts too, so while the account
+    // service is down a stream of tickets does not turn into a stream of requests to it.
+    if (age >= JWKS_RETRY_MS || this.fetchedAt === 0) await this.refresh();
     return this.keys.get(kid);
   }
 

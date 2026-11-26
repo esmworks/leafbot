@@ -143,6 +143,24 @@ describe('TicketChecker', () => {
   });
 });
 
+describe('TicketChecker while the account service is down', () => {
+  it('does not ask for the keys again on every ticket', async () => {
+    const iss = issuer();
+    let fetches = 0;
+    const c = new TicketChecker({
+      issuer: ISSUER,
+      hostId: HOST,
+      now: () => NOW,
+      fetchJwks: async () => {
+        fetches++;
+        throw new Error('down');
+      },
+    });
+    for (let i = 0; i < 5; i++) expect(await refusal(c.check(ticket(iss)))).toBe('ticket');
+    expect(fetches).toBe(1);
+  });
+});
+
 describe('checkProof', () => {
   const fps = {
     clientFingerprint: 'sha-256 AA:BB',

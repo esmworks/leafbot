@@ -78,8 +78,11 @@ export interface GatewayOptions {
   refreshS?: number;
 }
 
-/** Messages a Socket.IO channel holds while its connection into the server opens. */
-const MAX_EARLY_MESSAGES = 64;
+/**
+ * What a Socket.IO channel holds while its connection into the server opens, by bytes: a message
+ * can be up to `MAX_RT_MESSAGE` long, so counting messages would let a page park gigabytes here.
+ */
+const MAX_EARLY_BYTES = 1024 * 1024;
 
 const send = (ch: TunnelChannel, msg: CtlToClient) => ch.send(JSON.stringify(msg));
 const nonce = () => randomBytes(24).toString('base64url');
@@ -248,8 +251,10 @@ class TunnelSession {
     const handle = { destroy: () => ws.terminate() };
     this.owned.add(handle);
     const early: (string | Uint8Array)[] = [];
+    let earlyBytes = 0;
     ws.on('open', () => {
       for (const m of early.splice(0)) ws.send(m);
+      earlyBytes = 0;
     });
     ws.on('message', (data: Buffer, isBinary) => {
       const m = isBinary
@@ -270,8 +275,11 @@ class TunnelSession {
       }
       if (m === null) return;
       if (ws.readyState === WebSocket.OPEN) ws.send(m);
-      else if (ws.readyState === WebSocket.CONNECTING && early.length < MAX_EARLY_MESSAGES) early.push(m);
-      else ch.close();
+      else if (ws.readyState === WebSocket.CONNECTING) {
+        earlyBytes += typeof m === 'string' ? Buffer.byteLength(m) : m.byteLength;
+        if (earlyBytes > MAX_EARLY_BYTES) return ch.close();
+        early.push(m);
+      } else ch.close();
     });
     let closed = false;
     const done = () => {
