@@ -83,6 +83,12 @@ export interface Config {
    * server's shell sandbox and browser instead.
    */
   computer: { url: string; token: string } | null;
+  /**
+   * The Leaf Bot account this server can be linked to, and the relay browsers reach it through
+   * (`LEAFBOT_ACCOUNT_URL`, `LEAFBOT_RELAY_URL`, `LEAFBOT_WEB_HOST`). Optional so test setups need
+   * not name it; unset means the public service.
+   */
+  account?: { issuer: string; relayUrl: string; webHost: string };
   /** A desktop nobody is watching and the bot has not used for this long goes to sleep. */
   computerIdleMs: number;
   /**
@@ -216,6 +222,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
         ? { url: env.LEAFBOT_COMPUTER_URL.replace(/\/+$/, ''), token: env.LEAFBOT_COMPUTER_TOKEN }
         : null,
     computerIdleMs: Number(env.LEAFBOT_COMPUTER_IDLE_MINUTES ?? 15) * 60_000,
+    account: {
+      issuer: (env.LEAFBOT_ACCOUNT_URL?.trim() || 'https://api.leafbot.app').replace(/\/+$/, ''),
+      relayUrl: env.LEAFBOT_RELAY_URL?.trim() || 'wss://signal.leafbot.app/v1/signal',
+      webHost: env.LEAFBOT_WEB_HOST?.trim() || 'www.leafbot.app',
+    },
     unattendedApprovalMs: unattendedHours(env.LEAFBOT_UNATTENDED_HOURS) * 60 * 60_000,
     mcpCallTimeoutMs,
     stall: stallLimits({

@@ -73,7 +73,9 @@ import { inOrder } from './in-order';
 import { PhoneBridge } from './phone/bridge';
 import { sweepUploads } from './uploads';
 import { HttpError } from './util';
+import { AccountHost } from './tunnel/host';
 import { tunnelIdentity } from './tunnel/identity';
+import type { RtcFactory } from './tunnel/signal';
 
 export interface ServerOptions {
   /** Replace every engine (tests). */
@@ -87,6 +89,11 @@ export interface ServerOptions {
   restart?: () => void;
   /** The Claude Code program that signs in to Claude (tests); unset uses the one the Agent SDK brings. */
   claudeExecutable?: string | null;
+  /**
+   * Makes WebRTC connections for browsers that reach the server through its account; without one
+   * the server can be linked but browsers cannot reach it yet.
+   */
+  rtc?: RtcFactory | null;
   /** Replace the lookup of a GitHub key's account (tests: no call reaches GitHub). */
   gitAuthor?: GitAuthorLookup;
 }
@@ -132,7 +139,7 @@ const PUBLIC_API = new Set([
  * Routes that start a session of the server's own (a cookie) and so mean nothing over the tunnel,
  * where the account is the sign-in.
  */
-const TUNNEL_REFUSED = new Set(['/api/access', '/api/login', '/api/pair']);
+const TUNNEL_REFUSED = new Set(['/api/access', '/api/login', '/api/pair', '/api/account-host']);
 /** Routes (as registered, not as a URL spells them) that need no access key or session. */
 const openRoute = (route: string) => PUBLIC_API.has(route) || route.startsWith(`${WEBHOOK_PATH}/`);
 
@@ -552,8 +559,21 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     return reply.code(500).send({ error: (await requestT(req.headers))('error.server') });
   });
 
+  const accountHost = new AccountHost({
+    db: db.db,
+    vault: services.vault,
+    server: app.server,
+    config: config.account ?? {
+      issuer: 'https://api.leafbot.app',
+      relayUrl: 'wss://signal.leafbot.app/v1/signal',
+      webHost: 'www.leafbot.app',
+    },
+    rtc: opts.rtc ?? null,
+  });
+
   registerMcpServer(app, services);
   registerRoutes(app, {
+    accountHost,
     services,
     transcribe: services.transcribe,
     backup: new BackupService(
@@ -926,6 +946,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
   await begin('meetings', () => services.meetings.start());
   // In the background: model lists work from the engine's own until the catalog is in.
   await begin('the model catalog', () => services.modelCatalog.start());
+  await begin('the account tunnel', () => accountHost.start());
   if (config.channelsEnabled) {
     await begin('Telegram', () => services.telegram.start());
     await begin('WhatsApp', () => services.whatsapp.start());
@@ -949,6 +970,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
       return app.listen({ host: config.host, port: config.port });
     },
     async close() {
+      accountHost.stop();
       await services.routines.stop();
       await services.followUps.stop();
       await services.telegram.stop();
