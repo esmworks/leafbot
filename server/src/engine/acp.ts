@@ -22,7 +22,11 @@ import {
 } from '@agentclientprotocol/sdk';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import {
+  CallToolRequestSchema,
+  CancelledNotificationSchema,
+  ListToolsRequestSchema,
+} from '@modelcontextprotocol/sdk/types.js';
 import { ACP_AGENTS, type AcpAgentId } from '@leafbot/shared';
 import { z } from 'zod';
 import { translator, type T } from '../i18n';
@@ -289,6 +293,9 @@ export function appToolCall(call: ToolCallUpdate, exposed: ReadonlySet<string>):
     .some((word) => [...exposed].some((name) => word === name || word.endsWith(`__${name}`)));
 }
 
+/** How often a tool call waiting on a card tells the agent it is still under way. */
+const PROGRESS_MS = 15_000;
+
 /**
  * The app's tools as an MCP server on this computer alone, for one turn: its address carries a
  * secret made for the turn, and every call asks, or is let through, exactly as it would for any
@@ -297,8 +304,14 @@ export function appToolCall(call: ToolCallUpdate, exposed: ReadonlySet<string>):
 export async function serveTools(req: TurnRequest, t: T): Promise<{ url: string; close(): Promise<void> }> {
   const byName = new Map(req.tools.map((tool) => [exposedName(tool), tool]));
   const secret = randomBytes(24).toString('base64url');
+  // Each request has a server of its own, so an agent's "I stopped waiting" for a call arrives at
+  // another one: the calls still under way are kept here, across them.
+  const waiting = new Map<string | number, AbortController>();
   const mcp = () => {
     const server = new Server({ name: 'leafbot', version: '1' }, { capabilities: { tools: {} } });
+    server.setNotificationHandler(CancelledNotificationSchema, ({ params }) => {
+      if (params.requestId !== undefined) waiting.get(params.requestId)?.abort();
+    });
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [...byName].map(([name, tool]) => ({
         name,
@@ -309,7 +322,7 @@ export async function serveTools(req: TurnRequest, t: T): Promise<{ url: string;
         },
       })),
     }));
-    server.setRequestHandler(CallToolRequestSchema, async ({ params }) => {
+    server.setRequestHandler(CallToolRequestSchema, async ({ params }, extra) => {
       const fail = (text: string) => ({ content: [{ type: 'text' as const, text }], isError: true });
       const tool = byName.get(params.name);
       if (!tool) return fail(t('engine.unknownTool', { name: params.name }));
@@ -323,11 +336,34 @@ export async function serveTools(req: TurnRequest, t: T): Promise<{ url: string;
       const refused = await req.screen?.({ toolName: perm, input });
       if (refused) return fail(refused);
       if (req.signal.aborted) return fail(t('engine.stopped'));
-      const answer = await req.canUseTool({ toolName: perm, input });
-      if (answer.behavior !== 'allow') return fail(answer.message);
+      // A card may stay open for minutes, past the agent's own limit for a tool call; progress
+      // tells an agent that heeds it to keep waiting.
+      const token = params._meta?.progressToken;
+      let beat = 0;
+      const pulse =
+        token === undefined
+          ? undefined
+          : setInterval(() => {
+              void extra
+                .sendNotification({
+                  method: 'notifications/progress',
+                  params: { progressToken: token, progress: ++beat },
+                })
+                .catch(() => {});
+            }, PROGRESS_MS);
       const id = randomBytes(6).toString('hex');
-      req.onActivity?.({ id, name: perm, running: true });
+      let started = false;
+      const gaveUp = new AbortController();
+      waiting.set(extra.requestId, gaveUp);
+      extra.signal.addEventListener('abort', () => gaveUp.abort());
       try {
+        const answer = await req.canUseTool({ toolName: perm, input });
+        if (answer.behavior !== 'allow') return fail(answer.message);
+        // The agent stopped waiting while the card was open and counts the step as failed: run
+        // now, it would act behind the agent's back, and the agent may try it again.
+        if (gaveUp.signal.aborted) return fail(t('engine.toolGaveUp'));
+        req.onActivity?.({ id, name: perm, running: true });
+        started = true;
         const result = await tool.handler(answer.updatedInput ?? input);
         return {
           content: [
@@ -342,7 +378,9 @@ export async function serveTools(req: TurnRequest, t: T): Promise<{ url: string;
       } catch (err) {
         return fail((err as Error).message);
       } finally {
-        req.onActivity?.({ id, name: perm, running: false });
+        clearInterval(pulse);
+        if (waiting.get(extra.requestId) === gaveUp) waiting.delete(extra.requestId);
+        if (started) req.onActivity?.({ id, name: perm, running: false });
       }
     });
     return server;

@@ -316,6 +316,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- A coding agent bot (Gemini, Codex, OpenCode, Kimi) that stopped waiting for an approval card no longer has
+  the step run when the card is approved later. The agent had already counted the step as failed and might
+  try it again, so an email, say, could go twice. While a card is open, the app also tells an agent that asks
+  for progress that the step is still under way, so it can keep waiting.
+
 - Clicking Send kept the cursor in the message box, so the next message can be typed at once. Before, the
   click took focus away and another click on the box was needed.
 - A routine switched off by hand now says Paused in the bot's panel and in Settings → Routines; only the switch

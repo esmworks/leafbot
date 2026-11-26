@@ -588,6 +588,7 @@ const tr = {
 
   // Engines
   'engine.stopped': 'Durduruldu',
+  'engine.toolGaveUp': 'Ajan bu adımı beklemeyi bıraktığı için onaydan sonra çalıştırılmadı.',
   'engine.noClaudeLogin': 'Claude girişi yok',
   'engine.unfinished': 'Tur yarıda bitti',
   'engine.error': 'Hata',
@@ -3050,6 +3051,7 @@ const en: Catalog<ServerKey> = {
   'turn.error': 'Error: {message}',
 
   'engine.stopped': 'Stopped',
+  'engine.toolGaveUp': 'Not run after the approval: the agent had stopped waiting for this step.',
   'engine.noClaudeLogin': 'Not signed in to Claude',
   'engine.unfinished': 'The turn ended early',
   'engine.error': 'Error',

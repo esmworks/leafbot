@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { AcpEngine, agentEnv, appToolCall, pickOption, stepAsk } from '../src/engine/acp';
+import { AcpEngine, agentEnv, appToolCall, pickOption, serveTools, stepAsk } from '../src/engine/acp';
+import { translator } from '../src/i18n';
 import { fakeAgent } from './fixtures/fake-acp-agent';
 import type { AppTool, PermissionAsk, PermissionAnswer, TurnRequest } from '../src/engine/types';
 
@@ -183,6 +184,41 @@ describe('ACP motoru', () => {
     expect(seen.toolResults[0]).toMatchObject({ content: [{ type: 'text', text: 'not alındı: süt al' }] });
     expect(seen.toolResults[1]).toMatchObject({ isError: true, content: [{ text: 'kart: hayır' }] });
     expect(seen.toolResults[2]).toMatchObject({ isError: true });
+  });
+
+  it('kart açıkken ajan beklemeyi bırakırsa geç gelen onayla araç çalışmaz', async () => {
+    const handler = vi.fn(async () => 'gönderildi');
+    const tool: AppTool = {
+      name: 'mail_send',
+      description: 'Posta gönder',
+      input: {},
+      readOnly: false,
+      internal: true,
+      handler,
+    };
+    const r = request({ tools: [tool] });
+    let approve!: () => void;
+    const asked = new Promise<void>((asking) => {
+      r.req.canUseTool = () =>
+        new Promise((resolve) => {
+          approve = () => resolve({ behavior: 'allow' });
+          asking();
+        });
+    });
+    const served = await serveTools(r.req, translator('tr'));
+    const mcp = new Client({ name: 'fake', version: '1' });
+    await mcp.connect(new StreamableHTTPClientTransport(new URL(served.url)));
+    const giveUp = new AbortController();
+    const call = mcp.callTool({ name: 'mail_send', arguments: {} }, undefined, { signal: giveUp.signal });
+    await asked;
+    giveUp.abort();
+    await expect(call).rejects.toThrow();
+    await new Promise((settle) => setTimeout(settle, 50));
+    approve();
+    await new Promise((settle) => setTimeout(settle, 50));
+    expect(handler).not.toHaveBeenCalled();
+    await mcp.close();
+    await served.close();
   });
 
   it('MCP-HTTP almayan ajanda araçların gelmediğini yeni oturumda bir kez söyler', async () => {
