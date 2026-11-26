@@ -8,6 +8,7 @@ packages:
   - mobile
   - names
   - relay
+  - account
 allowBuilds:
   electron: true
   electron-winstaller: false
