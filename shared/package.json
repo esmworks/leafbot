@@ -8,6 +8,7 @@
     "./account": "./src/account.ts",
     "./i18n": "./src/i18n.ts",
     "./egress": "./src/egress.ts",
+    "./tunnel": "./src/tunnel.ts",
     "./mac": "./src/mac.ts",
     "./windows": "./src/windows.ts"
   },
