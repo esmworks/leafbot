@@ -843,35 +843,36 @@ export const en: Catalog<MessageKey> = {
   'plugin.install': 'Install',
   'plugin.installed': 'Installed {servers} servers and {skills} skills',
   'ai.intro':
-    'Model services the server calls besides the bots’ own. Each takes an OpenAI-compatible address: a server of your own (Ollama, a Whisper or Kokoro server) or a provider’s API. Left empty, the server’s environment decides (AI_EMBEDDINGS_*, STT_*, TTS_*).',
+    'Model services the server calls besides the bots’ own. Each goes through a provider connected under Providers: OpenAI, Groq, Google or Mistral with a saved key, or endpoints of your own added there by name (Ollama, a Whisper or Kokoro server, ElevenLabs, Google’s speech API). A key is saved once and serves the bots and these services alike. With none picked, the server’s environment decides (AI_EMBEDDINGS_*, STT_*, TTS_*).',
   'ai.embeddings': 'Memory search by meaning',
   'ai.embeddingsHint':
     'Bots find notes by what they mean, not only by their words: “my spouse” finds “Ayşe is my wife”. Notes are indexed in the background.',
   'ai.embeddingsModel': 'Model (e.g. bge-m3)',
-  'ai.embeddingsUrl': 'Address (e.g. http://ollama:11434/v1)',
   'ai.stt': 'Speech to text',
   'ai.sttHint':
     'Writes out what you say into the microphone, and voice notes from Telegram and WhatsApp, so the bot reads them. Without it, a saved OpenAI or Groq key is used.',
   'ai.sttModel': 'Model (e.g. whisper-1)',
-  'ai.sttUrl': 'Address (e.g. http://whisper:8000/v1)',
   'ai.tts': 'Text to speech',
   'ai.ttsHint': 'Reads replies aloud with this service instead of the device’s own voice.',
   'ai.ttsModel': 'Model (e.g. tts-1 or kokoro)',
-  'ai.ttsUrl': 'Address (e.g. http://kokoro:8880/v1)',
   'ai.voice': 'Voice',
   'ai.voiceId': 'Voice ID',
   'ai.voiceName': 'Voice name',
   'ai.google.tts':
-    'For Google: address https://texttospeech.googleapis.com/v1, model chirp3-hd and a voice name such as tr-TR-Chirp3-HD-Kore; for Gemini voices, model gemini-2.5-flash-tts and just the name, such as Kore. The key comes from Credentials in Google Cloud.',
+    'For Google, add https://texttospeech.googleapis.com/v1 as an endpoint of your own under Providers, with the key from Credentials in Google Cloud, and pick it here; model chirp3-hd and a voice name such as tr-TR-Chirp3-HD-Kore, or for Gemini voices model gemini-2.5-flash-tts and just the name, such as Kore.',
   'ai.elevenLabs.stt':
-    'For ElevenLabs: address https://api.elevenlabs.io/v1, model scribe_v2; the key comes from Developers → API Keys in ElevenLabs.',
+    'For ElevenLabs, add https://api.elevenlabs.io/v1 as an endpoint of your own under Providers, with the key from Developers → API Keys in ElevenLabs, and pick it here; model scribe_v2.',
   'ai.elevenLabs.tts':
-    'For ElevenLabs: address https://api.elevenlabs.io/v1, model eleven_multilingual_v2 (eleven_flash_v2_5 is faster); write the ID of the voice you picked in ElevenLabs in the Voice field.',
-  'ai.baseUrl': 'Address',
+    'For ElevenLabs, pick its endpoint from Providers; model eleven_multilingual_v2 (eleven_flash_v2_5 is faster), and write the ID of the voice you picked in ElevenLabs in the Voice field.',
   'ai.model': 'Model',
-  'ai.key': 'API key (optional)',
-  'ai.keyKept': 'Key saved; type a new one to replace it',
-  'ai.fromEnv': 'Set in the server’s environment; saving here takes its place.',
+  'ai.fromEnv': 'Set in the server’s environment; picking a provider here and saving takes its place.',
+  'ai.gone':
+    'The chosen provider, or its key, is gone; this service is off until another provider is picked.',
+  'ai.noProvider':
+    'No connected provider can do this. Add an OpenAI key or an endpoint of your own under Providers.',
+  'ai.provider': 'Provider',
+  'ai.pickProvider': 'Pick a provider',
+  'ai.manageProviders': 'Providers',
   'ai.saved': 'Saved',
   'ai.clear': 'Clear',
   'ai.test': 'Try',
@@ -2842,7 +2843,7 @@ export const en: Catalog<MessageKey> = {
   'provider.customKeyKeep': 'Key ({hint}); leave empty to keep it',
   'provider.custom': 'Own endpoint',
   'provider.customHint':
-    'Any OpenAI-compatible server: Ollama or LM Studio on your network, or a hosted service. The server asks it for its models; the key is optional and stays on the server.',
+    'Any OpenAI-compatible server: Ollama or LM Studio on your network, a Whisper or Kokoro server, or a hosted service; ElevenLabs and Google’s speech API too. Add as many as you like, each under its own name; they can be picked for the AI services and the image model. The server asks it for its models; the key is optional and stays on the server.',
   'provider.customName': 'Name',
   'provider.customUrl': 'Address',
   'provider.customKey': 'API key (optional)',
@@ -2937,7 +2938,8 @@ export const en: Catalog<MessageKey> = {
   'model.imageChosenHint': "Makes bots' pictures and avatars from a description.",
   'model.imageGone':
     "The chosen model's provider has no key any more; pictures use another saved key until it is added back.",
-  'model.imageNoKey': 'Add an OpenAI or xAI API key to make pictures and avatars from a description.',
+  'model.imageNoKey':
+    'Add an OpenAI or xAI API key, or an endpoint of your own with an image model (one with image, flux or dall-e in its name), to make pictures and avatars from a description.',
   'model.backup': 'Backup model',
   'model.backupHint':
     'When the usage limit is used up, the model cannot answer or it is no longer offered, the work goes on with this model instead of waiting; it gets the recent conversation. While this is off no other model is used: the work waits and is sent again by itself once the limit resets.',

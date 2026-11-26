@@ -4,6 +4,8 @@ import { getModels, getProviders } from '@earendil-works/pi-ai/compat';
 import { getSupportedThinkingLevels } from '@earendil-works/pi-ai/models';
 import {
   EFFORTS,
+  elevenLabs,
+  googleSpeech,
   type CustomEndpointCreate,
   type CustomEndpointUpdate,
   type Effort,
@@ -108,6 +110,9 @@ export function endpointUrl(raw: string): string | null {
   }
 }
 
+/** An address that only speaks or listens, and is saved without a list of chat models. */
+export const speechOnly = (baseUrl: string) => elevenLabs(baseUrl) || googleSpeech(baseUrl);
+
 /**
  * Whether a key may be sent to this address: over https, or over plain http only to this computer.
  * Anywhere else a plain-http request carries the key readable to everyone on the way.
@@ -154,6 +159,43 @@ export class ProviderKeyService {
 
   private async endpoint(id: string): Promise<CustomEndpoint | undefined> {
     return id.startsWith(CUSTOM_PREFIX) ? (await this.endpoints()).find((e) => e.id === id) : undefined;
+  }
+
+  /** The person's own endpoint by id, for services that call it directly (speech, pictures). */
+  async customEndpoint(
+    id: string,
+  ): Promise<{ id: string; name: string; baseUrl: string; models: string[] } | null> {
+    const e = await this.endpoint(id);
+    return e ? { id: e.id, name: e.name, baseUrl: e.baseUrl, models: e.models } : null;
+  }
+
+  async customEndpoints(): Promise<{ id: string; name: string; baseUrl: string; models: string[] }[]> {
+    return (await this.endpoints()).map((e) => ({
+      id: e.id,
+      name: e.name,
+      baseUrl: e.baseUrl,
+      models: e.models,
+    }));
+  }
+
+  /**
+   * Files an address that already serves speech or memory search, with its key, as an endpoint of
+   * the person's own: what a service set with its own address and key becomes, so every key lives
+   * under Providers. The address was checked where it was first saved; it lists no chat models.
+   */
+  async adoptEndpoint(name: string, baseUrl: string, key: string): Promise<string> {
+    const list = await this.endpoints();
+    const id = uniqueId(name, new Set(list.map((e) => e.id)));
+    await this.saveEndpoints([...list, { id, name: name.trim().slice(0, 60), baseUrl, models: [] }]);
+    if (key) await this.store(id, key);
+    return id;
+  }
+
+  /** Saves a key for a built-in provider that has none yet, as a service's own key moves here. */
+  async adoptKey(provider: string, key: string) {
+    if (!this.builtIn().includes(provider)) throw new HttpError(404, 'error.unknownProvider');
+    await this.store(provider, key);
+    this.ctx.bus.refresh({ scope: 'info' });
   }
 
   async providers(): Promise<string[]> {
@@ -339,9 +381,12 @@ export class ProviderKeyService {
     if (!baseUrl) throw new HttpError(400, 'error.endpointUrl');
     const key = input.key?.trim() || null;
     if (key && !keySafeAt(baseUrl)) throw new HttpError(400, 'error.endpointKeyHttp');
-    const listed = await this.readModels(baseUrl, key).catch((err: Error) => err);
+    const listed = speechOnly(baseUrl)
+      ? { ids: [], meta: {} }
+      : await this.readModels(baseUrl, key).catch((err: Error) => err);
     const models = input.models?.length ? input.models : listed instanceof Error ? [] : listed.ids;
-    if (!models.length) {
+    // ElevenLabs and Google's speech API list no chat models: they are saved for speech alone.
+    if (!models.length && !speechOnly(baseUrl)) {
       throw new HttpError(400, 'error.endpointModels', {
         message: listed instanceof Error ? listed.message : '',
       });

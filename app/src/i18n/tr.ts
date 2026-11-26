@@ -810,35 +810,37 @@ export const tr = {
   'plugin.install': 'Kur',
   'plugin.installed': '{servers} sunucu ve {skills} beceri kuruldu',
   'ai.intro':
-    'Sunucunun botların kendi modelleri dışında çağırdığı servisler. Her biri OpenAI uyumlu bir adres alır: kendi sunucun (Ollama, Whisper ya da Kokoro sunucusu) ya da bir sağlayıcının API’si. Boş bırakılırsa sunucunun ortam değişkenleri geçerlidir (AI_EMBEDDINGS_*, STT_*, TTS_*).',
+    'Sunucunun botların kendi modelleri dışında çağırdığı servisler. Her biri Sağlayıcılar’da bağlı bir sağlayıcıdan geçer: anahtarı kayıtlı OpenAI, Groq, Google ya da Mistral veya orada adıyla eklediğin kendi uç noktaların (Ollama, Whisper ya da Kokoro sunucusu, ElevenLabs, Google’ın ses API’si). Anahtar bir kez kaydedilir, botlar da bu servisler de onu kullanır. Seçilmezse sunucunun ortam değişkenleri geçerlidir (AI_EMBEDDINGS_*, STT_*, TTS_*).',
   'ai.embeddings': 'Anlama göre hafıza araması',
   'ai.embeddingsHint':
     'Botlar notları yalnızca kelimelerine göre değil anlamlarına göre de bulur: “eşim” araması “Ayşe karım” notunu bulur. Notlar arka planda dizinlenir.',
   'ai.embeddingsModel': 'Model (ör. bge-m3)',
-  'ai.embeddingsUrl': 'Adres (ör. http://ollama:11434/v1)',
   'ai.stt': 'Konuşmayı yazıya çevirme',
   'ai.sttHint':
     'Mikrofona söylediklerini ve Telegram ile WhatsApp’tan gelen sesli mesajları yazıya çevirir, bot onları okur. Ayarlanmazsa kayıtlı bir OpenAI ya da Groq anahtarı kullanılır.',
   'ai.sttModel': 'Model (ör. whisper-1)',
-  'ai.sttUrl': 'Adres (ör. http://whisper:8000/v1)',
   'ai.tts': 'Seslendirme',
   'ai.ttsHint': 'Yanıtları cihazın kendi sesi yerine bu servisle sesli okur.',
   'ai.ttsModel': 'Model (ör. tts-1 ya da kokoro)',
-  'ai.ttsUrl': 'Adres (ör. http://kokoro:8880/v1)',
   'ai.voice': 'Ses',
   'ai.voiceId': 'Ses kimliği (voice ID)',
   'ai.voiceName': 'Ses adı',
   'ai.google.tts':
-    'Google için adres https://texttospeech.googleapis.com/v1, model chirp3-hd ve Ses alanına tr-TR-Chirp3-HD-Kore gibi bir ses adı; Gemini sesleri için model gemini-2.5-flash-tts ve ses Kore gibi yalnızca adı. Anahtar Google Cloud’daki Credentials’tan.',
+    'Google için Sağlayıcılar’da kendi uç noktası olarak https://texttospeech.googleapis.com/v1 adresini Google Cloud’daki Credentials’tan aldığın anahtarla ekle, burada seç; model chirp3-hd ve Ses alanına tr-TR-Chirp3-HD-Kore gibi bir ses adı, Gemini sesleri için model gemini-2.5-flash-tts ve ses Kore gibi yalnızca adı.',
   'ai.elevenLabs.stt':
-    'ElevenLabs için adres https://api.elevenlabs.io/v1, model scribe_v2; anahtar ElevenLabs’taki Developers → API Keys’ten.',
+    'ElevenLabs için Sağlayıcılar’da kendi uç noktası olarak https://api.elevenlabs.io/v1 adresini ElevenLabs’taki Developers → API Keys’ten aldığın anahtarla ekle, burada seç; model scribe_v2.',
   'ai.elevenLabs.tts':
-    'ElevenLabs için adres https://api.elevenlabs.io/v1, model eleven_multilingual_v2 (daha hızlısı eleven_flash_v2_5); Ses alanına ElevenLabs’ta seçtiğin sesin kimliğini (voice ID) yaz.',
-  'ai.baseUrl': 'Adres',
+    'ElevenLabs için Sağlayıcılar’daki ElevenLabs uç noktasını seç; model eleven_multilingual_v2 (daha hızlısı eleven_flash_v2_5), Ses alanına ElevenLabs’ta seçtiğin sesin kimliğini (voice ID) yaz.',
   'ai.model': 'Model',
-  'ai.key': 'API anahtarı (isteğe bağlı)',
-  'ai.keyKept': 'Anahtar kayıtlı; değiştirmek için yenisini yaz',
-  'ai.fromEnv': 'Sunucunun ortam değişkenlerinden geliyor; burada kaydedersen onun yerine geçer.',
+  'ai.fromEnv':
+    'Sunucunun ortam değişkenlerinden geliyor; burada bir sağlayıcı seçip kaydedersen onun yerine geçer.',
+  'ai.gone':
+    'Seçilen sağlayıcının anahtarı ya da kendisi artık yok; başka bir sağlayıcı seçilene kadar bu servis kapalı.',
+  'ai.noProvider':
+    'Bunu yapabilen bağlı bir sağlayıcı yok. Sağlayıcılar’da bir OpenAI anahtarı ya da kendi uç noktanı ekle.',
+  'ai.provider': 'Sağlayıcı',
+  'ai.pickProvider': 'Sağlayıcı seç',
+  'ai.manageProviders': 'Sağlayıcılar',
   'ai.saved': 'Kaydedildi',
   'ai.clear': 'Temizle',
   'ai.test': 'Dene',
@@ -2794,7 +2796,7 @@ export const tr = {
   'provider.customKeyKeep': 'Anahtar ({hint}); korumak için boş bırak',
   'provider.custom': 'Kendi uç noktan',
   'provider.customHint':
-    'OpenAI uyumlu herhangi bir sunucu: ağındaki Ollama ya da LM Studio veya barındırılan bir hizmet. Sunucu modellerini ondan sorar; anahtar isteğe bağlıdır ve sunucuda kalır.',
+    'OpenAI uyumlu herhangi bir sunucu: ağındaki Ollama ya da LM Studio, bir Whisper ya da Kokoro sunucusu, barındırılan bir hizmet; ElevenLabs ve Google’ın ses API’si de. İstediğin kadar ekleyebilir, her birine ad verebilirsin; Yapay zekâ servislerinde ve görsel modelinde seçilir. Sunucu modellerini ondan sorar; anahtar isteğe bağlıdır ve sunucuda kalır.',
   'provider.customName': 'Ad',
   'provider.customUrl': 'Adres',
   'provider.customKey': 'API anahtarı (isteğe bağlı)',
@@ -2887,7 +2889,8 @@ export const tr = {
   'model.imageChosenHint': 'Botların görsellerini ve anlatılan avatarları oluşturur.',
   'model.imageGone':
     'Seçilen modelin sağlayıcısının artık anahtarı yok; anahtar yeniden eklenene kadar görseller kayıtlı başka bir anahtarla oluşturulur.',
-  'model.imageNoKey': 'Görsel ve anlatılan avatar oluşturmak için bir OpenAI ya da xAI API anahtarı ekleyin.',
+  'model.imageNoKey':
+    'Görsel ve anlatılan avatar oluşturmak için bir OpenAI ya da xAI API anahtarı ya da görsel modeli olan kendi uç noktanı (adında image, flux, dall-e gibi bir şey geçen model) ekleyin.',
   'model.backup': 'Yedek model',
   'model.backupHint':
     'Kullanım sınırı dolunca, model yanıt veremeyince ya da artık sunulmayınca iş beklemek yerine bu modelle sürer; sohbetin geçmişi ona aktarılır. Kapalıyken başka modele geçilmez: iş bekler ve sınır sıfırlanınca kendiliğinden yeniden gönderilir.',

@@ -1042,8 +1042,8 @@ function DescribeAvatar({ onAvatar }: { onAvatar(a: string): void }) {
     );
   }
   const chosen = models.find((m) => m.ref === settings?.imageModel);
-  const label = (m: { provider: string; name: string }) =>
-    t('model.imageOption', { provider: providerName(m.provider), model: m.name });
+  const label = (m: { provider: string; name: string; providerName?: string }) =>
+    t('model.imageOption', { provider: m.providerName ?? providerName(m.provider), model: m.name });
   return (
     <div className="space-y-3">
       <Textarea
