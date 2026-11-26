@@ -345,8 +345,10 @@ const tr = {
   'error.endpointUrl': 'Adres http:// ya da https:// ile başlayan geçerli bir adres olmalı',
   'error.endpointModels': 'Uç nokta model listesini vermedi ({message}); modelleri elle yaz',
   'error.noProviderKey': 'Önce bu sağlayıcının API anahtarını kaydedin',
+  'error.aiProvider':
+    'Bu sağlayıcı bu iş için kullanılamıyor ya da anahtarı yok; Ayarlar → Sağlayıcılar bölümünden bağlayın',
   'error.imageNoKey':
-    'Resim oluşturmak için Ayarlar → Sağlayıcılar bölümünden bir OpenAI ya da xAI API anahtarı ekleyin',
+    'Resim oluşturmak için Ayarlar → Sağlayıcılar bölümünden bir OpenAI ya da xAI API anahtarı ya da görsel modeli olan kendi uç noktanızı ekleyin',
   'error.subscriptionToken': 'Bu bir Claude abonelik jetonu; burada yalnızca API anahtarı kullanılır',
   'error.notClaudeToken':
     'Bu bir Claude abonelik belirteci değil; claude setup-token çıktısı sk-ant-oat ile başlar',
@@ -1170,7 +1172,7 @@ const tr = {
   'tool.imageCreatedMain':
     'Resim oluşturuldu ({provider}): {name}. Bu konuşma botlar arasında; resim senin kullanıcıyla olan sohbetine kondu, karşıdaki bot görmez. Dosya: {path}',
   'tool.imageNoKey':
-    'Resim oluşturmak için kayıtlı bir OpenAI ya da xAI API anahtarı yok. Kullanıcıya Ayarlar → Bağlantı bölümünden birini eklemesini söyle.',
+    'Resim oluşturmak için kayıtlı bir OpenAI ya da xAI API anahtarı ya da seçili bir görsel modeli yok. Kullanıcıya Ayarlar → Sağlayıcılar bölümünden birini eklemesini söyle.',
   'tool.imageFailed.failed': '{provider} resmi oluşturamadı: {message}',
   'tool.imageFailed.notImage': '{provider} resim yerine başka bir şey döndürdü; resim oluşturulamadı.',
   'tool.imageFailed.tooLarge': '{provider} çok büyük bir dosya döndürdü; kaydedilmedi.',
@@ -2778,7 +2780,9 @@ const en: Catalog<ServerKey> = {
   'error.endpointUrl': 'The address must be a valid http:// or https:// address',
   'error.endpointModels': 'The endpoint did not list its models ({message}); type them in',
   'error.noProviderKey': "Save this provider's API key first",
-  'error.imageNoKey': 'To make a picture, add an OpenAI or xAI API key under Settings → Providers',
+  'error.aiProvider': 'This provider cannot do this or has no key; connect it under Settings → Providers',
+  'error.imageNoKey':
+    'To make a picture, add an OpenAI or xAI API key, or an endpoint of your own with an image model, under Settings → Providers',
   'error.subscriptionToken': 'This is a Claude subscription token; only API keys are used here',
   'error.notClaudeToken':
     'This is not a Claude subscription token; the output of claude setup-token starts with sk-ant-oat',
@@ -3608,7 +3612,7 @@ const en: Catalog<ServerKey> = {
   'tool.imageCreatedMain':
     'Picture created ({provider}): {name}. This conversation is between bots; the picture went to your conversation with the user, and the other bot does not see it. File: {path}',
   'tool.imageNoKey':
-    'No OpenAI or xAI API key is saved for making pictures. Tell the user to add one under Settings → Connection.',
+    'No OpenAI or xAI API key is saved, and no image model is chosen, for making pictures. Tell the user to add one under Settings → Providers.',
   'tool.imageFailed.failed': '{provider} could not create the picture: {message}',
   'tool.imageFailed.notImage': '{provider} returned something other than a picture; nothing was created.',
   'tool.imageFailed.tooLarge': '{provider} returned a file too large to keep; it was not saved.',

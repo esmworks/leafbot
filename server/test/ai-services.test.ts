@@ -5,6 +5,7 @@ import type { AiEndpoints, Thread } from '@leafbot/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { OWNER_ID } from '../src/users';
 import { aiEndpointsFrom } from '../src/config';
+import { schema } from '../src/db';
 import { stagingDir } from '../src/uploads';
 import { AUTH, testServer, type TestServer } from './helpers';
 
@@ -218,5 +219,114 @@ describe('yapay zekâ servisleri', () => {
     expect(message.text).toBe('🎤 Yarın saat dokuzda toplantı var.');
     await t.services.turns.idle();
     expect(t.engine.requests.at(-1)!.prompt).toContain('Yarın saat dokuzda toplantı var.');
+  });
+
+  it('goes through a provider: its saved key serves the service, and a removed key turns it off', async () => {
+    // A provider that has no key yet, or does not do this, cannot be picked.
+    expect(
+      (await t.api('PUT', '/api/ai-endpoints/stt', { provider: 'openai', model: 'gpt-4o-mini-transcribe' }))
+        .status,
+    ).toBe(400);
+    await t.services.keys.set('openai', 'sk-test-speech-1234');
+    expect((await t.api('PUT', '/api/ai-endpoints/tts', { provider: 'groq', model: 'x' })).status).toBe(400);
+
+    const set = await t.api<Record<string, unknown>>('PUT', '/api/ai-endpoints/stt', {
+      provider: 'openai',
+      model: 'gpt-4o-mini-transcribe',
+    });
+    expect(set.status).toBe(200);
+    expect(set.body).toMatchObject({
+      provider: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+      hasKey: true,
+      source: 'settings',
+      gone: false,
+    });
+    expect(JSON.stringify(set.body)).not.toContain('sk-test-speech-1234');
+    expect(await t.services.ai.get('stt')).toMatchObject({
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: 'sk-test-speech-1234',
+    });
+
+    await t.services.keys.remove('openai');
+    expect(await t.services.ai.get('stt')).toBeNull();
+    expect((await t.api<AiEndpoints>('GET', '/api/ai-endpoints')).body.stt).toMatchObject({
+      provider: 'openai',
+      gone: true,
+    });
+  });
+
+  it('an endpoint of your own serves speech; ElevenLabs is saved without a list of chat models', async () => {
+    const eleven = await t.api<{ id: string }>('POST', '/api/providers/custom', {
+      name: 'ElevenLabs',
+      baseUrl: 'https://api.elevenlabs.io/v1',
+      key: 'xi-test-key-1234',
+    });
+    expect(eleven.status).toBe(200);
+    expect(await t.services.keys.models(eleven.body.id)).toEqual([]);
+    const own = await t.api<{ id: string }>('POST', '/api/providers/custom', {
+      name: 'Kokoro',
+      baseUrl: base,
+      models: ['kokoro'],
+    });
+    await t.api('PUT', '/api/ai-endpoints/tts', {
+      provider: own.body.id,
+      model: 'kokoro',
+      voice: 'af_bella',
+    });
+    expect(await t.services.ai.get('tts')).toEqual({
+      baseUrl: base,
+      apiKey: '',
+      model: 'kokoro',
+      voice: 'af_bella',
+    });
+    await t.api('PUT', '/api/ai-endpoints/stt', { provider: eleven.body.id, model: 'scribe_v2' });
+    expect(await t.services.ai.get('stt')).toEqual({
+      baseUrl: 'https://api.elevenlabs.io/v1',
+      apiKey: 'xi-test-key-1234',
+      model: 'scribe_v2',
+      voice: '',
+    });
+  });
+
+  it('files services saved with their own address and key under Providers, once, without indexing again', async () => {
+    const db = t.services.ctx.db;
+    const put = (key: string, value: unknown) => db.insert(schema.kv).values({ key, value });
+    await put('ai.stt', { baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini-transcribe', voice: '' });
+    await put('secret.ai.stt', t.services.vault.seal('sk-old-openai-1234'));
+    await put('ai.tts', {
+      baseUrl: 'https://texttospeech.googleapis.com/v1',
+      model: 'chirp3-hd',
+      voice: 'tr-TR-Chirp3-HD-Kore',
+    });
+    await put('secret.ai.tts', t.services.vault.seal('google-old-key-1234'));
+    await put('ai.embeddings', { baseUrl: base, model: 'bge-m3', voice: '' });
+    const moved: string[] = [];
+    t.services.ai.onChange((k) => moved.push(k));
+
+    const all = (await t.api<AiEndpoints>('GET', '/api/ai-endpoints')).body;
+    expect(all.stt).toMatchObject({ provider: 'openai', baseUrl: 'https://api.openai.com/v1', hasKey: true });
+    expect(all.tts).toMatchObject({
+      provider: 'custom-google-text-to-speech',
+      baseUrl: 'https://texttospeech.googleapis.com/v1',
+      model: 'chirp3-hd',
+      voice: 'tr-TR-Chirp3-HD-Kore',
+      hasKey: true,
+    });
+    expect(all.embeddings).toMatchObject({ baseUrl: base, model: 'bge-m3', hasKey: false });
+    // The OpenAI key now serves the bots too; the services keep no key of their own.
+    expect(await t.services.keys.get('openai')).toBe('sk-old-openai-1234');
+    expect(await t.services.ai.get('tts')).toMatchObject({ apiKey: 'google-old-key-1234' });
+    const left = await db.select().from(schema.kv);
+    expect(left.filter((r) => r.key.startsWith('secret.ai.'))).toEqual([]);
+    expect(moved).toEqual([]);
+
+    // Read again, nothing is filed twice.
+    await t.services.ai.all();
+    const endpoints = (await t.api<{ id: string }[]>('GET', '/api/providers')).body.filter((p) =>
+      p.id.startsWith('custom-'),
+    );
+    expect(endpoints.map((p) => p.id)).toHaveLength(2);
+    expect(endpoints.map((p) => p.id)).toContain('custom-google-text-to-speech');
   });
 });

@@ -686,7 +686,10 @@ function ImageModelRow() {
             {gone && <SelectItem value={stored}>{stored}</SelectItem>}
             {models.map((m) => (
               <SelectItem key={m.ref} value={m.ref}>
-                {t('model.imageOption', { provider: providerName(m.provider), model: m.name })}
+                {t('model.imageOption', {
+                  provider: m.providerName ?? providerName(m.provider),
+                  model: m.name,
+                })}
               </SelectItem>
             ))}
           </SelectContent>

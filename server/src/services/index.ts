@@ -202,7 +202,7 @@ export class Services {
     this.apiCredentials = new ApiCredentialService(ctx, this.vault);
     this.canary = new CanaryService(ctx, this);
     this.email = new EmailService(ctx, this);
-    this.ai = new AiEndpointService(ctx, this.vault);
+    this.ai = new AiEndpointService(ctx, this.vault, this.keys);
     this.embeddings = new EmbeddingService(ctx, this.ai);
     this.memory.useEmbeddings(this.embeddings);
     this.transcribe = new TranscribeService(this.keys, this.ai);

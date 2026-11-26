@@ -119,7 +119,7 @@ describe('botun resim oluşturması', () => {
     const msgs = await create(thread.id, { prompt: 'Bir kedi' });
     expect(sent).toHaveLength(0);
     expect(fileCards(msgs)).toHaveLength(0);
-    expect(msgs.at(-1)!.text).toContain('OpenAI ya da xAI API anahtarı yok');
+    expect(msgs.at(-1)!.text).toContain('OpenAI ya da xAI API anahtarı ya da seçili bir görsel modeli yok');
   });
 
   it('internet kapalı botta araç yoktur', async () => {
@@ -275,6 +275,48 @@ describe('botun resim oluşturması', () => {
       'openai/gpt-image-1.5',
       'openai/gpt-image-1-mini',
     ]);
+  });
+
+  it('offers the picture models of an endpoint of your own and uses the one chosen, never on its own', async () => {
+    const own = await t.api<{ id: string }>('POST', '/api/providers/custom', {
+      name: 'Ev sunucusu',
+      baseUrl: 'http://127.0.0.1:9/v1',
+      models: ['llama3', 'flux-schnell', 'gpt-image-1'],
+    });
+    expect(own.status).toBe(200);
+    const models = await t.api<{ models: { ref: string; providerName?: string }[] }>(
+      'GET',
+      '/api/images/models',
+    );
+    expect(models.body.models).toEqual([
+      {
+        ref: `${own.body.id}/flux-schnell`,
+        provider: own.body.id,
+        name: 'flux-schnell',
+        providerName: 'Ev sunucusu',
+      },
+      {
+        ref: `${own.body.id}/gpt-image-1`,
+        provider: own.body.id,
+        name: 'gpt-image-1',
+        providerName: 'Ev sunucusu',
+      },
+    ]);
+
+    useProvider(() => b64());
+    // Without a choice, pictures do not go to the person's endpoint by themselves.
+    await expect(t.services.images.create('bir kedi')).rejects.toMatchObject({ reason: 'noKey' });
+    expect(sent).toHaveLength(0);
+
+    await t.services.settings.update({ imageModel: `${own.body.id}/flux-schnell` });
+    const avatar = await t.api<{ model: string }>('POST', '/api/images/avatar', { description: 'a fox' });
+    expect(avatar.status).toBe(200);
+    expect(avatar.body.model).toBe(`${own.body.id}/flux-schnell`);
+    expect(sent[0]).toMatchObject({
+      url: 'http://127.0.0.1:9/v1/images/generations',
+      auth: null,
+      body: { model: 'flux-schnell', size: '1024x1024' },
+    });
   });
 
   it('tells the person where to add a key when an avatar cannot be made, and passes on a refusal', async () => {

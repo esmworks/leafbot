@@ -42,7 +42,16 @@ export interface ImageModel {
   ref: string;
   provider: string;
   name: string;
+  /** The name the person gave their own endpoint; built-in providers are named by the app. */
+  providerName?: string;
 }
+
+/**
+ * Model names that make pictures, as image services name them. An endpoint of the person's own
+ * lists every model it serves; these are the ones offered for pictures, called the way OpenAI's are.
+ */
+const IMAGE_MODEL_NAME =
+  /image|dall-?e|flux|imagen|sdxl|stable-diffusion|seedream|recraft|ideogram|hidream|kolors|playground|midjourney/i;
 
 /** Every model offered for pictures, whether or not its provider has a key. */
 export const IMAGE_MODELS: readonly ImageModel[] = SERVICES.flatMap((s) =>
@@ -108,6 +117,8 @@ export class ImageService {
    * counts: a plan's sign-in does not open these endpoints.
    */
   private async service(chosen?: string, prefer?: string) {
+    const own = await this.ownService(chosen);
+    if (own) return own;
     const pick = IMAGE_MODELS.find((m) => m.ref === chosen);
     const first = pick?.provider ?? prefer;
     const order = [...SERVICES].sort((a, b) => Number(b.provider === first) - Number(a.provider === first));
@@ -120,15 +131,43 @@ export class ImageService {
     return null;
   }
 
-  async available(): Promise<boolean> {
-    return !!(await this.service());
+  /**
+   * A model chosen on an endpoint of the person's own, asked in OpenAI's shape. Only ever the one
+   * chosen: when none is, pictures never go to such an endpoint on their own.
+   */
+  private async ownService(chosen?: string) {
+    const slash = chosen?.indexOf('/') ?? -1;
+    if (!chosen || slash < 0) return null;
+    const e = await this.keys.customEndpoint(chosen.slice(0, slash));
+    if (!e) return null;
+    return {
+      provider: e.name,
+      /** What the model is chosen by: the endpoint's id, not the name shown. */
+      id: e.id,
+      url: `${e.baseUrl}/images/generations`,
+      model: chosen.slice(slash + 1),
+      key: (await this.keys.get(e.id)) ?? '',
+      shape: SERVICES[0].shape,
+    };
   }
 
-  /** The models whose provider has a saved key, in the order they are offered. */
+  async available(chosen?: string): Promise<boolean> {
+    return !!(await this.service(chosen));
+  }
+
+  /**
+   * The models whose provider has a saved key, then the picture models of the person's own
+   * endpoints, in the order they are offered.
+   */
   async models(): Promise<ImageModel[]> {
     const out: ImageModel[] = [];
     for (const s of SERVICES) {
       if (await this.keys.get(s.provider)) out.push(...IMAGE_MODELS.filter((m) => m.provider === s.provider));
+    }
+    for (const e of await this.keys.customEndpoints()) {
+      for (const id of e.models.filter((m) => IMAGE_MODEL_NAME.test(m))) {
+        out.push({ ref: `${e.id}/${id}`, provider: e.id, name: id, providerName: e.name });
+      }
     }
     return out;
   }
@@ -142,13 +181,20 @@ export class ImageService {
     const signal = AbortSignal.any([AbortSignal.timeout(TIMEOUT_MS), ...(opts.signal ? [opts.signal] : [])]);
     const fail = (message: string): never => {
       // A provider may echo the request back; the key must not reach the bot or the chat.
-      throw new ImageError('failed', redactSecrets(message.replaceAll(s.key, '***'), '***').text, s.provider);
+      throw new ImageError(
+        'failed',
+        redactSecrets(s.key ? message.replaceAll(s.key, '***') : message, '***').text,
+        s.provider,
+      );
     };
     let res: Response;
     try {
       res = await this.fetcher(s.url, {
         method: 'POST',
-        headers: { authorization: `Bearer ${s.key}`, 'content-type': 'application/json' },
+        headers: {
+          ...(s.key ? { authorization: `Bearer ${s.key}` } : {}),
+          'content-type': 'application/json',
+        },
         body: JSON.stringify({ model: s.model, prompt, n: 1, ...s.shape(opts.shape ?? 'square') }),
         signal,
       });
@@ -191,6 +237,6 @@ export class ImageService {
     if (data.length > MAX_IMAGE_BYTES) throw new ImageError('tooLarge', '', s.provider);
     const ext = imageType(data);
     if (!ext) throw new ImageError('notImage', '', s.provider);
-    return { data, ext, provider: s.provider, model: `${s.provider}/${s.model}` };
+    return { data, ext, provider: s.provider, model: `${'id' in s ? s.id : s.provider}/${s.model}` };
   }
 }

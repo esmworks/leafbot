@@ -185,6 +185,8 @@ export interface ImageModel {
   ref: string;
   provider: string;
   name: string;
+  /** The name of the person's own endpoint the model is on; built-in providers are named by the app. */
+  providerName?: string;
 }
 export interface Settings {
   userName: string;
