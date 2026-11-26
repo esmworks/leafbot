@@ -225,8 +225,11 @@ function Page({ page, className }: { page: DashboardSummary; className?: string 
         <div
           ref={liftRef}
           aria-hidden
-          style={air.style}
-          className="pointer-events-none fixed top-0 left-0 z-50 flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-2xl ring-1 ring-primary/25 will-change-transform"
+          // The copy is moved by a translate of the pointer's screen position, which counts from the
+          // physical left in both directions, so it is pinned to the physical left (start-0 would be
+          // the right edge in Arabic and throw it off by the window's width).
+          style={{ top: 0, left: 0, ...air.style }}
+          className="pointer-events-none fixed z-50 flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-2xl ring-1 ring-primary/25 will-change-transform"
         >
           <TileFace tile={air.tile} menu={<MoreHorizontal className="m-1.5 size-4" />} />
         </div>
