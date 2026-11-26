@@ -326,7 +326,7 @@ function ClaudeSignIn({ onDone }: { onDone: () => void }) {
             busy={start.isPending}
           />
         </View>
-        <Text style={[styles.muted, { color: c.mutedForeground }]}>{t('claude.signInHint')}</Text>
+        <Text style={[styles.muted, { color: c.mutedForeground }]}>{t('claude.signInPhoneHint')}</Text>
         {failed ? (
           <Text style={[styles.muted, { color: c.destructive }]}>
             {t('claude.signInFailed', { detail: failed })}
@@ -343,7 +343,7 @@ function ClaudeSignIn({ onDone }: { onDone: () => void }) {
           <Text style={[styles.muted, { color: c.mutedForeground }]}>{t('claude.signInStarting')}</Text>
         </View>
       ) : (
-        <Text style={[styles.muted, { color: c.foreground }]}>{t('claude.signInOpened')}</Text>
+        <Text style={[styles.muted, { color: c.foreground }]}>{t('claude.signInPhoneOpened')}</Text>
       )}
       {now.url ? (
         <View style={styles.start}>

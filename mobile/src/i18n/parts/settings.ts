@@ -5,6 +5,10 @@ export const tr = {
   'about.name': 'Leaf Bot',
   'about.copyright': 'Copyright © 2026 esmworks (Erhan Erbaş)',
   'provider.modelMore': '{count} model daha; aramak için yazın',
+  'claude.signInPhoneHint':
+    'Claude hesabınızla giriş yapar: giriş sayfasını buradan açın, sayfanın gösterdiği kodu buraya yapıştırın. Pro, Max, Team veya Enterprise planı gerekir; hiçbir şey kurmanız gerekmez.',
+  'claude.signInPhoneOpened':
+    'Giriş sayfasını açın ve Claude hesabınızla giriş yapın. Sayfa ardından buraya yapıştıracağınız bir kod gösterir.',
   'push.hint': 'Uygulama kapalıyken bu telefona gelir.',
   'push.noKey': 'Sunucuda Apple anahtarı yok, bu yüzden bildirim gönderemiyor. Bağlantı bölümünden ekleyin.',
   'push.allow': 'Bildirimlere izin ver',
@@ -43,6 +47,10 @@ export const en: Record<keyof typeof tr, string> = {
   'about.name': 'Leaf Bot',
   'about.copyright': 'Copyright © 2026 esmworks (Erhan Erbaş)',
   'provider.modelMore': '{count} more models; type to search',
+  'claude.signInPhoneHint':
+    'Signs in with your Claude account: open the sign-in page from here, then paste back the code it shows. Needs a Pro, Max, Team or Enterprise plan; nothing to install.',
+  'claude.signInPhoneOpened':
+    'Open the sign-in page and sign in with your Claude account. The page then shows a code to paste here.',
   'push.hint': 'Shown on this phone while the app is closed.',
   'push.noKey': 'The server has no Apple key, so it cannot send notifications. Add one under Connection.',
   'push.allow': 'Allow notifications',
