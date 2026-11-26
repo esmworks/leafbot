@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { sandboxOptions, withCompactWindow } from '../src/engine/claude';
+import { sandboxOptions, sessionSettings, withCompactWindow } from '../src/engine/claude';
+import { advisorFor, claudeFamily } from '../src/runtime/turns';
 import { probeShellSandbox } from '../src/shell-sandbox';
 
 describe('Bash yalıtımı', () => {
@@ -31,5 +32,27 @@ describe('özetleme sınırı', () => {
     expect(withCompactWindow(base)).toEqual({ cleanupPeriodDays: 3650, autoCompactWindow: 200_000 });
     expect(withCompactWindow(base, 400_000)).toMatchObject({ autoCompactWindow: 400_000 });
     expect(withCompactWindow(base, 0)).toEqual(base);
+  });
+
+  it('danışman botun kendi modelinin ailesine bakar; başka motora ve kapalı ayara gitmez', () => {
+    expect(claudeFamily('claude-opus-5-5')).toBe('opus');
+    expect(claudeFamily('opus[1m]')).toBe('opus');
+    expect(claudeFamily('Sonnet')).toBe('sonnet');
+    expect(advisorFor('claude', 'sonnet', 'opus')).toEqual({ advisorModel: 'opus' });
+    expect(advisorFor('claude', 'claude-opus-5-5', 'opus')).toEqual({});
+    expect(advisorFor('claude', 'opus[1m]', 'opus')).toEqual({});
+    expect(advisorFor('claude', 'sonnet', '')).toEqual({});
+    expect(advisorFor('pi', 'openrouter/x', 'opus')).toEqual({});
+  });
+
+  it('danışman yalnızca seçildiyse CLI ayarlarına girer', () => {
+    const base = { cleanupPeriodDays: 3650 };
+    expect(sessionSettings(base, { compactWindow: 0 })).toEqual(base);
+    expect(sessionSettings(base, { compactWindow: 0, advisorModel: '' })).toEqual(base);
+    expect(sessionSettings(base, { advisorModel: 'opus' })).toEqual({
+      cleanupPeriodDays: 3650,
+      autoCompactWindow: 200_000,
+      advisorModel: 'opus',
+    });
   });
 });

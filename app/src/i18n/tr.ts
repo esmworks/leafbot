@@ -2888,6 +2888,10 @@ export const tr = {
   'model.moveKeeps':
     'Konuşmaları silinmez; her bot bir sonraki mesajda son konuşmayı okuyarak devam eder. Claude ile başka bir sağlayıcı arasında geçen botun rutinlerine ayrı model seçilmişse o seçim kalkar; rutin botun modelini kullanır.',
   'model.moved': '{count} bot geçirildi.',
+  'model.advisor': 'Danışman model',
+  'model.advisorHint':
+    'Claude botlar takıldıklarında, büyük bir adımdan önce ve işi bitti saymadan önce bu daha güçlü modele danışabilir. Danışman sohbetin tamamını görür ve yalnızca bota cevap verir; harcadığı token kendi modelinin fiyatından ücretlendirilir ve harcamaya sayılır. Yalnızca botun modeli kadar ya da ondan daha güçlü olduğunda devreye girer. Claude aboneliğinde Fable’ı danışman yapmak için hesapta ek kullanımın açık olması gerekebilir.',
+  'model.advisorOff': 'Kapalı',
   'model.compact': 'Sohbeti özetleme sınırı',
   'model.compactHint':
     'Claude botlarda sohbet bu boyuta gelince eski kısmı özetlenir. Küçük tutmak cevapları hızlı ve ucuz tutar; büyük tutmak daha çok ayrıntıyı aynen hatırlatır, ama her mesaj daha pahalı olur.',

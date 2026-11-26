@@ -55,6 +55,15 @@ describe('boştaki uzun sohbet önceden özetlenir', () => {
     expect(t.engine.compactions).toHaveLength(1);
   });
 
+  it('özetleme, oturumun turlarının çalıştığı danışmanla çalışır', async () => {
+    await t.api('PATCH', '/api/settings', { claudeAdvisorModel: 'opus' });
+    const bot = await t.bot();
+    await full(bot);
+    expect(t.engine.requests.at(-1)!.advisorModel).toBe('opus');
+    expect(await t.services.turns.sweepIdle(later())).toBe(1);
+    expect(t.engine.compactions[0]!.advisorModel).toBe('opus');
+  });
+
   it('kısa sohbete, ayar kapalıyken, durdurulmuş ya da sınırını aşmış bota dokunmaz', async () => {
     const short = await t.bot({ name: 'Kısa' });
     await full(short, 50_000);

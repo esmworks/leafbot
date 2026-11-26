@@ -1587,6 +1587,13 @@ export type ProfileHelp = (typeof PROFILE_HELP)[number];
 export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 export type Effort = (typeof EFFORTS)[number];
 
+/**
+ * Claude models a Claude bot may consult mid-turn through Claude's own advisor tool, by the aliases
+ * the CLI accepts for it; the CLI leaves the advisor out when the bot's model outranks the one named.
+ */
+export const CLAUDE_ADVISORS = ['fable', 'opus', 'sonnet'] as const;
+export type ClaudeAdvisor = (typeof CLAUDE_ADVISORS)[number];
+
 /** How the server signs in to Claude: the machine's Claude login, a subscription token, or an API key. */
 export const CLAUDE_AUTH_KINDS = ['login', 'token', 'apiKey'] as const;
 export type ClaudeAuthKind = (typeof CLAUDE_AUTH_KINDS)[number];

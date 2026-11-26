@@ -114,6 +114,7 @@ import type {
   ClaudeAuthSet,
   ClaudeAuthStatus,
   ClaudeModel,
+  ClaudeAdvisor,
   Effort,
   Connection,
   ConnectionAuthStart,
@@ -209,6 +210,8 @@ export interface Settings {
   imageModel?: string;
   /** Tokens at which a Claude bot folds the conversation into a summary; 0 leaves it to Claude. Missing on older servers. */
   claudeCompactWindow?: number;
+  /** The Claude model Claude bots may ask for advice mid-turn; empty is off. Missing on older servers. */
+  claudeAdvisorModel?: ClaudeAdvisor | '';
   /** Long conversations are summarised while idle, before the size above is reached. Missing on older servers. */
   idleCompact?: boolean;
   /** The most the bots may spend in a day, in US dollars; 0 for none. Missing on older servers. */

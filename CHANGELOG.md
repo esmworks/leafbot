@@ -7,6 +7,12 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Advisor model for Claude bots: under Providers → Claude, a stronger Claude model (Fable, Opus or Sonnet) can be
+  chosen that Claude bots may ask for advice when they are stuck, before a large step and before they call their
+  work done. The bot decides when to ask; the advisor sees the whole conversation, answers only the bot, and its
+  tokens are billed at its own model's rates and count toward spending. It applies only when it is at least as
+  capable as the bot's model, a bot already on that model gets none, and bots on other providers and the backup model
+  get none. It starts off. On a Claude subscription, Fable as the advisor may need extra usage turned on.
 - Sharing a table with another bot: from the table's window, someone who may change both bots lets another bot
   read the table, or read and write its rows. The other bot finds it among its tables as "Owner / Name"; its own
   table of the same name comes first. The columns and the table stay with their bot, so the other bot cannot add

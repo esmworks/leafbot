@@ -87,6 +87,18 @@ export function withCompactWindow<S extends object>(settings: S, window = AUTO_C
   return window > 0 ? { ...settings, autoCompactWindow: window } : settings;
 }
 
+/**
+ * The CLI settings a session's runs share: the size it folds at and the advisor it may consult.
+ * The CLI itself leaves the advisor out when the bot's model outranks it.
+ */
+export function sessionSettings(
+  settings: Record<string, unknown>,
+  req: { compactWindow?: number; advisorModel?: string },
+) {
+  const folded = withCompactWindow(settings, req.compactWindow);
+  return req.advisorModel ? { ...folded, advisorModel: req.advisorModel } : folded;
+}
+
 export { BASH_MAX_TIMEOUT_MS };
 
 /** How long a stopped turn's CLI gets to answer the interrupt before it is closed. */
@@ -485,7 +497,7 @@ export class ClaudeEngine implements Engine {
     const options: Options = {
       ...base,
       ...sandboxed,
-      settings: withCompactWindow(sandboxed.settings as Record<string, unknown>, req.compactWindow),
+      settings: sessionSettings(sandboxed.settings as Record<string, unknown>, req),
       ...(req.model ? { model: req.model } : {}),
       ...(req.effort ? { effort: req.effort } : {}),
       ...(req.sessionId ? { resume: req.sessionId } : {}),
@@ -918,7 +930,7 @@ export class ClaudeEngine implements Engine {
       options: {
         ...base,
         ...sandboxed,
-        settings: withCompactWindow(sandboxed.settings as Record<string, unknown>, req.compactWindow),
+        settings: sessionSettings(sandboxed.settings as Record<string, unknown>, req),
         ...(req.model ? { model: req.model } : {}),
         resume: req.sessionId,
         permissionMode: 'default',
