@@ -44,7 +44,7 @@ import {
   useProviders,
   useSettings,
 } from '@/lib/queries';
-import { askBeforeLeavingPage, useUi, type UiState } from '@/lib/store';
+import { askBeforeLeavingPage, useUi, type BotPreset, type UiState } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { MODE_LABEL } from './RightPanel';
 import { InstructionsDocStatus } from './InstructionsDoc';
@@ -236,7 +236,7 @@ function BotForm({
 }: {
   bot?: Bot;
   /** What a new bot starts with besides the defaults. */
-  preset?: { name: string; projectDir: string };
+  preset?: BotPreset;
   onDone(): void;
   onCancel(): void;
   /** Whether the form holds changes not saved yet, each time that changes. */

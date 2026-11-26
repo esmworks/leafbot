@@ -1,6 +1,6 @@
 import { describeSchedule, grokLinkPage, parseGrokLink, type BotImportPlan } from '@leafbot/shared';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArchiveRestore, Copy, Download, ExternalLink, FileUp, Link2, Loader2 } from 'lucide-react';
+import { ArchiveRestore, Copy, Download, ExternalLink, FileUp, Link2, Loader2, Plus } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { copyText } from '@/lib/clipboard';
 import { useFormat } from '@/lib/format';
 import { useBots } from '@/lib/queries';
+import { useUi } from '@/lib/store';
 import { FoundProjects } from './FoundProjects';
 import { Card, Row } from './SettingsPage';
 
@@ -61,17 +62,22 @@ export function ImportTab() {
     },
     staleTime: Infinity,
   });
-  /** `scope`, when given, names the one bot to move and goes after the instructions. */
-  const copyInstructions = async (scope?: string) => {
+  /**
+   * `scope`, when given, names the one bot to move and goes after the instructions; `intro`, when
+   * given, is a note to the person who will run them and goes before.
+   */
+  const copyInstructions = async (scope?: string, intro?: string) => {
     const text = instructions.data ?? (await instructions.refetch()).data;
-    if (text && (await copyText(scope ? `${text}\n\n${scope}\n` : text))) toast.success(t('import.copied'));
+    const full =
+      text && [intro && `${intro}\n\n---`, text, scope && `${scope}\n`].filter(Boolean).join('\n\n');
+    if (full && (await copyText(full))) toast.success(t('import.copied'));
     else toast.error(t('import.copyFailed'));
   };
 
   return (
     <>
       <p className="mb-4 text-sm text-muted-foreground">{t('import.hint')}</p>
-      <GrokLinkCard onCopy={(scope) => void copyInstructions(scope)} />
+      <GrokLinkCard onCopy={(scope, intro) => void copyInstructions(scope, intro)} />
       <Card title={t('import.step1')}>
         <Row label={t('import.instructions')} hint={t('import.instructionsHint')}>
           <Button
@@ -258,11 +264,14 @@ export function ImportTab() {
 /**
  * A Grok Bot share or marketplace link. Its page shows the bot's name, who shared it and what it
  * does; the bot as a whole, with its instructions, memory, skills and routines, reaches the Grok
- * Bot app alone. So the bot is added there first, then Grok Bot writes the import file for that
- * one bot, which is loaded below.
+ * Bot app alone. So with a Grok Bot account the bot is added there first, then Grok Bot writes the
+ * import file for that one bot, which is loaded below. Without one, the person who shared the bot
+ * can write that file from their own Grok Bot, or a new bot starts here from what the page shows.
  */
-function GrokLinkCard({ onCopy }: { onCopy: (scope: string) => void }) {
+function GrokLinkCard({ onCopy }: { onCopy: (scope: string, intro?: string) => void }) {
   const t = useT();
+  const openSettings = useUi((s) => s.openSettings);
+  const openBotPage = useUi((s) => s.openBotPage);
   const [link, setLink] = useState('');
   const read = useMutation({
     mutationFn: api.readGrokLink,
@@ -320,6 +329,7 @@ function GrokLinkCard({ onCopy }: { onCopy: (scope: string) => void }) {
             )}
             {!card.name && <p className="mt-2 text-xs text-muted-foreground">{t('import.link.unread')}</p>}
           </div>
+          <p className="px-4 pt-3 text-xs font-medium">{t('import.link.withAccount')}</p>
           <Row label={t('import.link.add')} hint={t('import.link.addHint')}>
             <Button variant="outline" size="sm" className="rounded-full" asChild>
               <a href={page} target="_blank" rel="noopener noreferrer">
@@ -346,6 +356,49 @@ function GrokLinkCard({ onCopy }: { onCopy: (scope: string) => void }) {
             </Button>
           </Row>
           <Row label={t('import.link.load')} hint={t('import.link.loadHint')} />
+          <p className="px-4 pt-3 text-xs font-medium">{t('import.link.noAccount')}</p>
+          <Row label={t('import.link.ask')} hint={t('import.link.askHint')}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full"
+              onClick={() =>
+                onCopy(
+                  label
+                    ? t('import.link.askScope', { name: label, page })
+                    : t('import.link.askScopeUnnamed', { page }),
+                  label ? t('import.link.askIntro', { name: label }) : t('import.link.askIntroUnnamed'),
+                )
+              }
+            >
+              <Copy className="size-4" />
+              {t('import.copy')}
+            </Button>
+          </Row>
+          {card.name && (
+            <Row label={t('import.link.start')} hint={t('import.link.startHint')}>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                onClick={() => {
+                  openSettings(null);
+                  // The page's own words, shown in the form to read and change before saving.
+                  openBotPage({
+                    mode: 'create',
+                    preset: {
+                      name: card.name!,
+                      description: card.description ?? '',
+                      instructions: card.description ?? '',
+                    },
+                  });
+                }}
+              >
+                <Plus className="size-4" />
+                {t('import.link.startButton')}
+              </Button>
+            </Row>
+          )}
         </>
       )}
     </Card>
