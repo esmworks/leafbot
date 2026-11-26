@@ -305,6 +305,7 @@ export class RoutineService {
   async create(input: RoutineCreate, userId: string | null = null): Promise<Routine> {
     await this.services.bots.get(input.botId);
     this.checkOften(input.schedule);
+    checkUnscheduled(input.schedule, input);
     const [{ made } = { made: 0 }] = await this.ctx.db
       .select({ made: count() })
       .from(schema.routines)
@@ -407,6 +408,11 @@ export class RoutineService {
     if (patch.steps) checkRoutes(patch.steps);
     // Also when one is turned on: an imported routine comes paused, its schedule never checked.
     if (patch.schedule || (enabled && !current.enabled)) this.checkOften(schedule);
+    checkUnscheduled(schedule, {
+      watchUrl: patch.watchUrl !== undefined ? patch.watchUrl : current.watchUrl,
+      check: patch.check !== undefined ? patch.check : current.check,
+      condition: patch.condition !== undefined ? patch.condition : current.condition,
+    });
     const was = await this.personOf(current);
     const shapes = Object.keys(patch).some((k) => k !== 'enabled');
     const person = by && shapes ? by : was;
@@ -4545,6 +4551,19 @@ const MAX_READS = 4;
  * What a retry keeps as the slot it stands in front of: the next run the routine had, or the one an
  * earlier retry still waiting kept.
  */
+/**
+ * A routine with no schedule has no time to read a page, call an app's tool or look at a
+ * condition before: they would never take effect, so they are refused rather than kept unused.
+ */
+function checkUnscheduled(
+  s: Schedule,
+  r: { watchUrl?: string | null; check?: unknown; condition?: unknown },
+) {
+  if (s.type === 'unscheduled' && (r.watchUrl || r.check || r.condition)) {
+    throw new HttpError(400, 'validation.unscheduledChecks');
+  }
+}
+
 const resumeFrom = sql`coalesce(${schema.routines.resumeAt}, ${schema.routines.nextRunAt})`;
 
 /** What an app's webhook secret is bound to when sealed: its routine. */

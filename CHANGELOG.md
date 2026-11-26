@@ -7,6 +7,12 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Routines can have no schedule ("No schedule" under When). Such a routine runs only when one of its events
+  comes (a webhook call, an email, a table row, a Slack reaction, the server starting) or when run by hand.
+  Before, a routine meant only to answer events needed a schedule it did not want, and ran on it too. Page
+  watching, an app's check and a condition happen before a scheduled run, so they are refused on one with no
+  schedule. Bots can set one up with routine_create. Older phone apps show such a routine without its schedule.
+
 - Dictation language under Settings → General: the app's language (as before), detect automatically, or a set
   language. People often write to bots in another language than the interface's, and dictation held to the
   interface language wrote their speech out wrong. Kept on each device.

@@ -1790,6 +1790,7 @@ export const tr = {
   'flow.tagDays': '{count} gün süre',
   'flow.alsoStarts': 'Ayrıca {what} başlar.',
   'flow.nextRun': 'Sıradaki çalışma {when}',
+  'flow.unscheduled': 'Olaylarından biri gelince ya da sen çalıştırınca çalışır',
   'flow.noNextRun': 'Yeniden çalışması ayarlı değil',
   'flow.paused': 'Duraklatıldı; zamanında çalışmaz.',
   'flow.switchedOffFailures':
@@ -1920,6 +1921,9 @@ export const tr = {
   'routine.copyRunCommand': 'Çalıştırma komutunu kopyala',
   'routine.runCommandCopied':
     'Kopyalandı. Çalıştırmadan önce LEAFBOT_ACCESS_KEY değişkenine sunucunun erişim anahtarını ver.',
+  'routine.type.unscheduled': 'Zamanlamasız',
+  'routine.unscheduledHint':
+    'Yalnızca olaylarından biri gelince (webhook çağrısı, e-posta, tablo satırı, sunucunun açılması) ya da sen çalıştırınca çalışır.',
   'routine.type.once': 'Bir kez',
   'routine.date': 'Tarih',
   'routine.dateFormat': 'Bir tarih seç',

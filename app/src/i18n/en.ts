@@ -1824,6 +1824,7 @@ export const en: Catalog<MessageKey> = {
   'flow.tagDays': { one: '{count} day to answer', other: '{count} days to answer' },
   'flow.alsoStarts': 'Also starts {what}.',
   'flow.nextRun': 'Next run {when}',
+  'flow.unscheduled': 'Runs when one of its events comes, or when you run it',
   'flow.noNextRun': 'Not set to run again',
   'flow.paused': 'Paused; it does not run on its schedule.',
   'flow.switchedOffFailures':
@@ -1953,6 +1954,9 @@ export const en: Catalog<MessageKey> = {
   'routine.copyRunCommand': 'Copy run command',
   'routine.runCommandCopied': 'Copied. Set LEAFBOT_ACCESS_KEY to the server’s access key before running it.',
   'routine.type.once': 'Once',
+  'routine.type.unscheduled': 'No schedule',
+  'routine.unscheduledHint':
+    'It runs only when one of its events comes (a webhook call, an email, a table row, the server starting) or when you run it.',
   'routine.date': 'Date',
   'routine.dateFormat': 'Pick a date',
   'routine.missed': 'If the server was off at that time',
