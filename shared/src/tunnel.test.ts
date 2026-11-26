@@ -17,7 +17,6 @@ import {
   normalizeFingerprint,
   proofMessage,
   RequestHead,
-  SignalFromRelay,
 } from './tunnel';
 
 describe('frames', () => {
@@ -134,12 +133,6 @@ describe('messages', () => {
         cnonce: 'c'.repeat(22),
       }).success,
     ).toBe(false);
-  });
-
-  it('parses what the relay sends', () => {
-    const m = SignalFromRelay.parse({ t: 'revoke', epoch: 4, userId: 'user_123456' });
-    expect(m).toEqual({ t: 'revoke', epoch: 4, userId: 'user_123456' });
-    expect(SignalFromRelay.safeParse({ t: 'offer', cid: 'c', sdp: '' }).success).toBe(false);
   });
 });
 

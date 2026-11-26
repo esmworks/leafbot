@@ -1,17 +1,27 @@
-import { SignalFromRelay, type IceServer, type SignalToRelay } from '@leafbot/shared/tunnel';
+import {
+  SignalClose,
+  SignalOutbound,
+  type IceCandidate,
+  type IceServer,
+  type SignalInbound,
+} from '@leafbot/shared/signal';
+import type { z } from 'zod';
 import { WebSocket } from 'ws';
 import type { TunnelGateway, TunnelPeer } from './gateway';
+
+/** A browser's ICE candidate as it travels through the relay; null means it has no more. */
+export type Candidate = z.infer<typeof IceCandidate>;
 
 /**
  * A WebRTC connection on the server's side, whatever library makes it. The browser offers; the
  * server answers.
  */
 export interface RtcConnection extends TunnelPeer {
-  /** Takes the browser's offer and returns the answer. */
+  /** Takes the browser's offer (the first, or one restarting ICE) and returns the answer. */
   answer(offerSdp: string): Promise<string>;
-  addCandidate(candidate: string, mid: string | null): void;
-  /** Candidates found on this side, to send to the browser. */
-  onCandidate(cb: (candidate: string, mid: string | null) => void): void;
+  addCandidate(candidate: Candidate): void;
+  /** Candidates found on this side, to send to the browser; null once there are no more. */
+  onCandidate(cb: (candidate: Candidate) => void): void;
   /** DTLS is up: the fingerprints can be read and channels arrive. */
   onConnected(cb: () => void): void;
 }
@@ -27,6 +37,8 @@ export interface SignalOptions {
   gateway: TunnelGateway;
   /** Connections being set up or open at once; more are refused until some close. */
   maxConnections?: number;
+  /** Unix seconds. */
+  now?: () => number;
   /** Opens the WebSocket; tests pass their own. */
   connect?(url: string): WebSocket;
 }
@@ -36,6 +48,16 @@ const MAX_RETRY_MS = 60_000;
 /** A connection that does not reach DTLS in this long is given up. */
 const SETUP_TIMEOUT_MS = 30_000;
 const MAX_CONNECTIONS = 32;
+/** A fresh ticket goes to the relay once this share of its window has passed. */
+const REFRESH_AT = 0.6;
+
+/** Closes after which the resume token is of no use and the next hello needs a fresh ticket. */
+const FRESH_TICKET = new Set<number>([
+  SignalClose.ticketInvalid,
+  SignalClose.ticketReplayed,
+  SignalClose.revoked,
+  SignalClose.timeout,
+]);
 
 /**
  * Keeps the server reachable through the relay: one outgoing WebSocket, opened again with growing
@@ -46,8 +68,10 @@ export class SignalClient {
   private ws: WebSocket | null = null;
   private retry = MIN_RETRY_MS;
   private timer: NodeJS.Timeout | null = null;
+  private refreshTimer: NodeJS.Timeout | null = null;
   private stopped = true;
-  private resume: string | undefined;
+  private resume: string | null = null;
+  private iceServers: IceServer[] = [];
   private peers = new Map<string, { rtc: RtcConnection; setup: NodeJS.Timeout | null }>();
 
   constructor(private opts: SignalOptions) {}
@@ -60,8 +84,8 @@ export class SignalClient {
 
   stop() {
     this.stopped = true;
-    if (this.timer) clearTimeout(this.timer);
-    this.timer = null;
+    for (const t of [this.timer, this.refreshTimer]) if (t) clearTimeout(t);
+    this.timer = this.refreshTimer = null;
     this.ws?.terminate();
     this.ws = null;
     for (const cid of [...this.peers.keys()]) this.drop(cid);
@@ -72,38 +96,51 @@ export class SignalClient {
     return this.peers.size;
   }
 
+  private now() {
+    return this.opts.now?.() ?? Math.floor(Date.now() / 1000);
+  }
+
   private async open() {
     if (this.stopped) return;
-    let ticket: string;
-    try {
-      ticket = await this.opts.hostTicket();
-    } catch {
-      return this.later();
+    // A brief drop continues with the resume token; otherwise a fresh ticket proves who this is.
+    let hello: SignalInbound;
+    if (this.resume) hello = { type: 'hello', role: 'host', resume: this.resume };
+    else {
+      try {
+        hello = { type: 'hello', role: 'host', ticket: await this.opts.hostTicket() };
+      } catch {
+        return this.later();
+      }
     }
     if (this.stopped) return;
     const ws =
       this.opts.connect?.(this.opts.url) ?? new WebSocket(this.opts.url, { perMessageDeflate: false });
     this.ws = ws;
-    ws.on('open', () => this.send({ t: 'hello', ticket, ...(this.resume && { resume: this.resume }) }));
+    ws.on('open', () => this.send(hello));
     ws.on('message', (data: Buffer, isBinary) => {
       if (isBinary) return;
-      let msg: SignalFromRelay;
+      let msg: SignalOutbound;
       try {
-        msg = SignalFromRelay.parse(JSON.parse(data.toString('utf8')));
+        msg = SignalOutbound.parse(JSON.parse(data.toString('utf8')));
       } catch {
         return;
       }
       void this.handle(msg);
     });
-    const lost = () => {
+    const lost = (code?: number) => {
       if (this.ws !== ws) return;
       this.ws = null;
+      if (this.refreshTimer) clearTimeout(this.refreshTimer);
+      this.refreshTimer = null;
+      if (code === undefined || FRESH_TICKET.has(code)) this.resume = null;
+      // Another socket of this server took over: stay away longer rather than take it back.
+      if (code === SignalClose.replaced) this.retry = MAX_RETRY_MS;
       // Open browser connections do not need the relay any more and stay; only setups are lost.
       for (const [cid, p] of this.peers) if (p.setup) this.drop(cid);
       this.later();
     };
-    ws.on('close', lost);
-    ws.on('error', lost);
+    ws.on('close', (code: number) => lost(code));
+    ws.on('error', () => lost());
   }
 
   private later() {
@@ -116,76 +153,99 @@ export class SignalClient {
     }, wait);
   }
 
-  private send(msg: SignalToRelay) {
+  private send(msg: SignalInbound) {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
   }
 
-  private async handle(msg: SignalFromRelay) {
-    switch (msg.t) {
-      case 'ready':
+  /** Sends a fresh ticket before the relay's window for this socket ends. */
+  private scheduleRefresh(until: number) {
+    if (this.refreshTimer) clearTimeout(this.refreshTimer);
+    const ms = Math.max(1_000, (until - this.now()) * 1000 * REFRESH_AT);
+    this.refreshTimer = setTimeout(() => {
+      this.refreshTimer = null;
+      this.opts.hostTicket().then(
+        (ticket) => this.send({ type: 'refresh', ticket }),
+        // Without a fresh ticket the relay closes the socket at the window's end and it opens again.
+        () => this.scheduleRefresh(this.now() + 10),
+      );
+    }, ms);
+  }
+
+  private async handle(msg: SignalOutbound) {
+    switch (msg.type) {
+      case 'welcome':
         this.retry = MIN_RETRY_MS;
-        this.resume = msg.resume;
+        this.resume = msg.resumeToken;
+        this.iceServers = msg.iceServers;
+        this.scheduleRefresh(msg.resumeExpiresAt);
         return;
-      case 'connect':
-        return this.connectPeer(msg.cid, msg.iceServers);
+      case 'resume-token':
+        this.resume = msg.resumeToken;
+        this.scheduleRefresh(msg.expiresAt);
+        return;
+      case 'ice-servers':
+        this.iceServers = msg.iceServers;
+        return;
       case 'offer': {
-        const p = this.peers.get(msg.cid);
-        if (!p) return this.send({ t: 'bye', cid: msg.cid });
+        const cid = msg.connectionId;
+        if (!cid) return;
+        const p = this.peers.get(cid) ?? this.connectPeer(cid);
+        if (!p) return this.send({ type: 'bye', connectionId: cid, reason: 'busy' });
         try {
           const sdp = await p.rtc.answer(msg.sdp);
-          this.send({ t: 'answer', cid: msg.cid, sdp });
+          this.send({ type: 'answer', connectionId: cid, sdp });
         } catch {
-          this.drop(msg.cid);
+          this.drop(cid);
         }
         return;
       }
-      case 'ice':
-        this.peers.get(msg.cid)?.rtc.addCandidate(msg.candidate, msg.mid);
+      case 'ice-candidate':
+        if (msg.connectionId) this.peers.get(msg.connectionId)?.rtc.addCandidate(msg.candidate);
         return;
       case 'bye':
         // Before DTLS the browser gave up; after it, the connection is the gateway's to close.
-        if (this.peers.get(msg.cid)?.setup) this.drop(msg.cid);
+        if (msg.connectionId && this.peers.get(msg.connectionId)?.setup) this.drop(msg.connectionId, false);
         return;
-      case 'revoke':
-        this.opts.gateway.revoke(msg);
-        return;
-      case 'error':
-        // A refused hello (`ticket`) is tried again later with a fresh ticket.
-        if (msg.code === 'ticket') this.ws?.close();
-        return;
+      // The browser's signalling socket coming and going does not touch its WebRTC connection;
+      // an ICE restart arrives as a new offer.
+      case 'peer-joined':
+      case 'peer-left':
+      case 'ice-restart':
+      case 'host-online':
+      case 'host-offline':
       case 'answer':
+      case 'error':
         return;
     }
   }
 
-  private connectPeer(cid: string, iceServers: IceServer[]) {
-    if (this.peers.has(cid)) return;
-    if (this.peers.size >= (this.opts.maxConnections ?? MAX_CONNECTIONS)) return this.send({ t: 'bye', cid });
-    const rtc = this.opts.rtc({ iceServers });
+  private connectPeer(cid: string) {
+    if (this.peers.size >= (this.opts.maxConnections ?? MAX_CONNECTIONS)) return null;
+    const rtc = this.opts.rtc({ iceServers: this.iceServers });
     const setup = setTimeout(() => this.drop(cid), SETUP_TIMEOUT_MS);
-    this.peers.set(cid, { rtc, setup });
-    rtc.onCandidate((candidate, mid) => this.send({ t: 'ice', cid, candidate, mid }));
+    const p = { rtc, setup: setup as NodeJS.Timeout | null };
+    this.peers.set(cid, p);
+    rtc.onCandidate((candidate) => this.send({ type: 'ice-candidate', connectionId: cid, candidate }));
     rtc.onConnected(() => {
-      const p = this.peers.get(cid);
-      if (!p?.setup) return;
+      if (this.peers.get(cid) !== p || !p.setup) return;
       clearTimeout(p.setup);
       p.setup = null;
       this.opts.gateway.accept(rtc);
     });
     rtc.onClose(() => {
-      const p = this.peers.get(cid);
-      if (p?.rtc !== rtc) return;
+      if (this.peers.get(cid) !== p) return;
       if (p.setup) clearTimeout(p.setup);
       this.peers.delete(cid);
     });
+    return p;
   }
 
-  private drop(cid: string) {
+  private drop(cid: string, tell = true) {
     const p = this.peers.get(cid);
     if (!p) return;
     if (p.setup) clearTimeout(p.setup);
     this.peers.delete(cid);
     p.rtc.close();
-    this.send({ t: 'bye', cid });
+    if (tell) this.send({ type: 'bye', connectionId: cid });
   }
 }
