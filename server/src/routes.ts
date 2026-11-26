@@ -2941,8 +2941,13 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     reply.header('cache-control', 'no-cache');
     // A conversation shows pictures small; the full file is fetched only when one is opened.
     if (thumb && type?.startsWith('image/') && type !== 'image/svg+xml' && st.size <= THUMB_SOURCE_MAX) {
+      // The copy is made again only when the file changed; asked again, the browser keeps its own.
+      const tag = `"t${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
+      reply.header('etag', tag);
+      if (req.headers['if-none-match'] === tag) return reply.code(304).send();
       const small = await thumbnail(await readFile(full));
       if (small) return reply.type('image/webp').send(small);
+      reply.removeHeader('etag');
     }
     reply.header('accept-ranges', 'bytes');
     reply.type(type ?? 'application/octet-stream');

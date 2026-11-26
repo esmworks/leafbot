@@ -206,8 +206,11 @@ function Upcoming({ bot }: { bot: Bot }) {
                 {r.pausedReason === 'failures' && !r.enabled ? (
                   <span className="text-destructive">{t('panel.switchedOffFailures')} · </span>
                 ) : !r.enabled ? (
-                  // Only the switch said it was off, which is easy to miss at a glance.
-                  <span>{t('pause.badge')} · </span>
+                  // Only the switch said it was off, which is easy to miss at a glance. A one-time
+                  // routine turns itself off once it has run; that is not a pause.
+                  <span>
+                    {t(r.schedule.type === 'once' && r.lastRunAt ? 'panel.ranOnce' : 'pause.badge')} ·{' '}
+                  </span>
                 ) : r.signInWait ? (
                   <span className="text-destructive">{t('panel.signInWait')} · </span>
                 ) : (

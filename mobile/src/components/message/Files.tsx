@@ -35,7 +35,7 @@ export function MessageFiles({
           return (
             <Pressable key={f.path} accessibilityRole="imagebutton" accessibilityLabel={label} onPress={open}>
               <Image
-                source={{ uri: api.fileUrl(botId, f.path, { inline: true }) }}
+                source={{ uri: api.fileUrl(botId, f.path, { inline: true, thumb: true }) }}
                 accessibilityLabel={f.name}
                 contentFit="cover"
                 style={[styles.image, { borderColor: c.border }]}

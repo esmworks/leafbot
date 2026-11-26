@@ -199,20 +199,25 @@ describe('dosya ekleme', () => {
     const big = await sharp(raw, { raw: { width: 1600, height: 1200, channels: 3 } })
       .png()
       .toBuffer();
+    const urls: string[] = [];
     const get = async (name: string, content: Buffer | string) => {
       await upload(thread.id, name, content);
       const path = filesOf((await send(thread.id, { files: [name] })).body)[0]!.path;
-      return t.app.inject({
-        method: 'GET',
-        url: `/api/bots/${bot.id}/library/file?path=${encodeURIComponent(path)}&inline=1&thumb=1`,
-        headers: { ...AUTH, host: 'localhost' },
-      });
+      urls.push(`/api/bots/${bot.id}/library/file?path=${encodeURIComponent(path)}&inline=1&thumb=1`);
+      return t.app.inject({ method: 'GET', url: urls.at(-1)!, headers: { ...AUTH, host: 'localhost' } });
     };
     const small = await get('foto.png', big);
     expect(small.headers['content-type']).toBe('image/webp');
     const meta = await sharp(small.rawPayload).metadata();
     expect(Math.max(meta.width!, meta.height!)).toBe(512);
     expect(small.rawPayload.length).toBeLessThan(big.length);
+    // Asked again for an unchanged file, the browser keeps the copy it has.
+    const again = await t.app.inject({
+      method: 'GET',
+      url: urls[0]!,
+      headers: { ...AUTH, host: 'localhost', 'if-none-match': String(small.headers.etag) },
+    });
+    expect(again.statusCode).toBe(304);
     expect((await get('ufak.png', 'x')).headers['content-type']).toBe('image/png');
     expect((await get('cizim.svg', '<svg/>')).headers['content-type']).toBe('image/svg+xml');
   });

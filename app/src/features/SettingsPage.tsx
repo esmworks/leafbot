@@ -1794,7 +1794,9 @@ function RoutinesTab() {
                 >
                   <div className="truncate text-sm font-medium">{r.name}</div>
                   <div className="truncate text-xs text-muted-foreground">
-                    {bot?.name} · {!r.enabled && `${t('pause.badge')} · `}
+                    {bot?.name} ·{' '}
+                    {!r.enabled &&
+                      `${t(r.schedule.type === 'once' && r.lastRunAt ? 'panel.ranOnce' : 'pause.badge')} · `}
                     {describeSchedule(r.schedule, locale)}
                     {r.lastRunAt ? ` · ${t('routines.lastRun', { when: dayLabel(r.lastRunAt) })}` : ''}
                   </div>

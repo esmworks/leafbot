@@ -391,16 +391,16 @@ async function connect() {
         type: 'error',
         message: t('dialog.failed'),
         detail: (err as Error).message,
-        buttons: [t('dialog.retry'), t('menu.showLogs'), t('dialog.quit')],
+        // Closing leaves the app in the menu bar, where another server can be chosen.
+        buttons: [t('dialog.retry'), t('menu.showLogs'), t('dialog.close')],
         defaultId: 0,
-        cancelId: 0,
+        cancelId: 2,
       });
       if (response === 1) {
         shell.showItemInFolder(log.transports.file.getFile().path);
         continue;
       }
-      if (response === 2) app.quit();
-      else await switchTo(config);
+      if (response === 0) await switchTo(config);
       return;
     }
   }

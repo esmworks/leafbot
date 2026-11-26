@@ -318,7 +318,7 @@ version is 0.x, a minor release may change the data format or the API; the serve
   voice for another language reading it as nonsense.
 
 - When the server on this computer cannot start, the desktop app's error box now offers Try again, Show logs and
-  Quit. Before, it only had OK, and the app stayed in the menu bar with nothing open and no way to retry.
+  Close. Before, it only had OK, and the app stayed in the menu bar with nothing open and no way to retry.
 - A desktop app set to a remote server no longer starts this computer's own server when the system keychain is
   not open yet, which happens on Linux when the keyring comes up after the app. It waits a few seconds for the
   keychain, then asks whether to try again or use this computer's server for this run; the remote choice stays

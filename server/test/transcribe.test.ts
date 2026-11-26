@@ -52,6 +52,24 @@ describe('sesle yazdırma', () => {
     expect((await t.api('GET', '/api/transcribe')).body).toEqual({ available: true });
   });
 
+  it('dil verilmeyen istekte dili servise bırakır', async () => {
+    await t.services.keys.set('openai', 'sk-test-transcribe-1234');
+    const languages: unknown[] = [];
+    const fake = (async (_url: string, init: RequestInit) => {
+      languages.push((init.body as FormData).get('language'));
+      return new Response(JSON.stringify({ text: 'hello' }), { status: 200 });
+    }) as typeof fetch;
+    Object.assign(t.services.transcribe, { fetcher: fake });
+    const res = await t.app.inject({
+      method: 'POST',
+      url: '/api/transcribe',
+      headers: { ...AUTH, 'content-type': 'audio/webm;codecs=opus' },
+      payload: Buffer.from('ses'),
+    });
+    expect(res.json()).toEqual({ text: 'hello' });
+    expect(languages).toEqual([null]);
+  });
+
   it('servise ulaşılamazsa genel sunucu hatası yerine nedenini söyler', async () => {
     await t.services.keys.set('openai', 'sk-test-transcribe-1234');
     const refused = (async () => {

@@ -1543,6 +1543,7 @@ export const en: Catalog<MessageKey> = {
   'panel.nextRun': 'next {when}',
   'panel.lastRunFailed': 'last run failed',
   'panel.signInWait': 'waiting for a sign-in',
+  'panel.ranOnce': 'Ran once',
   'panel.switchedOffFailures': 'switched off after repeated failures',
   'panel.runNow': 'Run now',
   'panel.toggle': 'On/off',

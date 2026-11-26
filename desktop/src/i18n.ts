@@ -31,6 +31,7 @@ const tr = {
   'dialog.reload': 'Yeniden yükle',
   'dialog.quit': 'Çık',
   'dialog.retry': 'Tekrar dene',
+  'dialog.close': 'Kapat',
   'dialog.useLocal': 'Bu bilgisayardaki sunucuyu kullan',
   'dialog.keychainLocked': '{host} sunucusunun anahtarı okunamıyor.',
   'dialog.keychainLockedDetail':
@@ -134,6 +135,7 @@ const en: Catalog<DesktopKey> = {
   'dialog.reload': 'Reload',
   'dialog.quit': 'Quit',
   'dialog.retry': 'Try again',
+  'dialog.close': 'Close',
   'dialog.useLocal': 'Use the server on this computer',
   'dialog.keychainLocked': 'The key for {host} cannot be read.',
   'dialog.keychainLockedDetail':

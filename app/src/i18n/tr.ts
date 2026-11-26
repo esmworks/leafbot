@@ -1509,6 +1509,7 @@ export const tr = {
   'panel.nextRun': 'sıradaki {when}',
   'panel.lastRunFailed': 'son çalışma başarısız',
   'panel.signInWait': 'oturum açılmasını bekliyor',
+  'panel.ranOnce': 'Bir kez çalıştı',
   'panel.switchedOffFailures': 'art arda hatalar yüzünden kapatıldı',
   'panel.runNow': 'Şimdi çalıştır',
   'panel.toggle': 'Aç/kapat',
