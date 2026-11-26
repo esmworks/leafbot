@@ -7,6 +7,13 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Server names under leafbot.cloud: `docker/install.sh` without `--domain` now gets the server a free name such as
+  `k3x9q2mf.leafbot.cloud` from a small names service (`names/`, a Cloudflare Worker) instead of an sslip.io name.
+  Let's Encrypt allows 50 new certificates a week per registered domain, which under sslip.io every install shared
+  with everyone using it. The name points at the address the request came from; the server renews it daily with a
+  systemd timer (`leafbot refresh-name`), names not renewed for 30 days are removed, and
+  `https://names.leafbot.app/<IP>` leads to the name of a server set up from user data. When no name can be had, or
+  with `--sslip`, the installer uses an sslip.io name as before; installed servers keep their address.
 - Advisor model for Claude bots: under Providers → Claude, a stronger Claude model (Fable, Opus or Sonnet) can be
   chosen that Claude bots may ask for advice when they are stuck, before a large step and before they call their
   work done. The bot decides when to ask; the advisor sees the whole conversation, answers only the bot, and its

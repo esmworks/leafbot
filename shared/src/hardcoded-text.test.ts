@@ -19,6 +19,7 @@ const PACKAGES = [
   'desktop/src',
   'computer/src',
   'mobile/src',
+  'names/src',
 ];
 
 /** Files that hold the catalogs, or text no person reads. Each needs its reason. */
