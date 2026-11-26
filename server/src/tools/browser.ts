@@ -1806,9 +1806,11 @@ export function browserTools(opts: {
         let origin: string;
         try {
           const url = await use(async (page) => {
-            const url = new URL(page.url());
-            if (url.protocol !== 'https:' && url.protocol !== 'http:')
-              throw new BrowserError('badUrl', page.url());
+            // With no field, a tab held on a site's HTTP sign-in prompt counts as on that site.
+            const at =
+              (!username_ref && !password_ref && browser.httpAuthWaiting(bot.id, page)) || page.url();
+            const url = new URL(at);
+            if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new BrowserError('badUrl', at);
             return url;
           });
           // No field: only a site that asked for its own HTTP sign-in is answered that way.
@@ -1844,7 +1846,7 @@ export function browserTools(opts: {
         const c = cred;
         if (!username_ref && !password_ref) {
           const signed = await step(async (page) => {
-            const now = new URL(page.url());
+            const now = new URL(browser.httpAuthWaiting(bot.id, page) ?? page.url());
             if (now.origin !== origin) return t('browser.loginMoved', { host: now.hostname, site: c.site });
             await browser.signInHttp(bot.id, page, origin, c.username, c.password);
             if (c.id) void vault.used(c.id).catch(() => {});

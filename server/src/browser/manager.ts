@@ -267,7 +267,16 @@ interface Live {
    * Sites whose page asked for an HTTP sign-in (a 401 with Basic), newest last. The bot hears of a
    * new one once; `browser_login` with no fields answers it with a saved login.
    */
-  httpAuth: { origins: string[]; unheard: string[] };
+  httpAuth: {
+    origins: string[];
+    unheard: string[];
+    /**
+     * The address a tab was going to when the site asked, while nothing of it has shown. A full
+     * Chrome holds such a page on a sign-in prompt no one sees, so the tab still shows where it came
+     * from (often about:blank); a headless shell shows the 401 page and this is cleared at once.
+     */
+    waiting: WeakMap<Page, string>;
+  };
   /** The Basic sign-in sent to each site the bot signed in to that way, while the browser is open. */
   httpLogins: Map<string, string>;
   /** Tabs the site tried to open over the limit, which were closed, since the bot last heard. */
@@ -722,6 +731,11 @@ export class BrowserManager {
     return out;
   }
 
+  /** Where `page` was going when its site asked for an HTTP sign-in, while it still waits on it. */
+  httpAuthWaiting(botId: string, page: Page): string | undefined {
+    return this.live.get(botId)?.httpAuth.waiting.get(page);
+  }
+
   /** Whether a page of this site asked the bot's browser for an HTTP sign-in. */
   askedHttpAuth(botId: string, origin: string): boolean {
     return !!this.live.get(botId)?.httpAuth.origins.includes(origin);
@@ -750,7 +764,11 @@ export class BrowserManager {
         },
       );
     }
-    await page.reload({ waitUntil: 'domcontentloaded' });
+    // A tab held on the prompt never showed the page, so there is nothing to load again: it goes
+    // to the address it was on its way to.
+    const waiting = l.httpAuth.waiting.get(page);
+    if (waiting) await page.goto(waiting, { waitUntil: 'domcontentloaded' });
+    else await page.reload({ waitUntil: 'domcontentloaded' });
   }
 
   /** Sites that asked for a passkey since the bot last heard; heard once. */
@@ -1366,7 +1384,7 @@ export class BrowserManager {
       refused: new Set(),
       closedBySite: [],
       passkeys: [],
-      httpAuth: { origins: [], unheard: [] },
+      httpAuth: { origins: [], unheard: [], waiting: new WeakMap() },
       httpLogins: new Map(),
       refusedTabs: 0,
       downloads: [],
@@ -1470,13 +1488,17 @@ export class BrowserManager {
       } catch {
         return;
       }
-      const { origins, unheard } = live.httpAuth;
+      const { origins, unheard, waiting } = live.httpAuth;
+      waiting.set(page, response.url());
       if (!origins.includes(origin)) origins.push(origin);
       if (origins.length > 5) origins.shift();
       if (!unheard.includes(origin)) unheard.push(origin);
     });
     page.on('framenavigated', (frame) => {
-      if (frame !== page.mainFrame() || live.page !== page) return;
+      if (frame !== page.mainFrame()) return;
+      // The page showed: it no longer waits on a sign-in prompt.
+      live.httpAuth.waiting.delete(page);
+      if (live.page !== page) return;
       this.emitState(live);
     });
     page.on('load', () => {
