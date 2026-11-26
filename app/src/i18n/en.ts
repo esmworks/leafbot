@@ -2826,6 +2826,8 @@ export const en: Catalog<MessageKey> = {
   'model.default': 'Default (recommended)',
   'model.defaultHint': 'Claude picks the right model for your account.',
   'model.defaultModel': 'Default model',
+  'model.effortAcpHint':
+    "Set as the agent's thinking level, or the nearest it has; an agent without one ignores it.",
   'model.effort': 'How hard should it think? (effort)',
   'model.effortHint': 'Higher effort gives more careful answers; it is slower and uses your limits faster.',
   'model.effortDefault': 'Leave it to the model',

@@ -811,6 +811,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     await requireBotOwner(req, id);
     // An archived bot leaves its rooms first, so a room it started is not removed with it.
     if ((await s.bots.get(id)).archivedAt) await s.rooms.removeBot(id);
+    // Work started after it was archived (a queued run, say) ends before its rows go.
+    await s.turns.stopBots([id], 'archived');
     await s.bots.purge(id);
     await s.ctx.browser.close(id).catch(() => {});
     // Its folders go with it: files, conversations, the browser profile.

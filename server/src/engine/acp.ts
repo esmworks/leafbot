@@ -16,6 +16,7 @@ import {
   type PermissionOption,
   type RequestPermissionRequest,
   type RequestPermissionResponse,
+  type SessionConfigOption,
   type SessionUpdate,
   type Stream,
   type ToolCallUpdate,
@@ -27,7 +28,7 @@ import {
   CancelledNotificationSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
-import { ACP_AGENTS, type AcpAgentId } from '@leafbot/shared';
+import { ACP_AGENTS, type AcpAgentId, type Effort } from '@leafbot/shared';
 import { z } from 'zod';
 import { translator, type T } from '../i18n';
 import {
@@ -291,6 +292,30 @@ export function appToolCall(call: ToolCallUpdate, exposed: ReadonlySet<string>):
   return label
     .split(/[^A-Za-z0-9_]+/)
     .some((word) => [...exposed].some((name) => word === name || word.endsWith(`__${name}`)));
+}
+
+/** Thinking levels, lowest first, as agents name them; the bot's effort maps onto the nearest one. */
+const LEVELS = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+
+/**
+ * The agent's own thinking-level choice set to the bot's effort: the same value, or the nearest
+ * one it offers. Null when the agent offers none or already stands there. Without it, a bot set to
+ * think harder on an agent ran at the agent's default all the same.
+ */
+export function thoughtLevel(
+  options: SessionConfigOption[],
+  effort: Effort,
+): { configId: string; value: string } | null {
+  const option = options.find((o) => o.category === 'thought_level' && o.type === 'select');
+  if (!option || option.type !== 'select') return null;
+  const values = option.options.flatMap((o) => ('options' in o ? o.options : [o]));
+  const rank = (v: { value: string; name: string }) =>
+    Math.max(LEVELS.indexOf(v.value.toLowerCase()), LEVELS.indexOf(v.name.toLowerCase()));
+  const want = LEVELS.indexOf(effort);
+  const ranked = values.filter((v) => rank(v) >= 0);
+  if (!ranked.length) return null;
+  const best = ranked.reduce((a, b) => (Math.abs(rank(b) - want) < Math.abs(rank(a) - want) ? b : a));
+  return best.value === option.currentValue ? null : { configId: option.id, value: best.value };
 }
 
 /** How often a tool call waiting on a card tells the agent it is still under way. */
@@ -587,9 +612,10 @@ export class AcpEngine implements Engine {
         : [];
       const base = { cwd: req.sandbox.cwd, mcpServers };
       let fresh = false;
+      let options: SessionConfigOption[] = [];
       if (sessionId && caps.loadSession) {
         try {
-          await early(peer.request('session/load', { ...base, sessionId }));
+          options = (await early(peer.request('session/load', { ...base, sessionId }))).configOptions ?? [];
         } catch (err) {
           // A missing login is told as such; anything else means the session is gone.
           if ((err as { code?: unknown }).code === AUTH_REQUIRED) throw err;
@@ -600,6 +626,7 @@ export class AcpEngine implements Engine {
         // over as it does when a session is lost.
         if (sessionId) return { ok: false, kind: 'lostSession', message: '', text: '', sessionId: null };
         const created: NewSessionResponse = await early(peer.request('session/new', base));
+        options = created.configOptions ?? [];
         sessionId = created.sessionId;
         req.onSession(created.sessionId);
         fresh = true;
@@ -610,6 +637,16 @@ export class AcpEngine implements Engine {
       live = true;
       startDone();
       const sid = sessionId!;
+      const level = req.effort && thoughtLevel(options, req.effort);
+      if (level) {
+        await peer
+          .request('session/set_config_option', {
+            sessionId: sid,
+            configId: level.configId,
+            value: level.value,
+          })
+          .catch((err: unknown) => console.warn(`${agent.name} kept its thinking level: ${String(err)}`));
+      }
       // Told to stop; an agent that does not is ended, along with what it started.
       let grace: NodeJS.Timeout | undefined;
       const onAbort = () => {

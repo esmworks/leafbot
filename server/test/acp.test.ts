@@ -6,7 +6,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { AcpEngine, agentEnv, appToolCall, pickOption, serveTools, stepAsk } from '../src/engine/acp';
+import {
+  AcpEngine,
+  agentEnv,
+  appToolCall,
+  pickOption,
+  serveTools,
+  stepAsk,
+  thoughtLevel,
+} from '../src/engine/acp';
 import { translator } from '../src/i18n';
 import { fakeAgent } from './fixtures/fake-acp-agent';
 import type { AppTool, PermissionAsk, PermissionAnswer, TurnRequest } from '../src/engine/types';
@@ -184,6 +192,29 @@ describe('ACP motoru', () => {
     expect(seen.toolResults[0]).toMatchObject({ content: [{ type: 'text', text: 'not alındı: süt al' }] });
     expect(seen.toolResults[1]).toMatchObject({ isError: true, content: [{ text: 'kart: hayır' }] });
     expect(seen.toolResults[2]).toMatchObject({ isError: true });
+  });
+
+  it('botun düşünme düzeyini ajanın kendi düzey ayarına, yoksa en yakınına koyar', async () => {
+    const levels = {
+      id: 'reasoning',
+      name: 'Reasoning',
+      category: 'thought_level',
+      type: 'select',
+      currentValue: 'medium',
+      options: [
+        { value: 'low', name: 'Low' },
+        { value: 'medium', name: 'Medium' },
+        { value: 'high', name: 'High' },
+      ],
+    };
+    expect(thoughtLevel([levels as never], 'high')).toEqual({ configId: 'reasoning', value: 'high' });
+    expect(thoughtLevel([levels as never], 'max')).toEqual({ configId: 'reasoning', value: 'high' });
+    expect(thoughtLevel([levels as never], 'medium')).toBeNull();
+    expect(thoughtLevel([{ ...levels, category: 'model' } as never], 'high')).toBeNull();
+
+    const { app, seen } = fakeAgent({ configOptions: [levels], onPrompt: async () => 'end_turn' });
+    expect((await engineWith(app).run(request({ effort: 'xhigh' }).req)).ok).toBe(true);
+    expect(seen.configs).toEqual(['reasoning=high']);
   });
 
   it('kart açıkken ajan beklemeyi bırakırsa geç gelen onayla araç çalışmaz', async () => {

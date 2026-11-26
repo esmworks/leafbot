@@ -7,6 +7,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A coding agent bot's effort is now set as the agent's own thinking level, or the nearest level it has, when
+  the agent offers one. The effort field shows for these bots too; an agent without such a setting ignores it.
+
 - Routines can have no schedule ("No schedule" under When). Such a routine runs only when one of its events
   comes (a webhook call, an email, a table row, a Slack reaction, the server starting) or when run by hand.
   Before, a routine meant only to answer events needed a schedule it did not want, and ran on it too. Page
@@ -315,6 +318,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
   opened to be saved. Pictures and players still sit side by side, and the download-all button comes after the list.
 
 ### Fixed
+
+- Deleting a bot first stops any work it still had going, such as a run queued after it was archived, so
+  nothing writes to a bot whose rows are being removed.
 
 - A coding agent bot (Gemini, Codex, OpenCode, Kimi) that stopped waiting for an approval card no longer has
   the step run when the card is approved later. The agent had already counted the step as failed and might

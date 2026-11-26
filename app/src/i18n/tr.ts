@@ -2778,6 +2778,8 @@ export const tr = {
   'model.default': 'Varsayılan (önerilen)',
   'model.defaultHint': 'Hesabınıza göre uygun modeli Claude seçer.',
   'model.defaultModel': 'Varsayılan model',
+  'model.effortAcpHint':
+    'Ajanın düşünme düzeyi olarak ya da onun en yakın düzeyi olarak ayarlanır; böyle bir ayarı olmayan ajan bunu yok sayar.',
   'model.effort': 'Ne kadar düşünsün? (effort)',
   'model.effortHint': 'Yüksek effort daha özenli cevap verir; daha yavaştır ve kotayı daha hızlı kullanır.',
   'model.effortDefault': 'Modele bırak',
