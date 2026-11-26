@@ -36,6 +36,37 @@ export function readDesktopConfig(dir: string, crypto: Crypto): DesktopConfig {
   return { mode: 'local' };
 }
 
+/**
+ * The host of a saved remote server whose key cannot be read yet: the keychain is not open (on
+ * Linux the keyring can come up after the app) or refuses to decrypt. Reading the config then would
+ * quietly start this computer's own server in place of the one the person chose, so the caller
+ * waits or asks first. Null when there is nothing to wait for.
+ */
+export function lockedRemote(dir: string, crypto: Crypto): string | null {
+  const file = join(dir, 'desktop.json');
+  if (!existsSync(file)) return null;
+  let s: Stored;
+  try {
+    s = JSON.parse(readFileSync(file, 'utf8')) as Stored;
+  } catch {
+    return null;
+  }
+  if (s.mode !== 'remote' || !s.url || typeof s.keyEncrypted !== 'string') return null;
+  let host: string;
+  try {
+    host = new URL(s.url).host;
+  } catch {
+    return null;
+  }
+  if (!crypto.isEncryptionAvailable()) return host;
+  try {
+    crypto.decryptString(Buffer.from(s.keyEncrypted, 'base64'));
+    return null;
+  } catch {
+    return host;
+  }
+}
+
 export function writeDesktopConfig(dir: string, cfg: DesktopConfig, crypto: Crypto) {
   let stored: Stored = { mode: 'local' };
   if (cfg.mode === 'remote') {

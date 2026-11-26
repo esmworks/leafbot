@@ -297,6 +297,13 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- When the server on this computer cannot start, the desktop app's error box now offers Try again, Show logs and
+  Quit. Before, it only had OK, and the app stayed in the menu bar with nothing open and no way to retry.
+- A desktop app set to a remote server no longer starts this computer's own server when the system keychain is
+  not open yet, which happens on Linux when the keyring comes up after the app. It waits a few seconds for the
+  keychain, then asks whether to try again or use this computer's server for this run; the remote choice stays
+  saved. Before, it quietly switched servers and the person's bots seemed to be gone.
+
 - The bot's desktop browser no longer opens a print dialog or asks to share its location. Both dialogs are Chrome's
   own windows, which the bot cannot see or close from the page, so a site that asked for either left the browser
   stuck behind a box. Printing is now off and location requests are refused by the browser's policy.
