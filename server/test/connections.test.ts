@@ -800,6 +800,33 @@ describe('bağlantılar', () => {
     expect(other.status).toBe(400);
   });
 
+  it('OAuth: sonradan girilen kendi uygulaması eski girişi düşürür, yeni giriş onunla açılır', async () => {
+    const f = await fixture({ oauth: true });
+    const added = (
+      await t.api<Connection>('POST', '/api/connections', { name: 'Servis', url: f.url, auth: 'oauth' })
+    ).body;
+    const first = new URL(
+      (await t.api<ConnectionAuthStart>('POST', `/api/connections/${added.id}/signin`)).body.url!,
+    );
+    await t.app.inject({
+      method: 'GET',
+      url: `/api/connections/oauth/callback?state=${first.searchParams.get('state')}&code=good-code`,
+      headers: { host: 'localhost' },
+    });
+    expect((await t.api<Connection>('GET', `/api/connections/${added.id}`)).body.status).toBe('connected');
+
+    const moved = await t.api<Connection>('PATCH', `/api/connections/${added.id}`, {
+      clientId: 'later-app',
+      clientSecret: 'later-secret',
+    });
+    expect(moved.body.clientId).toBe('later-app');
+    expect(moved.body.status).toBe('signed-out');
+    const again = new URL(
+      (await t.api<ConnectionAuthStart>('POST', `/api/connections/${added.id}/signin`)).body.url!,
+    );
+    expect(again.searchParams.get('client_id')).toBe('later-app');
+  });
+
   it('OAuth: uygulamaya verilen ad, onu ödünç alan hesaba geçer, çıkışta kalır, başka uygulamada düşer', async () => {
     const f = await fixture({ oauth: true });
     const first = (

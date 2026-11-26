@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   X,
   BellOff,
+  CircleDot,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BotAvatar } from '@/components/BotAvatar';
@@ -37,17 +38,20 @@ import { cn } from '@/lib/utils';
 export function Sidebar() {
   const { data: bots = [] } = useBots();
   const [query, setQuery] = useState('');
+  const [onlyUnread, setOnlyUnread] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const { phone, sidebar: width } = useLayout();
   const chosen = useUi((s) => s.sidebarWidth);
   const rail = width <= SIDEBAR.rail && !phone;
-  // Moving is off while a search hides part of the list.
+  // Moving is off while a search or the unread filter hides part of the list.
   return (
-    <BotDragProvider enabled={rail || !query} scroller={scroller}>
+    <BotDragProvider enabled={rail || (!query && !onlyUnread)} scroller={scroller}>
       <SidebarPanel
         bots={bots}
         query={rail ? '' : query}
         setQuery={setQuery}
+        onlyUnread={!rail && onlyUnread}
+        setOnlyUnread={setOnlyUnread}
         scroller={scroller}
         width={width}
         rail={rail}
@@ -63,6 +67,8 @@ function SidebarPanel({
   bots,
   query,
   setQuery,
+  onlyUnread,
+  setOnlyUnread,
   scroller,
   width,
   rail,
@@ -72,6 +78,9 @@ function SidebarPanel({
   bots: Bot[];
   query: string;
   setQuery(q: string): void;
+  /** Only bots with replies not seen yet, or waiting on the person, so a long list can be caught up on. */
+  onlyUnread: boolean;
+  setOnlyUnread(on: boolean): void;
   scroller: React.RefObject<HTMLDivElement | null>;
   /** The width it takes, after giving way to the chat in a narrow window. */
   width: number;
@@ -94,8 +103,15 @@ function SidebarPanel({
   const dragging = !!useBotDrag().drag;
 
   const byBot = useMemo(() => new Map(summaries.map((s) => [s.botId, s])), [summaries]);
+  const seen = useSeen((s) => s.seen);
+  const unseen = (b: Bot) => {
+    const summary = byBot.get(b.id);
+    return !!summary && (summary.waiting || isUnread(summary, seen));
+  };
   const visible = bots.filter(
-    (b) => !query || b.name.toLocaleLowerCase(intl).includes(query.toLocaleLowerCase(intl)),
+    (b) =>
+      (!query || b.name.toLocaleLowerCase(intl).includes(query.toLocaleLowerCase(intl))) &&
+      (!onlyUnread || unseen(b)),
   );
   // Bots waiting on the person come first, in their own section, until they are answered.
   const needsYou = visible.filter((b) => byBot.get(b.id)?.waiting);
@@ -113,7 +129,7 @@ function SidebarPanel({
       bots: visible.filter((b) => !b.pinned && !b.groupId && !waitingIds.has(b.id)),
     },
     // A group stays in view while empty, so it can be found to drag bots into; not while searching.
-  ].filter((s) => s.bots.length || dragging || (s.group && !query));
+  ].filter((s) => s.bots.length || dragging || (s.group && !query && !onlyUnread));
   const userName = settings?.userName || t('sidebar.defaultUser');
   // ⌘1…⌘9 / Ctrl+1…Ctrl+9 opens the bot at that place in the list.
   const order = sidebarOrder(
@@ -293,6 +309,13 @@ function SidebarPanel({
             <RoundButton label={t('sidebar.search')} onClick={() => setSearching(true)}>
               <Search />
             </RoundButton>
+            <RoundButton
+              label={t(onlyUnread ? 'sidebar.showAll' : 'sidebar.onlyUnread')}
+              pressed={onlyUnread}
+              onClick={() => setOnlyUnread(!onlyUnread)}
+            >
+              <CircleDot />
+            </RoundButton>
             <RoundButton label={t('sidebar.newBot')} onClick={() => openBotPage({ mode: 'create' })}>
               <Plus />
             </RoundButton>
@@ -360,6 +383,9 @@ function SidebarPanel({
               {!list.length && <DropHint>{t(dragging ? 'sidebar.dropHere' : 'sidebar.emptyGroup')}</DropHint>}
             </SectionBox>
           ))}
+          {onlyUnread && !visible.length && (
+            <p className="mx-3 mt-4 text-sm text-muted-foreground">{t('sidebar.noUnread')}</p>
+          )}
           <RoomsSection query={query} />
           {bots.length === 0 && (
             <div className="mx-2 mt-6 flex flex-col items-center gap-3 rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
@@ -552,22 +578,26 @@ function RoundButton({
   children,
   variant = 'secondary',
   side,
+  pressed,
 }: {
   label: string;
   onClick(): void;
   children: React.ReactNode;
   variant?: 'secondary' | 'ghost';
   side?: 'right';
+  /** A switch-like button: shown filled while on. */
+  pressed?: boolean;
 }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          variant={variant}
+          variant={pressed ? 'default' : variant}
           size="icon"
           className="size-10 rounded-full [&_svg:not([class*='size-'])]:size-5"
           onClick={onClick}
           aria-label={label}
+          aria-pressed={pressed}
         >
           {children}
         </Button>

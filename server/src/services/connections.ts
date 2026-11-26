@@ -201,7 +201,26 @@ export function plainSubschemas(schema: Record<string, unknown>): Record<string,
     out.required = (out.required as unknown[]).filter((n) => typeof n !== 'string' || !dropped.has(n));
     if (!(out.required as unknown[]).length) delete out.required;
   }
+  // A list of allowed values with no type is valid JSON Schema, but Google's API takes `enum` only
+  // on a typed field and refuses the whole tool list, failing the turn. The values give the type.
+  if (Array.isArray(out.enum) && !('type' in out)) {
+    const type = enumType(out.enum);
+    if (type) out.type = type;
+  }
   return out;
+}
+
+/** The one JSON type every value of a list shares, or none when they differ. */
+function enumType(values: unknown[]): string | null {
+  const types = new Set(
+    values.map((v) =>
+      v === null ? 'null' : typeof v === 'number' ? (Number.isInteger(v) ? 'integer' : 'number') : typeof v,
+    ),
+  );
+  if (types.has('integer') && types.has('number')) types.delete('integer');
+  if (types.size !== 1) return null;
+  const [type] = types;
+  return type === 'string' || type === 'number' || type === 'integer' || type === 'boolean' ? type : null;
 }
 
 function flattenTopLevel(raw: Record<string, unknown>): Record<string, unknown> {

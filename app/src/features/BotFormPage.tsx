@@ -499,7 +499,7 @@ function BotForm({
               }
             }}
           />
-          {(v.engine === 'claude' || v.engine === 'pi') && efforts?.length !== 0 && (
+          {(v.engine === 'claude' || v.engine === 'pi' || v.engine === 'acp') && efforts?.length !== 0 && (
             <Field label={t('model.effort')}>
               <Select
                 value={v.effort && effortOptions.includes(v.effort as Effort) ? v.effort : DEFAULT_EFFORT}
@@ -521,6 +521,11 @@ function BotForm({
                   ))}
                 </SelectContent>
               </Select>
+              {v.engine === 'acp' && (
+                <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                  {t('model.effortAcpHint')}
+                </p>
+              )}
             </Field>
           )}
           {bot && <BotSharing bot={bot} />}
@@ -702,8 +707,11 @@ function BotSpent({ botId }: { botId: string }) {
  */
 function useModelEfforts(v: Pick<Form, 'engine' | 'provider' | 'model'>): Effort[] | null {
   const pi = v.engine === 'pi';
-  const { data: claudeModels = [] } = useClaudeModels(!pi);
+  const acp = v.engine === 'acp';
+  const { data: claudeModels = [] } = useClaudeModels(!pi && !acp);
   const { data: models = [] } = useProviderModelInfo(pi ? v.provider : null);
+  // An agent says which levels it has only once a session starts: every level is offered.
+  if (acp) return null;
   if (pi) return models.find((m) => m.id === v.model)?.efforts ?? null;
   return claudeModels.find((m) => m.value === (v.model || CLI_DEFAULT))?.efforts ?? null;
 }

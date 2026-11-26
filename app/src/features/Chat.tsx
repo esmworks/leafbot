@@ -1999,6 +1999,8 @@ function Composer({
               className="size-9 shrink-0 rounded-full text-white"
               style={{ background: bot.color }}
               disabled={!canSend}
+              // A click would take focus from the text box, so the next message needed another click.
+              onMouseDown={(e) => e.preventDefault()}
               aria-label={t('chat.send')}
             >
               <ArrowUp className="size-5" />

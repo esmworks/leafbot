@@ -11,6 +11,11 @@ export type RefreshScope =
   | { scope: 'approvals' }
   | { scope: 'memory' }
   | { scope: 'routines' }
+  /**
+   * A bot set up a routine in a conversation: those who see it are offered to open it. Sent only
+   * to them, since it names the routine.
+   */
+  | { scope: 'routineMade'; threadId: string; botId: string; routineId: string; name: string }
   | { scope: 'promises' }
   | { scope: 'routineSuggestions' }
   | { scope: 'skillSuggestions' }

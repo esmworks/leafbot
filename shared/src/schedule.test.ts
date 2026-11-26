@@ -16,6 +16,12 @@ const next = (s: Schedule, tz: string, after: string, last?: string) =>
   nextRun(s, tz, at(after), last ? at(last) : null)?.toISOString() ?? null;
 
 describe('nextRun', () => {
+  it('zamanlamasız rutinin saati yoktur', () => {
+    expect(next({ type: 'unscheduled' }, 'Europe/Istanbul', '2026-11-16T05:30:00Z')).toBeNull();
+    expect(describeSchedule({ type: 'unscheduled' }, 'en')).toBe('No schedule: by an event or by hand');
+    expect(Schedule.safeParse({ type: 'unscheduled' }).success).toBe(true);
+  });
+
   it('günlük, saat dilimine göre', () => {
     // Istanbul is UTC+3 all year.
     expect(next({ type: 'daily', time: '09:00' }, 'Europe/Istanbul', '2026-11-16T05:30:00Z')).toBe(

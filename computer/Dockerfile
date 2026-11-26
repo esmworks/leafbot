@@ -47,7 +47,10 @@ RUN printf 'path-include /usr/share/locale/tr/*\n' > /etc/dpkg/dpkg.cfg.d/zz-lea
 # The launcher's earlier names stay as links: the panel copies its launchers into each bot's home on
 # first start, and homes created before the rename still call the old path. Chrome's managed policy
 # (etc/opt/chrome/policies) hides the "unsupported command-line flag" bar the anti-automation flags in
-# computer/src/session.ts would put over every page: only a policy can turn it off.
+# computer/src/session.ts would put over every page: only a policy can turn it off. It also turns
+# printing off, since a page's print preview would hold the page under it until the bot's step times
+# out and the browser is closed, and blocks pages from asking for the location, whose question would
+# wait on a bubble the bot does not answer. A policy leaves no trace in the page, as a script would.
 COPY --chown=root:root computer/rootfs/ /
 # corepack: the root file system is read-only for the bots, so the pnpm and yarn launchers go in here.
 RUN corepack enable \

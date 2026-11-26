@@ -7,7 +7,7 @@ import {
   type Locale,
   type Message,
 } from '@leafbot/shared';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, ne } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import type { T } from '../i18n';
@@ -211,6 +211,20 @@ export async function saidNothing(ctx: Ctx, threadId: string): Promise<boolean> 
     .orderBy(desc(schema.turns.createdAt))
     .limit(1);
   if (!turn || turn.status !== 'done' || turn.source !== 'user') return false;
+  // A turn that handed the work to another bot and waits for its answer has not said nothing yet:
+  // the answer comes back in a turn of its own.
+  const [waiting] = await ctx.db
+    .select({ id: schema.jobs.id })
+    .from(schema.jobs)
+    .where(
+      and(
+        eq(schema.jobs.fromTurnId, turn.id),
+        eq(schema.jobs.status, 'pending'),
+        ne(schema.jobs.kind, 'notify'),
+      ),
+    )
+    .limit(1);
+  if (waiting) return false;
   const made = await ctx.db
     .select()
     .from(schema.messages)

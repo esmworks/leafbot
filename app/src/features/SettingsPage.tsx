@@ -111,6 +111,7 @@ import {
   type Density,
   type FontChoice,
 } from '@/lib/density';
+import { useDictationLanguage, type DictationLanguage } from '@/lib/dictation';
 import { ruleLabel } from '@/lib/ruleLabel';
 import { appsHit, settingsMatch } from '@/lib/settingsMatch';
 import { useZoom, ZOOMS } from '@/lib/zoom';
@@ -709,6 +710,8 @@ function General() {
   const setDensity = useDensity((s) => s.set);
   const zoom = useZoom((s) => s.zoom);
   const setZoom = useZoom((s) => s.setZoom);
+  const dictationLanguage = useDictationLanguage((s) => s.language);
+  const setDictationLanguage = useDictationLanguage((s) => s.set);
   const sendKey = useSendKey((s) => s.key);
   const setSendKey = useSendKey((s) => s.set);
   const speechRate = useSpeech((s) => s.rate);
@@ -827,6 +830,25 @@ function General() {
             <SelectContent>
               <SelectItem value="enter">{t('general.sendKey.enter')}</SelectItem>
               <SelectItem value="mod">{t('general.sendKey.mod')}</SelectItem>
+            </SelectContent>
+          </Select>
+        </Row>
+        <Row label={t('general.dictationLanguage')} hint={t('general.dictationLanguageHint')}>
+          <Select
+            value={dictationLanguage}
+            onValueChange={(v) => setDictationLanguage(v as DictationLanguage)}
+          >
+            <SelectTrigger className="w-56 rounded-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="app">{t('general.dictationLanguage.app')}</SelectItem>
+              <SelectItem value="auto">{t('general.dictationLanguage.auto')}</SelectItem>
+              {LOCALES.map((l) => (
+                <SelectItem key={l} value={l} lang={l}>
+                  {LOCALE_NAMES[l]}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </Row>
@@ -1772,7 +1794,10 @@ function RoutinesTab() {
                 >
                   <div className="truncate text-sm font-medium">{r.name}</div>
                   <div className="truncate text-xs text-muted-foreground">
-                    {bot?.name} · {describeSchedule(r.schedule, locale)}
+                    {bot?.name} ·{' '}
+                    {!r.enabled &&
+                      `${t(r.schedule.type === 'once' && r.lastRunAt ? 'panel.ranOnce' : 'pause.badge')} · `}
+                    {describeSchedule(r.schedule, locale)}
                     {r.lastRunAt ? ` · ${t('routines.lastRun', { when: dayLabel(r.lastRunAt) })}` : ''}
                   </div>
                   {h && <HealthStatus status={h.status} className="mt-0.5" />}

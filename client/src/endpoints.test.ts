@@ -77,6 +77,17 @@ describe('endpoints', () => {
     const none: Transport = async <T>() => null as T;
     expect(await endpoints(none).transcribe(new Blob(['x']), 'tr')).toEqual({ text: '' });
   });
+
+  it('leaves the language out when the service should tell it', async () => {
+    const paths: string[] = [];
+    const send: Transport = async <T>(_m: string, path: string) => {
+      paths.push(path);
+      return null as T;
+    };
+    await endpoints(send).transcribe(new Blob(['x']), 'en');
+    await endpoints(send).transcribe(new Blob(['x']));
+    expect(paths).toEqual(['/api/transcribe?lang=en', '/api/transcribe']);
+  });
 });
 
 describe('readAnswer', () => {

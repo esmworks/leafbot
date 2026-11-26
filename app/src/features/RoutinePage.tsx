@@ -174,7 +174,17 @@ export const Form = z.object({
         });
       }
     }),
-  type: z.enum(['hourly', 'daily', 'weekdays', 'weekly', 'monthly', 'interval', 'cron', 'once']),
+  type: z.enum([
+    'hourly',
+    'daily',
+    'weekdays',
+    'weekly',
+    'monthly',
+    'interval',
+    'cron',
+    'once',
+    'unscheduled',
+  ]),
   expr: z
     .string()
     .trim()
@@ -264,6 +274,8 @@ function toSchedule(f: Form): Schedule {
       return { type: 'cron', expr: f.expr.trim() };
     case 'once':
       return { type: 'once', date: f.date, time: f.time };
+    case 'unscheduled':
+      return { type: 'unscheduled' };
   }
 }
 
@@ -525,6 +537,7 @@ export function RoutinePage({
   const when = (() => {
     if (routine && !routine.enabled)
       return t(routine.pausedReason === 'failures' ? 'flow.switchedOffFailures' : 'flow.paused');
+    if (values.type === 'unscheduled') return t('flow.unscheduled');
     let next: Date | null = null;
     try {
       next = nextRun(
@@ -1005,7 +1018,17 @@ function ScheduleFields({ form, values }: { form: UseFormReturn<Form>; values: F
             </SelectTrigger>
             <SelectContent>
               {(
-                ['daily', 'weekdays', 'weekly', 'monthly', 'hourly', 'interval', 'cron', 'once'] as const
+                [
+                  'daily',
+                  'weekdays',
+                  'weekly',
+                  'monthly',
+                  'hourly',
+                  'interval',
+                  'cron',
+                  'once',
+                  'unscheduled',
+                ] as const
               ).map((v) => (
                 <SelectItem key={v} value={v}>
                   {t(`routine.type.${v}`)}
@@ -1014,6 +1037,11 @@ function ScheduleFields({ form, values }: { form: UseFormReturn<Form>; values: F
             </SelectContent>
           </Select>
         </Field>
+        {type === 'unscheduled' && (
+          <p className="self-end pb-2 text-xs leading-relaxed text-muted-foreground">
+            {t('routine.unscheduledHint')}
+          </p>
+        )}
         {type === 'once' && (
           <Field label={t('routine.date')} error={err.date?.message}>
             <Input type="date" {...form.register('date')} className="rounded-xl" />

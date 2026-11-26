@@ -10,7 +10,8 @@
     "./egress": "./src/egress.ts",
     "./tunnel": "./src/tunnel.ts",
     "./mac": "./src/mac.ts",
-    "./windows": "./src/windows.ts"
+    "./windows": "./src/windows.ts",
+    "./signal": "./src/signal.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

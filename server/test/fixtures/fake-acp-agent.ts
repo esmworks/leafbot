@@ -7,6 +7,8 @@ export interface Seen {
   cancelled: boolean;
   answers: unknown[];
   toolResults: unknown[];
+  /** Session settings the client changed, as configId=value. */
+  configs: string[];
 }
 
 /**
@@ -15,6 +17,8 @@ export interface Seen {
 export function fakeAgent(opts: {
   loadSession?: boolean;
   http?: boolean;
+  /** Session settings the agent offers when a session starts. */
+  configOptions?: unknown[];
   onPrompt?: (
     say: (u: SessionUpdate) => Promise<void>,
     ctx: {
@@ -25,7 +29,7 @@ export function fakeAgent(opts: {
     },
   ) => Promise<string>;
 }) {
-  const seen: Seen = { prompts: [], loads: [], cancelled: false, answers: [], toolResults: [] };
+  const seen: Seen = { prompts: [], loads: [], cancelled: false, answers: [], toolResults: [], configs: [] };
   let mcpUrl: string | null = null;
   let onCancel = () => {};
   const cancelled = new Promise<void>((r) => (onCancel = r));
@@ -36,7 +40,14 @@ export function fakeAgent(opts: {
     }))
     .onRequest('session/new', ({ params }) => {
       mcpUrl = params.mcpServers.find((s) => 'url' in s)?.url ?? null;
-      return { sessionId: 's1' };
+      return {
+        sessionId: 's1',
+        ...(opts.configOptions ? { configOptions: opts.configOptions as never } : {}),
+      };
+    })
+    .onRequest('session/set_config_option', ({ params }) => {
+      seen.configs.push(`${params.configId}=${String(params.value)}`);
+      return { configOptions: [] };
     })
     .onRequest('session/load', async ({ params, client }) => {
       seen.loads.push(params.sessionId);

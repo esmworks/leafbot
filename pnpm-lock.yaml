@@ -337,6 +337,28 @@ importers:
 
   names: {}
 
+  relay:
+    dependencies:
+      '@leafbot/shared':
+        specifier: workspace:*
+        version: link:../shared
+      ws:
+        specifier: 8.22.2
+        version: 8.22.2
+      zod:
+        specifier: 4.6.7
+        version: 4.6.7
+    devDependencies:
+      '@types/ws':
+        specifier: 8.18.2
+        version: 8.18.2
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+      tsx:
+        specifier: 4.23.15
+        version: 4.23.15
+
   server:
     dependencies:
       '@1password/sdk':

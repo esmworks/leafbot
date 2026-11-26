@@ -49,5 +49,7 @@ export function describeSchedule(s: Schedule): string {
       });
       return t('panel.sched.once', { date, time: s.time });
     }
+    case 'unscheduled':
+      return t('panel.sched.unscheduled');
   }
 }

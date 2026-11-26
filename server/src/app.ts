@@ -885,7 +885,8 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
   // A refresh only says what to fetch again, but one about a conversation or a bot also says it
   // exists and is busy: it goes only to those who see it. The rest are lists each fetches as theirs.
   bus.on('refresh', (e) => {
-    if (e.scope === 'thread') sendToThread(e.threadId, (to) => to.emit('refresh', e));
+    if (e.scope === 'thread' || e.scope === 'routineMade')
+      sendToThread(e.threadId, (to) => to.emit('refresh', e));
     else if (e.scope === 'threads' || e.scope === 'tables' || e.scope === 'actions')
       void toBotPeople(e.botId).then((to) => to.emit('refresh', e));
     else io.emit('refresh', e);
@@ -905,26 +906,32 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
   });
   bus.on('tool', (e) => sendToThread(e.threadId, (to) => to.emit('tool', e)));
 
-  await services.turns.recover();
-  await services.jobs.recover().catch((err: unknown) => {
-    app.log.warn({ err }, 'request recovery failed');
-  });
-  await services.routines.recover();
-  await services.jobs.recountMarkers().catch((err: unknown) => {
-    app.log.warn({ err }, 'marker recount failed');
-  });
+  // A part that cannot start (a stored row it cannot read, a chat app whose service is down) is
+  // written to the log and the rest still opens: one bad row would otherwise keep the whole app
+  // from starting, and the desktop app would only say the server keeps stopping.
+  const begin = async (what: string, step: () => unknown) => {
+    try {
+      await step();
+    } catch (err) {
+      console.warn(`Could not start ${what}: ${String(err)}`);
+    }
+  };
+  await begin('turn recovery', () => services.turns.recover());
+  await begin('request recovery', () => services.jobs.recover());
+  await begin('routine recovery', () => services.routines.recover());
+  await begin('marker recount', () => services.jobs.recountMarkers());
   services.routines.start();
   services.followUps.start();
   services.turns.startUpkeep();
-  await services.meetings.start();
+  await begin('meetings', () => services.meetings.start());
   // In the background: model lists work from the engine's own until the catalog is in.
-  await services.modelCatalog.start();
+  await begin('the model catalog', () => services.modelCatalog.start());
   if (config.channelsEnabled) {
-    await services.telegram.start();
-    await services.whatsapp.start();
-    await services.slack.start();
-    await services.discord.start();
-    services.teams.start();
+    await begin('Telegram', () => services.telegram.start());
+    await begin('WhatsApp', () => services.whatsapp.start());
+    await begin('Slack', () => services.slack.start());
+    await begin('Discord', () => services.discord.start());
+    await begin('Teams', () => services.teams.start());
   }
 
   return {
