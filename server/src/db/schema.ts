@@ -977,10 +977,14 @@ export const sessions = pgTable('sessions', {
 export const accountLinks = pgTable('account_links', {
   /** The account user's id at the account service (a ticket's `sub`). */
   accountUserId: text('account_user_id').primaryKey(),
+  /**
+   * The person here; null once they were removed on this server. The row stays so the account is
+   * not made a new person on its next visit: removing someone here keeps them out until they are
+   * let back in.
+   */
   userId: text('user_id')
-    .notNull()
     .unique()
-    .references(() => users.id, { onDelete: 'cascade' }),
+    .references(() => users.id, { onDelete: 'set null' }),
   createdAt: created(),
 });
 

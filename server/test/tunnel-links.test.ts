@@ -59,10 +59,18 @@ describe('AccountLinks', () => {
     expect(a).toEqual(b);
   });
 
-  it('forgets the link when the person is removed', async () => {
+  it('keeps a person removed here out, instead of making them again', async () => {
     const m = await links.resolve(claims('acct_member04', 'member'));
     await t.auth.users.remove(m!.userId);
-    const again = await links.resolve(claims('acct_member04', 'member'));
-    expect(again?.userId).not.toBe(m!.userId);
+    expect(await links.resolve(claims('acct_member04', 'member'))).toBeNull();
+    expect((await t.auth.users.list()).some((p) => p.id === m!.userId)).toBe(false);
+  });
+
+  it('refuses a person disabled here', async () => {
+    const m = await links.resolve(claims('acct_member05', 'member'));
+    await t.auth.users.change(m!.userId, { disabled: true });
+    expect(await links.resolve(claims('acct_member05', 'member'))).toBeNull();
+    await t.auth.users.change(m!.userId, { disabled: false });
+    expect(await links.resolve(claims('acct_member05', 'member'))).toEqual(m);
   });
 });

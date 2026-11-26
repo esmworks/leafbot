@@ -15,27 +15,33 @@ export class AccountLinks {
   /**
    * The person for a checked ticket, made on the account's first visit. The server's owner is the
    * account that owns it at the account service; anyone else gets the role their membership has,
-   * kept in step on every visit. Null when the ticket's owner account is not the one already
-   * linked to the owner here.
+   * kept in step on every visit. Null when the person was removed or disabled here, or when the
+   * ticket's owner account is not the one already linked to the owner here.
    */
   async resolve(claims: TicketClaims): Promise<{ userId: string } | null> {
     const role = claims.role;
     if (!role) return null;
     const [link] = await this.db
-      .select({ userId: schema.accountLinks.userId, role: schema.users.role })
+      .select({
+        userId: schema.accountLinks.userId,
+        role: schema.users.role,
+        disabledAt: schema.users.disabledAt,
+      })
       .from(schema.accountLinks)
-      .innerJoin(schema.users, eq(schema.users.id, schema.accountLinks.userId))
+      .leftJoin(schema.users, eq(schema.users.id, schema.accountLinks.userId))
       .where(eq(schema.accountLinks.accountUserId, claims.sub))
       .limit(1);
     if (link) {
+      // Removed here (the link outlives the person) or disabled: the account stays out.
+      if (!link.userId || !link.role || link.disabledAt) return null;
+      const userId = link.userId;
       // Ownership changes only by linking the server again, never by a role in a ticket: an
       // owner account that is no longer the owner there, or a member that became it, is refused.
-      if (link.role === 'owner' || role === 'owner')
-        return link.role === role ? { userId: link.userId } : null;
+      if (link.role === 'owner' || role === 'owner') return link.role === role ? { userId } : null;
       if (link.role !== role) {
-        await this.db.update(schema.users).set({ role }).where(eq(schema.users.id, link.userId));
+        await this.db.update(schema.users).set({ role }).where(eq(schema.users.id, userId));
       }
-      return { userId: link.userId };
+      return { userId };
     }
     if (role === 'owner') {
       const [taken] = await this.db
@@ -71,7 +77,7 @@ export class AccountLinks {
           .from(schema.accountLinks)
           .where(eq(schema.accountLinks.accountUserId, claims.sub))
           .limit(1);
-        return again ? { userId: again.userId } : null;
+        return again?.userId ? { userId: again.userId } : null;
       });
   }
 }
