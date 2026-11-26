@@ -176,6 +176,9 @@ describe('beceriler', () => {
       expect(await say(ayse, '[araç:skill_save {"name":"yeni","description":"x","body":"y"}]')).not.toContain(
         'kaydedildi',
       );
+      // The bot is told it can only suggest fixes for her, so it does not offer a new skill.
+      const offered = t.engine.requests.at(-1)!.tools.find((x) => x.name === 'skill_save')!;
+      expect(offered.description).toContain('yeni beceri kaydedemezsin');
       await t.api('PUT', `/api/bots/${bot.id}/access`, { everyone: 'chat', people: { ayse: 'edit' } });
       expect(await say(ayse, '[araç:skill_save {"name":"yeni","description":"x","body":"y"}]')).toContain(
         'kaydedildi',

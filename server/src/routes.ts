@@ -773,7 +773,14 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     if (body.groupId !== (await s.bots.get(id)).groupId) await checkGroup(req, body.groupId);
     return s.bots.move(id, body);
   });
-  app.post('/api/bots/:id/archive', async (req) => s.bots.archive(IdParams.parse(req.params).id));
+  app.post('/api/bots/:id/archive', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    const bot = await s.bots.archive(id);
+    // An archived bot runs nothing: work it was in the middle of stops rather than going on
+    // against a bot that is put away, and later deleted with its folders.
+    await s.turns.stopBots([id], 'archived');
+    return bot;
+  });
   // A paused bot's running work stops at once; a person's waiting message starts on the resume.
   app.post('/api/bots/:id/pause', async (req) => {
     const id = IdParams.parse(req.params).id;

@@ -31,6 +31,18 @@ describe('botu duraklatma', () => {
     expect((await t.messages(thread.id)).some((m) => m.text.includes('duraklatıldı'))).toBe(true);
   });
 
+  it('arşivlenen botun süren işi durur ve neden durduğu yazılır', async () => {
+    const a = await t.bot({ name: 'Ali' });
+    const thread = await main(a.id);
+    await t.send(thread.id, '[bekle:5000] uzun iş');
+    await waitFor(async () => t.engine.requests.some((r) => r.botId === a.id));
+    expect((await t.api('POST', `/api/bots/${a.id}/archive`)).status).toBe(200);
+    await t.services.turns.idle(5000);
+    const [turn] = await turnsOf(thread.id);
+    expect(turn!.status).toBe('interrupted');
+    expect((await t.messages(thread.id)).some((m) => m.text.includes('arşivlendi'))).toBe(true);
+  });
+
   it('duraklatılmış bota yazılan mesaj bekler, bot sürdürülünce cevaplanır', async () => {
     const a = await t.bot({ name: 'Ali' });
     const thread = await main(a.id);

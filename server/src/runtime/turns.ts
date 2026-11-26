@@ -20,6 +20,7 @@ import { and, asc, desc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import type { TurnStep } from '../db/schema';
+import { atLeast } from '../services/access';
 import { redactSecrets } from '../services/secrets';
 import { saveUpload } from '../uploads';
 import {
@@ -256,6 +257,8 @@ export const LIMIT_RETRY_DELAY_MS = 30_000;
 
 /** Why a turn was stopped when its bot was paused, as its controller's abort reason. */
 const PAUSED = 'paused';
+/** The bot was archived while it worked: its running turn ends and says so. */
+const ARCHIVED = 'archived';
 /**
  * Why a turn was stopped when the server shut down (a deploy, a restart), as its controller's abort
  * reason: the turn ends as cut short by the restart, not as stopped by someone, so a bot that asked
@@ -909,17 +912,18 @@ export class TurnManager {
    * Stops the running turns of bots that were just paused, saying so in their conversations. What
    * waits for them is left to `fill`: a person's message waits for the resume, the rest ends.
    */
-  async stopBots(botIds: Iterable<string>): Promise<void> {
+  async stopBots(botIds: Iterable<string>, why: 'paused' | 'archived' = 'paused'): Promise<void> {
     const ids = new Set(botIds);
+    const reason = why === 'archived' ? ARCHIVED : PAUSED;
     const ends: Promise<void>[] = [];
     for (const r of this.running.values()) {
       if (!ids.has(r.turn.botId)) continue;
-      r.controller.abort(PAUSED);
+      r.controller.abort(reason);
       ends.push(r.done);
     }
     for (const f of this.folding.values()) {
       if (!f.botId || !ids.has(f.botId)) continue;
-      f.controller.abort(PAUSED);
+      f.controller.abort(reason);
       ends.push(f.done);
     }
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -1636,6 +1640,10 @@ export class TurnManager {
         emailCodes: !!email && (await this.services.email.codesAllowed(bot.id)),
         apiSources,
         hasTables: await this.services.tables.any(bot.id),
+        mayEditBot: atLeast(
+          await this.services.access.level(await this.services.access.viewerOf(person), bot.id),
+          'edit',
+        ),
         // Claude keeps its plan with its own to-do tool; other engines get this one.
         plan: bot.engine === 'pi' ? (items) => showPlan(items) : undefined,
         outside: () => reads,
@@ -2748,6 +2756,9 @@ export class TurnManager {
     if (controller.signal.reason === PAUSED && !outcome.ok && outcome.kind === 'interrupted') {
       outcome = { ...outcome, message: t('turn.botPaused'), paused: true };
     }
+    if (controller.signal.reason === ARCHIVED && !outcome.ok && outcome.kind === 'interrupted') {
+      outcome = { ...outcome, message: t('turn.botArchived'), archived: true };
+    }
     if (controller.signal.reason === SHUTDOWN && !outcome.ok && outcome.kind === 'interrupted') {
       outcome = { ...outcome, message: t('turn.serverRestarted'), restarted: true };
     }
@@ -2907,9 +2918,11 @@ export class TurnManager {
             : outcome.kind === 'interrupted'
               ? outcome.paused
                 ? t('turn.botPaused')
-                : outcome.restarted
-                  ? t(outcome.resume ? 'turn.resumeAfterRestart' : 'turn.interruptedByRestart')
-                  : t('turn.stopped')
+                : outcome.archived
+                  ? t('turn.botArchived')
+                  : outcome.restarted
+                    ? t(outcome.resume ? 'turn.resumeAfterRestart' : 'turn.interruptedByRestart')
+                    : t('turn.stopped')
               : outcome.kind === 'stalled'
                 ? outcome.message
                 : contextFull(outcome)

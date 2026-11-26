@@ -400,6 +400,8 @@ export type TurnOutcome = (
       stepLimit?: boolean;
       /** It was stopped because its bot was paused, not by the person's Stop. */
       paused?: boolean;
+      /** It was stopped because its bot was archived. */
+      archived?: boolean;
       /**
        * The conversation no longer fits the model's context window, as the engine itself tells: a
        * new session may carry on with the recent exchange.

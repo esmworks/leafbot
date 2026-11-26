@@ -500,6 +500,7 @@ const tr = {
   'turn.resumeAfterRestart':
     'Sunucu yeniden başladığı için bu tur yarıda kaldı; sunucu açılınca kaldığı yerden kendiliğinden sürecek.',
   'turn.stoppedByUser': 'Kullanıcı durdurdu',
+  'turn.botArchived': 'Bot arşivlendi; yaptığı iş durduruldu.',
   'turn.botPaused': 'Bot duraklatıldı; sürdürülünce yeniden çalışır',
   'turn.readOnly': 'Bu bot salt okunur kipte; bu işlem yapılamaz.',
   'turn.checkInOnly':
@@ -1350,6 +1351,8 @@ const tr = {
     '{total} adımın {step}. adımında durdu: {reason}\nSayfaya bak ve işi aşağıdaki kalan adımlardan kendi tarayıcı araçlarınla bitir (şifre gerekiyorsa browser_login).',
   'tool.skill_save':
     'Bir işi nasıl yapacağını beceri olarak kaydet ya da sende olan bir beceriyi düzelt: kullanıcı bir yöntemi düzelttiğinde ya da tekrar edecek bir yöntem işe yaradığında. Kullanıcı kartta onaylar. Beceri kullanıcının değiştiremeyeceği biri ise düzeltmen becerinin sahibine öneri olarak gider; reason ile neyi neden değiştirdiğini kısaca yaz, sahibi bunu okuyup karar verir.',
+  'tool.skillSaveFixOnly':
+    'Bu kullanıcı botu değiştiremez: yeni beceri kaydedemezsin, kaydetmeyi önerme. Yalnız sende olan bir beceriye düzeltme önerebilirsin.',
   'tool.skillBadName': 'Beceri adı harf ya da rakam içermeli.',
   'tool.skillProposed':
     '"{name}" becerisi başkasının; düzeltmen sahibine öneri olarak gitti ve o kabul edene kadar beceri değişmez. Kullanıcıya bunu söyle.',
@@ -2956,6 +2959,7 @@ const en: Catalog<ServerKey> = {
   'turn.resumeAfterRestart':
     'This turn was cut short because the server restarted; it picks up where it left off once the server is back.',
   'turn.stoppedByUser': 'Stopped by the user',
+  'turn.botArchived': 'The bot was archived; the work it was doing stopped.',
   'turn.botPaused': 'The bot is paused; it works again once resumed',
   'turn.readOnly': 'This bot is in read-only mode; this action is not allowed.',
   'turn.checkInOnly':
@@ -3809,6 +3813,8 @@ const en: Catalog<ServerKey> = {
     'Stopped at step {step} of {total}: {reason}\nLook at the page and finish the task from the steps left below with your own browser tools (browser_login if a password is needed).',
   'tool.skill_save':
     'Save how to do a task as a skill, or fix a skill you have: when the user corrects a method, or a method worth repeating worked. The user approves on a card. When the skill is one the user may not change, your fix goes to its owner as a suggestion; say in reason, briefly, what you changed and why, for the owner to decide on.',
+  'tool.skillSaveFixOnly':
+    'This user may not change the bot: you cannot save a new skill, so do not offer to. You may only suggest a fix to a skill you have.',
   'tool.skillBadName': 'A skill name needs letters or digits.',
   'tool.skillProposed':
     'The skill "{name}" is someone else\'s; your fix went to its owner as a suggestion, and the skill stays as it is until they accept it. Tell the user so.',

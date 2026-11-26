@@ -314,6 +314,14 @@ version is 0.x, a minor release may change the data format or the API; the serve
 - On Telegram, replying to a message the bot does not know (one forwarded to it, or from before the chat was
   paired) now brings that message's words to the bot, quoted above the reply, as outside text. Before, the bot only
   saw "do this" and not what "this" was.
+- Archiving a bot now stops the work it was in the middle of, with a note in its conversation, whether the person
+  or a manager bot archives it. Before, a running turn went on against a bot that was put away, and could still be
+  at work when the bot was deleted with its folders.
+- A bot talking to someone who may only chat with it no longer offers to save a new skill it cannot save; it may
+  still suggest fixes to the skills it has.
+- The server now starts when one of its parts cannot (a stored row it cannot read during recovery, a chat app whose
+  service does not answer): that part is written to the log and the rest opens. Before, the whole server stopped,
+  and the desktop app only said it kept stopping.
 - Work a server restart cut short now picks up where it left off. A person's request or a routine's run that was
   under way when the server stopped (a deploy, an update, a crash) goes on by itself once the server is back, in the
   same conversation and engine session, and the bot is told to look at what the cut attempt already did before going
