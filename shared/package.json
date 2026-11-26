@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./account": "./src/account.ts",
     "./i18n": "./src/i18n.ts",
     "./egress": "./src/egress.ts",
     "./mac": "./src/mac.ts",
