@@ -40,6 +40,10 @@ export const de: Partial<Record<OwnKey, string>> = {
   'about.name': 'Leaf Bot',
   'about.copyright': 'Copyright © 2026 esmworks (Erhan Erbaş)',
   'provider.modelMore': '{count} weitere Modelle; tippe zum Suchen',
+  'claude.signInPhoneHint':
+    'Meldet dich mit deinem Claude-Konto an: Öffne hier die Anmeldeseite und füge danach den Code ein, den sie zeigt. Erfordert einen Pro-, Max-, Team- oder Enterprise-Plan; nichts zu installieren.',
+  'claude.signInPhoneOpened':
+    'Öffne die Anmeldeseite und melde dich mit deinem Claude-Konto an. Die Seite zeigt danach einen Code, den du hier einfügst.',
   'push.hint': 'Wird auf diesem Handy angezeigt, während die App geschlossen ist.',
   'push.noKey':
     'Der Server hat keinen Apple-Schlüssel und kann daher keine Benachrichtigungen senden. Füge unter Verbindung einen hinzu.',
