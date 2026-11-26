@@ -1251,7 +1251,7 @@ const tr = {
   'tool.browser_email_code':
     'Sitenin e-postayla gönderdiği tek kullanımlık giriş kodunu, posta adresine gelen postadan kod alanına (ref) yaz. Yalnızca açık sayfanın sitesinden gelen, son 10 dakikada gelmiş ve daha önce kullanılmamış posta kullanılır; posta yoksa wait_seconds kadar (varsayılan 60) beklenir. Bir site kodu e-postayla gönderdiğinde postayı okumak yerine bunu kullan.',
   'tool.browser_login':
-    'Açık sayfadaki siteye giriş yap: kullanıcı adı alanının (username_ref) ve şifre alanının (password_ref) ref değerlerini ver; iki adımlı girişte yalnızca o adımdaki alanı ver. Bilgiler kasadan doldurulur; kasada yoksa kullanıcıya giriş kartı gösterilir. Şifre sana hiç gösterilmez. submit: true (varsayılan) Enter tuşuna basar.',
+    'Açık sayfadaki siteye giriş yap: kullanıcı adı alanının (username_ref) ve şifre alanının (password_ref) ref değerlerini ver; iki adımlı girişte yalnızca o adımdaki alanı ver. Bilgiler kasadan doldurulur; kasada yoksa kullanıcıya giriş kartı gösterilir. Şifre sana hiç gösterilmez. submit: true (varsayılan) Enter tuşuna basar. Site kendi HTTP girişini istediyse (sayfa 401 gösterir) alan vermeden çağır.',
   'tool.browser_upload':
     'Kendi klasörlerindeki dosyaları sayfadaki bir dosya alanına yükle (paths). ref, dosya alanının ya da dosya seçtiren düğmenin ref değeridir. Dosyalar siteye gideceği için kullanıcı onaylar. Yüklemeden sonra formu göndermek ayrı bir adımdır.',
   'tool.browser_select': 'Bir açılır listede seçenek seç (değerler ya da görünen adlar).',
@@ -1720,6 +1720,8 @@ const tr = {
   'browser.dialogAccepted': 'Sayfa sordu ({type}): "{message}" — onaylandı.',
   'browser.tabClosedBySite':
     'Üzerinde olduğun sekmeyi site kendisi kapattı ({url}); şimdi öndeki başka bir sekmedesin. Ne gördüğünü sanmadan önce sayfaya yeniden bak.',
+  'browser.httpAuthAsked':
+    '{site} kendi HTTP girişini (kullanıcı adı ve şifre) istiyor; sayfa bu yüzden 401 gösteriyor. Kayıtlı girişle açmak için browser_login aracını alan vermeden çağır.',
   'browser.passkeyRefused':
     '{site} passkey istedi. Bu tarayıcıda passkey yok, istek geri çevrildi. Sitede başka bir yol (şifre, kod) varsa onu kullan; yoksa kişiden tarayıcı penceresinde kendisinin giriş yapmasını iste.',
   'browser.dialogDismissed':
@@ -3713,7 +3715,7 @@ const en: Catalog<ServerKey> = {
   'tool.browser_email_code':
     "Type the one-time sign-in code a site sent by e-mail into the code field (ref), from mail to your mail address. Only mail from the open page's own site, that came in the last 10 minutes and was not used before, is taken; with none yet it waits up to wait_seconds (60 by default). When a site sends a code by e-mail, use this rather than reading the mail.",
   'tool.browser_login':
-    'Sign in to the site on the open page: give the refs of the username field (username_ref) and the password field (password_ref); in a two-step sign-in, give only the field on that step. The details are filled from the vault; if it has none, the user is shown a sign-in card. You never see the password. submit: true (the default) presses Enter.',
+    'Sign in to the site on the open page: give the refs of the username field (username_ref) and the password field (password_ref); in a two-step sign-in, give only the field on that step. The details are filled from the vault; if it has none, the user is shown a sign-in card. You never see the password. submit: true (the default) presses Enter. When the site asked for its own HTTP sign-in (the page shows 401), call it with no fields.',
   'tool.browser_upload':
     'Upload files from your own folders to a file field on the page (paths). ref is the file field, or the button that opens the file picker. The files go to the site, so the user approves. Submitting the form afterwards is a separate step.',
   'tool.browser_select': 'Choose an option in a drop-down list (values or visible labels).',
@@ -4182,6 +4184,8 @@ const en: Catalog<ServerKey> = {
   'browser.dialogAccepted': 'The page asked ({type}): "{message}" — answered yes.',
   'browser.tabClosedBySite':
     'The site closed the tab you were on ({url}); you are now on another tab in front. Look at the page again before assuming what it shows.',
+  'browser.httpAuthAsked':
+    '{site} asks for its own HTTP sign-in (a username and password); that is why the page shows 401. To open it with a saved login, call browser_login with no fields.',
   'browser.passkeyRefused':
     '{site} asked for a passkey. This browser has none and turned the request down. If the site offers another way (a password, a code), use it; otherwise ask the person to sign in themselves in the browser window.',
   'browser.dialogDismissed':

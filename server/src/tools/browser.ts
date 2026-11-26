@@ -850,6 +850,8 @@ export function browserTools(opts: {
     const extraTabs = browser.takeRefusedTabs(bot.id);
     // Sites that asked for a passkey, which this browser cannot give.
     const passkeys = browser.takePasskeys(bot.id);
+    // Sites that asked for their own HTTP sign-in.
+    const httpAuth = browser.takeHttpAuth(bot.id);
     // File pickers a step opened, which were closed unseen: files go up with browser_upload.
     const pickers = browser.takePickers(bot.id);
     // The person had the browser while the step waited, and may have changed the page.
@@ -867,6 +869,7 @@ export function browserTools(opts: {
       ),
       ...(refused.length ? [t('browser.refusedHosts', { hosts: refused.slice(0, 5).join(', ') })] : []),
       ...passkeys.map((site) => t('browser.passkeyRefused', { site: site || '-' })),
+      ...httpAuth.map((site) => t('browser.httpAuthAsked', { site })),
       ...(pickers ? [t('browser.filePicker')] : []),
       ...downloads,
       ...(running.length ? [t('browser.downloadRunning', { names: running.join(', ') })] : []),
@@ -1799,8 +1802,8 @@ export function browserTools(opts: {
         submit: z.boolean().default(true),
       },
       async ({ username_ref, password_ref, account, submit }) => {
-        if (!username_ref && !password_ref) return t('browser.loginNoField');
         let host: string;
+        let origin: string;
         try {
           const url = await use(async (page) => {
             const url = new URL(page.url());
@@ -1808,9 +1811,14 @@ export function browserTools(opts: {
               throw new BrowserError('badUrl', page.url());
             return url;
           });
+          // No field: only a site that asked for its own HTTP sign-in is answered that way.
+          if (!username_ref && !password_ref && !browser.askedHttpAuth(bot.id, url.origin)) {
+            return t('browser.loginNoField');
+          }
           // Over plain http anyone on the way reads the password: it is not typed, nor asked for.
           if (!secure(url)) return t('browser.loginInsecure');
           host = url.hostname;
+          origin = url.origin;
         } catch (err) {
           return browserErrorText(err, t);
         }
@@ -1834,6 +1842,21 @@ export function browserTools(opts: {
           cred = { id: r.login.savedId, site, username: r.login.username, password: r.login.password };
         }
         const c = cred;
+        if (!username_ref && !password_ref) {
+          const signed = await step(async (page) => {
+            const now = new URL(page.url());
+            if (now.origin !== origin) return t('browser.loginMoved', { host: now.hostname, site: c.site });
+            await browser.signInHttp(bot.id, page, origin, c.username, c.password);
+            if (c.id) void vault.used(c.id).catch(() => {});
+            await settle(page);
+            const out = await outline(browser.pages(bot.id)?.active ?? page);
+            return `${t('browser.loggedIn', { site: c.site, username: c.username || '-' })}\n\n${out}`;
+          });
+          if (!why) return signed;
+          return typeof signed === 'string'
+            ? `${why}\n\n${signed}`
+            : { ...signed, text: `${why}\n\n${signed.text}` };
+        }
         let waiting = false;
         const result = await step(async (page) => {
           // The page may have moved while the user filled in the card: only type on the right site.

@@ -263,6 +263,13 @@ interface Live {
   closedBySite: string[];
   /** Sites that asked for a passkey, which was refused, since the bot last heard. */
   passkeys: string[];
+  /**
+   * Sites whose page asked for an HTTP sign-in (a 401 with Basic), newest last. The bot hears of a
+   * new one once; `browser_login` with no fields answers it with a saved login.
+   */
+  httpAuth: { origins: string[]; unheard: string[] };
+  /** The Basic sign-in sent to each site the bot signed in to that way, while the browser is open. */
+  httpLogins: Map<string, string>;
   /** Tabs the site tried to open over the limit, which were closed, since the bot last heard. */
   refusedTabs: number;
   /** Downloads done or refused since the bot last heard. */
@@ -704,6 +711,46 @@ export class BrowserManager {
     const out = l.downloads;
     l.downloads = [];
     return out;
+  }
+
+  /** Sites that asked for an HTTP sign-in since the bot last heard; heard once. */
+  takeHttpAuth(botId: string): string[] {
+    const l = this.live.get(botId);
+    if (!l) return [];
+    const out = l.httpAuth.unheard;
+    l.httpAuth.unheard = [];
+    return out;
+  }
+
+  /** Whether a page of this site asked the bot's browser for an HTTP sign-in. */
+  askedHttpAuth(botId: string, origin: string): boolean {
+    return !!this.live.get(botId)?.httpAuth.origins.includes(origin);
+  }
+
+  /**
+   * Answers a site's HTTP sign-in with a saved login: every request to that site, and to it alone,
+   * carries it from now on while the browser is open, and the page is loaded again. The login is
+   * hidden from what the bot reads, as a typed password is.
+   */
+  async signInHttp(botId: string, page: Page, origin: string, username: string, password: string) {
+    const l = this.live.get(botId);
+    if (!l) throw new BrowserError('unavailable');
+    const token = Buffer.from(`${username}:${password}`).toString('base64');
+    this.rememberSecret(botId, password);
+    this.rememberSecret(botId, token);
+    const first = !l.httpLogins.size;
+    l.httpLogins.set(origin, `Basic ${token}`);
+    if (first) {
+      await l.context.route(
+        (url) => l.httpLogins.has(url.origin),
+        (route) => {
+          const sent = l.httpLogins.get(new URL(route.request().url()).origin);
+          if (!sent) return route.fallback();
+          return route.fallback({ headers: { ...route.request().headers(), authorization: sent } });
+        },
+      );
+    }
+    await page.reload({ waitUntil: 'domcontentloaded' });
   }
 
   /** Sites that asked for a passkey since the bot last heard; heard once. */
@@ -1319,6 +1366,8 @@ export class BrowserManager {
       refused: new Set(),
       closedBySite: [],
       passkeys: [],
+      httpAuth: { origins: [], unheard: [] },
+      httpLogins: new Map(),
       refusedTabs: 0,
       downloads: [],
       saving: new Map(),
@@ -1409,6 +1458,23 @@ export class BrowserManager {
       void (accepted ? dialog.accept(answer?.text) : dialog.dismiss()).catch(() => {});
     });
     page.on('download', (download) => this.keepDownload(live, download));
+    // A site that asks for its own HTTP sign-in shows only "401" to a browser no one types into: the
+    // bot hears of it, and can answer with a saved login (see `signInHttp`).
+    page.on('response', (response) => {
+      if (response.status() !== 401 || response.frame() !== page.mainFrame()) return;
+      if (!response.request().isNavigationRequest()) return;
+      if (!/^\s*basic\b/i.test(response.headers()['www-authenticate'] ?? '')) return;
+      let origin: string;
+      try {
+        origin = new URL(response.url()).origin;
+      } catch {
+        return;
+      }
+      const { origins, unheard } = live.httpAuth;
+      if (!origins.includes(origin)) origins.push(origin);
+      if (origins.length > 5) origins.shift();
+      if (!unheard.includes(origin)) unheard.push(origin);
+    });
     page.on('framenavigated', (frame) => {
       if (frame !== page.mainFrame() || live.page !== page) return;
       this.emitState(live);

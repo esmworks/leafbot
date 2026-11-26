@@ -7,6 +7,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A bot can open a site that asks for its own browser sign-in box (HTTP Basic). When a page answers with that box,
+  the browser tool tells the bot the site wants its own sign-in, and `browser_login` with no fields signs in with the
+  password saved for that site in the vault. The password never reaches the bot or the conversation, and the page
+  reloads signed in. Before, the bot only saw an error page and had no way past it.
+
 - Advisor model for Claude bots: under Providers → Claude, a stronger Claude model (Fable, Opus or Sonnet) can be
   chosen that Claude bots may ask for advice when they are stuck, before a large step and before they call their
   work done. The bot decides when to ask; the advisor sees the whole conversation, answers only the bot, and its
@@ -291,6 +296,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
   opened to be saved. Pictures and players still sit side by side, and the download-all button comes after the list.
 
 ### Fixed
+
+- The bot's desktop browser no longer opens a print dialog or asks to share its location. Both dialogs are Chrome's
+  own windows, which the bot cannot see or close from the page, so a site that asked for either left the browser
+  stuck behind a box. Printing is now off and location requests are refused by the browser's policy.
 
 - An OpenCode bot at "Ask first" now asks before running a command, changing a file or reaching outside its folder.
   OpenCode lets every step through unless its settings say otherwise, and the app only hears about the steps an

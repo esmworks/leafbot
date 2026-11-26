@@ -250,6 +250,16 @@ describe.skipIf(!BROWSER)('botun tarayıcısı', () => {
           <form method="post" action="/kaydet"><label>Sıra <select name="s" onchange="this.form.submit()">
             <option>yeni</option><option>eski</option></select></label></form>`);
       }
+      if (req.url === '/korumali') {
+        // A site behind its own HTTP sign-in.
+        const sent = req.headers.authorization ?? '';
+        if (sent !== `Basic ${Buffer.from('depo:Raf-Sifre-7').toString('base64')}`) {
+          res.statusCode = 401;
+          res.setHeader('www-authenticate', 'Basic realm="Depo"');
+          return res.end('<title>401</title><h1>Giriş gerekli</h1>');
+        }
+        return res.end('<title>Depo</title><h1>Stok listesi</h1>');
+      }
       if (req.url === '/giris' && req.method === 'POST') {
         let body = '';
         req.on('data', (c: Buffer) => (body += c.toString()));
@@ -1393,6 +1403,20 @@ describe.skipIf(!BROWSER)('botun tarayıcısı', () => {
       'daha önce onaylanmadı',
     );
     expect((await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body).toHaveLength(0);
+  });
+
+  it('kendi HTTP girişini isteyen siteyi bota söyler; alansız browser_login kayıtlı girişle açar', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    await t.send(thread.id, `[araç:browser_open {"url":"${base}/korumali"}]`);
+    await t.services.turns.idle();
+    expect((await t.messages(thread.id)).at(-1)!.text).toContain('HTTP girişini');
+    // Fields are still needed where no site asked for its own sign-in.
+    await t.api('POST', '/api/vault', { site: '127.0.0.1', username: 'depo', password: 'Raf-Sifre-7' });
+    const done = await text('browser_login', {});
+    expect(done).toContain('Stok listesi');
+    expect(done).not.toContain('Raf-Sifre-7');
+    expect(done).not.toContain(Buffer.from('depo:Raf-Sifre-7').toString('base64'));
   });
 
   it('girişte şifreyi kasadan ya da karttan yazar; bot şifreyi hiç görmez', async () => {
