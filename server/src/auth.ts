@@ -207,6 +207,8 @@ interface SeenSession {
 export class Auth {
   /** Sessions checked in the last minute, by hash, with whose they are. */
   private cache = new Map<string, SeenSession>();
+  /** Tunnelled people's roles by person, read again after a minute like a session's. */
+  private tunnelCache = new Map<string, { role: Role; at: number }>();
   /** Pairing codes waiting to be used, by hash, with whose they are and when each stops working. */
   private pairing = new Map<string, { userId: string; until: number }>();
   readonly users: Users;
@@ -336,6 +338,7 @@ export class Auth {
    */
   async forgetPerson(userId: string, signOut: boolean) {
     for (const [id, seen] of this.cache) if (seen.userId === userId) this.cache.delete(id);
+    this.tunnelCache.delete(userId);
     if (!signOut) return;
     for (const [h, p] of this.pairing) if (p.userId === userId) this.pairing.delete(h);
     await this.db.delete(schema.sessions).where(eq(schema.sessions.userId, userId));
@@ -349,16 +352,22 @@ export class Auth {
   }
 
   /**
-   * The person a tunnelled connection was proven to be, read again on every request so a changed
-   * role or a disabled person takes effect at once. Null when they are gone or disabled.
+   * The person a tunnelled connection was proven to be, remembered for a minute like a session.
+   * A change made here (`forgetPerson`) takes effect at once. Null when they are gone or disabled.
    */
-  async tunnelPrincipal(userId: string): Promise<Principal | null> {
+  async tunnelPrincipal(userId: string, now = Date.now()): Promise<Principal | null> {
+    const seen = this.tunnelCache.get(userId);
+    if (seen && now - seen.at < 60_000) return { userId, role: seen.role, via: 'tunnel' };
     const [row] = await this.db
       .select({ role: schema.users.role, disabledAt: schema.users.disabledAt })
       .from(schema.users)
       .where(eq(schema.users.id, userId))
       .limit(1);
-    if (!row || row.disabledAt) return null;
+    if (!row || row.disabledAt) {
+      this.tunnelCache.delete(userId);
+      return null;
+    }
+    this.tunnelCache.set(userId, { role: row.role, at: now });
     return { userId, role: row.role, via: 'tunnel' };
   }
 

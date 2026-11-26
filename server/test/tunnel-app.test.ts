@@ -95,6 +95,8 @@ describe('requests that came over the tunnel', () => {
     await t.person('zeynep', 'member');
     expect((await call(as('zeynep'), 'GET', '/api/bots')).status).toBe(200);
     await t.auth.users.change('zeynep', { disabled: true });
+    // What the people routes do after every change: forget what was remembered about them.
+    await t.auth.forgetPerson('zeynep', false);
     expect((await call(as('zeynep'), 'GET', '/api/bots')).status).toBe(401);
     expect((await call(as('nobody'), 'GET', '/api/bots')).status).toBe(401);
     expect((await call(as('nobody'), 'GET', '/api/session')).body).toMatchObject({ authenticated: false });

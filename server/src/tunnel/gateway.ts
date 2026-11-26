@@ -146,6 +146,8 @@ class TunnelSession {
   private owned = new Set<{ destroy(): void }>();
   private over = false;
   private readonly hostPublic: string;
+  /** The page's Accept-Language, for the Socket.IO connections opened in its name. */
+  private language: string | undefined;
 
   constructor(
     private peer: TunnelPeer,
@@ -217,6 +219,7 @@ class TunnelSession {
         sessionId: claims.sid,
         connection: this.id,
       };
+      if (msg.lang !== undefined) this.language = msg.lang;
       this.nonce = nonce();
       const refreshIn = this.opts.refreshS ?? TICKET_REFRESH_S;
       if (this.refresh) clearTimeout(this.refresh);
@@ -247,6 +250,7 @@ class TunnelSession {
     const ws = new WebSocket(`ws://${this.opts.host}/socket.io/?EIO=4&transport=websocket`, {
       createConnection: (() => this.connect()) as never,
       perMessageDeflate: false,
+      ...(this.language && { headers: { 'accept-language': this.language } }),
     });
     const handle = { destroy: () => ws.terminate() };
     this.owned.add(handle);

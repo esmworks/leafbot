@@ -193,7 +193,7 @@ async function prove(
     'base64url',
   );
   const cnonce = randomBytes(16).toString('base64url');
-  ctl.send(JSON.stringify({ t: 'auth', ticket: t, key: d.x, sig, cnonce }));
+  ctl.send(JSON.stringify({ t: 'auth', ticket: t, key: d.x, sig, cnonce, lang: 'tr-TR,tr;q=0.9' }));
   const answer = await read();
   // The browser trusts nothing until the server proved it holds the key the ticket names.
   if (answer.t === 'ok') {
@@ -239,6 +239,7 @@ beforeEach(async () => {
   });
   io.on('connection', (s) => {
     s.emit('hello', tunnelIdentity(s.request.socket)?.userId);
+    s.emit('lang', s.handshake.headers['accept-language']);
     s.on('echo', (b: unknown, ack: (b: unknown) => void) => ack(b));
   });
   checker = new TicketChecker({ issuer: ISSUER, hostId: HOST_ID, fetchJwks: async () => ({ keys: [jwk] }) });
@@ -447,6 +448,8 @@ describe('TunnelGateway', () => {
     await tick(50);
     expect(rt.got.some((m) => typeof m === 'string' && m.startsWith('40{'))).toBe(true);
     expect(rt.got.some((m) => m === '42["hello","user_alice"]')).toBe(true);
+    // Opened inside the server, the connection still carries the page's language.
+    expect(rt.got).toContain('42["lang","tr-TR,tr;q=0.9"]');
   });
 
   it('carries Socket.IO messages larger than a channel message, both ways', async () => {

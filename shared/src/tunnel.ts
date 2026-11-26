@@ -267,6 +267,11 @@ const Auth = z.object({
   key: B64Url(43, 43),
   sig: B64Url(86, 86),
   cnonce: B64Url(22, 64),
+  /**
+   * The page's Accept-Language. Socket.IO connections open inside the server, without the page's
+   * headers, so this is how their messages come in the person's language.
+   */
+  lang: HeaderValue.max(256).optional(),
 });
 /**
  * The proof was accepted; the next one is due within `refreshIn` seconds. `sig` is the server's
