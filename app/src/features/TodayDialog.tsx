@@ -56,7 +56,8 @@ export function TodayDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
-        className="max-h-[85vh] overflow-y-auto rounded-3xl sm:max-w-lg"
+        // Only the body scrolls: a scrollbar on the dialog itself runs into its rounded corners.
+        className="flex max-h-[85vh] flex-col overflow-hidden rounded-3xl sm:max-w-lg"
         aria-describedby={undefined}
       >
         <DialogHeader>
@@ -67,8 +68,9 @@ export function TodayDialog() {
             <Loader2 className="size-5 animate-spin" />
           </div>
         ) : (
-          // A grid item is as wide as its longest line by default; long summaries would push it sideways.
-          <div className="min-w-0 space-y-5 text-sm">
+          // min-w-0 keeps long summaries from pushing the body sideways. The negative end margin and matching
+          // padding set the thin scrollbar in the dialog's side padding, clear of the rows.
+          <div className="scroll-thin -me-4 min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto pe-4 text-sm">
             <p className="text-muted-foreground">
               {t('today.summary', {
                 turns: data.bots.reduce((n, b) => n + b.turns, 0),
