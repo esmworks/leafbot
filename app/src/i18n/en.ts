@@ -1056,6 +1056,12 @@ export const en: Catalog<MessageKey> = {
   'bots.error.hostProof': "{name} couldn't prove it is your server, so the connection was stopped.",
   'bots.error.closed': 'The connection to {name} was lost.',
   'bots.noAccess': "Your account can't use this server.",
+  'bots.pdfDownload': 'Download this PDF to read it.',
+  'bots.pageElsewhere':
+    'Pages a bot makes run on your server’s own address, not here. Download the file to look at it.',
+  'bots.appElsewhere': 'This app’s view opens on your server’s own address, not here.',
+  'bots.saveFailed': 'Couldn’t download the file from your server.',
+  'bots.notOffered': 'This server doesn’t offer this.',
   'tailscale.title': 'Tailscale',
   'tailscale.share': 'Reach from my devices on Tailscale',
   'tailscale.hint':

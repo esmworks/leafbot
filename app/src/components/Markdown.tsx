@@ -32,6 +32,7 @@ import { FileLinks, localFilePath, localFolderPath } from '@/lib/fileLink';
 import { useUi } from '@/lib/store';
 import { sameServerThread } from '@/lib/threadLink';
 import { WebLink } from './LinkPreview';
+import { ServerAudio, ServerImg, ServerVideo } from '@/components/ServerMedia';
 
 /**
  * Math is typeset from `$$…$$` (inline when on one line with text, display on its own lines),
@@ -456,7 +457,7 @@ function BotImage({ src, alt }: { src: string; alt: string }) {
       onClick={() => preview({ botId: files.botId, path, name, size: -1 })}
       className="my-1 block"
     >
-      <img
+      <ServerImg
         src={api.fileUrl(files.botId, path, { inline: true })}
         alt={alt || name}
         loading="lazy"
@@ -519,9 +520,9 @@ function Link({ href, children }: { href?: string; children: ReactNode }) {
         {link}
         <span className="my-1 block">
           {media === 'audio' ? (
-            <audio src={src} controls preload="metadata" className="w-full max-w-sm" />
+            <ServerAudio src={src} controls preload="metadata" className="w-full max-w-sm" />
           ) : (
-            <video
+            <ServerVideo
               src={src}
               controls
               preload="metadata"

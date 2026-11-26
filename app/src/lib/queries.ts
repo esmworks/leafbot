@@ -1,6 +1,7 @@
 import type { ModelInfo, UsageRange } from '@leafbot/shared';
 import { useQuery } from '@tanstack/react-query';
 import { api, ApiError } from './api';
+import { useServerFeature } from './transport';
 
 export const useBots = () => useQuery({ queryKey: ['bots'], queryFn: api.bots });
 /** Who this device is signed in as. */
@@ -12,7 +13,11 @@ export const useManagesServer = () => {
 };
 export const usePeople = () => useQuery({ queryKey: ['people'], queryFn: api.people });
 export const useGroups = () => useQuery({ queryKey: ['groups'], queryFn: api.groups });
-export const useRooms = () => useQuery({ queryKey: ['rooms'], queryFn: api.rooms });
+/** A server that does not offer rooms has none to list. */
+export const useRooms = () => {
+  const rooms = useServerFeature('rooms');
+  return useQuery({ queryKey: ['rooms'], queryFn: api.rooms, enabled: rooms });
+};
 export const useMeetings = (roomId: string) =>
   useQuery({ queryKey: ['meetings', roomId], queryFn: () => api.meetings(roomId) });
 export const useSummaries = () => useQuery({ queryKey: ['summaries'], queryFn: api.summaries });

@@ -1017,6 +1017,12 @@ export const tr = {
   'bots.error.hostProof': '{name} sizin sunucunuz olduğunu kanıtlayamadı; bağlantı durduruldu.',
   'bots.error.closed': '{name} ile bağlantı koptu.',
   'bots.noAccess': 'Hesabınız bu sunucuyu kullanamıyor.',
+  'bots.pdfDownload': 'Bu PDF’i okumak için indirin.',
+  'bots.pageElsewhere':
+    'Botların yaptığı sayfalar burada değil, sunucunuzun kendi adresinde çalışır. Bakmak için dosyayı indirin.',
+  'bots.appElsewhere': 'Bu uygulamanın görünümü burada değil, sunucunuzun kendi adresinde açılır.',
+  'bots.saveFailed': 'Dosya sunucunuzdan indirilemedi.',
+  'bots.notOffered': 'Bu sunucu bunu sunmuyor.',
   'tailscale.title': 'Tailscale',
   'tailscale.share': 'Tailscale ağımdaki cihazlardan eriş',
   'tailscale.hint':

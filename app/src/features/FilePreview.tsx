@@ -1,5 +1,5 @@
 import { INTL_LOCALE } from '@leafbot/shared';
-import { serverFetch } from '@/lib/transport';
+import { serverFetch, useTransport } from '@/lib/transport';
 import { useQuery } from '@tanstack/react-query';
 import {
   ChevronLeft,
@@ -35,6 +35,7 @@ import {
 } from '@/lib/preview';
 import { cn } from '@/lib/utils';
 import { columnName, readWorkbook, type DateFormat } from '@/lib/xlsx';
+import { ServerAudio, ServerImg, ServerVideo } from '@/components/ServerMedia';
 
 /** A bot's file: one in its library, or one sent in a message. */
 export interface PreviewFile {
@@ -119,6 +120,8 @@ function PreviewBody({ file }: { file: PreviewFile }) {
   const kind = previewKind(file.name);
   const download = api.fileUrl(file.botId, file.path);
   const inline = api.fileUrl(file.botId, file.path, { inline: true });
+  // On the web app a PDF would open in the website's origin; there it is only downloaded.
+  const tunnel = useTransport((s) => s.tunnel);
   return (
     <>
       <div className="flex items-center gap-3 pe-8">
@@ -131,7 +134,7 @@ function PreviewBody({ file }: { file: PreviewFile }) {
             {file.size >= 0 ? fileSize(file.size) : ' '}
           </DialogDescription>
         </div>
-        {kind === 'pdf' && (
+        {kind === 'pdf' && !tunnel && (
           <Button asChild variant="ghost" size="icon-sm" className="shrink-0 rounded-full">
             <a
               href={inline}
@@ -170,11 +173,15 @@ function PreviewBody({ file }: { file: PreviewFile }) {
           <ZoomableImage src={inline} alt={file.name} />
         ) : kind === 'audio' ? (
           <div className="flex size-full items-center justify-center p-6">
-            <audio src={inline} controls preload="metadata" className="w-full max-w-lg" />
+            <ServerAudio src={inline} controls preload="metadata" className="w-full max-w-lg" />
           </div>
         ) : kind === 'video' ? (
           <div className="flex size-full items-center justify-center bg-black">
-            <video src={inline} controls preload="metadata" className="max-h-full max-w-full" />
+            <ServerVideo src={inline} controls preload="metadata" className="max-h-full max-w-full" />
+          </div>
+        ) : kind === 'pdf' && tunnel ? (
+          <div className="flex size-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
+            {t('bots.pdfDownload')}
           </div>
         ) : kind === 'pdf' ? (
           // The browser's own PDF viewer, from this server; an <object> would be refused by the page's policy.
@@ -574,7 +581,7 @@ function ZoomableImage({ src, alt }: { src: string; alt: string }) {
         zoomed ? 'overflow-auto' : 'flex items-center justify-center p-3',
       )}
     >
-      <img
+      <ServerImg
         src={src}
         alt={alt}
         tabIndex={0}

@@ -34,6 +34,7 @@ import { usePreview } from './FilePreview';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { ImageMarkup } from './ImageMarkup';
+import { ServerAudio, ServerImg, ServerVideo } from '@/components/ServerMedia';
 
 /** An upload waiting on the server for its message; sending moves it into the conversation folder. */
 export interface StagedFile {
@@ -460,16 +461,21 @@ export function MessageFiles({
             {f.name} · {fileSize(f.size)}
           </button>
           {media === 'audio' ? (
-            <audio src={src} controls preload="metadata" className="w-full" />
+            <ServerAudio src={src} controls preload="metadata" className="w-full" />
           ) : (
-            <video src={src} controls preload="metadata" className="max-h-64 w-full rounded-xl bg-black" />
+            <ServerVideo
+              src={src}
+              controls
+              preload="metadata"
+              className="max-h-64 w-full rounded-xl bg-black"
+            />
           )}
         </div>
       );
     }
     if (href && isImage(f.name)) {
       const picture = (
-        <img
+        <ServerImg
           src={api.fileUrl(botId!, f.path, { inline: true, thumb: true })}
           alt={f.name}
           className="max-h-56 max-w-full rounded-2xl border object-cover"

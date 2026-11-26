@@ -102,6 +102,7 @@ import { EmailApprovalCard } from './EmailApproval';
 import { PersonJobCard } from './PersonJobCard';
 import { speechSupported, toggleSpeech, useServerVoice, useSpeech } from '@/lib/speech';
 import { useUi } from '@/lib/store';
+import { viaTunnel } from '@/lib/transport';
 import { AppLogo } from './Connections';
 import { useTypewriter } from '@/lib/typewriter';
 import { cn } from '@/lib/utils';
@@ -295,7 +296,15 @@ export function MessageItem({
       }
       if (typeof m.props.connectionSignIn === 'string')
         return <SignInCard connectionId={m.props.connectionSignIn} text={m.text} botId={botId} />;
-      if (m.props.app && typeof m.props.app === 'object') return <McpAppView m={m} />;
+      if (m.props.app && typeof m.props.app === 'object')
+        // An app's view runs its own scripts, which on the web app would run in the website's origin.
+        return viaTunnel() ? (
+          <p className="max-w-(--bubble-width) rounded-2xl border bg-card px-4 py-3 text-sm text-muted-foreground">
+            {t('bots.appElsewhere')}
+          </p>
+        ) : (
+          <McpAppView m={m} />
+        );
       if (typeof m.props.openedThread === 'string') {
         const id = m.props.openedThread;
         return (

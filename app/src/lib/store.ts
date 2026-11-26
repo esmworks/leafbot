@@ -7,6 +7,7 @@ import {
   type TurnState,
 } from '@leafbot/shared';
 import { create } from 'zustand';
+import { offers } from './transport';
 
 export type SettingsTab =
   | 'profile'
@@ -305,10 +306,13 @@ export const useUi = create<UiState>((set, get) => ({
   },
   openRoom: (roomId) => {
     if (!roomId) return set({ roomId });
+    if (!offers('rooms')) return;
     if (!get().leavePage()) return;
     set({ roomId, phonePane: 'chat', panelSheet: false, findOpen: false, apps: null });
   },
-  openRoomDialog: (roomDialog) => set({ roomDialog }),
+  openRoomDialog: (roomDialog) => {
+    if (!roomDialog || offers('rooms')) set({ roomDialog });
+  },
   togglePanel: (open) => set((s) => ({ panelOpen: open ?? !s.panelOpen })),
   togglePanelSheet: (open) => set((s) => ({ panelSheet: open ?? !s.panelSheet })),
   resizeSidebar: (dragged) => set({ sidebarWidth: sidebarWidthFor(dragged) }),
@@ -320,9 +324,12 @@ export const useUi = create<UiState>((set, get) => ({
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
   setTodayOpen: (todayOpen) => set({ todayOpen }),
   setBoardOpen: (boardOpen) => set({ boardOpen }),
-  setDashboardsOpen: (dashboardsOpen) => set({ dashboardsOpen }),
+  setDashboardsOpen: (dashboardsOpen) => {
+    if (!dashboardsOpen || offers('dashboards')) set({ dashboardsOpen });
+  },
   openRoutine: (routine) => {
     if (!routine) return void get().leavePage();
+    if (!offers('routines')) return;
     const s = get();
     // The same routine again only moves to its runs; another one is a page left.
     const same = s.routine?.botId === routine.botId && s.routine.routineId === routine.routineId;
@@ -376,7 +383,9 @@ export const useUi = create<UiState>((set, get) => ({
       apps: null,
     });
   },
-  openComputer: (computerBotId) => set({ computerBotId }),
+  openComputer: (computerBotId) => {
+    if (!computerBotId || offers('computer')) set({ computerBotId });
+  },
   floatComputer: (computerFloat) => set({ computerFloat }),
   appendStream: (threadId, turnId, text, restart, at) => {
     const next = addPiece(get().streams[threadId], turnId, { text, at, restart });

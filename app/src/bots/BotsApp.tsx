@@ -3,12 +3,14 @@ import { ConnectError } from '@leafbot/client/webrtc';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, Loader2, Server } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { App } from '@/App';
 import { AppMascot } from '@/components/AppMascot';
 import { Button } from '@/components/ui/button';
 import { useT, type MessageKey } from '@/i18n';
 import { useUi } from '@/lib/store';
-import { setTunnel } from '@/lib/transport';
+import { catchServerLinks, dropServerFiles } from '@/lib/server-files';
+import { setMissingFeatureHandler, setTunnel } from '@/lib/transport';
 import { account, AccountError, signInUrl, type ServerEntry } from './account';
 import { openServer } from './connect';
 
@@ -110,6 +112,7 @@ export function BotsApp() {
   /** Leaves the server: nothing it answered stays for the next one. */
   const leave = useCallback(() => {
     setTunnel(null);
+    dropServerFiles();
     qc.clear();
     useUi.setState({ authed: null });
   }, [qc]);
@@ -164,6 +167,17 @@ export function BotsApp() {
       attempt.current++;
     };
   }, [start]);
+
+  const isOpen = view.at === 'open';
+  useEffect(() => {
+    if (!isOpen) return;
+    setMissingFeatureHandler(() => toast(t('bots.notOffered')));
+    const stop = catchServerLinks(() => toast.error(t('bots.saveFailed')));
+    return () => {
+      stop();
+      setMissingFeatureHandler(null);
+    };
+  }, [isOpen, t]);
 
   const choose = (servers: ServerEntry[]) => {
     attempt.current++;

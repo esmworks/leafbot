@@ -6,6 +6,7 @@ import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { useBots, useInfo } from '@/lib/queries';
+import { publicOrigin } from '@/lib/transport';
 
 /** Every page shared by link, so a link sent long ago can be found and turned off. */
 export function SharedPages() {
@@ -15,7 +16,7 @@ export function SharedPages() {
   const { data: shares = [] } = useQuery({ queryKey: ['page-shares'], queryFn: api.pageShares });
   const { data: bots = [] } = useBots();
   const { data: info } = useInfo();
-  const base = info?.publicUrl ?? window.location.origin;
+  const base = publicOrigin(info?.publicUrl);
   const off = useMutation({
     mutationFn: (token: string) => api.unsharePage(token),
     onSuccess: () => {
@@ -34,7 +35,7 @@ export function SharedPages() {
             <Link2 className="size-4 shrink-0 text-muted-foreground" />
             <div className="min-w-0 flex-1">
               <a
-                href={`${base}/p/${s.token}`}
+                href={base ? `${base}/p/${s.token}` : undefined}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block truncate font-medium hover:underline"

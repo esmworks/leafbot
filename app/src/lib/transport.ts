@@ -45,3 +45,29 @@ export function serverFeature(name: string): boolean {
   const tunnel = currentTunnel();
   return !tunnel || tunnel.has(name);
 }
+
+/**
+ * Where people outside reach the server (shared pages): its public address, else the page's own
+ * origin when the server serves the page. On the web app the origin is the website's, so without a
+ * public address there is none.
+ */
+export function publicOrigin(publicUrl: string | null | undefined): string | null {
+  return publicUrl ?? (viaTunnel() ? null : window.location.origin);
+}
+
+let onMissing: ((feature: string) => void) | null = null;
+
+/** What to tell the person when they reach for a part their server does not offer. */
+export function setMissingFeatureHandler(handler: ((feature: string) => void) | null) {
+  onMissing = handler;
+}
+
+/**
+ * For actions that open a part of the app: whether the server offers it. When it does not, the
+ * person is told so and the part stays closed, rather than opening onto requests that fail.
+ */
+export function offers(feature: string): boolean {
+  if (serverFeature(feature)) return true;
+  onMissing?.(feature);
+  return false;
+}
