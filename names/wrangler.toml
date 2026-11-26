@@ -12,13 +12,13 @@ routes = [{ pattern = "names.leafbot.app", custom_domain = true }]
 [vars]
 DOMAIN = "leafbot.cloud"
 # The zone ID of leafbot.cloud, from the right-hand column of its Overview page in Cloudflare.
-ZONE_ID = "FILL-IN-THE-ZONE-ID"
+ZONE_ID = "1b40eb5e64d55314a1e3e4fb89cf654e"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "leafbot-names"
 # Printed by `wrangler d1 create leafbot-names`.
-database_id = "FILL-IN-THE-DATABASE-ID"
+database_id = "135373fd-f9db-4a6c-868f-3c5c2ecab426"
 
 [triggers]
 # Once a day: removes the names of servers not heard from in 30 days.

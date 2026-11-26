@@ -191,6 +191,8 @@ export class NameService {
       recordId = await dns.create(this.fqdn(label), ip);
     } catch (e) {
       if (e instanceof DnsFull) throw new NameFailure('full', 503);
+      // The caller only learns that DNS failed; the reason goes to the Worker's logs (`wrangler tail`).
+      console.error('creating the DNS record failed:', e);
       throw new NameFailure('dns', 502);
     }
     const token = randomToken();
@@ -229,7 +231,8 @@ export class NameService {
       // themselves if their server is gone.
       try {
         await this.o.dns.update(row.recordId, ip);
-      } catch {
+      } catch (e) {
+        console.error('moving the DNS record failed:', e);
         throw new NameFailure('dns', 502);
       }
       await this.o.store.setIp(label, ip, now);

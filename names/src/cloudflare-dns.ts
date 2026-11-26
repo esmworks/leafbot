@@ -33,7 +33,10 @@ export class CloudflareDns implements NameDns {
   ) {}
 
   private async call(method: string, path: string, body?: unknown): Promise<ApiReply> {
-    const res = await this.fetcher(`${API}/zones/${this.zoneId}/dns_records${path}`, {
+    // Called on its own, not as `this.fetcher(...)`: the Workers runtime refuses its fetch with any
+    // `this` but the global one ("Illegal invocation").
+    const fetcher = this.fetcher;
+    const res = await fetcher(`${API}/zones/${this.zoneId}/dns_records${path}`, {
       method,
       headers: { authorization: `Bearer ${this.token}`, 'content-type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
