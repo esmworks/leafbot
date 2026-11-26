@@ -1288,6 +1288,29 @@ describe('sohbet', () => {
     expect(t.engine.requests.at(-1)!).not.toHaveProperty('advisorModel');
   });
 
+  it('Pi botun danışmanı kendi ayarından gelir; Claude ayarı ona geçmez, geçersiz değer reddedilir', async () => {
+    expect((await t.api('GET', '/api/settings')).body).toMatchObject({ piAdvisorModel: '' });
+    await t.api('PATCH', '/api/settings', { claudeAdvisorModel: 'opus' });
+    const pi = await t.bot({ engine: 'pi', model: 'openrouter/baska' });
+    const thread = await main(pi.id);
+    await t.send(thread.id, 'merhaba');
+    await t.services.turns.idle();
+    expect(t.engine.requests.at(-1)!).not.toHaveProperty('advisorModel');
+
+    expect((await t.api('PATCH', '/api/settings', { piAdvisorModel: 'openai/gpt-x' })).status).toBe(200);
+    await t.send(thread.id, 'tekrar');
+    await t.services.turns.idle();
+    expect(t.engine.requests.at(-1)!.advisorModel).toBe('openai/gpt-x');
+
+    // A bot already on the advisor's model has nobody stronger to ask.
+    const same = await t.bot({ engine: 'pi', model: 'openai/gpt-x' });
+    await t.send((await main(same.id)).id, 'merhaba');
+    await t.services.turns.idle();
+    expect(t.engine.requests.at(-1)!).not.toHaveProperty('advisorModel');
+
+    expect((await t.api('PATCH', '/api/settings', { piAdvisorModel: 'opus' })).status).toBe(400);
+  });
+
   it('motor bağlamın dolduğunu kendi bildirince de son konuşma yeni oturuma aktarılır', async () => {
     const bot = await t.bot();
     const thread = await main(bot.id);

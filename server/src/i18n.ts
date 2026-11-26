@@ -640,6 +640,13 @@ const tr = {
   'engine.subagentFailed': 'Yardımcı işini bitiremedi: {reason}',
   'engine.subagentNoAnswer': 'Yardımcı bir cevap yazmadan bitti.',
   'engine.subagentKeptFailing': 'Aynı çağrı aynı biçimde başarısız olmaya devam etti.',
+  'engine.advisorTool':
+    'Daha güçlü bir modele danış. Danışman bu konuşmayı, araç çağrılarını ve sonuçlarını görür, sorunu okur ve ne yapman gerektiğini söyler; araç çalıştıramaz ve kişiyle konuşmaz. Şu durumlarda kullan: takıldığında (bir yol tekrar tekrar başarısız oluyorsa ya da ne yapacağını bilmiyorsan), büyük ya da geri alınması zor bir adımdan önce ve kişiye işin bittiğini söylemeden önce. Basit, açık adımlar için kullanma. Tek ve net bir soru sor: neyi denediğini ve nerede kaldığını yaz. Bir turda en fazla {max} kez.',
+  'engine.advisorQuestion':
+    'Danışmana sorulacak soru: ne yapmaya çalıştığın, ne denediğin ve neye karar veremediğin.',
+  'engine.advisorLimit': 'Bu turda danışmana {max} kez soruldu; bundan sonrasına kendin karar ver.',
+  'engine.advisorNoAnswer': 'Danışman bir cevap yazmadı; kendin karar ver ve devam et.',
+  'engine.advisorUnavailable': 'Danışmana şu an ulaşılamadı ({reason}); kendin karar ver ve devam et.',
   'approval.expired': 'Onay beklenirken tur durduruldu.',
   'approval.timedOut':
     'Kullanıcı başında değildi ve izin isteği zamanında yanıtlanmadı; bu işlem yapılmadı. Onsuz yapabildiğini yap ve sonunda neyin yapılamadığını yaz.',
@@ -3085,6 +3092,14 @@ const en: Catalog<ServerKey> = {
   'engine.subagentFailed': 'The helper could not finish: {reason}',
   'engine.subagentNoAnswer': 'The helper ended without writing an answer.',
   'engine.subagentKeptFailing': 'The same call kept failing the same way.',
+  'engine.advisorTool':
+    'Ask a stronger model for advice. The advisor sees this conversation, your tool calls and their results, reads the problem and tells you what to do; it cannot run tools and does not talk to the person. Use it when you are stuck (an approach keeps failing, or you do not know what to do next), before a large or hard-to-undo step, and before you tell the person the work is done. Do not use it for simple, clear steps. Ask one clear question: say what you tried and where you are. At most {max} times a turn.',
+  'engine.advisorQuestion':
+    'The question for the advisor: what you are trying to do, what you tried, and what you cannot decide.',
+  'engine.advisorLimit': 'The advisor was asked {max} times this turn; decide the rest yourself.',
+  'engine.advisorNoAnswer': 'The advisor wrote no answer; decide yourself and go on.',
+  'engine.advisorUnavailable':
+    'The advisor could not be reached just now ({reason}); decide yourself and go on.',
   'approval.expired': 'The turn was stopped while waiting for approval.',
   'approval.timedOut':
     'The user was not there and the request was not answered in time; this step was not done. Do what you can without it and say at the end what could not be done.',

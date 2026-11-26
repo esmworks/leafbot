@@ -212,6 +212,8 @@ export interface Settings {
   claudeCompactWindow?: number;
   /** The Claude model Claude bots may ask for advice mid-turn; empty is off. Missing on older servers. */
   claudeAdvisorModel?: ClaudeAdvisor | '';
+  /** `provider/model` bots on other providers may ask for advice mid-turn; empty is off. Missing on older servers. */
+  piAdvisorModel?: string;
   /** Long conversations are summarised while idle, before the size above is reached. Missing on older servers. */
   idleCompact?: boolean;
   /** The most the bots may spend in a day, in US dollars; 0 for none. Missing on older servers. */

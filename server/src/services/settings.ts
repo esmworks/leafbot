@@ -90,6 +90,20 @@ export const Settings = z.object({
    * the bot only, and its tokens are billed at its own model's rates.
    */
   claudeAdvisorModel: z.union([z.enum(CLAUDE_ADVISORS), z.literal('')]).default(''),
+  /**
+   * `provider/model` that bots on other providers may ask for advice the same way, through a tool of
+   * their own; empty is off. It reads the recent conversation and answers the bot only.
+   */
+  piAdvisorModel: z
+    .union([
+      z.literal(''),
+      z
+        .string()
+        .trim()
+        .max(100)
+        .regex(/^[a-z0-9._-]+\/\S+$/i),
+    ])
+    .default(''),
   timezone: z.string().refine(isValidTimeZone).default('Europe/Istanbul'),
   /**
    * The most the bots may spend in a calendar month, in US dollars, as the engines report it; 0 for

@@ -31,7 +31,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { useLocale, useT } from '@/i18n';
+import { useLocale, useT, type MessageKey } from '@/i18n';
 import { api } from '@/lib/api';
 import { splitPiModel } from '@/lib/new-bot';
 import {
@@ -63,6 +63,7 @@ import {
   providerName,
   useHasProvider,
   useSavePiModel,
+  type PiModelField,
 } from './ProviderConnect';
 import { Heading, ListRow, Mark, PageHead, rowClass, Status, Tag, type Health } from './SettingsList';
 import { Card, Row, useSaveSettings } from './SettingsPage';
@@ -108,17 +109,19 @@ function useBotCount(id: string) {
   ).length;
 }
 
-/** What a provider is used for: the start of new bots, the backup model, or both. */
+/** What a provider is used for: the start of new bots, the backup model, the advisor, or several. */
 function useRoles(id: string) {
   const { data: settings } = useSettings();
   const target = newBotEngine(settings);
   const backup = settings?.backupModel ? splitPiModel(settings.backupModel).provider : '';
+  const advisor = settings?.piAdvisorModel ? splitPiModel(settings.piAdvisorModel).provider : '';
   return {
     newBots:
       id === CLAUDE
         ? target.engine === 'claude'
         : target.engine === 'pi' && target.model.startsWith(`${id}/`),
     backup: id !== CLAUDE && backup === id,
+    advisor: id !== CLAUDE && advisor === id,
   };
 }
 
@@ -150,6 +153,7 @@ function RoleTags({ id }: { id: string }) {
     <>
       {roles.newBots && <Tag>{t('providers.role.newBots')}</Tag>}
       {roles.backup && <Tag>{t('providers.role.backup')}</Tag>}
+      {roles.advisor && <Tag>{t('providers.role.advisor')}</Tag>}
     </>
   );
 }
@@ -169,10 +173,12 @@ function ProviderList() {
     <>
       {(settings?.defaultEngine !== undefined ||
         settings?.backupModel !== undefined ||
+        settings?.piAdvisorModel !== undefined ||
         settings?.imageModel !== undefined) && (
         <Card title={t('providers.defaults')}>
           {settings.defaultEngine !== undefined && <NewBotsRow />}
           {settings.backupModel !== undefined && <BackupModel />}
+          {settings.piAdvisorModel !== undefined && <PiAdvisorModel />}
           {settings.imageModel !== undefined && <ImageModelRow />}
         </Card>
       )}
@@ -704,30 +710,67 @@ function ImageModelRow() {
 
 /** The model that carries the work once the usage limit is spent, instead of waiting for it. */
 function BackupModel() {
+  return (
+    <PiModelSetting
+      field="backupModel"
+      name="model.backup"
+      hint="model.backupHint"
+      inUse="providers.backupInUse"
+    />
+  );
+}
+
+/** The stronger model bots on other providers may ask for advice when they are stuck. */
+function PiAdvisorModel() {
+  return (
+    <PiModelSetting
+      field="piAdvisorModel"
+      name="model.piAdvisor"
+      hint="model.piAdvisorHint"
+      inUse="providers.piAdvisorInUse"
+    />
+  );
+}
+
+/**
+ * A setting that holds one model of a connected provider, off until it is switched on. The model
+ * is tried before it is saved, so a typo or a spent key shows here and not in a bot's turn.
+ */
+function PiModelSetting({
+  field,
+  name,
+  hint,
+  inUse,
+}: {
+  field: PiModelField;
+  name: MessageKey;
+  hint: MessageKey;
+  inUse: MessageKey;
+}) {
   const t = useT();
   const { data: settings } = useSettings();
   const save = useSaveSettings();
   const [on, setOn] = useState<boolean | null>(null);
   const [ref, setRef] = useState<string | null>(null);
-  const pi = useSavePiModel(() => setRef(null), true);
+  const pi = useSavePiModel(() => setRef(null), field);
   const hasProvider = useHasProvider();
-  const stored = settings?.backupModel ?? '';
+  const stored = settings?.[field] ?? '';
   const open = on ?? !!stored;
   const value = ref ?? stored;
   return (
     <div className="space-y-3 px-4 py-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="text-sm">{t('model.backup')}</div>
-          <div className="text-xs text-muted-foreground">{t('model.backupHint')}</div>
+          <div className="text-sm">{t(name)}</div>
+          <div className="text-xs text-muted-foreground">{t(hint)}</div>
         </div>
         <Switch
           checked={open}
           onCheckedChange={(v) => {
             setOn(v);
-            if (!v && stored) save.mutate({ backupModel: '' });
+            if (!v && stored) save.mutate({ [field]: '' });
           }}
-          aria-label={t('model.backup')}
+          aria-label={t(name)}
         />
       </div>
       {open && (
@@ -749,7 +792,7 @@ function BackupModel() {
                 {pi.save.isPending ? t('claude.testing') : t('provider.tryAndSave')}
               </Button>
               {stored && value === stored && (
-                <span className="text-xs text-muted-foreground">{t('providers.backupInUse')}</span>
+                <span className="text-xs text-muted-foreground">{t(inUse)}</span>
               )}
             </div>
           )}
@@ -1097,7 +1140,7 @@ function ModelList({ provider: p }: { provider: ProviderInfo }) {
   const [find, setFind] = useState('');
   const short = useShortNumber();
   const newBots = useSavePiModel();
-  const backup = useSavePiModel(undefined, true);
+  const backup = useSavePiModel(undefined, 'backupModel');
   const [busy, setBusy] = useState<string | null>(null);
   const refresh = useMutation({
     mutationFn: () => api.refreshEndpoint(p.id),
@@ -1168,6 +1211,7 @@ function ModelList({ provider: p }: { provider: ProviderInfo }) {
             const r = ref(m);
             const isNew = target.engine === 'pi' && target.model === r;
             const isBackup = settings?.backupModel === r;
+            const isAdvisor = settings?.piAdvisorModel === r;
             return (
               <div key={m.id} className="flex items-center gap-3 px-4 py-2.5">
                 <span className="min-w-0 flex-1">
@@ -1175,6 +1219,7 @@ function ModelList({ provider: p }: { provider: ProviderInfo }) {
                     <span className="truncate text-sm">{m.name}</span>
                     {isNew && <Tag>{t('providers.role.newBots')}</Tag>}
                     {isBackup && <Tag>{t('providers.role.backup')}</Tag>}
+                    {isAdvisor && <Tag>{t('providers.role.advisor')}</Tag>}
                   </span>
                   {m.name !== m.id && (
                     <span className="block truncate font-mono text-xs text-muted-foreground">{m.id}</span>

@@ -1165,6 +1165,7 @@ export const tr = {
   'activity.tool.web': "Web'de arıyor",
   'activity.tool.api': 'Bir servisi çağırıyor',
   'activity.tool.agent': 'Yardımcı bir ajan çalışıyor',
+  'activity.tool.advisor': 'Danışman modele soruyor',
   'activity.tool.memory': 'Hafızasına bakıyor',
   'activity.tool.app': '{app} kullanıyor',
   'activity.writing': 'Yazıyor',
@@ -2838,6 +2839,7 @@ export const tr = {
   'providers.noMatch': '“{query}” ile eşleşen bir şey yok.',
   'providers.role.newBots': 'Yeni botlar',
   'providers.role.backup': 'Yedek',
+  'providers.role.advisor': 'Danışman',
   'providers.bots': '{count} bot kullanıyor',
   'providers.noBots': 'Henüz bot kullanmıyor',
   'providers.keyHint': 'Anahtar {hint}',
@@ -2852,6 +2854,7 @@ export const tr = {
   'providers.claudeModel': 'Claude modeli ve effort',
   'providers.addFirst': 'Başka bir yapay zekâ için önce aşağıdan bir sağlayıcı bağla.',
   'providers.backupInUse': 'Yedek model bu.',
+  'providers.piAdvisorInUse': 'Danışman model bu.',
   'providers.signInSection': 'Bağlantı',
   'providers.plan': '{plan} planı',
   'providers.planNone': 'Oturum açılmadı',
@@ -2892,6 +2895,9 @@ export const tr = {
   'model.advisorHint':
     'Claude botlar takıldıklarında, büyük bir adımdan önce ve işi bitti saymadan önce bu daha güçlü modele danışabilir. Danışman sohbetin tamamını görür ve yalnızca bota cevap verir; harcadığı token kendi modelinin fiyatından ücretlendirilir ve harcamaya sayılır. Yalnızca botun modeli kadar ya da ondan daha güçlü olduğunda devreye girer. Claude aboneliğinde Fable’ı danışman yapmak için hesapta ek kullanımın açık olması gerekebilir.',
   'model.advisorOff': 'Kapalı',
+  'model.piAdvisor': 'Danışman model (diğer sağlayıcılar)',
+  'model.piAdvisorHint':
+    'Diğer sağlayıcılardaki botlar takıldıklarında bu modele danışabilecekleri bir araç alır; bir turda en fazla üç kez. Danışman botun talimatlarını ve araç sonuçları dahil son konuşmayı görür, yalnızca bota cevap verir; tokenleri kendi modelinin fiyatından ücretlendirilir ve harcamaya sayılır. Zaten bu modelle çalışan bot bu aracı almaz.',
   'model.compact': 'Sohbeti özetleme sınırı',
   'model.compactHint':
     'Claude botlarda sohbet bu boyuta gelince eski kısmı özetlenir. Küçük tutmak cevapları hızlı ve ucuz tutar; büyük tutmak daha çok ayrıntıyı aynen hatırlatır, ama her mesaj daha pahalı olur.',

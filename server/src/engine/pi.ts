@@ -30,6 +30,7 @@ import {
   introTokens,
   KEEP_AFTER_COMPACT,
   NO_FOLD,
+  recentTranscript,
   resultChars,
   SUMMARY_SYSTEM,
   SUMMARY_TOKENS,
@@ -45,8 +46,18 @@ import { fileTools, PathError, type FileTool } from './pi-files';
 import { gatePrompt, parseGate } from './gate';
 import { webTools, type WebToolOptions } from './pi-web';
 import { shellRun, type ShellRun } from './pi-shell';
+import {
+  ADVISOR_SYSTEM,
+  ADVISOR_SYSTEM_CHARS,
+  ADVISOR_TIMEOUT,
+  ADVISOR_TOKENS,
+  ADVISOR_TOOL,
+  advisorRequest,
+  advisorTool,
+} from './pi-advisor';
 import { limiter, SUBAGENT_TOOL, SUBAGENTS_AT_ONCE, subagentTool, type HelperRun } from './pi-subagent';
 import { asOutsideData } from '../runtime/outside';
+import { truncate } from '../util';
 import { RESULT_TOOL, ResultStore } from './pi-results';
 
 export { RESULT_TOOL };
@@ -591,6 +602,16 @@ export class PiEngine implements Engine {
         }),
       );
     }
+    // A stronger model the bot may ask for advice mid-turn, by the person's choice in the settings. It is
+    // offered whatever the bot's tool selection, as Claude bots get theirs, and never to helpers. A model
+    // that is gone or whose provider lost its key is left out, so the bot does not spend calls on it.
+    const advisorRef =
+      req.advisorModel && req.advisorModel !== req.model ? splitModel(req.advisorModel) : null;
+    const advisorFound = !toolless && advisorRef && (await this.resolve(advisorRef.provider, advisorRef.id));
+    if (advisorRef && advisorFound && (await this.authorize(advisorRef.provider, advisorFound))) {
+      byName.set(ADVISOR_TOOL, { perm: ADVISOR_TOOL });
+      tools.push(advisorTool({ t, ask: (question, signal) => askAdvisor(advisorRef, question, signal) }));
+    }
     // Providers refuse a request listing more than MAX_TOOLS tools. The bot's own tools go first;
     // connected apps follow whole, smallest first, so a small app is never cut for a big one. What
     // does not fit stays in reach through find_tool and use_tool.
@@ -769,8 +790,10 @@ export class PiEngine implements Engine {
       toolCall,
       args,
     }: Pick<BeforeToolCallContext, 'toolCall' | 'args'>): Promise<BeforeToolCallResult | undefined> => {
-      // Looking tools up only reads the list; a kept result is what this conversation already got.
-      if (toolCall.name === FIND_TOOL || toolCall.name === RESULT_TOOL) return undefined;
+      // Looking tools up only reads the list; a kept result is what this conversation already got. Asking
+      // the advisor changes nothing: it goes to the model the person chose for it.
+      if (toolCall.name === FIND_TOOL || toolCall.name === RESULT_TOOL || toolCall.name === ADVISOR_TOOL)
+        return undefined;
       // Starting a helper changes nothing by itself: each of its own calls is looked at and asked for.
       if (toolCall.name === SUBAGENT_TOOL) {
         const refused = await req.screen?.({
@@ -833,7 +856,10 @@ export class PiEngine implements Engine {
         initialState: {
           systemPrompt: `${systemPrompt}\n\n${t('engine.subagentSystem')}`,
           model,
-          tools: plain.filter((tool) => tool.name !== SUBAGENT_TOOL).map((tool) => counted(tool, failures)),
+          // The advisor reads the bot's conversation, not the helper's, so helpers do without it.
+          tools: plain
+            .filter((tool) => tool.name !== SUBAGENT_TOOL && tool.name !== ADVISOR_TOOL)
+            .map((tool) => counted(tool, failures)),
           messages: [],
           ...thinking,
         },
@@ -889,6 +915,57 @@ export class PiEngine implements Engine {
         return { text, failed: last?.errorMessage ?? t('engine.modelError') };
       }
       return { text };
+    };
+
+    /**
+     * One answer from the advisor model: the bot's instructions, the summary of what is folded, the
+     * newest of the conversation that fits the advisor's window, and the question. It ends with the
+     * turn, its cost counts toward the turn's, and it throws when no answer came.
+     */
+    const askAdvisor = async (
+      ref: { provider: string; id: string },
+      question: string,
+      signal: AbortSignal,
+    ): Promise<string> => {
+      const found = await this.resolve(ref.provider, ref.id);
+      if (!found) throw new Error(t('engine.modelNotFound', { model: `${ref.provider}/${ref.id}` }));
+      const authorized = await this.authorize(ref.provider, found);
+      if (!authorized) throw new Error(t('engine.noApiKey', { provider: ref.provider }));
+      const room = Math.max(
+        8_000,
+        Math.floor((authorized.model.contextWindow || 32_000) * 0.5 * CHARS_PER_TOKEN) - ADVISOR_SYSTEM_CHARS,
+      );
+      const recent = recentTranscript(withoutSystem(agent.state.messages).slice(fold.folded), room);
+      const reply = await (this.opts.complete ?? completeSimple)(
+        authorized.model,
+        {
+          systemPrompt: ADVISOR_SYSTEM,
+          messages: [
+            {
+              role: 'user',
+              content: advisorRequest({
+                system: truncate(systemPrompt, ADVISOR_SYSTEM_CHARS),
+                summary: fold.summary,
+                transcript: recent.text,
+                dropped: recent.dropped || !!fold.lost,
+                question,
+              }),
+              timestamp: Date.now(),
+            },
+          ],
+        },
+        {
+          apiKey: authorized.apiKey,
+          maxTokens: Math.min(authorized.model.maxTokens || ADVISOR_TOKENS, ADVISOR_TOKENS),
+          signal: AbortSignal.any([signal, req.signal, AbortSignal.timeout(ADVISOR_TIMEOUT)]),
+          sessionId: randomUUID(),
+        },
+      );
+      costUsd += reply.usage?.cost?.total ?? 0;
+      if (reply.stopReason === 'error' || reply.stopReason === 'aborted') {
+        throw new Error(reply.errorMessage || t('engine.modelError'));
+      }
+      return textOf(reply);
     };
 
     const agent = new Agent({
