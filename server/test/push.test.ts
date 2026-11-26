@@ -2,6 +2,7 @@ import { createPublicKey, generateKeyPairSync, verify } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
 import type { ApnsRequest, ApnsResponse } from '../src/services/apns';
+import { OWNER_ID } from '../src/users';
 import { KEY, testServer, waitFor, type TestServer } from './helpers';
 
 const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
@@ -104,7 +105,7 @@ describe('telefon bildirimleri', () => {
     await notice('reply', b.id);
     expect(badges().at(-1)).toBe(1);
     // The test notification leaves the icon alone.
-    await t.services.push.test(TOKEN);
+    await t.services.push.test(TOKEN, OWNER_ID);
     expect(badges().at(-1)).toBeUndefined();
   });
 
@@ -223,5 +224,41 @@ describe('telefon bildirimleri', () => {
     expect((await t.api('POST', '/api/push/test', { token: TOKEN })).status).toBe(200);
     expect(JSON.parse(sent[0]!.body).aps.alert.body).toBe('Bildirimler bu telefonda çalışıyor.');
     expect((await t.api('POST', '/api/push/test', { token: 'cd'.repeat(32) })).status).toBe(404);
+  });
+
+  it('başkasının telefonu, jetonu bilen biri tarafından silinemez, denenemez, devralınamaz', async () => {
+    await t.api('PUT', '/api/push/apns', APNS);
+    const ayse = await t.person('ayse');
+    const hers = 'cd'.repeat(32);
+    const body = (token: string) => ({ token, platform: 'ios', locale: 'tr', level: 'all' });
+    expect((await device()).status).toBe(200);
+    expect((await ayse.api('PUT', '/api/push/device', body(hers))).status).toBe(200);
+    const rows = async () =>
+      Object.fromEntries(
+        (await t.db.db.select().from(schema.pushDevices)).map((d) => [d.token, d.sessionId]),
+      );
+    const before = await rows();
+
+    // Ayşe with the owner's token, and the owner with Ayşe's.
+    expect((await ayse.api('PUT', '/api/push/device', body(TOKEN))).status).toBe(409);
+    expect((await ayse.api('POST', '/api/push/test', { token: TOKEN })).status).toBe(404);
+    expect((await ayse.api('DELETE', `/api/push/device/${TOKEN}`)).status).toBe(200);
+    expect((await t.api('PUT', '/api/push/device', body(hers))).status).toBe(409);
+    expect((await t.api('POST', '/api/push/test', { token: hers })).status).toBe(404);
+    expect((await t.api('DELETE', `/api/push/device/${hers}`)).status).toBe(200);
+    expect(sent).toHaveLength(0);
+    expect(await rows()).toEqual(before);
+
+    // Each still tests their own phone.
+    expect((await ayse.api('POST', '/api/push/test', { token: hers })).status).toBe(200);
+    expect(sent.map((r) => r.token)).toEqual([hers]);
+
+    // Once she signs out on it, the phone is free for whoever signs in next.
+    await ayse.api('POST', '/api/logout');
+    expect((await t.api('PUT', '/api/push/device', body(hers))).status).toBe(200);
+    expect((await rows())[hers]).toBeNull();
+    // And a person lets their own phone go.
+    expect((await t.api('DELETE', `/api/push/device/${hers}`)).status).toBe(200);
+    expect((await rows())[hers]).toBeUndefined();
   });
 });

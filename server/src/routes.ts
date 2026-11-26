@@ -542,15 +542,15 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   // Notifications on phones while the app is closed. The Apple key is write-only.
   const PushToken = z.object({ token: z.string().regex(/^[0-9a-fA-F]{32,200}$/) });
   app.put('/api/push/device', async (req) => {
-    await s.push.register(PushDeviceSet.parse(req.body), req.cookies[SESSION_COOKIE]);
+    await s.push.register(PushDeviceSet.parse(req.body), req.cookies[SESSION_COOKIE], me(req).userId);
     return { ok: true };
   });
   app.delete('/api/push/device/:token', async (req) => {
-    await s.push.unregister(PushToken.parse(req.params).token);
+    await s.push.unregister(PushToken.parse(req.params).token, me(req).userId);
     return { ok: true };
   });
   app.post('/api/push/test', async (req) => {
-    await s.push.test(PushToken.parse(req.body).token);
+    await s.push.test(PushToken.parse(req.body).token, me(req).userId);
     return { ok: true };
   });
   // A Live Activity on the lock screen for this conversation's work, kept current from here.
@@ -558,7 +558,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const { id } = IdParams.parse(req.params);
     const body = LiveActivitySet.parse(req.body);
     // As the conversation shows it: a turn just begun may not be saved as running yet.
-    return s.push.watchActivity(id, body, async () => {
+    return s.push.watchActivity(id, body, me(req).userId, async () => {
       const saved = await s.threads.state(id);
       return saved === 'idle' && s.turns.isRunning(id) ? 'running' : saved;
     });
@@ -1691,7 +1691,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.get('/api/bots/:id/conversations', async (req) => {
     const id = IdParams.parse(req.params).id;
     const rows = await s.ctx.db.select().from(schema.threads).where(eq(schema.threads.peerBotId, id));
-    return rows.map((r) => ({ threadId: r.id, botId: r.botId }));
+    // Each exchange is kept for the person it was done for: changing this bot opens none of theirs.
+    const seen = [];
+    for (const r of rows) if (await s.access.seesThread(me(req), r)) seen.push(r);
+    return seen.map((r) => ({ threadId: r.id, botId: r.botId }));
   });
 
   // Approvals and rules
@@ -1762,7 +1765,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const locale = await serverLocale(s.ctx);
     const names = await s.connections.names();
     // The step the rule would let through, in the words a card uses for it.
-    return s.approvals.suggestions(bot.id, bot.permissionMode, (c, pattern) => {
+    return s.approvals.suggestions(bot.id, me(req).userId, bot.permissionMode, (c, pattern) => {
       const server = connectionToolParts(c.toolName)?.server;
       // A rule for the whole tool is said without the latest card's details ("a routine", not "Morning").
       const input = pattern === c.toolName ? {} : c.input;

@@ -143,4 +143,16 @@ describe('ways to ask less, from real cards', () => {
     // The typed answer would have counted as a refusal and kept the suggestion away.
     expect((await suggestions(bot.id)).rules).toHaveLength(1);
   });
+
+  it('offers each person only what their own answers show', async () => {
+    const bot = await t.bot();
+    await answerCards(bot.id, SUGGEST_RULE_MIN);
+    expect((await suggestions(bot.id)).rules).toHaveLength(1);
+    // An admin may change every bot, and still does not learn from the owner's cards.
+    const admin = await t.person('yonetici', 'admin');
+    const theirs = await admin.api<PermissionSuggestions>('GET', `/api/bots/${bot.id}/suggestions`);
+    expect(theirs.status).toBe(200);
+    expect(theirs.body.rules).toEqual([]);
+    expect(theirs.body.mode).toBeNull();
+  });
 });
