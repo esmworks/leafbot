@@ -5,7 +5,7 @@ import {
   streamEnded,
 } from '@leafbot/shared';
 import type { QueryClient } from '@tanstack/react-query';
-import { io, type Socket } from 'socket.io-client';
+import { io, type Socket, WebSocket as WebSocketTransport } from 'socket.io-client';
 import { toast } from 'sonner';
 import { getT } from '@/i18n';
 import { browserSocketClosed, onBrowserReconnect, useBrowsers } from './browser';
@@ -15,6 +15,7 @@ import { notice, watchAnswered } from './notify';
 import { watchOutbox } from './outbox';
 import { useUi } from './store';
 import { restartTyping } from './typewriter';
+import { currentTunnel } from './transport';
 import { serverBuild } from './update';
 
 /**
@@ -22,11 +23,25 @@ import { serverBuild } from './update';
  * The session cookie authenticates the connection (same origin).
  */
 export function connectRealtime(qc: QueryClient, opts: { notices?: boolean } = {}): () => void {
-  const s: Socket<ServerToClientEvents, ClientToServerEvents> = io({
-    path: '/socket.io',
-    transports: ['websocket'],
-    withCredentials: true,
-  });
+  const tunnel = currentTunnel();
+  // Through the tunnel each connection is a channel of its own; the server never sees this
+  // origin's address or cookies.
+  const s: Socket<ServerToClientEvents, ClientToServerEvents> = tunnel
+    ? io({
+        path: '/socket.io',
+        transports: [
+          class TunnelTransport extends WebSocketTransport {
+            override createSocket() {
+              return tunnel.realtime() as unknown as WebSocket;
+            }
+          },
+        ],
+      })
+    : io({
+        path: '/socket.io',
+        transports: ['websocket'],
+        withCredentials: true,
+      });
   let bootId: string | null = null;
   const ui = useUi.getState;
   const stopWatching = watchAnswered(qc);

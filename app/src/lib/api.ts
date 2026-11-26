@@ -7,6 +7,7 @@ import {
   type UploadOptions,
 } from '@leafbot/client';
 import { getT, useLocale } from '@/i18n';
+import { serverFetch, viaTunnel } from './transport';
 
 export { ApiError, NoAnswerError };
 export type { JobView, LibraryFile, Settings } from '@leafbot/client';
@@ -36,9 +37,8 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Se
   // Only a request that got no answer (or lost it on the way) is told apart as such: a mistake
   // made here before sending is thrown as it is.
   try {
-    res = await fetch(path, {
+    res = await serverFetch(path, {
       method,
-      credentials: 'same-origin',
       headers,
       body: payload,
       ...(opts.keepalive && { keepalive: true }),
@@ -66,6 +66,15 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Se
  * 1) and can be called off with `signal`; fetch can do neither for an upload.
  */
 function sendFile<T>(method: string, path: string, file: Blob, opts: SendOptions): Promise<T> {
+  // Through the tunnel the file goes as one request; how much has gone up is known only at the end.
+  if (viaTunnel()) {
+    opts.onProgress?.(0);
+    const { onProgress, ...rest } = opts;
+    return request<T>(method, path, file, rest).then((v) => {
+      onProgress?.(1);
+      return v;
+    });
+  }
   return new Promise<T>((resolve, reject) => {
     if (opts.signal?.aborted) return reject(new DOMException('Aborted', 'AbortError'));
     const xhr = new XMLHttpRequest();
@@ -108,9 +117,8 @@ export const api = {
     shared.uploadFile(threadId, file.name, file, { ...opts, onProgress: opts.onProgress ?? (() => {}) }),
   /** A reply read aloud, as audio; null when the server could not. */
   speech: async (text: string): Promise<Blob> => {
-    const res = await fetch('/api/speech', {
+    const res = await serverFetch('/api/speech', {
       method: 'POST',
-      credentials: 'same-origin',
       headers: { 'content-type': 'application/json', 'accept-language': useLocale.getState().locale },
       body: JSON.stringify({ text }),
     });

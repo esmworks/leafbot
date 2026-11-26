@@ -16,7 +16,7 @@ import { FoundProjects } from './FoundProjects';
 import { Card, Row } from './SettingsPage';
 
 /** The instructions the other app follows to write the import file; served with the app. */
-const EXPORT_INSTRUCTIONS = '/import/grok-bot-export.md';
+const EXPORT_INSTRUCTIONS = `${import.meta.env.BASE_URL}import/grok-bot-export.md`;
 
 /**
  * Bots from Grok Bot: the person runs the export instructions there, then picks the file it

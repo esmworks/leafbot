@@ -2,7 +2,7 @@ import { BRAND_COLOR, isLocale } from '@leafbot/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2, Plus } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { AppMascot } from '@/components/AppMascot';
 import { Wallpaper } from '@/components/Wallpaper';
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,7 @@ import { desktop } from '@/lib/desktop';
 import { useLayout } from '@/lib/layout';
 import { useBots, useRooms, useSettings } from '@/lib/queries';
 import { connectRealtime } from '@/lib/realtime';
+import { viaTunnel } from '@/lib/transport';
 import { PANEL_WIDTH, useUi } from '@/lib/store';
 import { useUnreadTracking } from '@/lib/unread';
 import { useChatWidth, useFont } from '@/lib/density';
@@ -59,7 +60,11 @@ function openLinkedThread(id: string, t: (key: 'chat.linkGone') => string) {
     .catch(() => toast.error(t('chat.linkGone')));
 }
 
-export function App() {
+/**
+ * The app once it can reach its server. `signedOut` replaces the sign-in page where signing in to
+ * the server is not how one gets in: the web app on the website, whose people come from the account.
+ */
+export function App({ signedOut }: { signedOut?: ReactNode } = {}) {
   const authed = useUi((s) => s.authed);
   const setAuthed = useUi((s) => s.setAuthed);
 
@@ -80,7 +85,7 @@ export function App() {
 
   return (
     <>
-      {authed === null ? <Loading /> : authed ? <Authed /> : <Login />}
+      {authed === null ? <Loading /> : authed ? <Authed /> : (signedOut ?? <Login />)}
       <Toaster position="bottom-center" />
     </>
   );
@@ -106,7 +111,9 @@ function Authed() {
   const [onboarding, setOnboarding] = useState<boolean | null>(null);
   // In a browser, a server without an account asks for one right after the key: from then on the
   // username and password sign in. The desktop app signs in by itself and does not ask.
-  const account = useQuery({ queryKey: ['account'], queryFn: api.account, enabled: !desktop, retry: false });
+  // Reached through the account, the person is already known and never makes a server account.
+  const local = !desktop && !viaTunnel();
+  const account = useQuery({ queryKey: ['account'], queryFn: api.account, enabled: local, retry: false });
   const [accountDone, setAccountDone] = useState(false);
   useLocaleSync();
   // The desktop app's quick window shows only what waits for the person.
@@ -114,7 +121,7 @@ function Authed() {
   // The phone app's web view shows only a bot's computer.
   const screenBot = screenBotOf();
   if (screenBot) return <PhoneScreen botId={screenBot} />;
-  if (!desktop && !accountDone) {
+  if (local && !accountDone) {
     if (account.isPending) return <Loading />;
     if (account.data?.username === null) return <CreateAccount onDone={() => setAccountDone(true)} />;
   }

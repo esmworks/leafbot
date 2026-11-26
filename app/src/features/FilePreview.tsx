@@ -1,4 +1,5 @@
 import { INTL_LOCALE } from '@leafbot/shared';
+import { serverFetch } from '@/lib/transport';
 import { useQuery } from '@tanstack/react-query';
 import {
   ChevronLeft,
@@ -504,7 +505,7 @@ async function copyImage(src: string): Promise<boolean> {
   try {
     if (!navigator.clipboard?.write || typeof ClipboardItem === 'undefined') return false;
     const png = (async () => {
-      const blob = await (await fetch(src, { credentials: 'same-origin' })).blob();
+      const blob = await (await serverFetch(src)).blob();
       if (blob.type === 'image/png') return blob;
       const bitmap = await createImageBitmap(blob);
       const canvas = document.createElement('canvas');

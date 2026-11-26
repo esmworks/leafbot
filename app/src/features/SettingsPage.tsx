@@ -131,6 +131,7 @@ import { PeopleTab, personName, personNameOf } from './PeopleTab';
 import { AccountForm } from './AccountSetup';
 import { ApnsCard } from './PhoneSettings';
 import { TailscaleCard } from './TailscaleSettings';
+import { AccountHostCard } from './AccountHostSettings';
 import { DoctorCard } from './DoctorCard';
 import { HealthStatus, needsAttention } from './RoutineHealth';
 import { ProvidersTab, useProviderTitle } from './ProvidersTab';
@@ -938,6 +939,7 @@ function Connection() {
       </Card>
       <PairDevice />
       <Devices />
+      <AccountHostCard />
       <TailscaleCard />
       {manages && <ApnsCard />}
     </>
@@ -1961,7 +1963,7 @@ function About() {
   return (
     <>
       <div className="mb-6 flex items-center gap-4 px-1">
-        <img src="/logo.png" alt="" className="size-14 rounded-2xl" />
+        <img src={`${import.meta.env.BASE_URL}logo.png`} alt="" className="size-14 rounded-2xl" />
         <div>
           <div className="text-lg font-semibold">Leaf Bot</div>
           <div className="text-sm text-muted-foreground">
