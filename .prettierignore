@@ -2,6 +2,7 @@ pnpm-lock.yaml
 # Agent worktrees and settings: other checkouts of this repository, checked in their own place.
 .claude
 **/dist
+**/dist-bots
 **/drizzle
 data
 docker/seccomp.json
