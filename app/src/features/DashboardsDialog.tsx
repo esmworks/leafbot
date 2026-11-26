@@ -226,7 +226,7 @@ function Page({ page, className }: { page: DashboardSummary; className?: string 
           ref={liftRef}
           aria-hidden
           style={air.style}
-          className="pointer-events-none fixed top-0 left-0 z-50 flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-2xl ring-1 ring-primary/25 will-change-transform"
+          className="pointer-events-none z-50 flex flex-col gap-3 rounded-2xl border bg-card p-4 shadow-2xl ring-1 ring-primary/25 will-change-transform"
         >
           <TileFace tile={air.tile} menu={<MoreHorizontal className="m-1.5 size-4" />} />
         </div>

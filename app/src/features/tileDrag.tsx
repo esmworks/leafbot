@@ -287,6 +287,11 @@ export function useTileDrag(
   const air = lift && {
     tile: tiles.find((t) => t.id === lift.id),
     style: {
+      // Pinned to the viewport's top left in every language: the transform moves it by the
+      // pointer's and the grid's screen coordinates, which count from the left.
+      position: 'fixed',
+      top: 0,
+      left: 0,
       width: lift.width,
       height: lift.height,
       transform: lifted(lift.x, lift.y),
