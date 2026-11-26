@@ -52,6 +52,8 @@ const ACTIVITIES_PER_THREAD = 5;
  */
 interface Activity {
   token: string;
+  /** The person whose phone started it. */
+  by: string;
   sandbox: boolean | null;
   locale: Locale;
   bot: string;
@@ -87,7 +89,30 @@ export class PushService {
     private vault: VaultService,
   ) {}
 
-  async register(input: PushDeviceSet, sessionToken: string | undefined): Promise<void> {
+  /**
+   * Whether a person may change a phone's registration: a phone nobody holds, one whose session has
+   * ended, or one they hold themselves. Knowing another person's token is not enough to take their
+   * phone's notices away or to send it someone else's.
+   */
+  private async mayChange(token: string, userId: string): Promise<boolean> {
+    const [device] = await this.ctx.db
+      .select({ sessionId: schema.pushDevices.sessionId })
+      .from(schema.pushDevices)
+      .where(eq(schema.pushDevices.token, token.toLowerCase()))
+      .limit(1);
+    if (!device) return true;
+    // Registered with the access key, which stands for the owner.
+    if (!device.sessionId) return userId === OWNER_ID;
+    const [session] = await this.ctx.db
+      .select({ userId: schema.sessions.userId })
+      .from(schema.sessions)
+      .where(eq(schema.sessions.id, device.sessionId))
+      .limit(1);
+    return !session || session.userId === userId;
+  }
+
+  async register(input: PushDeviceSet, sessionToken: string | undefined, userId: string): Promise<void> {
+    if (!(await this.mayChange(input.token, userId))) throw new HttpError(409, 'error.pushTokenTaken');
     const values = {
       platform: input.platform,
       locale: input.locale,
@@ -104,7 +129,12 @@ export class PushService {
       .onConflictDoUpdate({ target: schema.pushDevices.token, set: values });
   }
 
-  async unregister(token: string): Promise<void> {
+  /** A person lets their own phone go; another person's stays as it is. */
+  async unregister(token: string, userId: string): Promise<void> {
+    if (await this.mayChange(token, userId)) await this.forget(token);
+  }
+
+  private async forget(token: string): Promise<void> {
     await this.ctx.db.delete(schema.pushDevices).where(eq(schema.pushDevices.token, token.toLowerCase()));
   }
 
@@ -141,6 +171,7 @@ export class PushService {
   async watchActivity(
     threadId: string,
     input: LiveActivitySet,
+    userId: string,
     stateOf: () => Promise<TurnEvent['state']>,
   ): Promise<{ pushing: boolean; over?: boolean }> {
     if (!(await this.credentials())) return { pushing: false };
@@ -162,12 +193,22 @@ export class PushService {
     // The phone's own start, unless it is in the future or older than an activity can be.
     const since =
       input.since && input.since <= now && now - input.since < ACTIVITY_LIFE_MS ? input.since : null;
+    // An activity belongs to the person whose phone started it: another person who learns its
+    // token cannot have this server write on that lock screen.
+    for (const list of this.activities.values()) {
+      if (list.some((a) => a.token === token && a.by !== userId)) {
+        throw new HttpError(409, 'error.pushTokenTaken');
+      }
+    }
     const list = this.activities.get(threadId) ?? [];
     // Apple may give a running activity a new token; the phone sends it with the same start, and
-    // it takes the old token's place instead of being a second activity.
-    const before = list.find((a) => a.token === token || (since !== null && a.startedAt === since));
+    // it takes the old token's place instead of being a second activity. Only the same person's.
+    const before = list.find(
+      (a) => a.by === userId && (a.token === token || (since !== null && a.startedAt === since)),
+    );
     const entry: Activity = {
       token,
+      by: userId,
       // A new token comes from the same build, so from the same one of Apple's services.
       sandbox: before?.sandbox ?? null,
       locale: input.locale,
@@ -352,13 +393,15 @@ export class PushService {
   }
 
   /** A notification to one registered phone right now, so the person sees what they will get. */
-  async test(token: string): Promise<void> {
+  async test(token: string, userId: string): Promise<void> {
     const [device] = await this.ctx.db
       .select()
       .from(schema.pushDevices)
       .where(eq(schema.pushDevices.token, token.toLowerCase()))
       .limit(1);
-    if (!device) throw new HttpError(404, 'error.pushDeviceUnknown');
+    // Another person's phone answers as one that is not registered, so a token cannot be tried out.
+    if (!device || !(await this.mayChange(token, userId)))
+      throw new HttpError(404, 'error.pushDeviceUnknown');
     const t = translator(isLocale(device.locale) ? device.locale : 'tr');
     const result = await this.send(device, {
       title: t('push.testTitle'),
@@ -441,14 +484,14 @@ export class PushService {
       }
       // The app was removed from the phone, or the token belongs to the other service.
       if (res.status === 410 || (res.reason === 'BadDeviceToken' && tries.length === 1)) {
-        await this.unregister(d.token);
+        await this.forget(d.token);
         return 'gone';
       }
       if (res.reason === 'BadDeviceToken') continue;
       console.warn('push refused', res.status, res.reason);
       return 'refused';
     }
-    await this.unregister(d.token);
+    await this.forget(d.token);
     return 'gone';
   }
 }

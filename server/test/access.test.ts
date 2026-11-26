@@ -312,4 +312,22 @@ describe('kim neyi görür', () => {
     expect(forAyse.id).not.toBe(forOwner.id);
     expect((await t.services.threads.peerThread(hidden.id, shared.id, 'ayse')).id).toBe(forAyse.id);
   });
+
+  it('botu değiştirebilen, onun bot-bot konuşmalarından yalnızca kendisi için yapılanları görür', async () => {
+    const asker = await t.bot({ name: 'Soran' });
+    const helper = await t.bot({ name: 'Yardımcı' });
+    await t.api('PUT', `/api/bots/${asker.id}/access`, { everyone: 'none', people: { ayse: 'edit' } });
+    const forAyse = await t.services.threads.peerThread(helper.id, asker.id, 'ayse');
+    const forMert = await t.services.threads.peerThread(helper.id, asker.id, 'mert');
+    const forOwner = await t.services.threads.peerThread(helper.id, asker.id, OWNER_ID);
+    const ids = async (p: Person | TestServer) =>
+      (await p.api<{ threadId: string }[]>('GET', `/api/bots/${asker.id}/conversations`)).body.map(
+        (r) => r.threadId,
+      );
+    expect(await ids(ayse)).toEqual([forAyse.id]);
+    // Those who look after the server change every bot, and still open nobody else's exchanges.
+    expect(await ids(t)).toEqual([forOwner.id]);
+    expect(await ids(admin)).toEqual([]);
+    expect(forMert.userId).toBe('mert');
+  });
 });

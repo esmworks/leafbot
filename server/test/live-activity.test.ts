@@ -3,6 +3,7 @@ import type { Thread } from '@leafbot/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
 import type { ApnsRequest, ApnsResponse } from '../src/services/apns';
+import { OWNER_ID } from '../src/users';
 import { newId } from '../src/util';
 import { testServer, type TestServer } from './helpers';
 
@@ -39,7 +40,13 @@ describe('kilit ekranındaki iş', () => {
   const watch = (
     body: { token?: string; locale?: 'tr' | 'en'; since?: number } = {},
     state: 'running' | 'waiting' = 'running',
-  ) => t.services.push.watchActivity(thread.id, { token: TOKEN, locale: 'tr', ...body }, async () => state);
+  ) =>
+    t.services.push.watchActivity(
+      thread.id,
+      { token: TOKEN, locale: 'tr', ...body },
+      OWNER_ID,
+      async () => state,
+    );
   const turn = (state: 'running' | 'waiting' | 'idle' | 'queued') =>
     t.services.push.activityTurn({ threadId: thread.id, botId: thread.botId, state });
   const aps = (req: ApnsRequest) => (JSON.parse(req.body) as { aps: Record<string, unknown> }).aps;
@@ -106,10 +113,15 @@ describe('kilit ekranındaki iş', () => {
     await t.api('PUT', '/api/push/apns', APNS);
     // The turn ends while the server reads the work's state: the activity is already kept, so the
     // end reaches it instead of it being left showing work that never moves.
-    const r = await t.services.push.watchActivity(thread.id, { token: TOKEN, locale: 'tr' }, async () => {
-      await turn('idle');
-      return 'idle';
-    });
+    const r = await t.services.push.watchActivity(
+      thread.id,
+      { token: TOKEN, locale: 'tr' },
+      OWNER_ID,
+      async () => {
+        await turn('idle');
+        return 'idle';
+      },
+    );
     expect(r).toEqual({ pushing: true, over: true });
     expect(sent).toHaveLength(1);
     expect(aps(sent[0]!)).toMatchObject({ event: 'end' });
@@ -162,5 +174,24 @@ describe('kilit ekranındaki iş', () => {
     const ayse = await t.person('ayse');
     const r = await ayse.api('PUT', `/api/threads/${thread.id}/activity`, { token: TOKEN, locale: 'tr' });
     expect(r.status).toBe(404);
+  });
+
+  it('başkasının telefonundaki kart, jetonu bilen biri tarafından ele geçirilemez', async () => {
+    await t.api('PUT', '/api/push/apns', APNS);
+    await t.api('PUT', `/api/bots/${thread.botId}/access`, { everyone: 'chat', people: {} });
+    const ayse = await t.person('ayse');
+    const own = (await ayse.api<Thread>('GET', `/api/bots/${thread.botId}/main-thread`)).body;
+    await watch();
+    // Ayşe's own conversation, with the owner's activity token: refused, nothing is sent to it.
+    const taken = await ayse.api('PUT', `/api/threads/${own.id}/activity`, { token: TOKEN, locale: 'tr' });
+    expect(taken.status).toBe(409);
+    // Her own phone's token is hers to use.
+    const mine = await ayse.api('PUT', `/api/threads/${own.id}/activity`, {
+      token: 'ef'.repeat(40),
+      locale: 'tr',
+    });
+    expect(mine.status).toBe(200);
+    await turn('waiting');
+    expect(sent.map((r) => r.token)).toEqual([TOKEN]);
   });
 });

@@ -2207,6 +2207,8 @@ const tr = {
   'error.apnsRefused': 'Apple bildirimi kabul etmedi; anahtarı ve paket kimliğini denetle',
   'error.pushDeviceUnknown': 'Bu telefon bildirimlere kayıtlı değil',
   'error.pushDeviceGone': 'Apple bu telefonu artık tanımıyor; uygulamayı yeniden aç',
+  'error.pushTokenTaken':
+    'Bu telefon bu sunucuda başka birinin bildirimlerine kayıtlı; önce onun oturumu kapanmalı',
   // Chat apps (Telegram, WhatsApp)
   'validation.phone': 'Numarayı ülke koduyla, yalnızca rakamlarla yazın (ör. 905321234567)',
   'error.telegramToken': "Bu bir Telegram bot anahtarı değil. BotFather'ın gönderdiği anahtarı yapıştırın.",
@@ -4650,6 +4652,8 @@ const en: Catalog<ServerKey> = {
   'error.apnsRefused': 'Apple did not accept the notification; check the key and the bundle ID',
   'error.pushDeviceUnknown': 'This phone is not registered for notifications',
   'error.pushDeviceGone': 'Apple no longer knows this phone; open the app again',
+  'error.pushTokenTaken':
+    'This phone gets someone else’s notifications on this server; they need to sign out on it first',
   // Chat apps (Telegram, WhatsApp)
   'validation.phone': 'Write the number with its country code, digits only (e.g. 15551234567)',
   'error.telegramToken': 'This is not a Telegram bot token. Paste the token BotFather sent.',

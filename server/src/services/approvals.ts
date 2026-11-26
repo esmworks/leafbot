@@ -1320,6 +1320,8 @@ export class ApprovalService {
   /** Ways to ask less for a bot, from the cards the person answered with a button lately. */
   async suggestions(
     botId: string,
+    /** The person asking: only the cards they answered count, never another person's. */
+    userId: string,
     mode: PermissionMode,
     describe?: (c: AnsweredCard, pattern: string) => string,
     now = new Date(),
@@ -1334,6 +1336,7 @@ export class ApprovalService {
           eq(schema.approvals.kind, 'tool'),
           eq(schema.approvals.outside, false),
           eq(schema.approvals.decidedBy, 'person'),
+          eq(schema.approvals.decidedByUserId, userId),
           inArray(schema.approvals.status, ['allowed', 'denied']),
           gte(schema.approvals.decidedAt, since),
         ),
