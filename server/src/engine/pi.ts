@@ -1074,7 +1074,19 @@ export class PiEngine implements Engine {
       thrown ?? (last?.stopReason === 'error' ? (last.errorMessage ?? t('engine.modelError')) : null);
     if (error || !last) {
       await keepHistory(!resumed);
-      if (!error) return fail('engine', t('engine.noResponse'), text, sessionId, costUsd);
+      // No reply at all is the provider's trouble of the moment: the backup model may carry the turn.
+      if (!error) {
+        const message = t('engine.noResponse');
+        return {
+          ok: false,
+          kind: 'engine',
+          message,
+          text,
+          sessionId,
+          costUsd: costUsd || null,
+          transient: true,
+        };
+      }
       // A replayed reasoning item the provider cannot verify fails every later turn the same way:
       // a new session carries on with the recent exchange instead.
       if (resumed && ENCRYPTED_REASONING.test(error)) {

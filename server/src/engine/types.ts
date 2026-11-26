@@ -239,6 +239,8 @@ export interface TurnRequest {
    * was told to stop: the turn ends instead of spending more on it.
    */
   onRepeatedFailure?(toolName: string, count: number): void;
+  /** A note for the conversation the person should read once, such as tools the engine went without. */
+  onNote?(text: string): void;
   /** Aborted when the user stops the turn. */
   signal: AbortSignal;
 }
@@ -420,6 +422,9 @@ export const withContext = (req: Pick<TurnRequest, 'prompt' | 'context'>) =>
  */
 export const OVERLOADED =
   /overloaded|\b(503|529)\b|(?:^|api error|status(?: code)?|\bcode|\bhttp(?:\/[\d.]+)?)\W{0,3}50[024]\b|service unavailable|temporarily unavailable|internal server error|bad gateway|gateway time-?out|"api_error"/i;
+/** A reply that came back broken or empty, as the client libraries word it. */
+export const INVALID_REPLY =
+  /unexpected (?:token|end of (?:json|data|input))|is not valid json|invalid (?:json|response|reply)|malformed (?:json|response|reply)|(?:failed|unable|could not) to parse|empty (?:response|reply|completion)|no (?:choices|candidates|content) in (?:the )?(?:response|reply)/i;
 /** A reply the provider closed before its end, as the client libraries word it. */
 const CUT =
   /stream ended without finish_reason|premature close|other side closed|\bECONNRESET\b|^(TypeError:\s*)?terminated$/i;
@@ -491,6 +496,10 @@ export function providerTrouble(
   if (/ECONNREFUSED|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|fetch failed|network|socket hang up/i.test(raw)) {
     return { kind: 'engine', message: said('engine.providerUnreachable'), transient: true };
   }
+  // A reply the client could not read is the provider's trouble of the moment, not the request's:
+  // another model may well carry it.
+  if (INVALID_REPLY.test(raw))
+    return { kind: 'engine', message: said('engine.providerInvalid'), transient: true };
   return { kind: 'engine', message: raw };
 }
 

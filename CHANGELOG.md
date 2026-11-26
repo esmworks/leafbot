@@ -292,6 +292,23 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- An OpenCode bot at "Ask first" now asks before running a command, changing a file or reaching outside its folder.
+  OpenCode lets every step through unless its settings say otherwise, and the app only hears about the steps an
+  agent asks about, so these ran with no card. Leaf Bot now starts OpenCode with those three kinds of steps set to
+  ask, over whatever the person's own OpenCode settings say; both OpenCode 1 and 2 read the rule.
+- A message added to a running turn is no longer lost when the provider cuts the reply and the same request is
+  tried once more: the second try carries it. Before, the message counted as answered and went unread.
+- A reply the provider sent empty or broken (no answer, unreadable JSON) now moves the turn to the backup model,
+  as a busy provider does, as long as the turn has not changed anything yet. Before, the turn ended with the error.
+- A connected app whose tool lists allowed values without a type no longer fails turns on Google models: the type
+  is taken from the values. Google refuses such a field and with it the whole tool list.
+- A coding agent bot whose agent cannot take MCP servers over HTTP now says once, as its conversation with the agent
+  begins, that it works without Leaf Bot's tools. Before, it could only claim to have saved a note or sent a message.
+- An API key pointed at another Anthropic-compatible service now names that service when it refuses for its
+  balance or its content rules, not Claude's own account.
+- Claude bots no longer switch into Claude Code's plan mode, whose approval the app had no card for.
+- A coding agent's step that is reported only once it has finished is no longer held as running, which kept the
+  turn's watchdog at the long limit of a running tool.
 - Work a server restart cut short now picks up where it left off. A person's request or a routine's run that was
   under way when the server stopped (a deploy, an update, a crash) goes on by itself once the server is back, in the
   same conversation and engine session, and the bot is told to look at what the cut attempt already did before going

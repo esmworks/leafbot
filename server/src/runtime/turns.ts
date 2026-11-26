@@ -2394,9 +2394,13 @@ export class TurnManager {
     let looped: { tool: string; count: number } | null = null;
     // What the last run on the bot's own model was asked, for a second try of the same request.
     let lastPrompt = '';
+    // Messages handed into the last run mid-way. They count as answered once taken, so a second try
+    // of the request carries them, or a run cut before the model read them would leave them unanswered.
+    let handedSteers: string[] = [];
     /** `backup`: a run on the backup model, which leaves the thread's own session alone. */
     const run = async (prompt: string, backup?: string) => {
       if (!backup) lastPrompt = prompt;
+      handedSteers = [];
       const outcome = await (backup ? this.engineFor({ ...bot, engine: 'pi' }) : engine).run({
         turnId: turn.id,
         threadId: thread.id,
@@ -2554,6 +2558,15 @@ export class TurnManager {
           void this.services.usage
             .notePlan(windows)
             .catch((err: unknown) => console.warn(`Could not keep the plan's usage: ${String(err)}`)),
+        onNote: (text) =>
+          void threads.addMessage({
+            threadId: thread.id,
+            role: 'system',
+            author: 'system',
+            text,
+            props: { kind: 'engineNote' },
+            turnId: turn.id,
+          }),
         // A line in the chat marks where the bot's memory of the conversation became a summary.
         onCompacted: () =>
           void threads.addMessage({
@@ -2583,7 +2596,9 @@ export class TurnManager {
           if (!entry) return [];
           // A forwarded message handed over is someone else's words in this run too.
           for (const s of entry.steers) if (s.outside) void readOutside(s.outside);
-          return this.takeSteers(entry, t);
+          const taken = this.takeSteers(entry, t);
+          handedSteers.push(...taken);
+          return taken;
         },
         signal: controller.signal,
       });
@@ -2664,7 +2679,7 @@ export class TurnManager {
         shown = 0;
         restart = true;
         spent += outcome.costUsd ?? 0;
-        outcome = await run(lastPrompt);
+        outcome = await run([lastPrompt, ...handedSteers].join('\n\n'));
       }
       const backup = settings.backupModel;
       // A turn that already changed something is never run again from the start: the backup would

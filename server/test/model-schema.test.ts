@@ -47,4 +47,28 @@ describe('araç şemasının alt şemaları', () => {
     };
     expect(modelSchema(schema)).toEqual(schema);
   });
+
+  it('tipi yazılmamış enum değerlerinden tip alır; karışık değerlere dokunmaz', () => {
+    expect(
+      modelSchema({
+        type: 'object',
+        properties: {
+          kind: { enum: ['a', 'b'] },
+          size: { enum: [1, 2.5] },
+          on: { enum: [true, false] },
+          mixed: { enum: ['a', 1] },
+          list: { type: 'array', items: { enum: ['x', 'y'] } },
+        },
+      }),
+    ).toEqual({
+      type: 'object',
+      properties: {
+        kind: { enum: ['a', 'b'], type: 'string' },
+        size: { enum: [1, 2.5], type: 'number' },
+        on: { enum: [true, false], type: 'boolean' },
+        mixed: { enum: ['a', 1] },
+        list: { type: 'array', items: { enum: ['x', 'y'], type: 'string' } },
+      },
+    });
+  });
 });

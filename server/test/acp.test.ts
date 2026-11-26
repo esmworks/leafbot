@@ -185,6 +185,27 @@ describe('ACP motoru', () => {
     expect(seen.toolResults[2]).toMatchObject({ isError: true });
   });
 
+  it('MCP-HTTP almayan ajanda araçların gelmediğini yeni oturumda bir kez söyler', async () => {
+    const tool: AppTool = {
+      name: 'memory_save',
+      description: 'Not al',
+      input: { text: z.string() },
+      readOnly: false,
+      internal: true,
+      handler: async () => 'ok',
+    };
+    const notes: string[] = [];
+    const { app } = fakeAgent({ http: false, onPrompt: async () => 'end_turn' });
+    const out = await engineWith(app).run(request({ tools: [tool], onNote: (n) => notes.push(n) }).req);
+    expect(out.ok).toBe(true);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toContain('Gemini');
+    const quiet: string[] = [];
+    const { app: other } = fakeAgent({ http: false, onPrompt: async () => 'end_turn' });
+    await engineWith(other).run(request({ onNote: (n) => quiet.push(n) }).req);
+    expect(quiet).toEqual([]);
+  });
+
   it('bilinmeyen ajan ve kurulu olmayan araç anlaşılır hata verir', async () => {
     const unknown = await new AcpEngine({ version: 't' }).run(request({ model: 'nope' }).req);
     expect(unknown).toMatchObject({ ok: false, kind: 'engine' });
@@ -218,6 +239,33 @@ describe('ACP motoru', () => {
         ANTHROPIC_API_KEY: 'a',
       }),
     ).toEqual({ PATH: '/bin', HOME: '/h' });
+  });
+
+  it('OpenCode komutları, dosya değişikliklerini ve klasör dışını sormaya ayarlanır; kişinin ayarı kalır', () => {
+    expect(agentEnv({ PATH: '/bin' }, 'gemini')).toEqual({ PATH: '/bin' });
+    const own = JSON.stringify({
+      model: 'x/y',
+      permissions: [{ action: 'read', resource: '*', effect: 'allow' }],
+    });
+    const env = agentEnv({ PATH: '/bin', OPENCODE_CONFIG_CONTENT: own }, 'opencode');
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT!) as {
+      model: string;
+      permission: Record<string, string>;
+      permissions: { action: string; effect: string }[];
+    };
+    expect(config.model).toBe('x/y');
+    expect(config.permission).toEqual({ bash: 'ask', edit: 'ask', external_directory: 'ask' });
+    expect(config.permissions.map((p) => `${p.action}:${p.effect}`)).toEqual([
+      'read:allow',
+      'shell:ask',
+      'edit:ask',
+      'external_directory:ask',
+    ]);
+    expect(
+      JSON.parse(agentEnv({ OPENCODE_CONFIG_CONTENT: '{bozuk' }, 'opencode').OPENCODE_CONFIG_CONTENT!),
+    ).toMatchObject({
+      permission: { bash: 'ask' },
+    });
   });
 
   it('aracı kendi klasöründe ayrı bir süreç olarak başlatır, sırları vermez; çökmesini anlatır', async () => {

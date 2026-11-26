@@ -136,8 +136,45 @@ export interface AcpEngineOptions {
 /** Variables the server holds for itself, which no agent tool needs. */
 const PRIVATE_ENV = /^(LEAFBOT_|DATABASE_URL$|PG|ANTHROPIC_|CLAUDE_CODE_OAUTH_TOKEN$)/;
 
-export function agentEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return Object.fromEntries(Object.entries(env).filter(([k]) => !PRIVATE_ENV.test(k)));
+/**
+ * OpenCode lets every step through unless its settings say to ask, and the app hears only about
+ * the steps an agent asks about: an "Ask first" bot on it would run commands and change files with
+ * no card. Its commands, file changes and reach outside its folder are made to ask, so they meet the
+ * bot's cards and rules as the other agents' steps do. OpenCode 1 reads `permission` and OpenCode 2
+ * reads `permissions`; each takes its own spelling and leaves the other alone.
+ */
+const OPENCODE_ASK = {
+  permission: { bash: 'ask', edit: 'ask', external_directory: 'ask' },
+  permissions: ['shell', 'edit', 'external_directory'].map((action) => ({
+    action,
+    resource: '*',
+    effect: 'ask',
+  })),
+};
+
+/** OpenCode's inline settings with the asking rules last, over whatever the person set there. */
+function openCodeConfig(own: string | undefined): string {
+  let base: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = own ? JSON.parse(own) : {};
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed))
+      base = parsed as Record<string, unknown>;
+  } catch {
+    // Settings OpenCode could not read either: the asking rules alone.
+  }
+  const permission = base.permission && typeof base.permission === 'object' ? base.permission : {};
+  const permissions = Array.isArray(base.permissions) ? base.permissions : [];
+  return JSON.stringify({
+    ...base,
+    permission: { ...permission, ...OPENCODE_ASK.permission },
+    permissions: [...permissions, ...OPENCODE_ASK.permissions],
+  });
+}
+
+export function agentEnv(env: NodeJS.ProcessEnv, agent?: AcpAgentId): NodeJS.ProcessEnv {
+  const out = Object.fromEntries(Object.entries(env).filter(([k]) => !PRIVATE_ENV.test(k)));
+  if (agent === 'opencode') out.OPENCODE_CONFIG_CONTENT = openCodeConfig(env.OPENCODE_CONFIG_CONTENT);
+  return out;
 }
 
 function startProcess(
@@ -394,7 +431,7 @@ export class AcpEngine implements Engine {
       const env = this.opts.env ?? { ...process.env, PATH: await shellPath() };
       proc = this.opts.start
         ? this.opts.start(agent.id, req.sandbox.cwd)
-        : startProcess(this.command(agent.id), req.sandbox.cwd, agentEnv(env));
+        : startProcess(this.command(agent.id), req.sandbox.cwd, agentEnv(env, agent.id));
     } catch (err) {
       return fail(t('engine.acpMissing', { agent: agent.name, detail: (err as Error).message }));
     }
@@ -415,8 +452,11 @@ export class AcpEngine implements Engine {
           return;
         case 'tool_call': {
           const { toolName } = stepAsk(u);
-          running.add(u.toolCallId);
-          req.onActivity?.({ id: u.toolCallId, name: toolName, running: true });
+          // A step told of only once it is over never gets an update that ends it: counted as open,
+          // it would hold the watchdog to the long limit of a running tool.
+          const over = u.status === 'completed' || u.status === 'failed';
+          if (!over) running.add(u.toolCallId);
+          req.onActivity?.({ id: u.toolCallId, name: toolName, running: !over });
           // What a fetch brings back is outside text, as a command reaching a host would be.
           if (u.kind === 'fetch') {
             const host = hostOf(u);
@@ -525,6 +565,9 @@ export class AcpEngine implements Engine {
         sessionId = created.sessionId;
         req.onSession(created.sessionId);
         fresh = true;
+        // Without them the bot cannot take a note, send a message or ask with a card, and would
+        // only say it did: the person hears it once, as its conversation with the agent begins.
+        if (req.tools.length && !tools) req.onNote?.(t('engine.acpNoTools', { agent: agent.name }));
       }
       live = true;
       startDone();

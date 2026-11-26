@@ -606,6 +606,8 @@ const tr = {
   'engine.acpLimit': '{agent} kendi adım ya da uzunluk sınırına ulaştı; tur durduruldu.',
   'engine.acpOwnerOnly':
     'Bu bot bilgisayardaki bir kodlama ajanıyla çalışıyor; yalnızca sunucunun sahibinin kendi mesajlarını yürütür. Rutin, posta, webhook, ekip sohbeti ya da başka biri için çalışmaz.',
+  'engine.acpNoTools':
+    '{agent} uygulamanın araçlarını almıyor (MCP sunucularını HTTP ile bağlayamıyor): bu bot hafızaya not, mesaj, rutin ya da kart gibi Leaf Bot araçları olmadan çalışıyor.',
   'engine.acpReadOnly':
     'Bu bot bilgisayardaki bir kodlama ajanıyla çalışıyor; uygulama bir ajanı yalnızca okumaya tutamaz. Botun izin düzeyini "Önce sor" ya da üstü yapın.',
   'engine.acpOff':
@@ -620,6 +622,7 @@ const tr = {
   'engine.providerModelGone': '{provider} bu modeli artık sunmuyor ya da modelin adını tanımıyor',
   'engine.providerRefused': '{provider} bu isteği içerik kuralları gereği reddetti',
   'engine.providerCut': '{provider} yanıtı bitirmeden kesti',
+  'engine.providerInvalid': '{provider} okunamayan ya da boş bir yanıt verdi',
   'engine.providerTooLarge':
     'İstek {provider} için çok büyük; yeni bir sohbet aç ya da daha çok şey alan bir model seç',
   'engine.providerUnreachable': '{provider} sunucusuna ulaşılamadı; adresi ve bağlantıyı kontrol et',
@@ -3058,6 +3061,8 @@ const en: Catalog<ServerKey> = {
   'engine.acpLimit': '{agent} reached its own step or length limit; the turn was stopped.',
   'engine.acpOwnerOnly':
     "This bot runs on a coding agent on the computer; it carries out only the server owner's own messages. It does not run for a routine, a mail, a webhook, a team chat or anyone else.",
+  'engine.acpNoTools':
+    "{agent} does not take the app's tools (it cannot connect MCP servers over HTTP): this bot works without Leaf Bot's tools such as memory notes, messages, routines or cards.",
   'engine.acpReadOnly':
     'This bot runs on a coding agent on the computer, and the app cannot hold an agent to only reading. Set the bot\'s level to "Ask first" or above.',
   'engine.acpOff':
@@ -3071,6 +3076,7 @@ const en: Catalog<ServerKey> = {
   'engine.providerModelGone': '{provider} no longer offers this model or does not know its name',
   'engine.providerRefused': '{provider} refused this request under its content rules',
   'engine.providerCut': '{provider} cut the reply off before it ended',
+  'engine.providerInvalid': '{provider} sent a reply that could not be read, or an empty one',
   'engine.providerTooLarge':
     'The request is too large for {provider}; start a new chat or pick a model that takes more',
   'engine.providerUnreachable':
