@@ -87,8 +87,7 @@ describe('durdurma ve kaldığı yerden sürdürme', () => {
     await t.services.turns.shutdown();
     expect((await routineRuns(r.id))[0]!.status).toBe('running');
     const note = (await t.messages(run.threadId!)).filter((m) => m.role === 'system').at(-1)!;
-    // Only a person's request is run again from the note.
-    expect(note.props.kind).toBeUndefined();
+    expect(note.props.resume).toBe(true);
 
     await restart();
     await t.services.turns.idle(15_000);
@@ -111,6 +110,88 @@ describe('durdurma ve kaldığı yerden sürdürme', () => {
       (m) => m.turnId === resumed!.id && m.role === 'assistant',
     );
     expect(reports).toHaveLength(1);
+  });
+
+  /** A routine's run as a server before resuming left it: ended by the restart, its note offering Retry. */
+  const cutBefore = async (runId: string) => {
+    const [turn] = await t.db.db
+      .select()
+      .from(schema.turns)
+      .where(eq(schema.turns.routineRunId, runId))
+      .orderBy(desc(schema.turns.createdAt))
+      .limit(1);
+    await t.db.db.update(schema.turns).set({ status: 'interrupted' }).where(eq(schema.turns.id, turn!.id));
+    await t.db.db
+      .update(schema.routineRuns)
+      .set({ status: 'error', reason: 'Sunucu yeniden başladı' })
+      .where(eq(schema.routineRuns.id, runId));
+    await t.db.db
+      .update(schema.routineStepRuns)
+      .set({ status: 'error', reason: 'Sunucu yeniden başladı' })
+      .where(eq(schema.routineStepRuns.turnId, turn!.id));
+    const { message } = await t.services.threads.addMessage({
+      threadId: turn!.threadId,
+      role: 'system',
+      author: 'system',
+      text: 'Sunucu yeniden başladığı için bu tur yarıda kaldı.',
+      props: { kind: 'interrupted' },
+      turnId: turn!.id,
+    });
+    return message;
+  };
+
+  it('rutinin durdurma notundaki Yeniden dene, kapanan çalıştırmayı açıp turu kaldığı yerden sürdürür', async () => {
+    const a = await t.bot({ name: 'Ali' });
+    const r = (
+      await t.api<Routine>('POST', '/api/routines', {
+        botId: a.id,
+        name: 'Sipariş Senkronu',
+        prompt: 'siparişleri eşle',
+        schedule: { type: 'interval', minutes: 60 },
+      })
+    ).body;
+    const run = (await t.api<RoutineRun>('POST', `/api/routines/${r.id}/run`)).body;
+    await t.services.turns.idle();
+    const note = await cutBefore(run.id);
+
+    expect((await t.api('POST', `/api/messages/${note.id}/retry`)).status).toBe(200);
+    await t.services.turns.idle();
+    const all = await routineRuns(r.id);
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ status: 'done', reason: null });
+    const prompt = t.engine.requests.at(-1)!.prompt;
+    expect(prompt).toContain('önceki denemen yarıda kaldı');
+    expect(prompt).toContain('siparişleri eşle');
+    expect((await t.api('POST', `/api/messages/${note.id}/retry`)).status).toBe(409);
+  });
+
+  it('adımlı rutinin durdurma notundan yeniden deneme, yarıda kalan adımda sürer ve çalıştırmayı bitirir', async () => {
+    const a = await t.bot({ name: 'Ali' });
+    const r = (
+      await t.api<Routine>('POST', '/api/routines', {
+        botId: a.id,
+        name: 'Akış',
+        prompt: 'ilk iş',
+        steps: [{ id: 'a', kind: 'agent', prompt: 'ikinci iş' }],
+        schedule: { type: 'interval', minutes: 60 },
+        inMain: false,
+      })
+    ).body;
+    const run = (await t.api<RoutineRun>('POST', `/api/routines/${r.id}/run`)).body;
+    await t.services.turns.idle();
+    const note = await cutBefore(run.id);
+    const before = t.engine.requests.length;
+
+    expect((await t.api('POST', `/api/messages/${note.id}/retry`)).status).toBe(200);
+    await t.services.turns.idle();
+    expect(t.engine.requests).toHaveLength(before + 1);
+    expect(t.engine.requests.at(-1)!.prompt).toContain('ikinci iş');
+    expect((await routineRuns(r.id))[0]!.status).toBe('done');
+    const steps = await t.db.db
+      .select()
+      .from(schema.routineStepRuns)
+      .where(eq(schema.routineStepRuns.runId, run.id));
+    expect(steps.every((x) => x.status === 'done')).toBe(true);
   });
 
   it('sürdürülen rutin turu da yarıda kalırsa bir daha sürmez, çalıştırma kapanır', async () => {

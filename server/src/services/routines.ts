@@ -3882,6 +3882,63 @@ export class RoutineService {
   }
 
   /**
+   * Opens again a run whose turn was stopped (by the person, a pause or the server's stop), for that
+   * turn to go on in it; the step it was at, if the run has steps, is open again too. False when the
+   * run is not one that ended so, or another run of the routine is going.
+   */
+  async reopenCut(runId: string): Promise<boolean> {
+    let opened: { id: string; steps: unknown } | undefined;
+    try {
+      [opened] = await this.ctx.db
+        .update(schema.routineRuns)
+        .set({ status: 'running', reason: null, finishedAt: null, outcome: null })
+        .where(
+          and(
+            eq(schema.routineRuns.id, runId),
+            inArray(schema.routineRuns.status, ['error', 'stopped']),
+            notExists(
+              this.ctx.db
+                .select({ id: schema.turns.id })
+                .from(schema.turns)
+                .where(
+                  and(
+                    eq(schema.turns.routineRunId, runId),
+                    inArray(schema.turns.status, ['queued', 'running']),
+                  ),
+                ),
+            ),
+          ),
+        )
+        .returning({ id: schema.routineRuns.id, steps: schema.routineRuns.stepsSnapshot });
+    } catch (err) {
+      // Another run of the routine is going.
+      if (isUniqueViolation(err)) return false;
+      throw err;
+    }
+    if (!opened) return false;
+    if (opened.steps) {
+      const [step] = await this.ctx.db
+        .select({ id: schema.routineStepRuns.id })
+        .from(schema.routineStepRuns)
+        .where(
+          and(
+            eq(schema.routineStepRuns.runId, runId),
+            inArray(schema.routineStepRuns.status, ['error', 'stopped']),
+          ),
+        )
+        .orderBy(desc(schema.routineStepRuns.position))
+        .limit(1);
+      if (step)
+        await this.ctx.db
+          .update(schema.routineStepRuns)
+          .set({ status: 'running', reason: null, finishedAt: null })
+          .where(eq(schema.routineStepRuns.id, step.id));
+    }
+    this.ctx.bus.refresh({ scope: 'routines' });
+    return true;
+  }
+
+  /**
    * Starts a run with steps again at the step where it failed or was stopped, in its own
    * conversation, with what the step before it ended with.
    */
