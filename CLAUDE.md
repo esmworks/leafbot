@@ -13,7 +13,8 @@ Notes for people and coding agents working on this repository.
 - Text the person sees goes through the translation catalogs (`app/src/i18n`, `shared/src/i18n.ts`) in English and
   Turkish; `shared/src/hardcoded-text.test.ts` catches text written straight into the code. Other languages, such as
   German (`app/src/i18n/de.ts`), may lack newer keys; those show in English until translated.
-- `PRD.md` and `TASKS.md` are local working notes and stay out of the repository (they are in `.gitignore`).
+- `PRD.md`, `TASKS.md` and anything under `docs/notes/` are local working notes and stay out of the repository (they
+  are in `.gitignore`).
 
 ## Checks
 
