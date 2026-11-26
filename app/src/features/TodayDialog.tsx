@@ -2,7 +2,7 @@ import type { CanaryAlarm, TodayReport } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Brain, CircleAlert, CircleCheck, Clock, Loader2, ShieldAlert, Sparkles } from 'lucide-react';
 import { BotAvatar } from '@/components/BotAvatar';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
@@ -56,7 +56,6 @@ export function TodayDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent
-        // Only the body scrolls: a scrollbar on the dialog itself runs into its rounded corners.
         className="flex max-h-[85vh] flex-col overflow-hidden rounded-3xl sm:max-w-lg"
         aria-describedby={undefined}
       >
@@ -68,9 +67,7 @@ export function TodayDialog() {
             <Loader2 className="size-5 animate-spin" />
           </div>
         ) : (
-          // min-w-0 keeps long summaries from pushing the body sideways. The negative end margin and matching
-          // padding set the thin scrollbar in the dialog's side padding, clear of the rows.
-          <div className="scroll-thin -me-4 min-h-0 min-w-0 flex-1 space-y-5 overflow-y-auto pe-4 text-sm">
+          <DialogBody className="space-y-5 text-sm">
             <p className="text-muted-foreground">
               {t('today.summary', {
                 turns: data.bots.reduce((n, b) => n + b.turns, 0),
@@ -258,7 +255,7 @@ export function TodayDialog() {
                 </Item>
               )}
             </Section>
-          </div>
+          </DialogBody>
         )}
       </DialogContent>
     </Dialog>

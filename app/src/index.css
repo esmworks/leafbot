@@ -32,6 +32,11 @@
 }
 
 :root {
+  /*
+   * Scrollbars and form controls follow the app's theme, not the system's: with the app dark and macOS
+   * light they would be drawn light, a white bar down the side of every dark list.
+   */
+  color-scheme: light;
   --radius: 1rem;
   /*
    * The color tone tints the gray surfaces: their lightness stays, so text reads as well in every
@@ -68,6 +73,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: oklch(0.13 var(--tone-c) var(--tone-h));
   --foreground: oklch(0.95 0 0);
   --card: oklch(0.18 var(--tone-c) var(--tone-h));

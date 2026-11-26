@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -85,7 +86,7 @@ export function UndoTurnDialog({
             {data?.running ? t('undo.running') : data?.undone ? t('undo.already') : t('undo.intro')}
           </DialogDescription>
         </DialogHeader>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+        <DialogBody className="space-y-4">
           {isPending && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
           {will.length > 0 && (
             <Group title={t('undo.willTitle')}>
@@ -118,7 +119,7 @@ export function UndoTurnDialog({
               ))}
             </Group>
           )}
-        </div>
+        </DialogBody>
         <DialogFooter>
           <Button variant="ghost" className="rounded-full" onClick={() => onOpenChange(false)}>
             {t('common.cancel')}

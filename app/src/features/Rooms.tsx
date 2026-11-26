@@ -31,6 +31,7 @@ import { BotAvatar } from '@/components/BotAvatar';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -288,8 +289,8 @@ export function RoomDialog() {
   return (
     <Dialog open={!!dialog} onOpenChange={(open) => !open && close(null)}>
       <DialogContent
-        // On a phone it covers the screen and scrolls, so the bot list and the buttons below it fit.
-        className="screen-edges scroll-thin max-h-[90vh] overflow-y-auto rounded-3xl sm:max-w-lg phone:h-dvh phone:max-h-none phone:max-w-full phone:content-start phone:rounded-none phone:border-0"
+        // On a phone it covers the screen; the fields scroll between the title and the buttons.
+        className="screen-edges flex max-h-[90vh] flex-col overflow-hidden rounded-3xl sm:max-w-lg phone:h-dvh phone:max-h-none phone:max-w-full phone:rounded-none phone:border-0"
       >
         {dialog && <RoomForm key={room?.id ?? 'new'} room={room} onDone={() => close(null)} />}
       </DialogContent>
@@ -345,8 +346,7 @@ function RoomForm({ room, onDone }: { room?: Room; onDone(): void }) {
   const valid = !!title.trim() && chosen.length > 0;
   return (
     <form
-      // A grid item is as wide as its longest line by default; bot descriptions would push it out.
-      className="min-w-0 space-y-4"
+      className="flex min-h-0 min-w-0 flex-1 flex-col gap-4"
       onSubmit={(e) => {
         e.preventDefault();
         setTried(true);
@@ -357,117 +357,123 @@ function RoomForm({ room, onDone }: { room?: Room; onDone(): void }) {
         <DialogTitle>{room ? t('room.dialogEdit') : t('room.dialogCreate')}</DialogTitle>
         <DialogDescription>{t('room.dialogHint')}</DialogDescription>
       </DialogHeader>
-      <Field label={t('room.name')} error={tried && !title.trim() ? 'room.nameRequired' : undefined}>
-        <Input
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder={t('room.namePlaceholder')}
-          maxLength={120}
-          className="rounded-xl"
-          autoFocus
-        />
-      </Field>
-      <Field label={t('room.members')} error={tried && !chosen.length ? 'room.pickOne' : undefined}>
-        {bots.length ? (
-          <>
-            <div className="scroll-thin max-h-56 space-y-0.5 overflow-y-auto rounded-2xl border p-1">
-              {bots.map((b) => {
-                const at = chosen.indexOf(b.id);
-                return (
-                  <button
-                    key={b.id}
-                    type="button"
-                    onClick={() => toggle(b.id)}
-                    aria-pressed={at >= 0}
-                    className={cn(
-                      'flex w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-start transition-colors hover:bg-accent/60',
-                      at >= 0 && 'bg-accent/70',
-                    )}
-                  >
-                    <BotAvatar
-                      avatar={b.avatar}
-                      material={b.material}
-                      color={b.color}
-                      seed={b.id}
-                      size={28}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{b.name}</span>
-                      {b.description && (
-                        <span className="block truncate text-xs text-muted-foreground">{b.description}</span>
-                      )}
-                    </span>
-                    <span
+      <DialogBody className="space-y-4">
+        <Field label={t('room.name')} error={tried && !title.trim() ? 'room.nameRequired' : undefined}>
+          <Input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={t('room.namePlaceholder')}
+            maxLength={120}
+            className="rounded-xl"
+            autoFocus
+          />
+        </Field>
+        <Field label={t('room.members')} error={tried && !chosen.length ? 'room.pickOne' : undefined}>
+          {bots.length ? (
+            <>
+              <div className="scroll-thin max-h-56 space-y-0.5 overflow-y-auto rounded-2xl border p-1">
+                {bots.map((b) => {
+                  const at = chosen.indexOf(b.id);
+                  return (
+                    <button
+                      key={b.id}
+                      type="button"
+                      onClick={() => toggle(b.id)}
+                      aria-pressed={at >= 0}
                       className={cn(
-                        'flex size-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold',
-                        at >= 0 && 'border-transparent bg-primary text-primary-foreground',
+                        'flex w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-start transition-colors hover:bg-accent/60',
+                        at >= 0 && 'bg-accent/70',
                       )}
                     >
-                      {at >= 0 ? at + 1 : null}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-            <p className="text-xs text-muted-foreground">{t('room.membersHint')}</p>
-            {dropped > 0 && (
-              <p className="text-xs text-muted-foreground">{t('room.archivedMembers', { count: dropped })}</p>
-            )}
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">{t('room.noBots')}</p>
-        )}
-      </Field>
-      <Field label={t('room.goal')}>
-        <Textarea
-          value={goal}
-          onChange={(e) => setGoal(e.target.value)}
-          rows={2}
-          maxLength={4000}
-          placeholder={t('room.goalPlaceholder')}
-          className="rounded-xl"
-        />
-      </Field>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label={t('room.responders')}>
-          <Select value={responders} onValueChange={(v) => setResponders(v as RoomResponders)}>
+                      <BotAvatar
+                        avatar={b.avatar}
+                        material={b.material}
+                        color={b.color}
+                        seed={b.id}
+                        size={28}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{b.name}</span>
+                        {b.description && (
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {b.description}
+                          </span>
+                        )}
+                      </span>
+                      <span
+                        className={cn(
+                          'flex size-5 shrink-0 items-center justify-center rounded-full border text-[11px] font-semibold',
+                          at >= 0 && 'border-transparent bg-primary text-primary-foreground',
+                        )}
+                      >
+                        {at >= 0 ? at + 1 : null}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">{t('room.membersHint')}</p>
+              {dropped > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {t('room.archivedMembers', { count: dropped })}
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">{t('room.noBots')}</p>
+          )}
+        </Field>
+        <Field label={t('room.goal')}>
+          <Textarea
+            value={goal}
+            onChange={(e) => setGoal(e.target.value)}
+            rows={2}
+            maxLength={4000}
+            placeholder={t('room.goalPlaceholder')}
+            className="rounded-xl"
+          />
+        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={t('room.responders')}>
+            <Select value={responders} onValueChange={(v) => setResponders(v as RoomResponders)}>
+              <SelectTrigger className="w-full rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="everyone">{t('room.respondersEveryone')}</SelectItem>
+                <SelectItem value="mentions">{t('room.respondersMentions')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field label={t('room.rounds')}>
+            <Select value={String(rounds)} onValueChange={(v) => setRounds(Number(v))}>
+              <SelectTrigger className="w-full rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: MAX_ROOM_ROUNDS + 1 }, (_, n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n ? t('room.roundsN', { count: n }) : t('room.roundsOff')}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+        <Field label={t('room.minutes')}>
+          <Select value={minutes} onValueChange={(v) => setMinutes(v as RoomMinutes)}>
             <SelectTrigger className="w-full rounded-xl">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="everyone">{t('room.respondersEveryone')}</SelectItem>
-              <SelectItem value="mentions">{t('room.respondersMentions')}</SelectItem>
+              <SelectItem value="ask">{t('room.minutesAsk')}</SelectItem>
+              <SelectItem value="always">{t('room.minutesAlways')}</SelectItem>
+              <SelectItem value="never">{t('room.minutesNever')}</SelectItem>
             </SelectContent>
           </Select>
+          <p className="text-xs text-muted-foreground">{t('room.minutesHint')}</p>
         </Field>
-        <Field label={t('room.rounds')}>
-          <Select value={String(rounds)} onValueChange={(v) => setRounds(Number(v))}>
-            <SelectTrigger className="w-full rounded-xl">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: MAX_ROOM_ROUNDS + 1 }, (_, n) => (
-                <SelectItem key={n} value={String(n)}>
-                  {n ? t('room.roundsN', { count: n }) : t('room.roundsOff')}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
-      <Field label={t('room.minutes')}>
-        <Select value={minutes} onValueChange={(v) => setMinutes(v as RoomMinutes)}>
-          <SelectTrigger className="w-full rounded-xl">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="ask">{t('room.minutesAsk')}</SelectItem>
-            <SelectItem value="always">{t('room.minutesAlways')}</SelectItem>
-            <SelectItem value="never">{t('room.minutesNever')}</SelectItem>
-          </SelectContent>
-        </Select>
-        <p className="text-xs text-muted-foreground">{t('room.minutesHint')}</p>
-      </Field>
+      </DialogBody>
       <DialogFooter className="gap-2">
         {room && (
           <Button

@@ -4,7 +4,7 @@ import { Circle, GraduationCap } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useT } from '@/i18n';
@@ -121,21 +121,23 @@ function SaveTaught({ bot, draft, onClose }: { bot: Bot; draft: Draft; onClose()
   });
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto rounded-3xl sm:max-w-xl">
+      <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden rounded-3xl sm:max-w-xl">
         <DialogTitle>{t('teach.reviewTitle')}</DialogTitle>
         <DialogDescription>{t('teach.reviewHint', { bot: bot.name })}</DialogDescription>
-        <Input value={name} onChange={(e) => setName(e.target.value)} aria-label={t('teach.skillName')} />
-        <Input
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          aria-label={t('teach.skillWhen')}
-        />
-        <Textarea
-          value={body}
-          onChange={(e) => setBody(e.target.value)}
-          rows={14}
-          className="font-mono text-xs"
-        />
+        <DialogBody className="space-y-4">
+          <Input value={name} onChange={(e) => setName(e.target.value)} aria-label={t('teach.skillName')} />
+          <Input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            aria-label={t('teach.skillWhen')}
+          />
+          <Textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={14}
+            className="font-mono text-xs"
+          />
+        </DialogBody>
         <div className="flex justify-end gap-2">
           <Button variant="ghost" className="rounded-full" onClick={onClose}>
             {t('common.cancel')}

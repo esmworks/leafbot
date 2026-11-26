@@ -17,7 +17,7 @@ import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { BotAvatar } from '@/components/BotAvatar';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
@@ -374,83 +374,85 @@ function SkillDialog({
   const warnings = skillWarnings(`${name}\n${description}\n${body}`);
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto rounded-3xl sm:max-w-2xl">
+      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden rounded-3xl sm:max-w-2xl">
         <DialogTitle>{skill ? t('skills.edit') : t('skills.new')}</DialogTitle>
         <DialogDescription>{t('skills.dialogHint')}</DialogDescription>
         <form
-          className="space-y-4"
+          className="flex min-h-0 flex-col gap-4"
           onSubmit={(e) => {
             e.preventDefault();
             if (ready) save.mutate();
           }}
         >
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium">{t('skills.name')}</span>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
-              placeholder={t('skills.namePlaceholder')}
-              spellCheck={false}
-              className="rounded-xl font-mono"
-            />
-          </label>
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium">{t('skills.description')}</span>
-            <Input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder={t('skills.descriptionPlaceholder')}
-              className="rounded-xl"
-            />
-          </label>
-          <label className="block space-y-1.5">
-            <span className="text-sm font-medium">{t('skills.body')}</span>
-            <Textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder={t('skills.bodyPlaceholder')}
-              className="min-h-48 rounded-xl font-mono text-sm"
-            />
-          </label>
-          {warnings.length > 0 && (
-            <div
-              role="alert"
-              className="flex gap-2 rounded-xl border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm"
-            >
-              <ShieldAlert className="mt-0.5 size-4 shrink-0 text-amber-500" />
-              <ul className="space-y-1">
-                {warnings.map((w) => (
-                  <li key={w}>{t(`skills.warn.${w}`)}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {bots.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="text-sm font-medium">{t('skills.bots')}</div>
-              <div className="divide-y rounded-2xl border">
-                {bots.map((b) => (
-                  <label key={b.id} className="flex items-center gap-3 px-3 py-2">
-                    <BotAvatar
-                      avatar={b.avatar}
-                      material={b.material}
-                      color={b.color}
-                      seed={b.id}
-                      size={24}
-                    />
-                    <span className="min-w-0 flex-1 truncate text-sm">{b.name}</span>
-                    <Switch
-                      checked={botIds.includes(b.id)}
-                      onCheckedChange={(on) =>
-                        setBotIds((ids) => (on ? [...ids, b.id] : ids.filter((id) => id !== b.id)))
-                      }
-                      aria-label={b.name}
-                    />
-                  </label>
-                ))}
+          <DialogBody className="space-y-4">
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">{t('skills.name')}</span>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
+                placeholder={t('skills.namePlaceholder')}
+                spellCheck={false}
+                className="rounded-xl font-mono"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">{t('skills.description')}</span>
+              <Input
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t('skills.descriptionPlaceholder')}
+                className="rounded-xl"
+              />
+            </label>
+            <label className="block space-y-1.5">
+              <span className="text-sm font-medium">{t('skills.body')}</span>
+              <Textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder={t('skills.bodyPlaceholder')}
+                className="min-h-48 rounded-xl font-mono text-sm"
+              />
+            </label>
+            {warnings.length > 0 && (
+              <div
+                role="alert"
+                className="flex gap-2 rounded-xl border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm"
+              >
+                <ShieldAlert className="mt-0.5 size-4 shrink-0 text-amber-500" />
+                <ul className="space-y-1">
+                  {warnings.map((w) => (
+                    <li key={w}>{t(`skills.warn.${w}`)}</li>
+                  ))}
+                </ul>
               </div>
-            </div>
-          )}
+            )}
+            {bots.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-sm font-medium">{t('skills.bots')}</div>
+                <div className="divide-y rounded-2xl border">
+                  {bots.map((b) => (
+                    <label key={b.id} className="flex items-center gap-3 px-3 py-2">
+                      <BotAvatar
+                        avatar={b.avatar}
+                        material={b.material}
+                        color={b.color}
+                        seed={b.id}
+                        size={24}
+                      />
+                      <span className="min-w-0 flex-1 truncate text-sm">{b.name}</span>
+                      <Switch
+                        checked={botIds.includes(b.id)}
+                        onCheckedChange={(on) =>
+                          setBotIds((ids) => (on ? [...ids, b.id] : ids.filter((id) => id !== b.id)))
+                        }
+                        aria-label={b.name}
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </DialogBody>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" className="rounded-full" onClick={onClose}>
               {t('common.cancel')}
@@ -496,10 +498,10 @@ function BringInDialog({
   });
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto rounded-3xl sm:max-w-xl">
+      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden rounded-3xl sm:max-w-xl">
         <DialogTitle>{t('skills.bringIn')}</DialogTitle>
         <DialogDescription>{t('skills.bringInHint')}</DialogDescription>
-        <div className="space-y-4">
+        <DialogBody className="space-y-4">
           {found.skills.length > 0 && (
             <section className="space-y-2">
               <h3 className="text-sm font-medium">{t('skills.bringInSkills')}</h3>
@@ -545,18 +547,18 @@ function BringInDialog({
               ))}
             </section>
           )}
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" className="rounded-full" onClick={onClose}>
-              {t('common.cancel')}
-            </Button>
-            <Button
-              className="rounded-full"
-              disabled={run.isPending || (!skills.length && !servers.length)}
-              onClick={() => run.mutate()}
-            >
-              {t('skills.bringInRun')}
-            </Button>
-          </div>
+        </DialogBody>
+        <div className="flex justify-end gap-2">
+          <Button variant="ghost" className="rounded-full" onClick={onClose}>
+            {t('common.cancel')}
+          </Button>
+          <Button
+            className="rounded-full"
+            disabled={run.isPending || (!skills.length && !servers.length)}
+            onClick={() => run.mutate()}
+          >
+            {t('skills.bringInRun')}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

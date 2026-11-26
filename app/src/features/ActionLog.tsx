@@ -3,7 +3,14 @@ import { useQuery } from '@tanstack/react-query';
 import { Loader2, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useT, type T } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
@@ -107,7 +114,7 @@ export function ActionLogDialog({
             <DialogTitle>{t('actionLog.title')}</DialogTitle>
             <DialogDescription>{t('actionLog.intro')}</DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <DialogBody>
             {isPending && <Loader2 className="size-4 animate-spin text-muted-foreground" />}
             {!isPending && !data.length && (
               <p className="text-sm text-muted-foreground">{t('actionLog.empty')}</p>
@@ -117,7 +124,7 @@ export function ActionLogDialog({
                 <Entry key={e.turnId} e={e} t={t} onUndo={() => setUndoing(e.turnId)} />
               ))}
             </ul>
-          </div>
+          </DialogBody>
         </DialogContent>
       </Dialog>
       {undoing && (

@@ -83,6 +83,22 @@ function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
   );
 }
 
+/**
+ * The part of a tall dialog that scrolls. A scrollbar on the dialog itself runs along its rounded edge and
+ * over the corners, so the dialog stays put (give DialogContent `flex flex-col overflow-hidden` and a max
+ * height) and only this part scrolls, keeping the title and the buttons in view. It reaches into the
+ * dialog's padding, so the thin scrollbar sits clear of the rows and focus rings at its edges are not cut.
+ */
+function DialogBody({ className, ...props }: React.ComponentProps<'div'>) {
+  return (
+    <div
+      data-slot="dialog-body"
+      className={cn('scroll-thin -mx-4 -my-1 min-h-0 min-w-0 flex-1 overflow-y-auto px-4 py-1', className)}
+      {...props}
+    />
+  );
+}
+
 function DialogFooter({
   className,
   showCloseButton = false,
@@ -133,6 +149,7 @@ function DialogDescription({
 
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,

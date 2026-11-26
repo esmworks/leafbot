@@ -30,6 +30,7 @@ import { BotAvatar } from '@/components/BotAvatar';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -363,15 +364,17 @@ export function MinutesDialog({ rooms }: { rooms: Room[] }) {
   const room = open ? rooms.find((r) => r.id === open.roomId) : undefined;
   return (
     <Dialog open={!!open && !!room} onOpenChange={(o) => !o && show(null)}>
-      <DialogContent className="screen-edges scroll-thin max-h-[90vh] overflow-y-auto rounded-3xl sm:max-w-2xl phone:h-dvh phone:max-h-none phone:max-w-full phone:content-start phone:rounded-none phone:border-0">
+      <DialogContent className="screen-edges flex max-h-[90vh] flex-col overflow-hidden rounded-3xl sm:max-w-2xl phone:h-dvh phone:max-h-none phone:max-w-full phone:rounded-none phone:border-0">
         {open && room && (
-          <MinutesBody
-            key={`${open.roomId}:${open.meetingId ?? ''}`}
-            room={room}
-            meetingId={open.meetingId}
-            onOpen={(meetingId) => show({ roomId: room.id, meetingId })}
-            onClose={() => show(null)}
-          />
+          <DialogBody>
+            <MinutesBody
+              key={`${open.roomId}:${open.meetingId ?? ''}`}
+              room={room}
+              meetingId={open.meetingId}
+              onOpen={(meetingId) => show({ roomId: room.id, meetingId })}
+              onClose={() => show(null)}
+            />
+          </DialogBody>
         )}
       </DialogContent>
     </Dialog>

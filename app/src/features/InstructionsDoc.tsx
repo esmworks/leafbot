@@ -48,13 +48,13 @@ export function InstructionsReview({
   const busy = accept.isPending || decline.isPending;
   return (
     <Dialog open={open && pending != null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto rounded-3xl sm:max-w-2xl">
+      <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden rounded-3xl sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t('instructionsDoc.reviewTitle', { name: bot.name })}</DialogTitle>
           <DialogDescription>{t('instructionsDoc.reviewHint')}</DialogDescription>
         </DialogHeader>
         {pending != null && (
-          <div className="scroll-thin max-h-[50vh] overflow-y-auto rounded-xl bg-muted/40 px-2.5 py-2 text-sm break-words whitespace-pre-wrap">
+          <div className="scroll-thin min-h-0 flex-1 overflow-y-auto rounded-xl bg-muted/40 px-2.5 py-2 text-sm break-words whitespace-pre-wrap">
             {textDiff(bot.instructions, pending).map((p, i) =>
               p.type === 'same' ? (
                 <span key={i}>{p.text}</span>

@@ -4,7 +4,7 @@ import { Puzzle, ShieldAlert } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
@@ -48,7 +48,7 @@ export function PluginDialog({ onClose }: { onClose(): void }) {
     });
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto rounded-3xl sm:max-w-lg">
+      <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden rounded-3xl sm:max-w-lg">
         <DialogTitle className="flex items-center gap-2">
           <Puzzle className="size-5" /> {t('plugin.title')}
         </DialogTitle>
@@ -75,87 +75,93 @@ export function PluginDialog({ onClose }: { onClose(): void }) {
           </Button>
         </form>
         {plan && (
-          <div className="space-y-4 text-sm">
-            <div>
-              <div className="font-medium">
-                {plan.name}
-                {plan.version && <span className="text-muted-foreground"> · {plan.version}</span>}
+          <>
+            <DialogBody className="space-y-4 text-sm">
+              <div>
+                <div className="font-medium">
+                  {plan.name}
+                  {plan.version && <span className="text-muted-foreground"> · {plan.version}</span>}
+                </div>
+                {plan.description && <p className="text-muted-foreground">{plan.description}</p>}
               </div>
-              {plan.description && <p className="text-muted-foreground">{plan.description}</p>}
-            </div>
-            {plan.servers.length > 0 && (
-              <section className="space-y-2">
-                <h4 className="text-xs font-medium text-muted-foreground">{t('plugin.servers')}</h4>
-                {plan.servers.map((sv) => (
-                  <div key={sv.name} className="space-y-1 rounded-xl border px-3 py-2">
-                    <label className="flex items-center gap-2">
+              {plan.servers.length > 0 && (
+                <section className="space-y-2">
+                  <h4 className="text-xs font-medium text-muted-foreground">{t('plugin.servers')}</h4>
+                  {plan.servers.map((sv) => (
+                    <div key={sv.name} className="space-y-1 rounded-xl border px-3 py-2">
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          disabled={sv.exists}
+                          checked={!sv.exists && !skip.has(sv.name)}
+                          onChange={(e) => toggle(sv.name, e.target.checked)}
+                        />
+                        <span className="font-medium">{sv.name}</span>
+                        <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
+                          {sv.url}
+                        </span>
+                      </label>
+                      {sv.exists && (
+                        <p className="text-xs text-muted-foreground">{t('plugin.serverExists')}</p>
+                      )}
+                      {sv.needsToken && !sv.exists && !skip.has(sv.name) && (
+                        <Input
+                          type="password"
+                          value={tokens[sv.name] ?? ''}
+                          onChange={(e) => setTokens((x) => ({ ...x, [sv.name]: e.target.value }))}
+                          placeholder={t('plugin.token')}
+                          autoComplete="new-password"
+                          className="h-8 text-sm"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </section>
+              )}
+              {plan.skills.length > 0 && (
+                <section className="space-y-2">
+                  <h4 className="text-xs font-medium text-muted-foreground">{t('plugin.skills')}</h4>
+                  {plan.skills.map((k) => (
+                    <label key={k.name} className="flex items-start gap-2 rounded-xl border px-3 py-2">
                       <input
                         type="checkbox"
-                        disabled={sv.exists}
-                        checked={!sv.exists && !skip.has(sv.name)}
-                        onChange={(e) => toggle(sv.name, e.target.checked)}
+                        className="mt-1"
+                        disabled={k.exists}
+                        checked={!k.exists && !skip.has(k.name)}
+                        onChange={(e) => toggle(k.name, e.target.checked)}
                       />
-                      <span className="font-medium">{sv.name}</span>
-                      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{sv.url}</span>
-                    </label>
-                    {sv.exists && <p className="text-xs text-muted-foreground">{t('plugin.serverExists')}</p>}
-                    {sv.needsToken && !sv.exists && !skip.has(sv.name) && (
-                      <Input
-                        type="password"
-                        value={tokens[sv.name] ?? ''}
-                        onChange={(e) => setTokens((x) => ({ ...x, [sv.name]: e.target.value }))}
-                        placeholder={t('plugin.token')}
-                        autoComplete="new-password"
-                        className="h-8 text-sm"
-                      />
-                    )}
-                  </div>
-                ))}
-              </section>
-            )}
-            {plan.skills.length > 0 && (
-              <section className="space-y-2">
-                <h4 className="text-xs font-medium text-muted-foreground">{t('plugin.skills')}</h4>
-                {plan.skills.map((k) => (
-                  <label key={k.name} className="flex items-start gap-2 rounded-xl border px-3 py-2">
-                    <input
-                      type="checkbox"
-                      className="mt-1"
-                      disabled={k.exists}
-                      checked={!k.exists && !skip.has(k.name)}
-                      onChange={(e) => toggle(k.name, e.target.checked)}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block font-medium">{k.name}</span>
-                      <span className="block text-xs text-muted-foreground">
-                        {k.exists ? t('plugin.skillExists') : k.description}
-                      </span>
-                      {k.warnings.length > 0 && (
-                        <span className="mt-1 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
-                          <ShieldAlert className="size-3.5" />
-                          {k.warnings.map((w) => t(`skills.warn.${w}`)).join(' ')}
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-medium">{k.name}</span>
+                        <span className="block text-xs text-muted-foreground">
+                          {k.exists ? t('plugin.skillExists') : k.description}
                         </span>
-                      )}
-                    </span>
-                  </label>
-                ))}
-              </section>
-            )}
-            {plan.leftOut.length > 0 && (
-              <section className="space-y-1">
-                <h4 className="text-xs font-medium text-muted-foreground">{t('plugin.leftOut')}</h4>
-                <ul className="list-disc ps-5 text-xs text-muted-foreground">
-                  {plan.leftOut.map((l) => (
-                    <li key={l.part}>
-                      {l.part} — {t(`plugin.why.${l.why}`)}
-                    </li>
+                        {k.warnings.length > 0 && (
+                          <span className="mt-1 flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
+                            <ShieldAlert className="size-3.5" />
+                            {k.warnings.map((w) => t(`skills.warn.${w}`)).join(' ')}
+                          </span>
+                        )}
+                      </span>
+                    </label>
                   ))}
-                </ul>
-              </section>
-            )}
-            {!plan.servers.length && !plan.skills.length && (
-              <p className="text-muted-foreground">{t('plugin.nothing')}</p>
-            )}
+                </section>
+              )}
+              {plan.leftOut.length > 0 && (
+                <section className="space-y-1">
+                  <h4 className="text-xs font-medium text-muted-foreground">{t('plugin.leftOut')}</h4>
+                  <ul className="list-disc ps-5 text-xs text-muted-foreground">
+                    {plan.leftOut.map((l) => (
+                      <li key={l.part}>
+                        {l.part} — {t(`plugin.why.${l.why}`)}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              {!plan.servers.length && !plan.skills.length && (
+                <p className="text-muted-foreground">{t('plugin.nothing')}</p>
+              )}
+            </DialogBody>
             <div className="flex justify-end gap-2">
               <Button variant="ghost" className="rounded-full" onClick={onClose}>
                 {t('common.cancel')}
@@ -168,7 +174,7 @@ export function PluginDialog({ onClose }: { onClose(): void }) {
                 {t('plugin.install')}
               </Button>
             </div>
-          </div>
+          </>
         )}
       </DialogContent>
     </Dialog>
