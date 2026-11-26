@@ -153,7 +153,23 @@ export function withoutPictures(messages: AgentMessage[], upTo: number): AgentMe
   });
 }
 
-const PART = { user: 4_000, assistant: 4_000, call: 500, result: 1_500 } as const;
+type Parts = { user: number; assistant: number; call: number; result: number; tail: boolean };
+
+/** How much of each message a summary reads. */
+const PART: Parts = { user: 4_000, assistant: 4_000, call: 500, result: 1_500, tail: false };
+
+/**
+ * How much the advisor reads: more, as it is asked about what is in front of the bot now, and a long
+ * result keeps its end too, where an error or the last lines of an output usually are.
+ */
+const ADVICE_PART: Parts = { user: 6_000, assistant: 6_000, call: 2_000, result: 6_000, tail: true };
+
+/** `text` cut to `n` characters, keeping its start and, with `tail`, its last two thirds' worth of end. */
+function cut(text: string, n: number, tail: boolean): string {
+  if (!tail || text.length <= n) return truncate(text, n);
+  const end = Math.floor((n * 2) / 3);
+  return `${truncate(text, n - end)}\n[…]\n${text.slice(-end)}`;
+}
 
 const when = (ts: number) => (ts > 0 ? `${new Date(ts).toISOString().slice(0, 16).replace('T', ' ')} ` : '');
 
@@ -162,17 +178,17 @@ function contentText(content: string | { type: string; text?: string }[]): strin
   return content.map((c) => (c.type === 'text' ? (c.text ?? '') : '[picture]')).join('\n');
 }
 
-/** One message as a line of the transcript a summary is written from. */
-function transcriptLine(m: AgentMessage): string {
-  if (m.role === 'user') return `[${when(m.timestamp)}user] ${truncate(contentText(m.content), PART.user)}`;
+/** One message as a line of the transcript a summary (or with `part`, the advisor) reads. */
+function transcriptLine(m: AgentMessage, part: Parts = PART): string {
+  if (m.role === 'user') return `[${when(m.timestamp)}user] ${truncate(contentText(m.content), part.user)}`;
   if (m.role === 'toolResult')
-    return `[tool result${m.isError ? ' (error)' : ''}: ${m.toolName}] ${truncate(contentText(m.content), PART.result)}`;
+    return `[tool result${m.isError ? ' (error)' : ''}: ${m.toolName}] ${cut(contentText(m.content), part.result, part.tail)}`;
   if (m.role === 'assistant') {
     const parts: string[] = [];
     for (const c of m.content) {
-      if (c.type === 'text' && c.text.trim()) parts.push(truncate(c.text, PART.assistant));
+      if (c.type === 'text' && c.text.trim()) parts.push(truncate(c.text, part.assistant));
       else if (c.type === 'toolCall')
-        parts.push(`[tool call] ${c.name} ${truncate(JSON.stringify(c.arguments), PART.call)}`);
+        parts.push(`[tool call] ${c.name} ${truncate(JSON.stringify(c.arguments), part.call)}`);
     }
     return parts.length ? `[assistant] ${parts.join('\n')}` : '';
   }
@@ -214,7 +230,7 @@ export function recentTranscript(messages: AgentMessage[], max: number): { text:
   let size = 0;
   let dropped = false;
   for (let i = messages.length - 1; i >= 0; i--) {
-    const line = transcriptLine(messages[i]!);
+    const line = transcriptLine(messages[i]!, ADVICE_PART);
     if (!line) continue;
     const room = max - size - (lines.length ? 2 : 0);
     if (line.length > room) {

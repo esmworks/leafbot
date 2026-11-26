@@ -255,6 +255,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     sessionsDir: join(config.dataDir, 'pi-sessions'),
     apiKey: (provider) => services.keys.credential(provider),
     auth: (provider) => services.keys.auth(provider),
+    hasAuth: (provider) => services.keys.hasAuth(provider),
     customModel: (provider, id) => services.keys.customModel(provider, id),
     takesTools: (provider, id) => services.keys.takesTools(provider, id),
     webSearchUrl: config.webSearchUrl,

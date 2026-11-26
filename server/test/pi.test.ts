@@ -945,6 +945,69 @@ describe('Pi motoru', () => {
       expect(offered[0]).not.toContain('Advisor');
     });
 
+    it('tetiklenmiş turda danışmana soru gitmez; tur başında oturum yenilenmez', async () => {
+      let refreshed = 0;
+      const asked: string[] = [];
+      const pi = new PiEngine({
+        sessionsDir: join(dir, 'sessions'),
+        apiKey: async (p) => keys[p] ?? null,
+        auth: async (p) => {
+          if (p === 'baska') refreshed++;
+          return { apiKey: 'test-anahtar-12345' };
+        },
+        hasAuth: async () => true,
+        resolveModel: (p, id) => faux.getModel(id) ?? (p === 'baska' ? faux.getModel('dusunen') : undefined),
+        complete: (async (_m, ctx) => {
+          asked.push(String(ctx.messages[0]!.content));
+          return fauxAssistantMessage('TAVSİYE');
+        }) as typeof completeSimple,
+      });
+      let back: string[] = [];
+      faux.setResponses([
+        ask('ne yapayım?'),
+        (ctx) => {
+          back = results(ctx as unknown as Ctx);
+          return fauxAssistantMessage('tamam');
+        },
+      ]);
+      const screened: string[] = [];
+      const out = await pi.run(
+        request({
+          advisorModel: 'baska/dusunen',
+          screen: async (a) => {
+            screened.push(a.toolName);
+            return 'Bu turda başka adım atılmaz.';
+          },
+        }).req,
+      );
+      expect(out).toMatchObject({ ok: true, text: 'tamam' });
+      expect(screened).toEqual(['Advisor']);
+      expect(asked).toHaveLength(0);
+      expect(back.at(-1)).toContain('Bu turda başka adım atılmaz.');
+      // Offering the tool read only what is kept; nothing was refreshed for a question never asked.
+      expect(refreshed).toBe(0);
+    });
+
+    it('danışman uzun bir araç sonucunun sonunu da görür', () => {
+      const long = `BAŞ ${'x'.repeat(20_000)} SON-HATA`;
+      const { text } = recentTranscript(
+        [
+          {
+            role: 'toolResult',
+            toolCallId: 'c1',
+            toolName: 'run_command',
+            content: [{ type: 'text', text: long }],
+            isError: true,
+            timestamp: 1,
+          } as never,
+        ],
+        16_000,
+      );
+      expect(text).toContain('BAŞ');
+      expect(text).toContain('SON-HATA');
+      expect(text.length).toBeLessThan(8_000);
+    });
+
     it('yardımcı ajanlara danışman verilmez', async () => {
       const helperTools: string[][] = [];
       const reply = (ctx: Ctx) => {

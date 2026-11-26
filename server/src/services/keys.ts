@@ -320,6 +320,13 @@ export class ProviderKeyService {
     return (await this.endpoint(provider)) ? NO_KEY : null;
   }
 
+  /** Whether `auth` has something for the provider, read from what is kept, without refreshing a sign-in. */
+  async hasAuth(provider: string): Promise<boolean> {
+    if (await this.get(provider)) return true;
+    if (await this.plans?.signedIn(provider)) return true;
+    return !!(await this.endpoint(provider));
+  }
+
   /**
    * What the engine's requests to a provider carry: a saved key first, then a sign-in with the
    * person's plan (with the address it gives), then the stand-in for an endpoint that takes none.
