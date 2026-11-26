@@ -109,17 +109,19 @@ function useBotCount(id: string) {
   ).length;
 }
 
-/** What a provider is used for: the start of new bots, the backup model, or both. */
+/** What a provider is used for: the start of new bots, the backup model, the advisor, or several. */
 function useRoles(id: string) {
   const { data: settings } = useSettings();
   const target = newBotEngine(settings);
   const backup = settings?.backupModel ? splitPiModel(settings.backupModel).provider : '';
+  const advisor = settings?.piAdvisorModel ? splitPiModel(settings.piAdvisorModel).provider : '';
   return {
     newBots:
       id === CLAUDE
         ? target.engine === 'claude'
         : target.engine === 'pi' && target.model.startsWith(`${id}/`),
     backup: id !== CLAUDE && backup === id,
+    advisor: id !== CLAUDE && advisor === id,
   };
 }
 
@@ -151,6 +153,7 @@ function RoleTags({ id }: { id: string }) {
     <>
       {roles.newBots && <Tag>{t('providers.role.newBots')}</Tag>}
       {roles.backup && <Tag>{t('providers.role.backup')}</Tag>}
+      {roles.advisor && <Tag>{t('providers.role.advisor')}</Tag>}
     </>
   );
 }
@@ -1208,6 +1211,7 @@ function ModelList({ provider: p }: { provider: ProviderInfo }) {
             const r = ref(m);
             const isNew = target.engine === 'pi' && target.model === r;
             const isBackup = settings?.backupModel === r;
+            const isAdvisor = settings?.piAdvisorModel === r;
             return (
               <div key={m.id} className="flex items-center gap-3 px-4 py-2.5">
                 <span className="min-w-0 flex-1">
@@ -1215,6 +1219,7 @@ function ModelList({ provider: p }: { provider: ProviderInfo }) {
                     <span className="truncate text-sm">{m.name}</span>
                     {isNew && <Tag>{t('providers.role.newBots')}</Tag>}
                     {isBackup && <Tag>{t('providers.role.backup')}</Tag>}
+                    {isAdvisor && <Tag>{t('providers.role.advisor')}</Tag>}
                   </span>
                   {m.name !== m.id && (
                     <span className="block truncate font-mono text-xs text-muted-foreground">{m.id}</span>

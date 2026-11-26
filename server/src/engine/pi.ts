@@ -603,10 +603,12 @@ export class PiEngine implements Engine {
       );
     }
     // A stronger model the bot may ask for advice mid-turn, by the person's choice in the settings. It is
-    // offered whatever the bot's tool selection, as Claude bots get theirs, and never to helpers.
+    // offered whatever the bot's tool selection, as Claude bots get theirs, and never to helpers. A model
+    // that is gone or whose provider lost its key is left out, so the bot does not spend calls on it.
     const advisorRef =
       req.advisorModel && req.advisorModel !== req.model ? splitModel(req.advisorModel) : null;
-    if (!toolless && advisorRef) {
+    const advisorFound = !toolless && advisorRef && (await this.resolve(advisorRef.provider, advisorRef.id));
+    if (advisorRef && advisorFound && (await this.authorize(advisorRef.provider, advisorFound))) {
       byName.set(ADVISOR_TOOL, { perm: ADVISOR_TOOL });
       tools.push(advisorTool({ t, ask: (question, signal) => askAdvisor(advisorRef, question, signal) }));
     }

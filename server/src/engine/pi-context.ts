@@ -206,7 +206,8 @@ export function transcriptChunks(
 
 /**
  * The newest messages as transcript text of at most `max` characters, oldest first: the latest ones
- * go in whole first, so what is left out is the oldest. `dropped` says some were.
+ * go in whole first, so what is left out is the oldest. The newest always goes in, cut to fit when it
+ * alone is longer, since it is what the bot is looking at. `dropped` says something was left out.
  */
 export function recentTranscript(messages: AgentMessage[], max: number): { text: string; dropped: boolean } {
   const lines: string[] = [];
@@ -215,13 +216,14 @@ export function recentTranscript(messages: AgentMessage[], max: number): { text:
   for (let i = messages.length - 1; i >= 0; i--) {
     const line = transcriptLine(messages[i]!);
     if (!line) continue;
-    const piece = truncate(line, max);
-    if (size + piece.length + 2 > max) {
+    const room = max - size - (lines.length ? 2 : 0);
+    if (line.length > room) {
       dropped = true;
+      if (!lines.length) lines.unshift(truncate(line, room));
       break;
     }
-    lines.unshift(piece);
-    size += piece.length + 2;
+    lines.unshift(line);
+    size += line.length + (lines.length > 1 ? 2 : 0);
   }
   return { text: lines.join('\n\n'), dropped };
 }

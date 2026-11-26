@@ -2886,6 +2886,7 @@ export const en: Catalog<MessageKey> = {
   'providers.noMatch': 'Nothing matches “{query}”.',
   'providers.role.newBots': 'New bots',
   'providers.role.backup': 'Backup',
+  'providers.role.advisor': 'Advisor',
   'providers.bots': { one: 'Used by 1 bot', other: 'Used by {count} bots' },
   'providers.noBots': 'No bot uses it yet',
   'providers.keyHint': 'Key {hint}',

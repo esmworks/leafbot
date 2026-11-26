@@ -2839,6 +2839,7 @@ export const tr = {
   'providers.noMatch': '“{query}” ile eşleşen bir şey yok.',
   'providers.role.newBots': 'Yeni botlar',
   'providers.role.backup': 'Yedek',
+  'providers.role.advisor': 'Danışman',
   'providers.bots': '{count} bot kullanıyor',
   'providers.noBots': 'Henüz bot kullanmıyor',
   'providers.keyHint': 'Anahtar {hint}',

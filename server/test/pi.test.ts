@@ -45,6 +45,7 @@ import {
   elideResults,
   EXCERPT_CHARS,
   excerptSummary,
+  recentTranscript,
   SUMMARY_SYSTEM,
   transcriptChunks,
   withSummary,
@@ -901,6 +902,47 @@ describe('Pi motoru', () => {
       const out = await pi.run(req);
       expect(cut).toBe(true);
       expect(out).toMatchObject({ ok: false, kind: 'interrupted' });
+    });
+
+    it('danışmana en yeni mesajlar gider; tek başına sığmayan son mesaj kesilerek yine gider', () => {
+      const msg = (i: number, size: number) => ({
+        role: 'user' as const,
+        content: `${i} ${'z'.repeat(size)}`,
+        timestamp: i,
+      });
+      const few = recentTranscript([msg(0, 100), msg(1, 100)], 8_000);
+      expect(few.dropped).toBe(false);
+      expect(few.text.indexOf('0 ')).toBeLessThan(few.text.indexOf('1 '));
+      const many = recentTranscript(
+        Array.from({ length: 10 }, (_, i) => msg(i, 3_000)),
+        8_000,
+      );
+      expect(many.dropped).toBe(true);
+      expect(many.text.length).toBeLessThanOrEqual(8_000);
+      expect(many.text).toContain('9 ');
+      expect(many.text).not.toContain('0 z');
+      const huge = recentTranscript([msg(0, 100), msg(1, 3_000)], 1_000);
+      expect(huge.dropped).toBe(true);
+      expect(huge.text.length).toBeGreaterThan(900);
+      expect(huge.text.length).toBeLessThanOrEqual(1_000);
+      expect(huge.text).toContain('1 z');
+    });
+
+    it('danışmanın sağlayıcısının anahtarı yoksa araç sunulmaz', async () => {
+      const offered: string[][] = [];
+      faux.setResponses([
+        (ctx) => {
+          offered.push(toolsOf(ctx as unknown as Ctx));
+          return fauxAssistantMessage('tamam');
+        },
+      ]);
+      const pi = new PiEngine({
+        sessionsDir: join(dir, 'sessions'),
+        apiKey: async (p) => (p === 'deneme' ? keys[p]! : null),
+        resolveModel: (p, id) => faux.getModel(id) ?? (p === 'baska' ? faux.getModel('m1') : undefined),
+      });
+      await pi.run(request({ advisorModel: 'baska/m1' }).req);
+      expect(offered[0]).not.toContain('Advisor');
     });
 
     it('yardımcı ajanlara danışman verilmez', async () => {
