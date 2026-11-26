@@ -786,6 +786,146 @@ describe('Pi motoru', () => {
     expect(out).toMatchObject({ ok: false, kind: 'interrupted' });
   });
 
+  describe('danışman', () => {
+    type Ctx = { messages: { role: string; content: unknown; toolsAdded?: { name: string }[] }[] };
+    const toolsOf = (ctx: Ctx) =>
+      ctx.messages.filter((m) => m.role === 'system').flatMap((m) => (m.toolsAdded ?? []).map((x) => x.name));
+    const isHelper = (ctx: Ctx) => JSON.stringify(ctx.messages).includes('yardımcı bir ajansın');
+    const ask = (...questions: string[]) =>
+      fauxAssistantMessage(
+        questions.map((q, i) => fauxToolCall('Advisor', { question: q }, { id: `d${i + 1}` })),
+        { stopReason: 'toolUse' },
+      );
+    const results = (ctx: Ctx) =>
+      ctx.messages.filter((m) => m.role === 'toolResult').map((m) => JSON.stringify(m.content));
+    /** An engine whose advisor answers come from `complete`; each request it got is kept. */
+    const advised = (complete: (system: string, user: string) => string | Promise<string>) => {
+      const asked: { model: string; system: string; user: string }[] = [];
+      const pi = new PiEngine({
+        sessionsDir: join(dir, 'sessions'),
+        apiKey: async (p) => keys[p] ?? null,
+        resolveModel: (p, id) => (p === 'deneme' ? faux.getModel(id) : undefined),
+        complete: (async (model, ctx) => {
+          const user = String(ctx.messages[0]!.content);
+          asked.push({ model: model.id, system: ctx.systemPrompt ?? '', user });
+          const reply = fauxAssistantMessage(await complete(ctx.systemPrompt ?? '', user));
+          return { ...reply, usage: { ...reply.usage, cost: { ...reply.usage.cost, total: 0.05 } } };
+        }) as typeof completeSimple,
+      });
+      return { pi, asked };
+    };
+
+    it('ayar yoksa ya da bot zaten o modeldeyse araç sunulmaz', async () => {
+      const offered: string[][] = [];
+      const reply = (ctx: Ctx) => {
+        offered.push(toolsOf(ctx));
+        return fauxAssistantMessage('tamam');
+      };
+      faux.setResponses([reply, reply, reply]);
+      await engine().run(request().req);
+      await engine().run(request({ advisorModel: 'deneme/m1' }).req);
+      await engine().run(request({ advisorModel: 'deneme/dusunen' }).req);
+      expect(offered[0]).not.toContain('Advisor');
+      expect(offered[1]).not.toContain('Advisor');
+      expect(offered[2]).toContain('Advisor');
+    });
+
+    it('danışman talimatı, son araç sonucunu ve soruyu görür; cevabı bota döner, maliyeti tura sayılır', async () => {
+      writeFileSync(join(cwd, 'not.txt'), 'GİZLİ-SONUÇ-42');
+      const { pi, asked } = advised(() => 'Önce dosyanın tarihine bak.');
+      let back: string[] = [];
+      faux.setResponses([
+        fauxAssistantMessage([fauxToolCall('read_file', { path: 'not.txt' })], { stopReason: 'toolUse' }),
+        ask('Bu sonuca güvenebilir miyim?'),
+        (ctx) => {
+          back = results(ctx as unknown as Ctx);
+          return fauxAssistantMessage('Bakıyorum.');
+        },
+      ]);
+      const out = await pi.run(request({ advisorModel: 'deneme/dusunen' }).req);
+      expect(out).toMatchObject({ ok: true, text: 'Bakıyorum.' });
+      expect(asked).toHaveLength(1);
+      expect(asked[0]!.model).toBe('dusunen');
+      expect(asked[0]!.system).toContain('You advise an assistant bot');
+      expect(asked[0]!.user).toContain('Sen bir test botusun.');
+      expect(asked[0]!.user).toContain('GİZLİ-SONUÇ-42');
+      expect(asked[0]!.user).toContain('<question>\nBu sonuca güvenebilir miyim?');
+      expect(back.at(-1)).toContain('Önce dosyanın tarihine bak.');
+      expect(out.costUsd).toBeGreaterThanOrEqual(0.05);
+      // No approval card: asking for advice changes nothing.
+      expect(asks.map((a) => a.toolName)).not.toContain('Advisor');
+    });
+
+    it('danışman cevap veremezse tur sürer; bir turda en fazla üç soru gider', async () => {
+      let n = 0;
+      const { pi, asked } = advised(() => {
+        if (++n === 1) throw new Error('sağlayıcı kapalı');
+        return 'TAVSİYE';
+      });
+      let back: string[] = [];
+      faux.setResponses([
+        ask('bir', 'iki', 'üç', 'dört'),
+        (ctx) => {
+          back = results(ctx as unknown as Ctx);
+          return fauxAssistantMessage('Kendim hallettim.');
+        },
+      ]);
+      const out = await pi.run(request({ advisorModel: 'deneme/dusunen' }).req);
+      expect(out).toMatchObject({ ok: true, text: 'Kendim hallettim.' });
+      expect(asked).toHaveLength(3);
+      expect(back).toHaveLength(4);
+      expect(back.some((r) => r.includes('sağlayıcı kapalı'))).toBe(true);
+      expect(back.filter((r) => r.includes('TAVSİYE'))).toHaveLength(2);
+      expect(back.some((r) => r.includes('3 kez soruldu'))).toBe(true);
+    });
+
+    it('durdurulunca danışmanın cevabı beklenmez', async () => {
+      const { req, ctrl } = request({ advisorModel: 'deneme/dusunen' });
+      let cut = false;
+      const pi = new PiEngine({
+        sessionsDir: join(dir, 'sessions'),
+        apiKey: async (p) => keys[p] ?? null,
+        resolveModel: (p, id) => (p === 'deneme' ? faux.getModel(id) : undefined),
+        complete: (async (_model, _ctx, options) => {
+          setTimeout(() => ctrl.abort(), 10);
+          await new Promise<void>((resolve) =>
+            options!.signal!.addEventListener('abort', () => {
+              cut = true;
+              resolve();
+            }),
+          );
+          return fauxAssistantMessage('', { stopReason: 'aborted' });
+        }) as typeof completeSimple,
+      });
+      faux.setResponses([ask('ne yapayım?'), fauxAssistantMessage('geç kaldı')]);
+      const out = await pi.run(req);
+      expect(cut).toBe(true);
+      expect(out).toMatchObject({ ok: false, kind: 'interrupted' });
+    });
+
+    it('yardımcı ajanlara danışman verilmez', async () => {
+      const helperTools: string[][] = [];
+      const reply = (ctx: Ctx) => {
+        if (isHelper(ctx)) {
+          helperTools.push(toolsOf(ctx));
+          return fauxAssistantMessage('yardım bitti');
+        }
+        if (!results(ctx).length) {
+          return fauxAssistantMessage(
+            [fauxToolCall('Agent', { description: 'İş', prompt: 'iş' }, { id: 'g1' })],
+            { stopReason: 'toolUse' },
+          );
+        }
+        return fauxAssistantMessage('tamam');
+      };
+      faux.setResponses([reply, reply, reply]);
+      const out = await engine().run(request({ advisorModel: 'deneme/dusunen' }).req);
+      expect(out).toMatchObject({ ok: true, text: 'tamam' });
+      expect(helperTools).toHaveLength(1);
+      expect(helperTools[0]).not.toContain('Advisor');
+    });
+  });
+
   describe('alt ajanlar', () => {
     // Words of the helper's own system prompt, which tell its requests from the bot's.
     const HELPER = 'yardımcı bir ajansın';

@@ -161,9 +161,10 @@ export interface TurnRequest {
    */
   compactWindow?: number;
   /**
-   * For Claude: the stronger Claude model the bot may consult mid-turn; unset leaves the advisor
-   * off. Every run of one session gets the same: the CLI takes the advisor's past answers out of the
-   * conversation it sends when a run has none, and the cached conversation no longer matches.
+   * The stronger model the bot may consult mid-turn; unset leaves the advisor off. For Claude a model
+   * alias for its own advisor tool: every run of one session gets the same, as the CLI takes the
+   * advisor's past answers out of the conversation it sends when a run has none, and the cached
+   * conversation no longer matches. For Pi a `provider/model`, asked through the Advisor tool.
    */
   advisorModel?: string;
   prompt: string;

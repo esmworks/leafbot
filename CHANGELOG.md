@@ -11,8 +11,14 @@ version is 0.x, a minor release may change the data format or the API; the serve
   chosen that Claude bots may ask for advice when they are stuck, before a large step and before they call their
   work done. The bot decides when to ask; the advisor sees the whole conversation, answers only the bot, and its
   tokens are billed at its own model's rates and count toward spending. It applies only when it is at least as
-  capable as the bot's model, a bot already on that model gets none, and bots on other providers and the backup model
-  get none. It starts off. On a Claude subscription, Fable as the advisor may need extra usage turned on.
+  capable as the bot's model, a bot already on that model gets none, and the backup model gets none. It starts off.
+  On a Claude subscription, Fable as the advisor may need extra usage turned on.
+- Advisor model for bots on other providers: under Providers → Defaults, a model of any connected provider can be
+  chosen; bots on other providers then get a tool to ask it for advice, up to three times a turn. It reads the bot's
+  instructions, the summary of the earlier conversation and the recent conversation with its tool results, answers
+  only the bot, and its cost counts toward the turn. It asks for no approval, helper agents and the backup model do
+  without it, and a bot already on that model gets none. An advisor that cannot answer leaves the bot to go on by
+  itself. It starts off.
 - Sharing a table with another bot: from the table's window, someone who may change both bots lets another bot
   read the table, or read and write its rows. The other bot finds it among its tables as "Owner / Name"; its own
   table of the same name comes first. The columns and the table stay with their bot, so the other bot cannot add

@@ -932,7 +932,10 @@ export function ModelSearch({
 
 /** Tries the model with one short request, then makes it what new bots start with. */
 /** Tries a `provider/model` and stores it for new bots, or as the backup model with `backup`. */
-export function useSavePiModel(onSaved?: () => void, backup = false) {
+/** The settings a tried model can be saved to besides the start of new bots. */
+export type PiModelField = 'backupModel' | 'piAdvisorModel';
+
+export function useSavePiModel(onSaved?: () => void, field?: PiModelField) {
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const save = useMutation({
@@ -940,7 +943,7 @@ export function useSavePiModel(onSaved?: () => void, backup = false) {
       const { provider, model } = splitPiModel(ref);
       const r = await api.testProviderModel(provider, model);
       if (!r.ok) throw new Error(r.detail);
-      await api.updateSettings(backup ? { backupModel: ref } : { defaultEngine: 'pi', piModel: ref });
+      await api.updateSettings(field ? { [field]: ref } : { defaultEngine: 'pi', piModel: ref });
     },
     onMutate: () => setError(null),
     onSuccess: () => {

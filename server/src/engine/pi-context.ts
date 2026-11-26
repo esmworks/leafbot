@@ -204,6 +204,28 @@ export function transcriptChunks(
   return { chunks: chunks.slice(-MAX_SUMMARY_CALLS), dropped: chunks.length > MAX_SUMMARY_CALLS };
 }
 
+/**
+ * The newest messages as transcript text of at most `max` characters, oldest first: the latest ones
+ * go in whole first, so what is left out is the oldest. `dropped` says some were.
+ */
+export function recentTranscript(messages: AgentMessage[], max: number): { text: string; dropped: boolean } {
+  const lines: string[] = [];
+  let size = 0;
+  let dropped = false;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const line = transcriptLine(messages[i]!);
+    if (!line) continue;
+    const piece = truncate(line, max);
+    if (size + piece.length + 2 > max) {
+      dropped = true;
+      break;
+    }
+    lines.unshift(piece);
+    size += piece.length + 2;
+  }
+  return { text: lines.join('\n\n'), dropped };
+}
+
 /** What the model writing a summary is told. Model-facing, so it is not translated. */
 export const SUMMARY_SYSTEM = `You keep the memory of a long conversation between a person and their assistant bot. You get the summary so far, if there is one, and the next part of the conversation. Write one updated summary that replaces both: the bot carries on from it and keeps no other record of these messages.
 

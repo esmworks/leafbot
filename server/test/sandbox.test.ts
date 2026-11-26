@@ -34,15 +34,23 @@ describe('özetleme sınırı', () => {
     expect(withCompactWindow(base, 0)).toEqual(base);
   });
 
-  it('danışman botun kendi modelinin ailesine bakar; başka motora ve kapalı ayara gitmez', () => {
+  it('danışman botun kendi modelinin ailesine bakar; kapalı ayara ve başka motora gitmez', () => {
+    const claude = (setting: string) => ({ claudeAdvisorModel: setting, piAdvisorModel: 'openai/gpt-x' });
     expect(claudeFamily('claude-opus-5-5')).toBe('opus');
     expect(claudeFamily('opus[1m]')).toBe('opus');
     expect(claudeFamily('Sonnet')).toBe('sonnet');
-    expect(advisorFor('claude', 'sonnet', 'opus')).toEqual({ advisorModel: 'opus' });
-    expect(advisorFor('claude', 'claude-opus-5-5', 'opus')).toEqual({});
-    expect(advisorFor('claude', 'opus[1m]', 'opus')).toEqual({});
-    expect(advisorFor('claude', 'sonnet', '')).toEqual({});
-    expect(advisorFor('pi', 'openrouter/x', 'opus')).toEqual({});
+    expect(advisorFor('claude', 'sonnet', claude('opus'))).toEqual({ advisorModel: 'opus' });
+    expect(advisorFor('claude', 'claude-opus-5-5', claude('opus'))).toEqual({});
+    expect(advisorFor('claude', 'opus[1m]', claude('opus'))).toEqual({});
+    expect(advisorFor('claude', 'sonnet', claude(''))).toEqual({});
+    expect(advisorFor('codex', 'gpt-x', claude('opus'))).toEqual({});
+  });
+
+  it('Pi botu kendi danışman ayarını alır; aynı modelde çalışan bot almaz', () => {
+    const pi = (setting: string) => ({ claudeAdvisorModel: 'opus', piAdvisorModel: setting });
+    expect(advisorFor('pi', 'openrouter/x', pi('openai/gpt-x'))).toEqual({ advisorModel: 'openai/gpt-x' });
+    expect(advisorFor('pi', 'openai/gpt-x', pi('openai/gpt-x'))).toEqual({});
+    expect(advisorFor('pi', 'openrouter/x', pi(''))).toEqual({});
   });
 
   it('danışman yalnızca seçildiyse CLI ayarlarına girer', () => {

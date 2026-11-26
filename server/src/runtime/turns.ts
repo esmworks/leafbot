@@ -172,15 +172,26 @@ export function claudeFamily(model: string): string {
 }
 
 /**
- * The advisor a Claude bot's runs may consult, from the setting; none for another engine, which has
- * no such tool, and none when the bot's own model is of that family, which would only advise itself.
- * `botModel` is the bot's own, not a routine step's: the session's runs then all ask the same, and
- * the CLI keeps the advisor's past answers and the cached conversation from run to run.
+ * The advisor a bot's runs may consult, from the setting of its engine: a Claude alias for Claude's
+ * own advisor tool, `provider/model` for the tool of bots on other providers. None when the bot's own
+ * model is that one (for Claude, of that family), which would only advise itself. `botModel` is the
+ * bot's own, not a routine step's: the session's runs then all ask the same, and for Claude the CLI
+ * keeps the advisor's past answers and the cached conversation from run to run.
  */
-export function advisorFor(engine: string, botModel: string, setting: string): { advisorModel?: string } {
-  return engine === 'claude' && setting && claudeFamily(botModel) !== setting
-    ? { advisorModel: setting }
-    : {};
+export function advisorFor(
+  engine: string,
+  botModel: string,
+  settings: { claudeAdvisorModel: string; piAdvisorModel: string },
+): { advisorModel?: string } {
+  if (engine === 'claude') {
+    const setting = settings.claudeAdvisorModel;
+    return setting && claudeFamily(botModel) !== setting ? { advisorModel: setting } : {};
+  }
+  if (engine === 'pi') {
+    const setting = settings.piAdvisorModel;
+    return setting && setting !== botModel ? { advisorModel: setting } : {};
+  }
+  return {};
 }
 
 export const attended = (source: TurnSource) => source === 'user' || source === 'reaction';
@@ -1053,7 +1064,7 @@ export class TurnManager {
       sessionId: thread.engineSessionId,
       sessionCostUsd: thread.engineSessionCostUsd,
       compactWindow: all.claudeCompactWindow,
-      ...advisorFor(bot.engine, model, all.claudeAdvisorModel),
+      ...advisorFor(bot.engine, model, all),
       sandbox,
       locale,
       signal: hold.controller.signal,
@@ -2356,7 +2367,7 @@ export class TurnManager {
       bot.model || (bot.engine === 'claude' ? settings.defaultModel : '') || this.ctx.config.claudeModel;
     const model =
       routineRun?.stepModel || (routineRun?.botId === turn.botId ? routineRun.model : '') || botModel;
-    const advisor = advisorFor(bot.engine, botModel, settings.claudeAdvisorModel);
+    const advisor = advisorFor(bot.engine, botModel, settings);
     await this.ctx.db
       .update(schema.turns)
       .set({ engine: bot.engine, model })
@@ -2396,7 +2407,7 @@ export class TurnManager {
           ? { effort: (bot.effort || settings.effort) as Effort }
           : {}),
         compactWindow: settings.claudeCompactWindow,
-        // The backup runs on another provider, which has no advisor tool.
+        // The backup only stands in until the limit lifts; it runs plain, without an advisor of its own.
         ...(!backup && advisor),
         prompt,
         context: [nowLine(new Date(), timezone, locale), appsDown].filter(Boolean).join('\n'),

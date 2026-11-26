@@ -1205,6 +1205,7 @@ export const en: Catalog<MessageKey> = {
   'activity.tool.web': 'Searching the web',
   'activity.tool.api': 'Calling a service',
   'activity.tool.agent': 'A helper agent is working',
+  'activity.tool.advisor': 'Asking the advisor model',
   'activity.tool.memory': 'Checking its memory',
   'activity.tool.app': 'Using {app}',
   'activity.writing': 'Writing',
@@ -2899,6 +2900,7 @@ export const en: Catalog<MessageKey> = {
   'providers.claudeModel': 'Claude model and effort',
   'providers.addFirst': 'To use another AI, connect a provider below first.',
   'providers.backupInUse': 'This is the backup model.',
+  'providers.piAdvisorInUse': 'This is the advisor model.',
   'providers.signInSection': 'Connection',
   'providers.plan': '{plan} plan',
   'providers.planNone': 'Not signed in',
@@ -2941,6 +2943,9 @@ export const en: Catalog<MessageKey> = {
   'model.advisorHint':
     "A Claude bot may ask this stronger model for advice when it is stuck, before a large step and before it calls its work done. The advisor sees the whole conversation and answers only the bot; its tokens are billed at its own model's rates and count toward spending. It applies only when it is at least as capable as the bot's model. On a Claude subscription, Fable as the advisor may need extra usage turned on for the account.",
   'model.advisorOff': 'Off',
+  'model.piAdvisor': 'Advisor model (other providers)',
+  'model.piAdvisorHint':
+    "Bots on other providers get a tool to ask this model for advice when they are stuck, up to three times a turn. It sees the bot's instructions and the recent conversation, tool results included, and answers only the bot; its tokens are billed at its own model's rates and count toward spending. A bot that already runs on this model does not get it.",
   'model.compact': 'Conversation summary size',
   'model.compactHint':
     "Once a Claude bot's conversation reaches this size, its older part is summarised. Smaller keeps answers quick and cheap; larger keeps more details word for word, but every message costs more.",
