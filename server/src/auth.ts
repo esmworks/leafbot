@@ -170,8 +170,11 @@ export const normalizePairingCode = (code: string) => code.toUpperCase().replace
 export interface Principal {
   userId: string;
   role: Role;
-  /** The access key (always the owner) or a signed-in device's session. */
-  via: 'key' | 'session';
+  /**
+   * The access key (always the owner), a signed-in device's session, or a browser that proved
+   * over the tunnel which account it is (see `tunnel/gateway.ts`).
+   */
+  via: 'key' | 'session' | 'tunnel';
 }
 
 declare module 'fastify' {
@@ -343,6 +346,20 @@ export class Auth {
     const id = hashSession(token);
     this.cache.delete(id);
     await this.db.delete(schema.sessions).where(eq(schema.sessions.id, id));
+  }
+
+  /**
+   * The person a tunnelled connection was proven to be, read again on every request so a changed
+   * role or a disabled person takes effect at once. Null when they are gone or disabled.
+   */
+  async tunnelPrincipal(userId: string): Promise<Principal | null> {
+    const [row] = await this.db
+      .select({ role: schema.users.role, disabledAt: schema.users.disabledAt })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    if (!row || row.disabledAt) return null;
+    return { userId, role: row.role, via: 'tunnel' };
   }
 
   /**

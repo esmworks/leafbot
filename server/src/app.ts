@@ -73,6 +73,7 @@ import { inOrder } from './in-order';
 import { PhoneBridge } from './phone/bridge';
 import { sweepUploads } from './uploads';
 import { HttpError } from './util';
+import { tunnelIdentity } from './tunnel/identity';
 
 export interface ServerOptions {
   /** Replace every engine (tests). */
@@ -127,6 +128,11 @@ const PUBLIC_API = new Set([
   // Teams signs each delivery with the Bot Framework's keys, checked by the channel itself.
   TEAMS_PATH,
 ]);
+/**
+ * Routes that start a session of the server's own (a cookie) and so mean nothing over the tunnel,
+ * where the account is the sign-in.
+ */
+const TUNNEL_REFUSED = new Set(['/api/access', '/api/login', '/api/pair']);
 /** Routes (as registered, not as a URL spells them) that need no access key or session. */
 const openRoute = (route: string) => PUBLIC_API.has(route) || route.startsWith(`${WEBHOOK_PATH}/`);
 
@@ -480,6 +486,21 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     reply.code(err.status).send({ error: err.localized(await requestT(req.headers)) });
 
   app.addHook('onRequest', async (req: FastifyRequest, reply: FastifyReply) => {
+    // A request that came over the tunnel is who the tunnel proved; it carries no cookie, and its
+    // Host and Origin are written by the gateway, so the checks for the open web do not apply.
+    const tunnel = tunnelIdentity(req.raw.socket);
+    if (tunnel) {
+      req.cookies = {};
+      if (TUNNEL_REFUSED.has(req.routeOptions.url ?? '')) {
+        return sendError(req, reply, new HttpError(403, 'error.notOverTunnel'));
+      }
+      const principal = await auth.tunnelPrincipal(tunnel.userId);
+      if (principal) req.principal = principal;
+      else if (needsSignIn(req.routeOptions.url, req.url, openRoute)) {
+        return sendError(req, reply, new HttpError(401, 'error.accessKeyRequired'));
+      }
+      return;
+    }
     // A session started before the rename reads as one under the new name for every handler.
     const earlier = req.cookies[OLD_SESSION_COOKIE];
     if (earlier && !req.cookies[SESSION_COOKIE]) req.cookies[SESSION_COOKIE] = earlier;
@@ -592,6 +613,17 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
             (t) => cb(err.localized(t), false),
             () => cb(err.message, false),
           );
+        const tunnel = tunnelIdentity(req.socket);
+        if (tunnel) {
+          return void auth
+            .tunnelPrincipal(tunnel.userId)
+            .then((principal) => {
+              if (!principal) return refuse(new HttpError(401, 'error.accessKeyRequired'));
+              socketPrincipals.set(req, principal);
+              cb(null, true);
+            })
+            .catch(() => refuse(new HttpError(500, 'error.authCheckFailed')));
+        }
         const problem = checkHostOrigin(
           { host: req.headers.host, origin: req.headers.origin, method: 'GET' },
           config,
