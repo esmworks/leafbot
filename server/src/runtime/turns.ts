@@ -183,7 +183,10 @@ interface Running {
 
 export type TurnFinishedHook = (turn: TurnRow, outcome: TurnOutcome) => Promise<void>;
 
-const interrupted = (message: string, o: { byPerson?: boolean; restarted?: boolean } = {}): TurnOutcome => ({
+const interrupted = (
+  message: string,
+  o: { byPerson?: boolean; restarted?: boolean; resume?: boolean } = {},
+): TurnOutcome => ({
   ok: false,
   kind: 'interrupted',
   message,
@@ -191,7 +194,18 @@ const interrupted = (message: string, o: { byPerson?: boolean; restarted?: boole
   sessionId: null,
   ...(o.byPerson && { byPerson: true }),
   ...(o.restarted && { restarted: true }),
+  ...(o.resume && { resume: true }),
 });
+
+/**
+ * Whether a turn's request is itself a run again of one cut short, in any language: the app's may
+ * have changed since it was written.
+ */
+const resumedBefore = (prompt: string) =>
+  LOCALES.some((l) => prompt.startsWith(translator(l)('prompt.resumeCut', { text: '' })));
+
+/** Conversations whose turns go on by themselves after a restart; see `resumable`. */
+const RESUMED_KINDS = new Set(['user', 'room', 'routine', 'ticket']);
 
 /**
  * Runs engine turns: one per thread, at most N at once, user turns first.
@@ -366,6 +380,7 @@ export class TurnManager {
       .returning();
     await this.endLeft(stale, t, true);
     await this.services.approvals.expireAllPending();
+    await this.resumeLeft();
     await this.resumeRetries();
     this.schedule();
   }
@@ -443,11 +458,7 @@ export class TurnManager {
     // A stopped turn may have done part of the work: the session still holds it, and the bot is
     // told to look at it first instead of doing it all again.
     const t = await this.services.settings.translator();
-    // In any language: the app's may have changed since the note was written.
-    const noted = LOCALES.some((l) =>
-      turn.prompt.startsWith(translator(l)('prompt.resumeCut', { text: '' })),
-    );
-    const cut = note.role === 'system' && !noted;
+    const cut = note.role === 'system' && !resumedBefore(turn.prompt);
     return this.enqueue({
       threadId: turn.threadId,
       botId: turn.botId,
@@ -455,6 +466,118 @@ export class TurnManager {
       prompt: cut ? t('prompt.resumeCut', { text: turn.prompt }) : turn.prompt,
       userId: turn.userId,
     });
+  }
+
+  /**
+   * Whether a turn the server's stop cut short goes on by itself once it is back: a person's
+   * request or a routine's run, in a conversation whose engine session holds what the turn did
+   * so far, so the bot can look at it instead of doing it again. Not another bot's request (its
+   * sender is told to ask again), not a chat app's (the person there is told to write again), not
+   * a rehearsal, and not a turn that was itself such a run again: a turn that stops the server each
+   * time would otherwise run for good.
+   */
+  private async resumable(turn: TurnRow): Promise<boolean> {
+    if (turn.source !== 'user' && turn.source !== 'routine') return false;
+    // A guest's request is not taken up again without them.
+    if (turn.jobId || turn.rehearsalId || turn.guest || resumedBefore(turn.prompt)) return false;
+    const thread = await this.services.threads.row(turn.threadId).catch(() => null);
+    if (!thread || !RESUMED_KINDS.has(thread.kind)) return false;
+    const session =
+      thread.kind === 'room'
+        ? (await this.services.rooms.session(thread.id, turn.botId)).id
+        : thread.engineSessionId;
+    if (!session) return false;
+    const [held] = await this.ctx.db
+      .select({ threadId: schema.channelRequests.threadId })
+      .from(schema.channelRequests)
+      .where(eq(schema.channelRequests.threadId, turn.threadId))
+      .limit(1);
+    if (held) return false;
+    if (turn.routineRunId) {
+      const [run] = await this.ctx.db
+        .select({ status: schema.routineRuns.status })
+        .from(schema.routineRuns)
+        .where(eq(schema.routineRuns.id, turn.routineRunId));
+      if (run?.status !== 'running' && run?.status !== 'waiting') return false;
+    }
+    return true;
+  }
+
+  /**
+   * After a restart: the turns the stop cut short and marked to go on (see `resumable`) run again
+   * in their session, told to look first at what was done. Each goes on once; one that cannot is
+   * left as a stopped turn, its note saying so, and its routine's run is ended by the routines' own
+   * recovery.
+   */
+  private async resumeLeft() {
+    const notes = await this.ctx.db
+      .select()
+      .from(schema.messages)
+      .where(and(eq(schema.messages.role, 'system'), sql`${schema.messages.props} ? 'resume'`))
+      .orderBy(asc(schema.messages.createdAt));
+    const t = await this.services.settings.translator();
+    // A stop that came while the turn was being closed can leave it two notes; it goes on once.
+    const taken = new Set<string>();
+    for (const n of notes) {
+      const { resume: _, ...props } = n.props as Record<string, unknown>;
+      await this.services.threads.updateMessage(n.id, { props });
+      let resumed = false;
+      if (n.turnId && !taken.has(n.turnId)) {
+        taken.add(n.turnId);
+        try {
+          resumed = await this.resumeTurn(n.id, n.turnId);
+        } catch (err) {
+          console.warn(`Resuming turn ${n.turnId} after the restart failed: ${String(err)}`);
+        }
+      }
+      if (!resumed) await this.services.threads.updateMessage(n.id, { text: t('turn.interruptedByRestart') });
+    }
+  }
+
+  /** Whether the turn went on again. */
+  private async resumeTurn(noteId: string, turnId: string): Promise<boolean> {
+    const [turn] = await this.ctx.db.select().from(schema.turns).where(eq(schema.turns.id, turnId));
+    if (!turn) return false;
+    const bot = await this.services.bots.get(turn.botId).catch(() => null);
+    if (!bot || bot.archivedAt) return false;
+    // A person's request goes as the note's own retry would: only while nothing came after it.
+    if (turn.source === 'user') return !!(await this.retry(noteId));
+    if (!turn.routineRunId) return false;
+    const [run] = await this.ctx.db
+      .select({ status: schema.routineRuns.status })
+      .from(schema.routineRuns)
+      .where(eq(schema.routineRuns.id, turn.routineRunId));
+    if (run?.status !== 'running' && run?.status !== 'waiting') return false;
+    // The run already has a turn going on with it.
+    const [going] = await this.ctx.db
+      .select({ id: schema.turns.id })
+      .from(schema.turns)
+      .where(
+        and(
+          eq(schema.turns.routineRunId, turn.routineRunId),
+          inArray(schema.turns.status, ['queued', 'running']),
+        ),
+      )
+      .limit(1);
+    if (going) return false;
+    const note = await this.services.threads.message(noteId);
+    await this.services.threads.updateMessage(noteId, { props: { ...note.props, retried: true } });
+    const t = await this.services.settings.translator();
+    const again = await this.enqueue({
+      threadId: turn.threadId,
+      botId: turn.botId,
+      source: turn.source,
+      prompt: t('prompt.resumeCut', { text: turn.prompt }),
+      routineRunId: turn.routineRunId,
+      outside: turn.outside,
+      modeCap: turn.modeCap,
+      userId: turn.userId,
+    });
+    await this.ctx.db
+      .update(schema.routineStepRuns)
+      .set({ turnId: again.id })
+      .where(eq(schema.routineStepRuns.turnId, turn.id));
+    return true;
   }
 
   /** After a restart: the retries still waiting are set again. */
@@ -760,18 +883,23 @@ export class TurnManager {
   /** `restarted`: the server stopped under them, rather than the turns being found stuck while it ran. */
   private async endLeft(rows: TurnRow[], t: T, restarted: boolean) {
     for (const turn of rows) {
+      const resume = restarted && (await this.resumable(turn));
       await this.services.threads.addMessage({
         threadId: turn.threadId,
         role: 'system',
         author: 'system',
-        text: t('turn.interruptedByRestart'),
+        text: t(resume ? 'turn.resumeAfterRestart' : 'turn.interruptedByRestart'),
         // A person's request is marked as a stop, so it can be run again from the note; other work
-        // (a routine, a ticket, another bot's request) is not run again that way.
-        ...(turn.source === 'user' && { props: { kind: 'interrupted' } }),
+        // (a routine, a ticket, another bot's request) is not run again that way. `resume` marks
+        // the turn to go on by itself, see `resumeLeft`.
+        props: {
+          ...(turn.source === 'user' && { kind: 'interrupted' }),
+          ...(resume && { resume: true }),
+        },
         turnId: turn.id,
       });
       this.emitState(turn.threadId, turn.botId);
-      await this.runHooks(turn, interrupted(t('turn.serverRestarted'), { restarted }));
+      await this.runHooks(turn, interrupted(t('turn.serverRestarted'), { restarted, resume }));
     }
   }
 
@@ -2593,6 +2721,10 @@ export class TurnManager {
     if (this.stoppedByPerson.delete(turn.id) && !outcome.ok && outcome.kind === 'interrupted') {
       outcome = { ...outcome, message: t('turn.stoppedByUser'), byPerson: true };
     }
+    // Cut short by the server's stop: it goes on by itself once the server is back, if it can.
+    if (!outcome.ok && outcome.kind === 'interrupted' && outcome.restarted && (await this.resumable(turn))) {
+      outcome = { ...outcome, resume: true };
+    }
     // A gap a stopped turn flagged goes with it: what it saw before it was cut off is not trusted.
     if (!outcome.ok && outcome.kind === 'interrupted') {
       await this.services.memoryFlags
@@ -2704,7 +2836,7 @@ export class TurnManager {
               ? outcome.paused
                 ? t('turn.botPaused')
                 : outcome.restarted
-                  ? t('turn.interruptedByRestart')
+                  ? t(outcome.resume ? 'turn.resumeAfterRestart' : 'turn.interruptedByRestart')
                   : t('turn.stopped')
               : outcome.kind === 'stalled'
                 ? outcome.message
@@ -2721,7 +2853,10 @@ export class TurnManager {
             ? `${text} ${t('turn.limitActed')}`
             : text,
         props: {
-          kind: outcome.kind,
+          // Only a person's request runs again from its stop note; on other work the note offers
+          // nothing.
+          ...((outcome.kind !== 'interrupted' || turn.source === 'user') && { kind: outcome.kind }),
+          ...(outcome.kind === 'interrupted' && outcome.resume && { resume: true }),
           ...(retryAt && { retryAt: retryAt.toISOString() }),
           // Out of steps mid-task: the person can tell it to go on from where it stopped.
           ...(outcome.stepLimit && { stepLimit: true }),

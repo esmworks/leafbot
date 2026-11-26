@@ -280,6 +280,13 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- Work a server restart cut short now picks up where it left off. A person's request or a routine's run that was
+  under way when the server stopped (a deploy, an update, a crash) goes on by itself once the server is back, in the
+  same conversation and engine session, and the bot is told to look at what the cut attempt already did before going
+  on, so a sent mail or a written row is not done twice. Before, the request stayed stopped until someone pressed
+  Retry, and a routine run that had already changed something ended as failed. It goes on once: if it is cut short
+  again it stays stopped. Another bot's request, a request from a chat app, a guest's request and a rehearsal are left
+  as before. The stop note of a routine's turn no longer shows a Retry button that did nothing.
 - A WhatsApp message a routine drafted could later be taken for unsent. The bot was told the card's outcome would come
   with its next message in that conversation, but it is written in the main one, so the routine noted "on the card"
   and another routine read that as not sent though the person had sent it. A draft made outside the main conversation

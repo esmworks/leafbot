@@ -4193,6 +4193,9 @@ export class RoutineService {
 
   async onTurnFinished(turn: TurnRow, outcome: TurnOutcome) {
     if (!turn.routineRunId) return;
+    // Cut short by the server's stop, the turn goes on in the same session once the server is back:
+    // the run and its step stay open for it. One that cannot go on is ended by `recover`.
+    if (!outcome.ok && outcome.kind === 'interrupted' && outcome.resume) return;
     const [run] = await this.ctx.db
       .select({
         failedByBot: schema.routineRuns.failedByBot,

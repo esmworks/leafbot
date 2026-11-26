@@ -497,6 +497,8 @@ const tr = {
   // Turns
   'turn.serverRestarted': 'Sunucu yeniden başladı',
   'turn.interruptedByRestart': 'Sunucu yeniden başladığı için bu tur yarıda kaldı.',
+  'turn.resumeAfterRestart':
+    'Sunucu yeniden başladığı için bu tur yarıda kaldı; sunucu açılınca kaldığı yerden kendiliğinden sürecek.',
   'turn.stoppedByUser': 'Kullanıcı durdurdu',
   'turn.botPaused': 'Bot duraklatıldı; sürdürülünce yeniden çalışır',
   'turn.readOnly': 'Bu bot salt okunur kipte; bu işlem yapılamaz.',
@@ -2941,6 +2943,8 @@ const en: Catalog<ServerKey> = {
 
   'turn.serverRestarted': 'Server restarted',
   'turn.interruptedByRestart': 'This turn was cut short because the server restarted.',
+  'turn.resumeAfterRestart':
+    'This turn was cut short because the server restarted; it picks up where it left off once the server is back.',
   'turn.stoppedByUser': 'Stopped by the user',
   'turn.botPaused': 'The bot is paused; it works again once resumed',
   'turn.readOnly': 'This bot is in read-only mode; this action is not allowed.',
