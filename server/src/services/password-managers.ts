@@ -14,6 +14,7 @@ import { asc, eq, isNull, or } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import { totpSecret } from '../totp';
+import { refusePrivate } from './access';
 import { HttpError, isUniqueViolation, newId, notFound } from '../util';
 import {
   defaultDrivers,
@@ -192,6 +193,8 @@ export class PasswordManagerService {
     const v = CreateSchema.parse(raw);
     const id = newId();
     const server = v.kind === 'bitwarden' ? (v.server ?? null) : null;
+    // The server signs in there itself: a person's own manager is not pointed into its network.
+    if (server) await refusePrivate(this.ctx, server, owner);
     const secret: ManagerSecret =
       v.kind === 'bitwarden'
         ? { clientId: v.clientId, clientSecret: v.clientSecret, password: v.password }
