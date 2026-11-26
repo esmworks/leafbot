@@ -7,6 +7,9 @@
 #   curl -fsSL https://raw.githubusercontent.com/esmworks/leafbot/main/docker/install.sh | sudo bash
 #   curl -fsSL https://raw.githubusercontent.com/esmworks/leafbot/main/docker/install.sh | sudo bash -s -- --domain bot.example.com
 #
+# Without --domain the server gets a free name under leafbot.cloud from the names service (names/ in
+# this repository), or an sslip.io name when the service cannot give one.
+#
 # Afterwards the `leafbot` command runs the same script: leafbot update | status | logs | restart | access-key.
 #
 # It works in two stages. The first, possibly piped from the internet, only fetches the chosen release
@@ -25,7 +28,12 @@ ACCESS_KEY=
 STAGE2=
 REF=
 LANG_GIVEN=
+SSLIP=
+NAME_TOKEN=
 REST=()
+# Hands out names under leafbot.cloud (the names/ folder of this repository). Set LEAFBOT_NAMES_URL to
+# use another copy of that service.
+NAMES_URL=${LEAFBOT_NAMES_URL:-https://names.leafbot.app}
 
 # Messages in Turkish or English: --lang, else the shell's language. A fresh server is usually C.UTF-8.
 case "${LC_ALL:-${LANG:-}}" in
@@ -54,10 +62,13 @@ Komutlar:
   restart       Kapsayıcıları yeniden başlatır
   access-key    Erişim anahtarını gösterir
   compose ...   docker compose'u bu kurulumun dosyalarıyla çalıştırır
+  refresh-name  leafbot.cloud adını yeniler (her gün kendiliğinden çalışır)
 
 Seçenekler:
   --domain AD        Sunucunun alan adı (DNS kaydı bu sunucuyu göstermeli). Verilmezse
-                     sunucunun IP adresinden bir sslip.io adı kullanılır.
+                     sunucuya leafbot.cloud altında ücretsiz bir ad alınır; alınamazsa
+                     IP adresinden bir sslip.io adı kullanılır.
+  --sslip            leafbot.cloud adı istemeden sslip.io adı kullanır
   --version vX.Y.Z   Kurulacak sürüm (varsayılan: en son sürüm)
   --computer         Botların bilgisayarını açar (8 GB bellek önerilir)
   --no-computer      Botların bilgisayarını kapatır
@@ -80,10 +91,13 @@ Commands:
   restart       Restart the containers
   access-key    Show the access key
   compose ...   Run docker compose with this installation's files
+  refresh-name  Renew the leafbot.cloud name (runs by itself every day)
 
 Options:
   --domain NAME      The server's domain name (its DNS record must point at this server).
-                     Without it, an sslip.io name made from the server's IP address is used.
+                     Without it, the server gets a free name under leafbot.cloud, or, when
+                     none can be had, an sslip.io name made from its IP address.
+  --sslip            Use an sslip.io name without asking for a leafbot.cloud name
   --version vX.Y.Z   Release to install (default: the latest release)
   --computer         Turn on the bots' desktops (8 GB of memory recommended)
   --no-computer      Turn off the bots' desktops
@@ -101,7 +115,7 @@ need_value() { [ "$2" -ge 2 ] || die "$1 bir değer ister" "$1 needs a value"; }
 parse_args() {
   while [ $# -gt 0 ]; do
     case $1 in
-      install | update | status | restart | access-key)
+      install | update | status | restart | access-key | refresh-name)
         COMMAND=$1
         shift
         ;;
@@ -131,6 +145,10 @@ parse_args() {
         ;;
       --no-computer)
         COMPUTER=0
+        shift
+        ;;
+      --sslip)
+        SSLIP=1
         shift
         ;;
       --access-key)
@@ -246,6 +264,7 @@ manage() {
       ;;
     access-key) get_env LEAFBOT_ACCESS_KEY ;;
     compose) compose "${REST[@]}" ;;
+    refresh-name) refresh_name ;;
   esac
 }
 
@@ -383,6 +402,60 @@ public_ipv4() {
   [ -n "$ip" ] && ! is_private_ipv4 "$ip" && printf '%s' "$ip"
 }
 
+# The names service answers JSON with plain values; the fields are read without a JSON tool, which a
+# fresh server may not have.
+json_field() { printf '%s' "$1" | sed -n "s/.*\"$2\":\"\([A-Za-z0-9._-]*\)\".*/\1/p"; }
+
+# Asks the names service for a name under leafbot.cloud. The service points the name at the address
+# the request comes from, so the request goes out over IPv4: the name is an A record. Without an
+# answer the installer goes on with an sslip.io name.
+claim_name() {
+  step "leafbot.cloud altında bir ad alınıyor" "Getting a name under leafbot.cloud"
+  local reply name token
+  reply=$(curl -4 -fsS --max-time 20 -X POST "$NAMES_URL/v1/names" 2>/dev/null) || reply=
+  name=$(json_field "$reply" name)
+  token=$(json_field "$reply" token)
+  if [ -z "$name" ] || [ -z "$token" ]; then
+    warn "Ad servisi şu an ad veremedi; sunucunun IP adresinden bir sslip.io adı kullanılıyor." \
+      "The names service could not give a name now; using an sslip.io name made from the server's IP address."
+    return 0
+  fi
+  DOMAIN=$name
+  NAME_TOKEN=$token
+}
+
+# Waits until a name just made resolves to this server, so Caddy asks for the certificate only once
+# Let's Encrypt can find the server: each failed check counts toward a limit of five an hour. The
+# first lookup waits a little, so a resolver does not remember the name as missing for half an hour.
+wait_dns() {
+  step "$DOMAIN adının yayılması bekleniyor" "Waiting for $DOMAIN to resolve"
+  command -v getent >/dev/null 2>&1 || return 0
+  sleep 10
+  for _ in $(seq 1 25); do
+    if (getent ahostsv4 "$DOMAIN" 2>/dev/null || true) | awk '{print $1}' | grep -qxF "$1"; then
+      return 0
+    fi
+    sleep 4
+  done
+  warn "$DOMAIN henüz bu sunucuyu göstermiyor; sertifika ad yayılınca kendiliğinden alınır." \
+    "$DOMAIN does not point at this server yet; the certificate is fetched by itself once it does."
+}
+
+# Tells the names service this server is still here, and moves its name if the address changed.
+# Names not heard from for 30 days are removed; the leafbot-name timer runs this every day.
+refresh_name() {
+  local token domain url
+  token=$(get_env LEAFBOT_NAME_TOKEN)
+  domain=$(get_env LEAFBOT_DOMAIN)
+  url=$(get_env LEAFBOT_NAMES_URL)
+  [ -n "$token" ] || die "Bu kurulumun leafbot.cloud adı yok." "This installation has no leafbot.cloud name."
+  # The token goes to curl on its standard input, not its command line, where other users could see it.
+  printf 'header = "Authorization: Bearer %s"\n' "$token" |
+    curl -4 -fsS --max-time 20 --config - -X PUT "${url:-$NAMES_URL}/v1/names/${domain%%.*}" >/dev/null ||
+    die "$domain yenilenemedi; bir sonraki gün yeniden denenir." "Could not renew $domain; it is tried again the next day."
+  say "$domain yenilendi." "$domain renewed."
+}
+
 choose_domain() {
   DOMAIN=${DOMAIN:-$(get_env LEAFBOT_DOMAIN)}
   local ip
@@ -391,7 +464,10 @@ choose_domain() {
     [ -n "$ip" ] ||
       die "Bu sunucunun genel IPv4 adresi bulunamadı (NAT arkasında olabilir). --domain ile bu sunucuyu gösteren bir ad verin; alan adınız yoksa genel adresinizden: 1-2-3-4.sslip.io gibi." \
         "Could not find this server's public IPv4 address (it may be behind NAT). Give a name that points at it with --domain; without a domain, one made from the public address works: like 1-2-3-4.sslip.io."
-    DOMAIN="${ip//./-}.sslip.io"
+    # Only a new installation gets a name: an installed server keeps the address its apps and links
+    # already use.
+    [ -n "$SSLIP" ] || claim_name
+    [ -n "$DOMAIN" ] || DOMAIN="${ip//./-}.sslip.io"
   fi
   DOMAIN=$(printf '%s' "$DOMAIN" | tr '[:upper:]' '[:lower:]')
   DOMAIN=${DOMAIN#https://}
@@ -400,7 +476,9 @@ choose_domain() {
   local name='^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'
   [[ $DOMAIN =~ $name ]] ||
     die "Geçersiz alan adı: $DOMAIN" "Not a valid domain name: $DOMAIN"
-  if [ -n "$ip" ] && command -v getent >/dev/null 2>&1; then
+  if [ -n "$NAME_TOKEN" ]; then
+    wait_dns "$ip"
+  elif [ -n "$ip" ] && command -v getent >/dev/null 2>&1; then
     local resolved
     resolved=$( (getent ahostsv4 "$DOMAIN" 2>/dev/null || true) | awk '{print $1}' | sort -u | tr '\n' ' ')
     case " $resolved " in
@@ -457,6 +535,11 @@ write_env() {
     set_env LEAFBOT_ACCESS_KEY "$(random_hex)"
   fi
   set_env LEAFBOT_DOMAIN "$DOMAIN"
+  # The name's token sits with the other secrets: the file is 0600 and no container reads it.
+  if [ -n "$NAME_TOKEN" ]; then
+    set_env LEAFBOT_NAME_TOKEN "$NAME_TOKEN"
+    set_env LEAFBOT_NAMES_URL "$NAMES_URL"
+  fi
   set_env LEAFBOT_PUBLIC_URL "https://$DOMAIN"
   set_env LEAFBOT_ALLOWED_HOSTS "$DOMAIN"
   set_env LEAFBOT_SECURE_COOKIES 1
@@ -574,6 +657,34 @@ EOF
     ufw allow 443/tcp >/dev/null
     ufw allow 443/udp >/dev/null
   fi
+  if [ -n "$(get_env LEAFBOT_NAME_TOKEN)" ]; then
+    # Renews the leafbot.cloud name every day and after a boot, when the address may have changed.
+    cat >/etc/systemd/system/leafbot-name.service <<EOF
+[Unit]
+Description=Leaf Bot: renew this server's leafbot.cloud name
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash $DIR/docker/install.sh --dir $DIR refresh-name
+EOF
+    cat >/etc/systemd/system/leafbot-name.timer <<EOF
+[Unit]
+Description=Leaf Bot: renew this server's leafbot.cloud name every day
+
+[Timer]
+OnBootSec=2min
+OnCalendar=daily
+RandomizedDelaySec=6h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+    systemctl daemon-reload
+    systemctl enable --now --quiet leafbot-name.timer
+  fi
   cat >/usr/local/bin/leafbot <<EOF
 #!/bin/sh
 # Manages the Leaf Bot installation in $DIR; see $DIR/docker/install.sh --help.
@@ -620,7 +731,7 @@ main() {
     [ -z "$saved" ] || UI=$saved
   fi
   case $COMMAND in
-    status | logs | restart | access-key | compose)
+    status | logs | restart | access-key | compose | refresh-name)
       manage
       return
       ;;

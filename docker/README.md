@@ -22,13 +22,22 @@ curl -fsSL https://raw.githubusercontent.com/esmworks/leafbot/main/docker/instal
    `leafbot-firewall` systemd servisini kurar. `ufw` açıksa 80 ve 443'e izin verir.
 8. Adresi ve erişim anahtarını yazar.
 
-Alan adı verilmezse sunucunun genel IP adresinden bir ad kullanılır: `203.0.113.7` için `203-0-113-7.sslip.io`. Bu ad
-sslip.io'nun DNS hizmetine dayanır. Kendi alan adınız varsa önce DNS kaydını sunucuya yönlendirin, sonra
-`--domain bot.example.com` verin. Sağlayıcının güvenlik duvarında 80 ve 443 açık olmalıdır.
+Alan adı verilmezse sunucuya leafbot.cloud altında ücretsiz bir ad alınır: `k3x9q2mf.leafbot.cloud` gibi. Bunun için
+betik `names.leafbot.app`'e bir istek gönderir. Servis adı isteğin geldiği adrese yönlendirir ve bu adresi, adı ve
+sunucunun jetonunun özetini saklar. Sunucu adını her gün `leafbot-name` systemd zamanlayıcısıyla yeniler; 30 gün
+yenilenmeyen adlar silinir. Ad alınamazsa ya da `--sslip` verilirse sunucunun genel IP adresinden bir ad kullanılır:
+`203.0.113.7` için `203-0-113-7.sslip.io`. Kurulu bir sunucu güncellemede adını korur. Kendi alan adınız varsa önce DNS
+kaydını sunucuya yönlendirin, sonra `--domain bot.example.com` verin. Sağlayıcının güvenlik duvarında 80 ve 443 açık
+olmalıdır.
+
+Neden kendi adımız: Let's Encrypt aynı ana alan adı altında haftada 50 yeni sertifika verir. sslip.io'yu kullanan
+herkes bu 50'yi paylaşır; leafbot.cloud altında yalnızca Leaf Bot sunucuları paylaşır. Ad servisinin kodu
+`names/` klasöründedir.
 
 | Seçenek                | Anlamı                                                                  |
 | ---------------------- | ----------------------------------------------------------------------- |
 | `--domain AD`          | Sunucunun alan adı                                                      |
+| `--sslip`              | leafbot.cloud adı istemeden sslip.io adı kullanır                       |
 | `--version vX.Y.Z`     | Kurulacak sürüm (varsayılan: en son sürüm)                              |
 | `--computer`           | Botların bilgisayarını açar (8 GB önerilir); `--no-computer` kapatır    |
 | `--access-key ANAHTAR` | Erişim anahtarını siz seçin (en az 24 karakter: harf, rakam, `- _ . ~`) |
@@ -43,6 +52,7 @@ sudo leafbot status        # kapsayıcılar ve sunucunun yanıtı
 sudo leafbot logs [servis] # kayıtlar (leafbot, caddy, db, computer)
 sudo leafbot access-key    # erişim anahtarı
 sudo leafbot compose ...   # bu kurulumun dosyalarıyla docker compose
+sudo leafbot refresh-name  # leafbot.cloud adını şimdi yeniler (her gün kendiliğinden çalışır)
 ```
 
 `update` seçenek alır: `sudo leafbot update --computer` botların bilgisayarını sonradan açar.
@@ -59,7 +69,8 @@ runcmd:
 ```
 
 Erişim anahtarını burada siz seçersiniz, çünkü betiğin çıktısı sunucuda bir kayıt dosyasına yazılır ve anahtar oraya
-yazdırılmaz. Birkaç dakika sonra `https://<IP-adresi-tireli>.sslip.io` adresini açın. Kurulumun gidişi sunucuda
+yazdırılmaz. Birkaç dakika sonra `https://names.leafbot.app/<IP-adresi>` sizi sunucunun leafbot.cloud adına götürür
+(ad alınamadıysa `https://<IP-adresi-tireli>.sslip.io` adresini açın). Kurulumun gidişi sunucuda
 `/var/log/cloud-init-output.log` dosyasındadır.
 
 ### Ters vekil ve giriş sınırı
