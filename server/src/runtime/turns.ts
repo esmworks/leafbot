@@ -163,6 +163,14 @@ export function taggedSkill(text: string, name: string): boolean {
   return new RegExp(`(^|[\\s(])\\$${escaped}(?![\\w-])`).test(text);
 }
 
+/**
+ * The advisor a Claude bot's runs may consult, from the setting; none for another engine, which has
+ * no such tool, and none when the bot already runs on that model, which would only advise itself.
+ */
+export function advisorFor(engine: string, model: string, setting: string): { advisorModel?: string } {
+  return engine === 'claude' && setting && setting !== model ? { advisorModel: setting } : {};
+}
+
 export const attended = (source: TurnSource) => source === 'user' || source === 'reaction';
 
 interface Running {
@@ -1009,6 +1017,7 @@ export class TurnManager {
       sessionId: thread.engineSessionId,
       sessionCostUsd: thread.engineSessionCostUsd,
       compactWindow: all.claudeCompactWindow,
+      ...advisorFor(bot.engine, model, all.claudeAdvisorModel),
       sandbox,
       locale,
       signal: hold.controller.signal,
@@ -2352,6 +2361,8 @@ export class TurnManager {
           ? { effort: (bot.effort || settings.effort) as Effort }
           : {}),
         compactWindow: settings.claudeCompactWindow,
+        // The backup runs on another provider, which has no advisor tool.
+        ...(!backup && advisorFor(bot.engine, model, settings.claudeAdvisorModel)),
         prompt,
         context: [nowLine(new Date(), timezone, locale), appsDown].filter(Boolean).join('\n'),
         sessionId: backup ? null : session,

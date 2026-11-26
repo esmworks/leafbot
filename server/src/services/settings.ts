@@ -4,6 +4,7 @@ import type { Ctx } from '../context';
 import { schema } from '../db';
 import { translator, type T } from '../i18n';
 import {
+  CLAUDE_ADVISORS,
   DEFAULT_LOCALE,
   EFFORTS,
   isLocale,
@@ -83,6 +84,12 @@ export const Settings = z.object({
    * million. Smaller folds sooner: turns stay quick and cheap, and fewer details stay word for word.
    */
   claudeCompactWindow: z.union([z.literal(0), z.number().int().min(100_000).max(1_000_000)]).default(200_000),
+  /**
+   * The stronger Claude model a Claude bot may ask for advice when it is stuck, before a large step
+   * and before it calls its work done; empty is off. It sees the whole conversation and answers
+   * the bot only, and its tokens are billed at its own model's rates.
+   */
+  claudeAdvisorModel: z.union([z.enum(CLAUDE_ADVISORS), z.literal('')]).default(''),
   timezone: z.string().refine(isValidTimeZone).default('Europe/Istanbul'),
   /**
    * The most the bots may spend in a calendar month, in US dollars, as the engines report it; 0 for

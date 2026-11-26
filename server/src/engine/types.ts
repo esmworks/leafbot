@@ -160,6 +160,12 @@ export interface TurnRequest {
    * leaves it to the CLI. Unset takes the app's own default.
    */
   compactWindow?: number;
+  /**
+   * For Claude: the stronger Claude model the bot may consult mid-turn; unset leaves the advisor
+   * off. Every run of one session gets the same: the CLI takes the advisor's past answers out of the
+   * conversation it sends when a run has none, and the cached conversation no longer matches.
+   */
+  advisorModel?: string;
   prompt: string;
   /**
    * What changes on every turn, such as the time now, sent before the prompt. It stays out of the
@@ -552,6 +558,8 @@ export interface CompactRequest {
   /** What the session had cost by its last run, so this run is priced as what it adds. */
   sessionCostUsd: number | null;
   compactWindow?: number;
+  /** The advisor the session's turns run with, so the fold reads the conversation they left. */
+  advisorModel?: string;
   /** The same folders the session's turns run in: a session is found by where it ran. */
   sandbox: Sandbox;
   locale: Locale;

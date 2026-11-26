@@ -1247,6 +1247,40 @@ describe('sohbet', () => {
     expect((await t.api('PATCH', '/api/settings', { claudeCompactWindow: 50_000 })).status).toBe(400);
   });
 
+  it('Claude botun danışman modeli ayardan gelir; kapalı başlar, geçersiz değer reddedilir', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    expect((await t.api('GET', '/api/settings')).body).toMatchObject({ claudeAdvisorModel: '' });
+    await t.send(thread.id, 'merhaba');
+    await t.services.turns.idle();
+    expect(t.engine.requests.at(-1)!).not.toHaveProperty('advisorModel');
+
+    expect((await t.api('PATCH', '/api/settings', { claudeAdvisorModel: 'opus' })).status).toBe(200);
+    await t.send(thread.id, 'tekrar');
+    await t.services.turns.idle();
+    expect(t.engine.requests.at(-1)!.advisorModel).toBe('opus');
+
+    expect((await t.api('PATCH', '/api/settings', { claudeAdvisorModel: 'haiku' })).status).toBe(400);
+    expect((await t.api('PATCH', '/api/settings', { claudeAdvisorModel: 'openrouter/x' })).status).toBe(400);
+  });
+
+  it('danışman, zaten o modelde çalışan bota ve yedek modelle süren işe gönderilmez', async () => {
+    await t.api('PATCH', '/api/settings', { claudeAdvisorModel: 'opus', backupModel: 'openrouter/yedek' });
+    const same = await t.bot({ model: 'opus' });
+    await t.send((await main(same.id)).id, 'merhaba');
+    await t.services.turns.idle();
+    expect(t.engine.requests.at(-1)!.model).toBe('opus');
+    expect(t.engine.requests.at(-1)!).not.toHaveProperty('advisorModel');
+
+    const bot = await t.bot();
+    await t.send((await main(bot.id)).id, '[meşgul] bak');
+    await t.services.turns.idle();
+    // The bot's own run had the advisor; the backup, on another provider, has none.
+    expect(t.engine.requests.at(-2)!.advisorModel).toBe('opus');
+    expect(t.engine.requests.at(-1)!.model).toBe('openrouter/yedek');
+    expect(t.engine.requests.at(-1)!).not.toHaveProperty('advisorModel');
+  });
+
   it('motor bağlamın dolduğunu kendi bildirince de son konuşma yeni oturuma aktarılır', async () => {
     const bot = await t.bot();
     const thread = await main(bot.id);

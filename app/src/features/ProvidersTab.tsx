@@ -1,7 +1,9 @@
 import {
+  CLAUDE_ADVISORS,
   INTL_LOCALE,
   leavesForEngine,
   newBotEngine,
+  type ClaudeAdvisor,
   type ModelInfo,
   type ProviderInfo,
 } from '@leafbot/shared';
@@ -35,6 +37,7 @@ import { splitPiModel } from '@/lib/new-bot';
 import {
   useBots,
   useClaudeAuth,
+  useClaudeModels,
   useImageModels,
   useInfo,
   useProviderModelInfo,
@@ -837,6 +840,7 @@ function ClaudePage({ checking }: { checking: boolean }) {
               onChange={(v) => save.mutate({ defaultModel: v.model, effort: v.effort })}
             />
           </div>
+          {settings.claudeAdvisorModel !== undefined && <AdvisorModel />}
           {settings.claudeCompactWindow !== undefined && <CompactWindow />}
           {settings.idleCompact !== undefined && !!settings.claudeCompactWindow && (
             <Row label={t('model.idleCompact')} hint={t('model.idleCompactHint')}>
@@ -850,6 +854,45 @@ function ClaudePage({ checking }: { checking: boolean }) {
         </Card>
       )}
     </>
+  );
+}
+
+/** Select items cannot carry an empty value, so "no advisor" travels under this one. */
+const NO_ADVISOR = 'off';
+
+/** The stronger Claude model Claude bots may ask for advice in the middle of a turn. */
+function AdvisorModel() {
+  const t = useT();
+  const { data: settings } = useSettings();
+  const { data: models = [] } = useClaudeModels();
+  const save = useSaveSettings();
+  const value = settings?.claudeAdvisorModel ?? '';
+  // The ones this login lists, by their names there; one saved earlier stays even if no longer listed.
+  const choices = CLAUDE_ADVISORS.flatMap((a) => {
+    const listed = models.find((m) => m.value === a);
+    return listed || a === value ? [{ value: a, name: listed?.name ?? a }] : [];
+  });
+  return (
+    <Row label={t('model.advisor')} hint={t('model.advisorHint')}>
+      <Select
+        value={value || NO_ADVISOR}
+        onValueChange={(v) =>
+          save.mutate({ claudeAdvisorModel: v === NO_ADVISOR ? '' : (v as ClaudeAdvisor) })
+        }
+      >
+        <SelectTrigger className="w-56 rounded-full" aria-label={t('model.advisor')}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value={NO_ADVISOR}>{t('model.advisorOff')}</SelectItem>
+          {choices.map((c) => (
+            <SelectItem key={c.value} value={c.value}>
+              {c.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Row>
   );
 }
 
