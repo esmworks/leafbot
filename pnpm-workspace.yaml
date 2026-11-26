@@ -7,6 +7,7 @@ packages:
   - computer
   - mobile
   - names
+  - account
 allowBuilds:
   electron: true
   electron-winstaller: false
