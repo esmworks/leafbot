@@ -67,6 +67,14 @@ export function sidebarWidthFor(dragged: number): number {
 
 export type Stream = LiveStream;
 
+/** The fields a new bot's form opens with besides the defaults. */
+export interface BotPreset {
+  name?: string;
+  description?: string;
+  instructions?: string;
+  projectDir?: string;
+}
+
 export interface UiState {
   authed: boolean | null;
   connected: boolean;
@@ -112,13 +120,11 @@ export interface UiState {
    */
   routine: { botId: string; routineId: string | null; showRuns?: boolean } | null;
   /**
-   * A bot as a page in place of the chat: a new one being made, which may start with a name and a
-   * folder, or one's settings.
+   * A bot as a page in place of the chat: a new one being made, or one's settings. A new one may
+   * start with some fields filled in: a name and a folder for a folder found on this computer, or a
+   * name and description read from a shared bot's page.
    */
-  botPage:
-    | { mode: 'create'; preset?: { name: string; projectDir: string } }
-    | { mode: 'edit'; botId: string }
-    | null;
+  botPage: { mode: 'create'; preset?: BotPreset } | { mode: 'edit'; botId: string } | null;
   /** Text picked in a message, waiting to be quoted at the top of the draft. */
   pendingQuote: string | null;
   /**
