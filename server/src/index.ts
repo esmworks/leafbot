@@ -3,6 +3,7 @@ import { pickLocale } from '@leafbot/shared';
 import { createServer } from './app';
 import { loadConfig } from './config';
 import { translator } from './i18n';
+import { loadRtc } from './tunnel/rtc-datachannel';
 
 const config = loadConfig();
 /** The exit code that asks whoever runs the server (the desktop app, Docker) to start it again. */
@@ -10,6 +11,9 @@ const RESTART_CODE = 75;
 const server = await createServer(config, {
   logger: process.env.LEAFBOT_LOG === '1',
   restart: () => void shutdown('restore', RESTART_CODE),
+  // Browsers reach a server linked to an account over WebRTC; without a build for this platform
+  // the server runs as before, reachable only at its own address.
+  rtc: await loadRtc(),
 });
 const address = await server.listen();
 // The desktop shell reads this line to learn the port.
