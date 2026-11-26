@@ -970,6 +970,21 @@ export const sessions = pgTable('sessions', {
 });
 
 /**
+ * Which account at the account service is which person on this server. A browser that reaches the
+ * server through the tunnel proves its account; this says who that is here. One account is one
+ * person, and a person has at most one account.
+ */
+export const accountLinks = pgTable('account_links', {
+  /** The account user's id at the account service (a ticket's `sub`). */
+  accountUserId: text('account_user_id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .unique()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: created(),
+});
+
+/**
  * Phones that want notifications while the app is closed. A device belongs to the session that
  * registered it: once that session ends, the device gets nothing more.
  */
