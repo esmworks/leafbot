@@ -7,6 +7,7 @@ import type { T } from '../i18n';
 import type { DialOptions } from '@leafbot/shared/egress';
 import { startSandboxProxy, type SandboxProxy } from './sandbox-proxy';
 import type { FileTool } from './pi-files';
+import { RESULT_TOOL } from './pi-results';
 import type { Sandbox, ToolResult } from './types';
 
 /** As long as a Claude bot's command may run by default, and at most. */
@@ -60,6 +61,8 @@ export interface ShellOptions {
   cli?: string;
   /** Tests pass stand-ins for the way out's name lookup and connections. */
   dial?: DialOptions;
+  /** Keeps a long output whole for the conversation; gives the name the bot reads it back by. */
+  keep?: (text: string) => string;
 }
 
 /**
@@ -141,7 +144,7 @@ export function shellRun(sb: Sandbox, t: T, o: ShellOptions): ShellRun {
       return [
         t('shell.exitCode', { code: r.code ?? '-' }),
         ...notes,
-        shorten(output, t) || t('shell.noOutput'),
+        shorten(output, t, o.keep) || t('shell.noOutput'),
       ]
         .join('\n')
         .trim();
@@ -162,12 +165,19 @@ export function shellRun(sb: Sandbox, t: T, o: ShellOptions): ShellRun {
 /** A path as one shell word. */
 const quoted = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
 
-/** The start and the end of a long output, with a line saying how much was left out. */
-function shorten(text: string, t: T): string {
+/**
+ * The start and the end of a long output, with a line saying how much was left out; with `keep`,
+ * the whole of it is kept and the line says where the left-out middle starts.
+ */
+function shorten(text: string, t: T, keep?: (text: string) => string): string {
   if (text.length <= OUTPUT_MAX) return text;
   const head = Math.floor(OUTPUT_MAX / 5);
   const tail = OUTPUT_MAX - head;
-  return `${text.slice(0, head)}\n${t('shell.cut', { count: text.length - OUTPUT_MAX })}\n${text.slice(-tail)}`;
+  const count = text.length - OUTPUT_MAX;
+  const cut = keep
+    ? t('shell.kept', { count, id: keep(text), offset: head, tool: RESULT_TOOL })
+    : t('shell.cut', { count });
+  return `${text.slice(0, head)}\n${cut}\n${text.slice(-tail)}`;
 }
 
 interface Ran {

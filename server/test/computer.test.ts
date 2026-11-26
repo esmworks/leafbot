@@ -16,6 +16,7 @@ import { desc, eq } from 'drizzle-orm';
 import { RfbClientFilter } from '../src/computer/rfb-filter';
 import { schema } from '../src/db';
 import type { AppTool } from '../src/engine/types';
+import { STUCK_AFTER } from '../src/computer/screen-watch';
 import { KEY, testServer, waitFor, type TestServer } from './helpers';
 
 const TOKEN = 'computer-test-token-0123456789abcdef';
@@ -213,6 +214,27 @@ describe('botun bilgisayarı', () => {
     const r = await tool(name).handler(args);
     return typeof r === 'string' ? r : r.text;
   };
+
+  it('yeni bir şey göstermeyen ekranda dönen botun ekranını kapatır, komutlarını bırakır', async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    await t.send(thread.id, '[araç:computer_screenshot]');
+    await t.services.turns.idle();
+    // The same picture again and again: the turn's tools keep one watch.
+    for (let i = 0; i < STUCK_AFTER - 1; i++) await tool('computer_screenshot').handler({});
+    const stopped = await tool('computer_screenshot').handler({});
+    expect(stopped).toMatchObject({
+      text: expect.stringContaining('Durduruldun'),
+      images: [],
+      fromServer: true,
+    });
+    const actions = fake.calls.filter((c) => c.op === 'action').length;
+    expect(await tool('computer_click').handler({ x: 1, y: 1, button: 'left', count: 1 })).toEqual(stopped);
+    expect(fake.calls.filter((c) => c.op === 'action')).toHaveLength(actions);
+    expect(await text('run_command', { command: 'ls', timeout_seconds: 5, background: false })).toContain(
+      'çalıştı: ls',
+    );
+  });
 
   it('ekrana kartsız bakar; masaüstünü botun klasörleriyle açar, sunucu kabuğunu açık bırakır', async () => {
     const info = await waitFor(async () => {

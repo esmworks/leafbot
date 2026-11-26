@@ -60,8 +60,11 @@ export function buildSystemPrompt(opts: {
   bot: Bot;
   paths: WorkspacePaths;
   cwd: string;
-  /** `room`: the notes of the place the conversation is in, when it is in one. */
-  memory: { user: Memory[]; bot: Memory[]; room?: Memory[] };
+  /**
+   * `room`: the notes of the place the conversation is in, when it is in one; `common`: the notes
+   * for every bot, where they reach.
+   */
+  memory: { user: Memory[]; bot: Memory[]; room?: Memory[]; common?: Memory[] };
   profile?: UserProfile;
   peers: Bot[];
   timezone: string;
@@ -132,8 +135,12 @@ export function buildSystemPrompt(opts: {
     user,
     bot: own,
     room,
-    left,
+    left: leftOwn,
   } = withinBudget(memory.user, memory.bot, MEMORY_PROMPT_CHARS, memory.room ?? []);
+  // The notes for every bot have a room of their own: they cannot crowd out what this bot and this
+  // person know, nor be crowded out by it.
+  const { room: common, left: leftCommon } = withinBudget([], [], COMMON_PROMPT_CHARS, memory.common ?? []);
+  const left = leftOwn + leftCommon;
   // Each note carries the day it was last written, so the bot can tell an old fact from a new one
   // ("moved to Izmir" in 2024 against "lives in Ankara" today).
   const day = new Intl.DateTimeFormat('en-CA', { timeZone: opts.timezone, dateStyle: 'short' });
@@ -141,8 +148,14 @@ export function buildSystemPrompt(opts: {
   // never a rule of this prompt or a request of the person's.
   // A note that is only true for a while says until when, so the bot knows the fact is temporary.
   const note = (m: Memory) =>
-    `- (${day.format(new Date(m.updatedAt))}) ${m.validUntil ? `(${t('prompt.noteUntil', { date: day.format(new Date(m.validUntil)) })}) ` : ''}${m.source.startsWith('bot:') ? `${t('prompt.botNote')} ` : ''}${listed(m.content, 2000)}`;
-  if (user.length || own.length || room.length) lines.push('', t('prompt.memoryNotes'));
+    `- (${day.format(new Date(m.updatedAt))}) ${m.validUntil ? `(${t('prompt.noteUntil', { date: day.format(new Date(m.validUntil)) })}) ` : ''}${m.source.startsWith('bot:') ? `${t('prompt.botNote')} ` : ''}${m.unverified ? `${t('prompt.unverifiedNote')} ` : ''}${listed(m.content, 2000)}`;
+  if (user.length || own.length || room.length || common.length) lines.push('', t('prompt.memoryNotes'));
+  // A note written with outside text in the conversation is that text's, as far as anyone knows.
+  if ([...user, ...own, ...room, ...common].some((m) => m.unverified)) lines.push(t('prompt.unverifiedHow'));
+  if (common.length) {
+    lines.push('', t('prompt.commonMemory'));
+    for (const m of common) lines.push(note(m));
+  }
   if (user.length) {
     lines.push('', t('prompt.userMemory'));
     for (const m of user) lines.push(note(m));
@@ -343,6 +356,8 @@ export function handoffPrompt(opts: {
 
 /** How much memory text goes into a prompt; about 6,000 tokens. */
 export const MEMORY_PROMPT_CHARS = 24_000;
+/** Most text of the notes for every bot one prompt carries, beside `MEMORY_PROMPT_CHARS`. */
+export const COMMON_PROMPT_CHARS = 6000;
 
 /**
  * Most text the pinned notes of one owner (a person, a bot, a place) may hold. A bot's prompt

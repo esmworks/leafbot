@@ -150,6 +150,7 @@ export const toMemory = (r: Row<typeof schema.memories>): Memory => ({
   sourceUrl: r.sourceUrl,
   place: r.place,
   pinned: r.pinned,
+  unverified: r.unverified,
   validUntil: r.validUntil?.toISOString() ?? null,
   createdAt: r.createdAt.toISOString(),
   updatedAt: r.updatedAt.toISOString(),

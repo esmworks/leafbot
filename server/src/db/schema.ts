@@ -512,7 +512,7 @@ export const memories = pgTable(
     id: text('id').primaryKey(),
     // `room`: a note about a place (a chat app channel or a room), read by every bot that talks there
     // and by nobody anywhere else.
-    scope: text('scope', { enum: ['bot', 'user', 'room'] }).notNull(),
+    scope: text('scope', { enum: ['bot', 'user', 'room', 'common'] }).notNull(),
     botId: text('bot_id').references(() => bots.id, { onDelete: 'cascade' }),
     /** For a note about the person, whose: each person's notes reach only bots working for them. */
     userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
@@ -520,6 +520,12 @@ export const memories = pgTable(
     place: text('place'),
     /** The person asked for this note to go into every prompt that reaches it, before the rest. */
     pinned: boolean('pinned').notNull().default(false),
+    /**
+     * A bot wrote it while outside text (a page, a mail, a command's output) was in its conversation,
+     * so it may say what that text said rather than what is true. It reaches bots marked so, as
+     * data; the person's own edit or a yes clears it.
+     */
+    unverified: boolean('unverified').notNull().default(false),
     content: sealedText('content').notNull(),
     /** A note on how a site works, given to the bot when it opens that site rather than every turn. */
     site: text('site'),
@@ -1527,7 +1533,7 @@ export const memoryChanges = pgTable(
     action: text('action', { enum: ['write', 'update', 'forget'] }).notNull(),
     /** The note an update or a forget is about; the change goes when the note does. */
     memoryId: text('memory_id').references(() => memories.id, { onDelete: 'cascade' }),
-    scope: text('scope', { enum: ['bot', 'user', 'room'] }).notNull(),
+    scope: text('scope', { enum: ['bot', 'user', 'room', 'common'] }).notNull(),
     botId: text('bot_id').references(() => bots.id, { onDelete: 'cascade' }),
     /** For a room note, its place (see `memories.place`). */
     place: text('place'),
@@ -1839,10 +1845,33 @@ export const botTables = pgTable(
     columns: jsonb('columns')
       .$type<{ name: string; type: 'text' | 'number' | 'date' | 'bool' | 'url' }[]>()
       .notNull(),
+    /** How the table is laid out on screen (`TableView`); null for the grid. */
+    view: jsonb('view').$type<{ kind: 'grid' | 'board' | 'gallery' | 'list'; group: string | null }>(),
     createdAt: created(),
     updatedAt: ts('updated_at').notNull().defaultNow(),
   },
   (t) => [uniqueIndex('bot_tables_name_uq').on(t.botId, t.name)],
+);
+
+/**
+ * Tables another bot is let into: it reads the rows, and with `write` changes them. Goes with the
+ * table and with the bot let in.
+ */
+export const botTableShares = pgTable(
+  'bot_table_shares',
+  {
+    tableId: text('table_id')
+      .notNull()
+      .references(() => botTables.id, { onDelete: 'cascade' }),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    write: boolean('write').notNull().default(false),
+    /** The person who shared it. */
+    grantedBy: text('granted_by'),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.tableId, t.botId] }), index('bot_table_shares_bot_idx').on(t.botId)],
 );
 
 export const botTableRows = pgTable(

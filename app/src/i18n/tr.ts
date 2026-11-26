@@ -2343,6 +2343,13 @@ export const tr = {
     '{days} gündür bunları kimse değiştirmedi, hiçbir bot da bakmadı; her turda okuyan bir bot da yok. Artık gerekmeyenleri silin; kalanlar durur, botlar onları aramayla yine bulur.',
   'memory.staleShared': 'Sizin hakkınızda',
   'memory.scopeRoom': 'Yer notu',
+  'memory.scopeCommon': 'Ortak bilgi',
+  'memory.common': 'Ortak bilgi (herkesin botları görür)',
+  'memory.commonHint':
+    'Sunucudaki her botun bilmesi gereken şeyler; herkesin konuşmalarına gider, misafirlere ve WhatsApp kişilerine gitmez. Burada yazdığın hemen geçer; bir botun eklemek, değiştirmek ya da silmek istediği yukarıda onay bekler.',
+  'memory.commonHintMember':
+    'Sunucuya bakanların her bot için yazdığı bilgiler. Değiştirmek için onlara sor.',
+  'memory.commonPlaceholder': 'Her botun bilmesi gereken bir şey ekleyin',
   'memory.lastUsed': 'en son {when} bakıldı',
   'memory.neverUsed': 'hiç bakılmadı, son değişiklik {when}',
   'memory.staleDeleteAllConfirm': 'Hiçbir botun kullanmadığı {count} notun hepsi silinsin mi? Geri alınamaz.',
@@ -3238,7 +3245,7 @@ export const tr = {
     'WhatsApp bağlantısı kesilsin mi? Cihaz Bağlı cihazlar listesinden çıkar ve anahtarları silinir.',
   'memory.pending': 'Onay bekleyenler',
   'memory.pendingHint':
-    'Bu botu değiştirme yetkisi olmayan birinin istediği bot notu değişiklikleri. Not o botu kullanan herkese ulaştığı için, botu değiştirebilen biri kabul edene kadar yapılmaz.',
+    'Bu botu değiştirme yetkisi olmayan birinin istediği bot notu değişiklikleri ve botların ortak bilgi için önerdikleri. Bu notlar birden çok kişiye ulaştığı için, karar verebilen biri kabul edene kadar yapılmaz.',
   'memory.change.write': 'Yeni not',
   'memory.change.update': 'Düzeltme',
   'memory.change.forget': 'Silme',
@@ -3373,6 +3380,10 @@ export const tr = {
   'memory.pin': 'Sabitle',
   'memory.unpin': 'Sabitlemeyi kaldır',
   'memory.pinned': 'Sabit',
+  'memory.unverified':
+    'Doğrulanmamış: bir bot bunu dış metin (bir sayfa, bir e-posta, bir komut çıktısı) okunan bir sohbette yazdı. Botlar onu dış veri olarak okur.',
+  'memory.verify': 'Doğru, doğrula',
+  'memory.unverifiedShort': 'Doğrulanmamış',
   'memory.viewList': 'Liste',
   'memory.viewMap': 'Harita',
   'memory.mapTitle': 'Notların haritası',
@@ -3439,6 +3450,25 @@ export const tr = {
   'tables.type.date': 'tarih',
   'tables.type.bool': 'evet/hayır',
   'tables.type.url': 'bağlantı',
+  'tables.view': 'Görünüm',
+  'tables.share': 'Paylaş',
+  'tables.shareHint':
+    'Paylaştığın bot bu tablonun satırlarını okur; yazma izni verirsen satır ekler, değiştirir ve siler. Satırlar o botla konuşan herkesin önüne gelebilir. Sütunlar ve tablonun kendisi bu botta kalır.',
+  'tables.shareAdd': 'Bir botla paylaş',
+  'tables.shareLevel': 'İzin',
+  'tables.shareRead': 'Yalnızca okur',
+  'tables.shareWrite': 'Okur ve yazar',
+  'tables.unshare': '{bot} ile paylaşmayı bırak',
+  'tables.shareOtherBot': 'Göremediğin bir bot',
+  'tables.view.grid': 'Tablo',
+  'tables.view.board': 'Pano',
+  'tables.view.gallery': 'Galeri',
+  'tables.view.list': 'Liste',
+  'tables.groupBy': 'Gruplama',
+  'tables.groupByColumn': 'Gruplama: {column}',
+  'tables.noGroup': 'Gruplama yok',
+  'tables.noValue': 'Boş',
+  'tables.boardHint': 'Bir kartı başka bir şeride sürükleyerek “{column}” değerini değiştirebilirsin.',
 } satisfies Catalog;
 
 export type MessageKey = keyof typeof tr;

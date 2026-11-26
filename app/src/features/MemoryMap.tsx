@@ -38,7 +38,7 @@ export function MemoryMap({
   notes: Memory[];
   bots: Bot[];
   rooms: Pick<Room, 'id' | 'title'>[];
-  noteProps: Pick<Parameters<typeof NoteRow>[0], 'onSave' | 'onPin' | 'onForget'>;
+  noteProps: Pick<Parameters<typeof NoteRow>[0], 'onSave' | 'onPin' | 'onForget' | 'onVerify'>;
 }) {
   const t = useT();
   const { data: graph } = useQuery({ queryKey: ['memory', 'graph'], queryFn: api.memoryGraph });
@@ -46,11 +46,17 @@ export function MemoryMap({
   const [hover, setHover] = useState<string | null>(null);
   const botOf = useMemo(() => new Map(bots.map((b) => [b.id, b])), [bots]);
   const groupOf = (m: Memory) =>
-    m.scope === 'user' ? 'user' : m.scope === 'room' ? `room:${m.place ?? ''}` : `bot:${m.botId ?? ''}`;
+    m.scope === 'user'
+      ? 'user'
+      : m.scope === 'room'
+        ? `room:${m.place ?? ''}`
+        : m.scope === 'common'
+          ? 'common'
+          : `bot:${m.botId ?? ''}`;
   const colorOf = (m: Memory) =>
     m.scope === 'user'
       ? USER_COLOR
-      : m.scope === 'room'
+      : m.scope === 'room' || m.scope === 'common'
         ? PLACE_COLOR
         : (botOf.get(m.botId ?? '')?.color ?? PLACE_COLOR);
   const ownerOf = (m: Memory) =>
@@ -58,7 +64,9 @@ export function MemoryMap({
       ? t('memory.user')
       : m.scope === 'room'
         ? placeLabel(m.place, t, rooms)
-        : (botOf.get(m.botId ?? '')?.name ?? t('common.bot'));
+        : m.scope === 'common'
+          ? t('memory.common')
+          : (botOf.get(m.botId ?? '')?.name ?? t('common.bot'));
   // A map of thousands of dots reads as nothing and takes long to lay out: the notes with links
   // come first, then the ones bots look up most.
   const notes = useMemo(() => {

@@ -14,7 +14,13 @@ export function changeLabel(c: MemoryChange): string {
 export function changeHint(c: MemoryChange, bots: readonly Pick<Bot, 'id' | 'name'>[], t: T): string {
   const name = (id: string | null) => bots.find((b) => b.id === id)?.name ?? t('common.bot');
   const whose =
-    c.scope === 'user' ? t('memory.staleShared') : c.scope === 'room' ? t('memory.scopeRoom') : name(c.botId);
+    c.scope === 'user'
+      ? t('memory.staleShared')
+      : c.scope === 'room'
+        ? t('memory.scopeRoom')
+        : c.scope === 'common'
+          ? t('memory.scopeCommon')
+          : name(c.botId);
   const origin = c.origin.name
     ? t(`memory.origin.${c.origin.kind}`, { name: c.origin.name })
     : t('memory.origin.unknown');

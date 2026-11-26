@@ -23,6 +23,8 @@ import type {
   DashboardView,
   RowValues,
   TableRow,
+  TableShare,
+  TableView,
   TelegramStatus,
   DiscordConnect,
   DiscordStatus,
@@ -615,7 +617,7 @@ export function endpoints(send: Transport, base = '') {
     memory: () => http.get<Memory[]>('/api/memory'),
     memoryGraph: () => http.get<MemoryGraph>('/api/memory/graph'),
     addMemory: (m: {
-      scope: 'bot' | 'user';
+      scope: 'bot' | 'user' | 'common';
       botId?: string | null;
       content: string;
       site?: string | null;
@@ -623,7 +625,14 @@ export function endpoints(send: Transport, base = '') {
     }) => http.post<Memory>('/api/memory', m),
     updateMemory: (
       id: string,
-      p: { content?: string; pinned?: boolean; validUntil?: string | null; updatedAt?: string },
+      p: {
+        content?: string;
+        pinned?: boolean;
+        validUntil?: string | null;
+        updatedAt?: string;
+        /** The person says the note is right: it is no longer marked as written from outside text. */
+        verified?: true;
+      },
     ) => http.patch<Memory>(`/api/memory/${id}`, p),
     memoryHistory: () => http.get<MemoryHistoryLine[]>('/api/memory-history'),
     removeMemory: (id: string) => http.del<{ ok: true }>(`/api/memory/${id}`),
@@ -703,6 +712,13 @@ export function endpoints(send: Transport, base = '') {
     deleteTableRow: (id: string, rowId: string) =>
       http.del<{ deleted: number }>(`/api/tables/${id}/rows/${rowId}`),
     removeTable: (id: string) => http.del<{ ok: true }>(`/api/tables/${id}`),
+    /** Lays the table out another way, for everyone who opens it. */
+    setTableView: (id: string, view: TableView) => http.put<BotTable>(`/api/tables/${id}/view`, view),
+    /** The other bots let into a table. */
+    tableShares: (id: string) => http.get<TableShare[]>(`/api/tables/${id}/shares`),
+    shareTable: (id: string, botId: string, write: boolean) =>
+      http.put<TableShare>(`/api/tables/${id}/shares/${botId}`, { write }),
+    unshareTable: (id: string, botId: string) => http.del<{ ok: true }>(`/api/tables/${id}/shares/${botId}`),
     dashboards: () => http.get<DashboardSummary[]>('/api/dashboards'),
     dashboard: (id: string) => http.get<DashboardView>(`/api/dashboards/${id}`),
     removeDashboard: (id: string) => http.del<{ ok: true }>(`/api/dashboards/${id}`),

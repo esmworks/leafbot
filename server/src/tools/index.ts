@@ -1,3 +1,4 @@
+import { ScreenWatch } from '../computer/screen-watch';
 import {
   BRAND_COLOR,
   BotCreate,
@@ -838,6 +839,31 @@ export class ToolFactory {
     // The place this conversation is in, for the notes about a place; null when it is in none.
     let placeHere: Promise<string | null> | undefined;
     const place = () => (placeHere ??= placeOf(this.ctx, thread));
+    /**
+     * A change to the notes for every bot: they reach every bot and everyone's conversations, so a
+     * bot only proposes it, and those who look after the server decide on the memory screen.
+     */
+    const proposeCommon = async (c: {
+      action: 'write' | 'update' | 'forget';
+      memoryId: string | null;
+      content: string;
+      before: string | null;
+      site: string | null;
+      sourceUrl: string | null;
+      validUntil: string | null;
+    }) => {
+      await s.memory.propose({
+        ...c,
+        scope: 'common',
+        botId: null,
+        place: null,
+        proposedBy: bot.id,
+        origin: { kind: reads() ? 'outside' : 'bot', name: bot.name },
+        userId: person,
+        threadId: thread.id,
+      });
+      return t('tool.memoryCommonProposed');
+    };
     const memoryOwners = async (): Promise<Map<string, string>> => {
       if (!bot.isManager) return new Map([[bot.id, bot.name]]);
       const all = await s.bots.list({ includeArchived: true });
@@ -2056,6 +2082,7 @@ export class ToolFactory {
             query?.trim() || undefined,
             !botRef?.trim(),
             await place(),
+            !guest && !opts.contact,
           );
           if (!found.length) return t('tool.notFound');
           const whose = (m: Memory) =>
@@ -2063,13 +2090,15 @@ export class ToolFactory {
               ? t('tool.scopeUser')
               : m.scope === 'room'
                 ? t('tool.scopeRoom')
-                : m.botId === bot.id
-                  ? t('tool.scopeBot')
-                  : owners.get(m.botId!);
+                : m.scope === 'common'
+                  ? t('tool.scopeCommon')
+                  : m.botId === bot.id
+                    ? t('tool.scopeBot')
+                    : owners.get(m.botId!);
           return found
             .map(
               (m) =>
-                `- [${m.id}] (${whose(m)}${m.site ? ` · ${m.site}` : ''}) ${m.content}${m.sourceUrl ? ` (${t('tool.memorySource', { url: m.sourceUrl })})` : ''}${m.validUntil ? ` (${t('tool.memoryUntil', { date: m.validUntil })})` : ''}`,
+                `- [${m.id}] (${whose(m)}${m.site ? ` · ${m.site}` : ''}) ${m.unverified ? `${t('prompt.unverifiedNote')} ` : ''}${m.content}${m.sourceUrl ? ` (${t('tool.memorySource', { url: m.sourceUrl })})` : ''}${m.validUntil ? ` (${t('tool.memoryUntil', { date: m.validUntil })})` : ''}`,
             )
             .join('\n');
         },
@@ -2079,7 +2108,7 @@ export class ToolFactory {
         'memory_write',
         {
           content: z.string().min(1).max(2000),
-          scope: z.enum(['bot', 'user', 'room']).default('bot'),
+          scope: z.enum(['bot', 'user', 'room', 'common']).default('bot'),
           site: z.string().max(253).optional(),
           from: z.string().max(2000).optional(),
           until: z.string().max(40).optional(),
@@ -2100,6 +2129,19 @@ export class ToolFactory {
           }
           if (team && scope === 'user') return t('tool.memoryTeamPersonal');
           if (guest && scope === 'bot') return t('tool.memoryGuest');
+          if (scope === 'common') {
+            if (guest || opts.contact) return t('tool.memoryGuest');
+            const clean = redactSecrets(content, t('memory.redacted'));
+            return proposeCommon({
+              action: 'write',
+              memoryId: null,
+              content: clean.text,
+              before: null,
+              site: host,
+              sourceUrl,
+              validUntil,
+            });
+          }
           const where = scope === 'room' ? await place() : null;
           if (scope === 'room' && !where) return t('tool.memoryNoPlace');
           const clean = redactSecrets(content, t('memory.redacted'));
@@ -2125,6 +2167,8 @@ export class ToolFactory {
             threadId: thread.id,
             sourceUrl,
             validUntil,
+            // Outside text in the conversation may be what the note repeats: it reaches bots as data.
+            unverified: !!reads(),
           });
           await journal({
             kind: 'memory',
@@ -2143,7 +2187,8 @@ export class ToolFactory {
         // The bot keeps its memory itself, whoever it works for: asking someone to approve each note
         // asks them to judge facts from conversations they were not in. Everything it writes shows in
         // the memory screen and its history, where those who may change the bot change or delete it,
-        // and the weekly tidy-up settles duplicates and contradictions.
+        // and the weekly tidy-up settles duplicates and contradictions. A note written with outside
+        // text in the conversation is marked: bots read it as data until the person vouches for it.
         'internal',
       ),
       def(
@@ -2162,6 +2207,19 @@ export class ToolFactory {
           if (validUntil === undefined && until !== undefined) return t('tool.memoryBadUntil', { until });
           if (validUntil && new Date(validUntil).getTime() <= Date.now()) return t('tool.memoryUntilPast');
           const m = await s.memory.get(id);
+          if (m.scope === 'common') {
+            if (guest || opts.contact) return t('tool.memoryGuest');
+            const clean = redactSecrets(content, t('memory.redacted'));
+            return proposeCommon({
+              action: 'update',
+              memoryId: m.id,
+              content: clean.text,
+              before: m.content,
+              site: m.site,
+              sourceUrl,
+              validUntil: validUntil ?? null,
+            });
+          }
           const here = await place();
           if (
             (team && m.scope === 'user') ||
@@ -2181,6 +2239,8 @@ export class ToolFactory {
                 expectedUpdatedAt: m.updatedAt,
                 ...sourceOf({ threadId: thread.id, sourceUrl }),
                 ...(validUntil !== undefined && { validUntil }),
+                // New words from a conversation with outside text in it are marked; a bot never clears the mark.
+                ...(reads() && { unverified: true }),
               },
               `bot:${bot.id}`,
             );
@@ -2211,6 +2271,18 @@ export class ToolFactory {
         { id: z.string() },
         async ({ id }) => {
           const m = await s.memory.get(id);
+          if (m.scope === 'common') {
+            if (guest || opts.contact) return t('tool.memoryGuest');
+            return proposeCommon({
+              action: 'forget',
+              memoryId: m.id,
+              content: m.content,
+              before: null,
+              site: m.site,
+              sourceUrl: null,
+              validUntil: null,
+            });
+          }
           const owners = await memoryOwners();
           const here = await place();
           if (
@@ -2678,7 +2750,15 @@ export class ToolFactory {
       }),
     );
     tools.push(
-      ...tableTools({ def, services: s, botId: bot.id, t, note: journal, hasTables: opts.hasTables ?? true }),
+      ...tableTools({
+        def,
+        services: s,
+        botId: bot.id,
+        t,
+        note: journal,
+        hasTables: opts.hasTables ?? true,
+        shared: !guest && !opts.contact,
+      }),
       ...dashboardTools({ def, services: s, botId: bot.id, person, onlyOwn: team || guest, t }),
     );
     // With the internet off the bot gets neither its browser nor its desktop, which reach it too.
@@ -2800,7 +2880,9 @@ export class ToolFactory {
           ownRoutine: turn.source === 'routine' && !turn.guest,
           siteNotes: async (host) =>
             bot.memory
-              ? (await s.memory.forSite(bot.id, host, own, await place())).map((m) => m.content)
+              ? (await s.memory.forSite(bot.id, host, own, await place())).map(
+                  (m) => `${m.unverified ? `${t('prompt.unverifiedNote')} ` : ''}${m.content}`,
+                )
               : [],
           exitNote: () => this.ctx.egress?.takeExitNote(bot.id) ?? null,
           signal,
@@ -2857,6 +2939,8 @@ export class ToolFactory {
         );
       }
     }
+    // One watch over the screens this turn looks at, the desktop's and the person's computer's alike.
+    const screens = new ScreenWatch();
     if (this.ctx.computer && bot.internet) {
       // Commands run in the thread's own work folder, which the desktop sees at the same path.
       const cwd = workspacePaths(this.ctx.config.dataDir, bot.id, thread.id, bot.groupId).threadDir;
@@ -2867,6 +2951,7 @@ export class ToolFactory {
         computer: this.ctx.computer,
         cwd,
         signal,
+        watch: screens,
         // A person's own GitHub only for work their own message started in their own conversation,
         // or that another bot handed on from such a message with no outside text read on the way
         // (asked at each command, so a page read before it counts): a routine, a mail, a
@@ -2902,7 +2987,9 @@ export class ToolFactory {
       !turn.guest &&
       bot.permissionMode !== 'readonly'
     ) {
-      tools.push(...personComputerTools({ def, botId: bot.id, botName: bot.name, t, computer: mac }));
+      tools.push(
+        ...personComputerTools({ def, botId: bot.id, botName: bot.name, t, computer: mac, watch: screens }),
+      );
     }
     // Commands on that person's computer, under the same conditions, when its desktop app lets
     // bots run them. Through the desktop app only, never the server's own helper: the switch that

@@ -318,6 +318,7 @@ export class MemoryReviewService {
       shown,
       botNotes,
       flags: new Map(flags.filter((f) => request.flagsShown.has(f.id)).map((f) => [f.id, f])),
+      outside,
     });
     if (changed) this.ctx.bus.refresh({ scope: 'memory' });
   }
@@ -458,6 +459,8 @@ export class MemoryReviewService {
       botNotes: boolean;
       /** The gaps the review was shown, the only ones it may settle. */
       flags: Map<string, FlagRow>;
+      /** Whether outside text was in the stretch: what it writes is marked (see `memories.unverified`). */
+      outside: boolean;
     },
   ): Promise<boolean> {
     let changed = false;
@@ -502,7 +505,7 @@ export class MemoryReviewService {
       };
       if (await memory.findSame(note)) return false;
       if (note.place && (await memory.roomCount(note.place)) >= ROOM_NOTES_PER_PLACE) return false;
-      await memory.create({ ...note, source: actor, threadId: thread.id });
+      await memory.create({ ...note, source: actor, threadId: thread.id, unverified: c.outside });
       return true;
     }
 
@@ -518,7 +521,13 @@ export class MemoryReviewService {
       try {
         await memory.update(
           m.id,
-          { content: clean!.text, expectedUpdatedAt: m.updatedAt, threadId: thread.id, sourceUrl: null },
+          {
+            content: clean!.text,
+            expectedUpdatedAt: m.updatedAt,
+            threadId: thread.id,
+            sourceUrl: null,
+            ...(c.outside && { unverified: true }),
+          },
           actor,
         );
       } catch (err) {

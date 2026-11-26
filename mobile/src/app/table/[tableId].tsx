@@ -1,4 +1,12 @@
-import { INTL_LOCALE, type TableColumn, type TableRow } from '@leafbot/shared';
+import {
+  findColumn,
+  groupRows,
+  INTL_LOCALE,
+  tableView,
+  type RowGroup,
+  type TableColumn,
+  type TableRow,
+} from '@leafbot/shared';
 import { cellDraft, cellLabel, filterRows, SHOWN_ROWS } from '@leafbot/app/src/lib/tableView';
 import Feather from '@expo/vector-icons/Feather';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -40,6 +48,10 @@ export default function Screen() {
   );
   // A long table shows its newest rows, where a row just added lands; the newest first on a phone.
   const shown = found.slice(-SHOWN_ROWS).reverse();
+  // Grouped as the table's view says; every view shows as cards here, as the phone already does.
+  const view = table ? tableView(table) : null;
+  const group = view?.group ? findColumn(columns, view.group) : undefined;
+  const groups: RowGroup[] = group ? groupRows(shown, group) : [{ key: '', value: null, rows: shown }];
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['table-rows', origin, tableId] });
     void qc.invalidateQueries({ queryKey: ['tables', origin, botId] });
@@ -86,6 +98,39 @@ export default function Screen() {
     if (next === null || next === cellDraft(value)) return;
     save.mutate({ rowId: row.id, column: col.name, value: next });
   };
+
+  const card = (row: TableRow) => (
+    <View key={row.id} style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
+      {columns.map((col) => {
+        const label = cellLabel(row.values[col.name], col, number, yes, no);
+        return (
+          <Pressable
+            key={col.name}
+            accessibilityRole="button"
+            accessibilityLabel={
+              col.type === 'bool' ? t('tables.toggle', { column: col.name }) : `${col.name}: ${label}`
+            }
+            onPress={() => void edit(row, col)}
+            style={({ pressed }) => [styles.cell, pressed && { backgroundColor: c.accent }]}
+          >
+            <Text style={[styles.column, { color: c.mutedForeground }]} numberOfLines={1}>
+              {col.name}
+            </Text>
+            <Text style={[styles.value, { color: c.foreground }]}>{label}</Text>
+          </Pressable>
+        );
+      })}
+      <View style={styles.rowEnd}>
+        <PillButton
+          icon="trash-2"
+          label={t('tables.deleteRow')}
+          variant="ghost"
+          disabled={removeRow.isPending}
+          onPress={() => removeRow.mutate(row.id)}
+        />
+      </View>
+    </View>
+  );
 
   if (tablesLoading) {
     return (
@@ -141,38 +186,19 @@ export default function Screen() {
               {t('tables.more', { shown: SHOWN_ROWS, total: found.length })}
             </Text>
           ) : null}
-          {shown.map((row) => (
-            <View key={row.id} style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-              {columns.map((col) => {
-                const label = cellLabel(row.values[col.name], col, number, yes, no);
-                return (
-                  <Pressable
-                    key={col.name}
-                    accessibilityRole="button"
-                    accessibilityLabel={
-                      col.type === 'bool' ? t('tables.toggle', { column: col.name }) : `${col.name}: ${label}`
-                    }
-                    onPress={() => void edit(row, col)}
-                    style={({ pressed }) => [styles.cell, pressed && { backgroundColor: c.accent }]}
-                  >
-                    <Text style={[styles.column, { color: c.mutedForeground }]} numberOfLines={1}>
-                      {col.name}
-                    </Text>
-                    <Text style={[styles.value, { color: c.foreground }]}>{label}</Text>
-                  </Pressable>
-                );
-              })}
-              <View style={styles.rowEnd}>
-                <PillButton
-                  icon="trash-2"
-                  label={t('tables.deleteRow')}
-                  variant="ghost"
-                  disabled={removeRow.isPending}
-                  onPress={() => removeRow.mutate(row.id)}
-                />
+          {groups
+            .filter((g) => g.rows.length)
+            .map((g) => (
+              <View key={g.key} style={styles.list}>
+                {group ? (
+                  <Text style={[styles.group, { color: c.mutedForeground }]}>
+                    {g.key ? cellLabel(g.value, group, number, yes, no) : t('tables.noValue')} ·{' '}
+                    {g.rows.length}
+                  </Text>
+                ) : null}
+                {g.rows.map(card)}
               </View>
-            </View>
-          ))}
+            ))}
         </View>
       )}
       <Sheet
@@ -212,6 +238,7 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 16 },
   list: { gap: 10 },
+  group: { fontSize: 13, fontWeight: '600', paddingTop: 6 },
   card: { borderRadius: 16, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden', paddingVertical: 4 },
   cell: { paddingHorizontal: 14, paddingVertical: 8, gap: 2 },
   column: { fontSize: 13 },

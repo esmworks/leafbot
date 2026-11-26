@@ -295,6 +295,10 @@ export function asOutsideData(source: string, text: string, t: T): string {
 export function markedOutside(tool: AppTool, source: string | null, t: T): AppTool {
   if (!source) return tool;
   const mark = (r: ToolResult): ToolResult =>
-    typeof r === 'string' ? asOutsideData(source, r, t) : { ...r, text: asOutsideData(source, r.text, t) };
+    typeof r === 'string'
+      ? asOutsideData(source, r, t)
+      : r.fromServer
+        ? r
+        : { ...r, text: asOutsideData(source, r.text, t) };
   return { ...tool, handler: async (args) => mark(await tool.handler(args)) };
 }

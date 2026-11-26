@@ -806,6 +806,27 @@
       "when": 1795642269014,
       "tag": "0114_person_jobs",
       "breakpoints": true
+    },
+    {
+      "idx": 115,
+      "version": "7",
+      "when": 1795645977534,
+      "tag": "0115_unverified_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 116,
+      "version": "7",
+      "when": 1795647643317,
+      "tag": "0116_table_views",
+      "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1795648151851,
+      "tag": "0117_table_shares",
+      "breakpoints": true
     }
   ]
 }

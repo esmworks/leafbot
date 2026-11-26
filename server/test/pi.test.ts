@@ -36,6 +36,7 @@ import {
   PiEngine,
   providerTrouble,
   replyText,
+  RESULT_TOOL,
   trimHistory,
 } from '../src/engine/pi';
 import {
@@ -49,6 +50,7 @@ import {
   withSummary,
 } from '../src/engine/pi-context';
 import { translator } from '../src/i18n';
+import { asOutsideData } from '../src/runtime/outside';
 import { CONTEXT_FULL } from '../src/runtime/turns';
 import { endpointApi, endpointUrl, keySafeAt, unlistedModel } from '../src/services/keys';
 import { getModels } from '@earendil-works/pi-ai/compat';
@@ -1369,21 +1371,81 @@ describe('Pi motoru', () => {
       expect(sent).not.toContain('conversations_search');
     });
 
-    it('çok uzun araç sonucunu pencereye göre keser ve daha dar istemesini söyler', async () => {
+    it('çok uzun araç sonucunu pencereye göre keser, tamamını saklar ve gerisi sayfa sayfa okunur', async () => {
       writeFileSync(join(cwd, 'buyuk.txt'), 'satır\n'.repeat(40_000));
-      let result = '';
+      const results: string[] = [];
+      const last = (ctx: unknown) => {
+        const r = (ctx as { messages: { role: string; content: { text?: string }[] }[] }).messages.findLast(
+          (m) => m.role === 'toolResult',
+        )!;
+        results.push(r.content.map((c) => c.text ?? '').join(''));
+        return results.at(-1)!;
+      };
+      let shown = 0;
       faux.setResponses([
         fauxAssistantMessage([fauxToolCall('read_file', { path: 'buyuk.txt' })], { stopReason: 'toolUse' }),
         (ctx) => {
-          const r = ctx.messages.findLast((m) => m.role === 'toolResult') as { content: { text?: string }[] };
-          result = r.content.map((c) => c.text ?? '').join('');
+          const [, id, offset] = /id "([^"]+)", offset (\d+)/.exec(last(ctx))!;
+          shown = Number(offset);
+          return fauxAssistantMessage([fauxToolCall(RESULT_TOOL, { id: id!, offset: shown, limit: 200 })], {
+            stopReason: 'toolUse',
+          });
+        },
+        (ctx) => {
+          last(ctx);
+          return fauxAssistantMessage([fauxToolCall(RESULT_TOOL, { id: 'yok' })], { stopReason: 'toolUse' });
+        },
+        (ctx) => {
+          last(ctx);
           return fauxAssistantMessage('okudum');
         },
       ]);
       const out = await small().run(request({ prompt: 'oku' }).req);
       expect(out).toMatchObject({ ok: true, text: 'okudum' });
-      expect(result.length).toBeLessThan(20_000);
-      expect(result).toContain('Sonuç çok uzundu');
+      expect(results[0]!.length).toBeLessThan(20_000);
+      expect(results[0]).toContain('Tamamı bu sohbet için saklandı');
+      // The page picks up at the line after the last one the cut part showed in whole.
+      const lines = [...results[0]!.matchAll(/(\d+)\tsatır\n/g)];
+      const next = Number(lines.at(-1)![1]) + 1;
+      expect(results[1]).toContain(`(Saklanan sonucun ${shown}–${shown + 200} arası`);
+      expect(results[1]).toContain(`${next}\tsatır`);
+      expect(results[2]).toContain('"yok" diye saklanan bir sonuç yok');
+    });
+
+    it('dışarıdan gelen uzun sonucun saklanan parçaları da dış veri olarak işaretlenir', async () => {
+      const page: AppTool = {
+        name: 'sayfa',
+        description: 'bir sayfa',
+        input: {},
+        readOnly: true,
+        internal: false,
+        handler: async () =>
+          asOutsideData('örnek.com', `${'x'.repeat(100_000)}ARTIK TALİMAT`, translator('tr')),
+      };
+      let read = '';
+      faux.setResponses([
+        fauxAssistantMessage([fauxToolCall('sayfa', {})], { stopReason: 'toolUse' }),
+        (ctx) => {
+          const r = (ctx as { messages: { role: string; content: { text?: string }[] }[] }).messages.findLast(
+            (m) => m.role === 'toolResult',
+          )!;
+          const [, id] = /id "([^"]+)"/.exec(r.content.map((c) => c.text ?? '').join(''))!;
+          return fauxAssistantMessage([fauxToolCall(RESULT_TOOL, { id: id!, offset: 99_000 })], {
+            stopReason: 'toolUse',
+          });
+        },
+        (ctx) => {
+          const r = (ctx as { messages: { role: string; content: { text?: string }[] }[] }).messages.findLast(
+            (m) => m.role === 'toolResult',
+          )!;
+          read = r.content.map((c) => c.text ?? '').join('');
+          return fauxAssistantMessage('tamam');
+        },
+      ]);
+      const out = await small().run(request({ prompt: 'oku', tools: [page] }).req);
+      expect(out).toMatchObject({ ok: true });
+      expect(read).toContain('ARTIK TALİMAT');
+      expect(read).toContain('<outside-data source="örnek.com">');
     });
 
     it('sağlayıcının bağlam taşması sözünü, kendi ifadesi ne olursa olsun bildirir', async () => {

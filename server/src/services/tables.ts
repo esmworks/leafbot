@@ -1,6 +1,7 @@
 import {
   cellText,
   cellValue,
+  DEFAULT_TABLE_VIEW,
   findColumn,
   MAX_COLUMNS,
   MAX_ROWS,
@@ -10,6 +11,8 @@ import {
   type RowValues,
   type TableColumn,
   type TableRow,
+  type TableShare,
+  type TableView,
 } from '@leafbot/shared';
 import { and, asc, count, eq, inArray } from 'drizzle-orm';
 import type { Ctx } from '../context';
@@ -66,6 +69,7 @@ export class TableService {
       botId: r.botId,
       name: r.name,
       columns: r.columns,
+      view: r.view ?? DEFAULT_TABLE_VIEW,
       rowCount,
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
@@ -90,14 +94,73 @@ export class TableService {
     return Number(c?.n ?? 0);
   }
 
-  /** Whether the bot keeps any table at all. */
+  /** Whether the bot keeps any table at all, or was let into another bot's. */
   async any(botId: string): Promise<boolean> {
     const [row] = await this.ctx.db
       .select({ id: schema.botTables.id })
       .from(schema.botTables)
       .where(eq(schema.botTables.botId, botId))
       .limit(1);
-    return !!row;
+    if (row) return true;
+    const [shared] = await this.ctx.db
+      .select({ id: schema.botTableShares.tableId })
+      .from(schema.botTableShares)
+      .where(eq(schema.botTableShares.botId, botId))
+      .limit(1);
+    return !!shared;
+  }
+
+  /** The other bots let into a table. */
+  async shares(tableId: string): Promise<TableShare[]> {
+    const rows = await this.ctx.db
+      .select({ botId: schema.botTableShares.botId, write: schema.botTableShares.write })
+      .from(schema.botTableShares)
+      .where(eq(schema.botTableShares.tableId, tableId))
+      .orderBy(asc(schema.botTableShares.createdAt));
+    return rows;
+  }
+
+  /**
+   * Lets another bot into a table, or changes whether it may write; `by` is the person sharing it.
+   * A bot's own table needs no sharing.
+   */
+  async share(tableId: string, botId: string, write: boolean, by: string | null): Promise<TableShare> {
+    const table = await this.get(tableId);
+    if (table.botId === botId) throw new HttpError(400, 'error.tableShareOwn');
+    await this.ctx.db
+      .insert(schema.botTableShares)
+      .values({ tableId, botId, write, grantedBy: by })
+      .onConflictDoUpdate({
+        target: [schema.botTableShares.tableId, schema.botTableShares.botId],
+        set: { write, grantedBy: by },
+      });
+    this.changed(table.botId);
+    this.changed(botId);
+    return { botId, write };
+  }
+
+  async unshare(tableId: string, botId: string): Promise<void> {
+    const table = await this.get(tableId);
+    await this.ctx.db
+      .delete(schema.botTableShares)
+      .where(and(eq(schema.botTableShares.tableId, tableId), eq(schema.botTableShares.botId, botId)));
+    this.changed(table.botId);
+    this.changed(botId);
+  }
+
+  /** Other bots' tables this bot was let into, each with its owner's name and whether it may write. */
+  async sharedWith(botId: string): Promise<(BotTable & { owner: string; write: boolean })[]> {
+    const rows = await this.ctx.db
+      .select({ table: schema.botTables, owner: schema.bots.name, write: schema.botTableShares.write })
+      .from(schema.botTableShares)
+      .innerJoin(schema.botTables, eq(schema.botTables.id, schema.botTableShares.tableId))
+      .innerJoin(schema.bots, eq(schema.bots.id, schema.botTables.botId))
+      .where(eq(schema.botTableShares.botId, botId))
+      .orderBy(asc(schema.botTableShares.createdAt));
+    const out = [];
+    for (const r of rows)
+      out.push({ ...this.toTable(r.table, await this.rowCount(r.table.id)), owner: r.owner, write: r.write });
+    return out;
   }
 
   /**
@@ -157,6 +220,25 @@ export class TableService {
       if (isUniqueViolation(err)) throw new HttpError(409, 'error.tableExists');
       throw err;
     }
+  }
+
+  /**
+   * Lays the table out another way. The group column must be one the table has, and a board needs
+   * one for its lanes.
+   */
+  async setView(tableId: string, view: TableView): Promise<BotTable> {
+    const table = await this.get(tableId);
+    const group = view.group ? findColumn(table.columns, view.group) : undefined;
+    if (view.group && !group)
+      throw new HttpError(400, 'error.tableNoColumn', {
+        column: view.group,
+        columns: table.columns.map((c) => c.name).join(', '),
+      });
+    if (view.kind === 'board' && !group) throw new HttpError(400, 'error.tableBoardGroup');
+    const next: TableView = { kind: view.kind, group: group?.name ?? null };
+    await this.ctx.db.update(schema.botTables).set({ view: next }).where(eq(schema.botTables.id, tableId));
+    this.changed(table.botId);
+    return { ...table, view: next };
   }
 
   /** Every row, oldest first. */

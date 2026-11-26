@@ -1,13 +1,41 @@
-import { INTL_LOCALE, type Bot, type BotTable, type TableColumn, type TableRow } from '@leafbot/shared';
+import {
+  findColumn,
+  groupRows,
+  INTL_LOCALE,
+  TABLE_VIEW_KINDS,
+  tableView,
+  type Bot,
+  type BotTable,
+  type RowGroup,
+  type TableColumn,
+  type TableRow,
+  type TableView,
+  type TableViewKind,
+} from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, Download, Plus, Search, Table2, Trash2 } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import {
+  ChevronRight,
+  Columns3,
+  Download,
+  LayoutGrid,
+  List,
+  Plus,
+  Search,
+  Share2,
+  Table2,
+  X,
+  Trash2,
+  type LucideIcon,
+} from 'lucide-react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLocale, useT } from '@/i18n';
 import { api } from '@/lib/api';
+import { useBots } from '@/lib/queries';
 import { cellDraft, cellLabel, filterRows, SHOWN_ROWS } from '@/lib/tableView';
 import { cn } from '@/lib/utils';
 
@@ -42,20 +70,49 @@ export function BotTables({ bot }: { bot: Bot }) {
           </button>
         ))}
       </div>
-      {open && <TableDialog table={open} onClose={() => setOpenId(null)} />}
+      {open && (
+        <TableDialog
+          table={open}
+          // Older servers send no level, and only let those who may change the bot see it.
+          canEdit={bot.yourLevel === undefined || bot.yourLevel === 'edit'}
+          onClose={() => setOpenId(null)}
+        />
+      )}
     </section>
   );
 }
 
 type Editing = { rowId: string; column: string } | null;
 
-/** One table: search it, correct a cell in place, add and delete rows, download it, delete it. */
-function TableDialog({ table, onClose }: { table: BotTable; onClose(): void }) {
+const VIEW_ICONS: Record<TableViewKind, LucideIcon> = {
+  grid: Table2,
+  board: Columns3,
+  gallery: LayoutGrid,
+  list: List,
+};
+
+/** The choice of no grouping: a select item needs a value, and no column name is blank. */
+const NO_GROUP = ' ';
+
+/** The column a board takes its lanes from when none is chosen: a status-like text or yes/no column. */
+const laneColumn = (columns: readonly TableColumn[]) =>
+  columns.find((c) => c.type === 'text' || c.type === 'bool') ?? columns[0];
+
+/**
+ * One table: search it, correct a cell in place, add and delete rows, download it, delete it, and
+ * lay it out as a grid, a board, a gallery or a list, grouped by a column.
+ */
+function TableDialog({ table, canEdit, onClose }: { table: BotTable; canEdit: boolean; onClose(): void }) {
   const t = useT();
+  const [sharing, setSharing] = useState(false);
   const locale = useLocale((s) => s.locale);
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<Editing>(null);
+  // A view just chosen shows at once; the saved one takes over once the table comes back with it.
+  const [chosen, setChosen] = useState<TableView | null>(null);
+  const saved = tableView(table);
+  const view = chosen ?? saved;
   const { data: rows = [], isLoading } = useQuery({
     queryKey: ['table-rows', table.id],
     queryFn: () => api.tableRows(table.id),
@@ -72,6 +129,12 @@ function TableDialog({ table, onClose }: { table: BotTable; onClose(): void }) {
   );
   // A long table shows its newest rows, where a row just added lands.
   const shown = found.slice(-SHOWN_ROWS);
+  const group = view.group ? findColumn(table.columns, view.group) : undefined;
+  const groups: RowGroup[] = group ? groupRows(shown, group) : [{ key: '', value: null, rows: shown }];
+  // Only a board keeps a lane with nothing in it, to move a row into.
+  const filled = groups.filter((g) => g.rows.length);
+  const groupLabel = (g: RowGroup) =>
+    g.key && group ? cellLabel(g.value, group, number, yes, no) : t('tables.noValue');
   const refresh = () => {
     void qc.invalidateQueries({ queryKey: ['table-rows', table.id] });
     void qc.invalidateQueries({ queryKey: ['tables', table.botId] });
@@ -83,6 +146,24 @@ function TableDialog({ table, onClose }: { table: BotTable; onClose(): void }) {
     onSuccess: refresh,
     onError: fail,
   });
+  const saveView = useMutation({
+    mutationFn: (v: TableView) => api.setTableView(table.id, v),
+    onSuccess: (next) => {
+      qc.setQueryData<BotTable[]>(['tables', table.botId], (list) =>
+        list?.map((x) => (x.id === next.id ? { ...x, view: next.view } : x)),
+      );
+      setChosen(null);
+    },
+    onError: (e) => {
+      setChosen(null);
+      fail(e);
+    },
+  });
+  const choose = (next: TableView) => {
+    const v = tableView({ columns: table.columns, view: next });
+    setChosen(v);
+    saveView.mutate(v);
+  };
   const add = useMutation({
     mutationFn: () => api.addTableRow(table.id),
     onSuccess: (row) => {
@@ -107,6 +188,170 @@ function TableDialog({ table, onClose }: { table: BotTable; onClose(): void }) {
     },
     onError: fail,
   });
+
+  const cell = (r: TableRow, c: TableColumn, as: 'td' | 'div' = 'td') => (
+    <Cell
+      key={c.name}
+      as={as}
+      row={r}
+      column={c}
+      label={cellLabel(r.values[c.name], c, number, yes, no)}
+      editing={editing?.rowId === r.id && editing.column === c.name}
+      onEdit={() => setEditing({ rowId: r.id, column: c.name })}
+      onDone={(value) => {
+        setEditing(null);
+        if (value !== undefined) save.mutate({ rowId: r.id, column: c.name, value });
+      }}
+    />
+  );
+  const deleteButton = (r: TableRow) => (
+    <Button
+      size="icon"
+      variant="ghost"
+      className="size-8 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
+      aria-label={t('tables.deleteRow')}
+      onClick={() => removeRow.mutate(r.id)}
+    >
+      <Trash2 className="size-4" />
+    </Button>
+  );
+  const [title, ...rest] = table.columns;
+  /** A row as a card: its first column as the title, then every other column, each editable. */
+  const card = (r: TableRow, extra?: { draggable: boolean }) => (
+    <div
+      key={r.id}
+      draggable={extra?.draggable}
+      onDragStart={(e) => e.dataTransfer.setData('text/plain', r.id)}
+      className={cn(
+        'group rounded-2xl border bg-background p-2 text-sm',
+        extra?.draggable && 'cursor-grab active:cursor-grabbing',
+      )}
+    >
+      <div className="flex items-start gap-1 font-medium">
+        {title && cell(r, title, 'div')}
+        {deleteButton(r)}
+      </div>
+      {rest.map((c) => (
+        <div key={c.name} className="flex items-baseline gap-2">
+          <span className="w-24 shrink-0 truncate ps-1.5 text-xs text-muted-foreground">{c.name}</span>
+          {cell(r, c, 'div')}
+        </div>
+      ))}
+    </div>
+  );
+  const heading = (g: RowGroup, className?: string) => (
+    <div className={cn('flex items-center gap-2 text-xs font-medium text-muted-foreground', className)}>
+      <span className="truncate">{groupLabel(g)}</span>
+      <span>{g.rows.length}</span>
+    </div>
+  );
+  /** Rows split under their group's heading; one unnamed group when the table is not grouped. */
+  const grouped = (body: (rows: TableRow[]) => ReactNode) =>
+    filled.map((g) => (
+      <div key={g.key} className="space-y-2">
+        {group && heading(g, 'px-1 pt-1')}
+        {body(g.rows)}
+      </div>
+    ));
+
+  let content: ReactNode;
+  if (view.kind === 'board' && group) {
+    content = (
+      <div className="flex h-full gap-3 p-2">
+        {groups.map((g) => (
+          <div
+            key={g.key}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const id = e.dataTransfer.getData('text/plain');
+              const row = rows.find((r) => r.id === id);
+              if (!row || groupRows([row], group)[0]?.key === g.key) return;
+              const value = g.value === null ? '' : typeof g.value === 'boolean' ? g.value : String(g.value);
+              save.mutate({ rowId: id, column: group.name, value });
+            }}
+            className="flex w-72 shrink-0 flex-col gap-2 rounded-2xl bg-secondary/50 p-2"
+          >
+            {heading(g, 'px-1')}
+            <div className="scroll-thin min-h-0 flex-1 space-y-2 overflow-y-auto">
+              {g.rows.map((r) => card(r, { draggable: true }))}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  } else if (view.kind === 'gallery') {
+    content = (
+      <div className="space-y-4 p-2">
+        {grouped((list) => (
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{list.map((r) => card(r))}</div>
+        ))}
+      </div>
+    );
+  } else if (view.kind === 'list') {
+    content = (
+      <div className="space-y-3 p-2">
+        {grouped((list) => (
+          <div className="divide-y rounded-2xl border">
+            {list.map((r) => (
+              <div key={r.id} className="group flex items-center gap-3 px-2 py-1 text-sm">
+                <div className="min-w-0 basis-1/3 font-medium">{title && cell(r, title, 'div')}</div>
+                <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                  {rest
+                    // A yes reads as its column's name, as a bare "Yes" says nothing in a line.
+                    .map((c) =>
+                      c.type === 'bool'
+                        ? r.values[c.name] === true
+                          ? c.name
+                          : ''
+                        : cellLabel(r.values[c.name], c, number, yes, no),
+                    )
+                    .filter(Boolean)
+                    .join(' · ')}
+                </span>
+                {deleteButton(r)}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  } else {
+    content = (
+      <table className="w-full border-collapse text-sm">
+        <thead className="sticky top-0 z-10 bg-background">
+          <tr className="border-b">
+            {table.columns.map((c) => (
+              <th key={c.name} className="px-3 py-2 text-start font-medium whitespace-nowrap">
+                {c.name}
+                <span className="ms-1.5 text-xs font-normal text-muted-foreground">
+                  {t(`tables.type.${c.type}`)}
+                </span>
+              </th>
+            ))}
+            <th className="w-10" aria-label={t('tables.actions')} />
+          </tr>
+        </thead>
+        {filled.map((g) => (
+          <tbody key={g.key}>
+            {group && (
+              <tr className="border-b bg-secondary/50">
+                <td colSpan={table.columns.length + 1} className="px-3 py-1.5">
+                  {heading(g)}
+                </td>
+              </tr>
+            )}
+            {g.rows.map((r) => (
+              <tr key={r.id} className="group border-b last:border-b-0 hover:bg-accent/40">
+                {table.columns.map((c) => cell(r, c))}
+                <td className="px-1 text-end">{deleteButton(r)}</td>
+              </tr>
+            ))}
+          </tbody>
+        ))}
+      </table>
+    );
+  }
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -133,6 +378,11 @@ function TableDialog({ table, onClose }: { table: BotTable; onClose(): void }) {
           <Button size="sm" variant="secondary" disabled={add.isPending} onClick={() => add.mutate()}>
             <Plus /> {t('tables.addRow')}
           </Button>
+          {canEdit && (
+            <Button size="sm" variant={sharing ? 'secondary' : 'ghost'} onClick={() => setSharing((v) => !v)}>
+              <Share2 /> {t('tables.share')}
+            </Button>
+          )}
           <Button size="sm" variant="ghost" asChild>
             <a href={api.tableCsvUrl(table.id)} download>
               <Download /> {t('tables.download')}
@@ -148,53 +398,68 @@ function TableDialog({ table, onClose }: { table: BotTable; onClose(): void }) {
             <Trash2 /> {t('tables.delete')}
           </Button>
         </div>
-        <div className="scroll-thin min-h-0 flex-1 overflow-auto rounded-2xl border">
-          <table className="w-full border-collapse text-sm">
-            <thead className="sticky top-0 z-10 bg-background">
-              <tr className="border-b">
-                {table.columns.map((c) => (
-                  <th key={c.name} className="px-3 py-2 text-start font-medium whitespace-nowrap">
-                    {c.name}
-                    <span className="ms-1.5 text-xs font-normal text-muted-foreground">
-                      {t(`tables.type.${c.type}`)}
-                    </span>
-                  </th>
-                ))}
-                <th className="w-10" aria-label={t('tables.actions')} />
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((r) => (
-                <tr key={r.id} className="group border-b last:border-b-0 hover:bg-accent/40">
-                  {table.columns.map((c) => (
-                    <Cell
-                      key={c.name}
-                      row={r}
-                      column={c}
-                      label={cellLabel(r.values[c.name], c, number, yes, no)}
-                      editing={editing?.rowId === r.id && editing.column === c.name}
-                      onEdit={() => setEditing({ rowId: r.id, column: c.name })}
-                      onDone={(value) => {
-                        setEditing(null);
-                        if (value !== undefined) save.mutate({ rowId: r.id, column: c.name, value });
-                      }}
-                    />
-                  ))}
-                  <td className="px-1 text-end">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-8 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
-                      aria-label={t('tables.deleteRow')}
-                      onClick={() => removeRow.mutate(r.id)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  </td>
-                </tr>
+        {sharing && <TableSharing table={table} />}
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            role="radiogroup"
+            aria-label={t('tables.view')}
+            className="flex rounded-full bg-secondary/60 p-0.5"
+          >
+            {TABLE_VIEW_KINDS.map((kind) => {
+              const Icon = VIEW_ICONS[kind];
+              const on = view.kind === kind;
+              return (
+                <button
+                  key={kind}
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() =>
+                    !on &&
+                    choose({
+                      kind,
+                      group:
+                        kind === 'board'
+                          ? (view.group ?? laneColumn(table.columns)?.name ?? null)
+                          : view.group,
+                    })
+                  }
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-full px-3 py-1 text-sm',
+                    on
+                      ? 'bg-background font-medium shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  <Icon className="size-4" />
+                  {t(`tables.view.${kind}`)}
+                </button>
+              );
+            })}
+          </div>
+          <Select
+            value={view.group ?? NO_GROUP}
+            onValueChange={(v) => choose({ kind: view.kind, group: v === NO_GROUP ? null : v })}
+          >
+            <SelectTrigger className="h-8 w-48 rounded-full" aria-label={t('tables.groupBy')}>
+              <SelectValue placeholder={t('tables.noGroup')} />
+            </SelectTrigger>
+            <SelectContent>
+              {view.kind !== 'board' && <SelectItem value={NO_GROUP}>{t('tables.noGroup')}</SelectItem>}
+              {table.columns.map((c) => (
+                <SelectItem key={c.name} value={c.name}>
+                  {t('tables.groupByColumn', { column: c.name })}
+                </SelectItem>
               ))}
-            </tbody>
-          </table>
+            </SelectContent>
+          </Select>
+          {view.kind === 'board' && group && (
+            <span className="text-xs text-muted-foreground">
+              {t('tables.boardHint', { column: group.name })}
+            </span>
+          )}
+        </div>
+        <div className="scroll-thin min-h-0 flex-1 overflow-auto rounded-2xl border">
+          {content}
           {!isLoading && !found.length && (
             <p className="px-4 py-6 text-center text-sm text-muted-foreground">
               {rows.length ? t('tables.noMatch') : t('tables.empty')}
@@ -212,10 +477,90 @@ function TableDialog({ table, onClose }: { table: BotTable; onClose(): void }) {
 }
 
 /**
+ * The other bots let into the table: each reads its rows, and with write adds, changes and deletes
+ * them. Only bots the person may change are offered, as the rows reach everyone who talks to them.
+ */
+function TableSharing({ table }: { table: BotTable }) {
+  const t = useT();
+  const qc = useQueryClient();
+  const { data: bots = [] } = useBots();
+  const { data: shares = [] } = useQuery({
+    queryKey: ['table-shares', table.id],
+    queryFn: () => api.tableShares(table.id),
+  });
+  const refresh = () => void qc.invalidateQueries({ queryKey: ['table-shares', table.id] });
+  const fail = (e: unknown) => toast.error((e as Error).message);
+  const share = useMutation({
+    mutationFn: (v: { botId: string; write: boolean }) => api.shareTable(table.id, v.botId, v.write),
+    onSuccess: refresh,
+    onError: fail,
+  });
+  const unshare = useMutation({
+    mutationFn: (botId: string) => api.unshareTable(table.id, botId),
+    onSuccess: refresh,
+    onError: fail,
+  });
+  const name = (botId: string) => bots.find((b) => b.id === botId)?.name ?? t('tables.shareOtherBot');
+  const offered = bots.filter(
+    (b) =>
+      b.id !== table.botId &&
+      (b.yourLevel === undefined || b.yourLevel === 'edit') &&
+      !shares.some((x) => x.botId === b.id),
+  );
+  return (
+    <div className="space-y-2 rounded-2xl bg-secondary/50 p-3 text-sm">
+      <p className="text-muted-foreground">{t('tables.shareHint')}</p>
+      {shares.map((x) => (
+        <div key={x.botId} className="flex items-center gap-2">
+          <span className="min-w-0 flex-1 truncate font-medium">{name(x.botId)}</span>
+          <Select
+            value={x.write ? 'write' : 'read'}
+            onValueChange={(v) => share.mutate({ botId: x.botId, write: v === 'write' })}
+          >
+            <SelectTrigger className="h-8 w-44 rounded-full" aria-label={t('tables.shareLevel')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="read">{t('tables.shareRead')}</SelectItem>
+              <SelectItem value="write">{t('tables.shareWrite')}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="size-8"
+            aria-label={t('tables.unshare', { bot: name(x.botId) })}
+            onClick={() => unshare.mutate(x.botId)}
+          >
+            <X className="size-4" />
+          </Button>
+        </div>
+      ))}
+      {offered.length > 0 && (
+        <Select value="" onValueChange={(botId) => share.mutate({ botId, write: false })}>
+          <SelectTrigger className="h-8 w-64 rounded-full" aria-label={t('tables.shareAdd')}>
+            <SelectValue placeholder={t('tables.shareAdd')} />
+          </SelectTrigger>
+          <SelectContent>
+            {offered.map((b) => (
+              <SelectItem key={b.id} value={b.id}>
+                {b.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </div>
+  );
+}
+
+/**
  * A cell: a yes/no flips on a click; any other opens an edit box that saves on Enter or on leaving
- * it, and Escape leaves it as it was. `onDone` gets nothing when there is nothing to save.
+ * it, and Escape leaves it as it was. `onDone` gets nothing when there is nothing to save. `as`:
+ * a grid's cell, or a field on a card.
  */
 function Cell({
+  as: Wrap = 'td',
   row,
   column,
   label,
@@ -223,6 +568,7 @@ function Cell({
   onEdit,
   onDone,
 }: {
+  as?: 'td' | 'div';
   row: TableRow;
   column: TableColumn;
   label: string;
@@ -236,9 +582,10 @@ function Cell({
   const [draft, setDraft] = useState(start);
   // Escape ends the edit; the blur that follows must not save it.
   const dropped = useRef(false);
+  const field = Wrap === 'div' && 'min-w-0 flex-1';
   if (column.type === 'bool') {
     return (
-      <td className="px-3 py-1.5">
+      <Wrap className={cn('px-3 py-1.5', field, Wrap === 'div' && 'px-0 py-0.5')}>
         <button
           onClick={() => onDone(value !== true)}
           className={cn('rounded-lg px-1.5 py-0.5 hover:bg-accent', !label && 'text-muted-foreground')}
@@ -246,12 +593,12 @@ function Cell({
         >
           {label || '—'}
         </button>
-      </td>
+      </Wrap>
     );
   }
   if (editing) {
     return (
-      <td className="px-1.5 py-1">
+      <Wrap className={cn('px-1.5 py-1', field, Wrap === 'div' && 'px-0')}>
         <Input
           autoFocus
           value={draft}
@@ -276,13 +623,28 @@ function Cell({
             onDone(draft === start ? undefined : draft);
           }}
         />
-      </td>
+      </Wrap>
     );
   }
   return (
-    <td
-      className="max-w-72 cursor-text truncate px-3 py-1.5"
+    <Wrap
+      className={cn(
+        'cursor-text truncate',
+        Wrap === 'td' ? 'max-w-72 px-3 py-1.5' : 'min-h-7 rounded-lg px-1.5 py-1 hover:bg-accent',
+        field,
+      )}
       title={label}
+      tabIndex={Wrap === 'div' ? 0 : undefined}
+      onKeyDown={
+        Wrap === 'div'
+          ? (e) => {
+              if (e.key !== 'Enter' || e.target !== e.currentTarget) return;
+              dropped.current = false;
+              setDraft(start);
+              onEdit();
+            }
+          : undefined
+      }
       onClick={() => {
         dropped.current = false;
         setDraft(start);
@@ -300,8 +662,8 @@ function Cell({
           {label}
         </a>
       ) : (
-        label
+        label || (Wrap === 'div' ? <span className="text-muted-foreground">—</span> : null)
       )}
-    </td>
+    </Wrap>
   );
 }

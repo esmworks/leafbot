@@ -1,3 +1,4 @@
+import { stuckResult, type ScreenWatch } from '../computer/screen-watch';
 import { DESKTOP_SIZE, type Bot, type DesktopAction } from '@leafbot/shared';
 import { z } from 'zod';
 import { ComputerError, type ComputerClient } from '../computer/client';
@@ -77,8 +78,11 @@ export function computerTools(opts: {
   own?: () => Promise<string | null>;
   /** The turn's own: a step waiting for the person to hand the desktop back stops with it. */
   signal?: AbortSignal;
+  /** The turn's screens, to stop a bot going round in circles (see `ScreenWatch`). */
+  watch?: ScreenWatch;
 }): AppTool[] {
-  const { def, bot, t, computer, cwd, signal } = opts;
+  const { def, bot, t, computer, cwd, signal, watch } = opts;
+  const stuck = () => stuckResult(t);
   const readOnly = bot.permissionMode === 'readonly';
 
   /**
@@ -108,18 +112,25 @@ export function computerTools(opts: {
 
   const look = async (c: ComputerClient): Promise<ToolResult> => {
     const shot = await c.screenshot(bot.id);
+    if (await watch?.seen(shot.png)) return stuck();
     return {
       text: t('computer.screen', { width: shot.width, height: shot.height }),
       images: [await screenshotImage(shot.png)],
     };
   };
 
+  // Stopped going round in circles: no more steps on the screen this turn. Commands still run, as
+  // the way round may be one.
+  const onScreen = (step: () => Promise<ToolResult>) => (watch?.stuck ? Promise.resolve(stuck()) : step());
+
   const act = (action: DesktopAction) =>
-    guard(async (c) => {
-      await c.action(bot.id, action);
-      await new Promise((r) => setTimeout(r, SETTLE_MS));
-      return look(c);
-    }, true);
+    onScreen(() =>
+      guard(async (c) => {
+        await c.action(bot.id, action);
+        await new Promise((r) => setTimeout(r, SETTLE_MS));
+        return look(c);
+      }, true),
+    );
 
   // Read-only bots may look but not touch: these then go through the normal permission check.
   const touch = async (a: object) => readOnly || ('sends' in a && a.sends === true);
@@ -130,7 +141,7 @@ export function computerTools(opts: {
   const presses = async (a: { keys: string; sends?: boolean }) => (await touch(a)) || submits(a.keys);
 
   return [
-    def('computer_screenshot', {}, async () => guard(look), 'internal'),
+    def('computer_screenshot', {}, async () => onScreen(() => guard(look)), 'internal'),
     def(
       'computer_click',
       {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cellText, cellValue, findColumn } from './tables';
+import { cellText, cellValue, findColumn, groupRows, tableView, type TableRow } from './tables';
 
 const ok = (type: Parameters<typeof cellValue>[0], raw: Parameters<typeof cellValue>[1]) => {
   const r = cellValue(type, raw);
@@ -60,5 +60,54 @@ describe('cellText and findColumn', () => {
     expect(cellText(null)).toBe('');
     expect(cellText(12.5)).toBe('12.5');
     expect(findColumn([{ name: 'Fiyat', type: 'number' }], ' fiyat ')?.type).toBe('number');
+  });
+});
+
+describe('tableView and groupRows', () => {
+  const columns = [
+    { name: 'Ad', type: 'text' as const },
+    { name: 'Durum', type: 'text' as const },
+    { name: 'Bitti', type: 'bool' as const },
+  ];
+  const row = (id: string, values: TableRow['values']): TableRow => ({
+    id,
+    values,
+    createdAt: '2026-11-20T09:00:00Z',
+    updatedAt: '2026-11-20T09:00:00Z',
+  });
+
+  it('draws a saved view even after its column is gone', () => {
+    expect(tableView({ columns })).toEqual({ kind: 'grid', group: null });
+    expect(tableView({ columns, view: { kind: 'board', group: 'durum' } })).toEqual({
+      kind: 'board',
+      group: 'Durum',
+    });
+    expect(tableView({ columns, view: { kind: 'board', group: 'Silinen' } })).toEqual({
+      kind: 'grid',
+      group: null,
+    });
+    expect(tableView({ columns, view: { kind: 'gallery', group: 'Silinen' } })).toEqual({
+      kind: 'gallery',
+      group: null,
+    });
+  });
+
+  it('groups in the order values first appear, empty cells last, both yes and no always', () => {
+    const rows = [
+      row('1', { Ad: 'a', Durum: 'Yapılacak' }),
+      row('2', { Ad: 'b' }),
+      row('3', { Ad: 'c', Durum: 'Bitti', Bitti: true }),
+      row('4', { Ad: 'd', Durum: 'Yapılacak' }),
+    ];
+    expect(groupRows(rows, columns[1]!).map((g) => [g.key, g.rows.map((r) => r.id)])).toEqual([
+      ['Yapılacak', ['1', '4']],
+      ['Bitti', ['3']],
+      ['', ['2']],
+    ]);
+    expect(groupRows(rows, columns[2]!).map((g) => [g.value, g.rows.length])).toEqual([
+      [true, 1],
+      [false, 0],
+      [null, 3],
+    ]);
   });
 });

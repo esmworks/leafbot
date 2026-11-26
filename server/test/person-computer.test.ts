@@ -17,6 +17,8 @@ import {
   submitsOnMac,
   toScreen,
 } from '../src/computer/person';
+import { STUCK_AFTER } from '../src/computer/screen-watch';
+import { translator } from '../src/i18n';
 import { testServer, waitFor, type TestServer } from './helpers';
 
 /** A 1x1 PNG. */
@@ -276,6 +278,25 @@ describe('kişinin Mac’i: botlar ve onay', () => {
     await t.api('POST', `/api/approvals/${again.id}`, { decision: 'deny' });
     await t.services.turns.idle();
     expect((await t.messages(thread.id)).at(-1)!.text).toContain('reddedildi');
+  });
+
+  it('yeni bir şey göstermeyen ekranda dönen botu durdurur; nedeni söyleme isteği dış veri sayılmaz', async () => {
+    const bot = await t.bot({ permissionMode: 'auto', personComputer: true });
+    const thread = await main(bot.id);
+    const looks = Array.from({ length: STUCK_AFTER + 1 }, () => '[araç:person_computer_screenshot]');
+    await t.send(thread.id, `${looks.join(' ')} [araç:person_computer_click {"x":1,"y":1}]`);
+    const card = await waitFor(async () => (await pending())[0]);
+    await t.api('POST', `/api/approvals/${card.id}`, { decision: 'allow' });
+    await t.services.turns.idle();
+
+    const parts = (await t.messages(thread.id)).at(-1)!.text.split('\nperson_computer_');
+    const stop = translator('tr')('screen.stuck', { count: STUCK_AFTER });
+    // The screens before it come as outside data; the stop is the server's own instruction.
+    expect(parts.at(-3)).toContain('<outside-data');
+    expect(parts.at(-2)).toBe(`screenshot: ${stop}`);
+    // The reply goes on after the last result.
+    expect(parts.at(-1)!.startsWith(`click: ${stop}`)).toBe(true);
+    expect(helper.ops()).toEqual([]);
   });
 
   it('işten sonra gönderebilecek tuşu her seferinde ayrıca sorar', async () => {

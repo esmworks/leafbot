@@ -13,7 +13,7 @@ type Sharp = typeof SharpModule;
 let loaded: Promise<Sharp | null> | null = null;
 
 /** The image library, loaded once; null where it cannot load, and pictures then go as they are. */
-function library(): Promise<Sharp | null> {
+export function library(): Promise<Sharp | null> {
   loaded ??= import('sharp')
     .then((m) => m.default)
     .catch((err: unknown) => {

@@ -7,6 +7,39 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Sharing a table with another bot: from the table's window, someone who may change both bots lets another bot
+  read the table, or read and write its rows. The other bot finds it among its tables as "Owner / Name"; its own
+  table of the same name comes first. The columns and the table stay with their bot, so the other bot cannot add
+  columns or delete the table. Taking the share back holds from the bot's next step. A guest's or WhatsApp
+  contact's turn does not reach shared tables, and someone who talks only to the other bot still cannot open the
+  table on the web. Rows the other bot writes do not start the owner's table routines, as no bot's writes do. Shares
+  are set on the web, not on the phone.
+- Table views: a table can be shown as a grid, a board, a gallery of cards or a list, grouped by one of its
+  columns. On a board each value of the column (a status, a stage) is a lane, and dragging a card to another lane
+  changes that cell, as editing it would; every field on a card can be edited in place too. The view is kept with
+  the table, so everyone who opens it sees the same; changing it needs the same right as editing the table. A bot can
+  choose the view when it sets up the table. On the phone rows stay cards, grouped the same way.
+- A bot that goes round in circles on a screen (its own desktop or your computer) is stopped: after 40 screens in a
+  row that show nothing it has not seen in its last few, it may not look at or touch the screen again in that turn
+  and is told to say what it was trying, what it tried and what blocks it. Small changes such as a blinking cursor
+  or a clock do not count as new; a slowly filling progress bar does in time. Commands on the bot's own desktop
+  still run. The count goes by screens, not time, so a bot waiting on your answer is not stopped for it.
+- Common knowledge: notes every bot on the server reads, such as the company address or a team rule. Those who
+  look after the server write them on the memory screen and they apply at once; everyone else sees them there. A bot
+  only proposes adding, changing or deleting one, and the proposal waits under "Waiting for approval" for someone who
+  looks after the server, saying when the bot had read outside text. They have their own room in the prompt, so they
+  neither crowd out a bot's own notes nor get crowded out, at most 100 notes; they do not reach a guest's turn or a
+  WhatsApp contact. On the phone they show in the memory settings; they are added on the web.
+- A note a bot writes or changes while outside text (a page, a mail, a command's output) is in its conversation is
+  marked unverified. It is still written straight away and still reaches bots, but marked as outside data, so a
+  page cannot turn its words into a fact bots trust. The background review and the weekly tidy-up mark what they
+  write from such text too. The memory screen shows the mark with a Verify button; your own edit clears it as well.
+  Notes written before this update are not marked. The mark is advice to the model, not a gate: an unverified note
+  can still shape what a bot does.
+- A tool result too long for the conversation is kept whole for the rest of it, instead of only cut: the bot sees
+  the start (for a shell command, the start and the end) and reads the rest page by page with `ReadResult`. Pages
+  read back from outside text are marked as outside text again. Kept in the server's memory only, ten results per
+  conversation; a restart forgets them. With the Claude engine, Claude Code handles long results itself.
 - Settings has a Computer use section, shown where the bots could use a computer: it says whether macOS allows
   Screen Recording and Accessibility, and each one's button opens System Settings at its list. macOS asks its own
   question only once, so after a no this was the way left, and the bot form's button now leads here. A Windows

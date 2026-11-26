@@ -1,0 +1,1 @@
+ALTER TABLE "memories" ADD COLUMN "unverified" boolean DEFAULT false NOT NULL;

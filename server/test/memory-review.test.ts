@@ -160,7 +160,7 @@ describe('hafıza gözden geçirmesi: konuşmadan kalıcı bilgi çıkarma', () 
     expect(await changes()).toEqual([]);
   });
 
-  it('bir turu dışarıdan metin okumuş olsa da botun notu hemen yazılır', async () => {
+  it('bir turu dışarıdan metin okumuş olsa da botun notu hemen yazılır, doğrulanmamış işaretiyle', async () => {
     const bot = await t.bot();
     const th = await main(bot.id);
     await sayMany(th, 9);
@@ -169,7 +169,7 @@ describe('hafıza gözden geçirmesi: konuşmadan kalıcı bilgi çıkarma', () 
     t.engine.completer = () => ops({ op: 'write', scope: 'bot', content: 'Sevdiği renk mavi' });
     await say(th, 'onuncu');
     expect(t.engine.completions).toHaveLength(1);
-    expect((await notes()).map((m) => m.content)).toEqual(['Sevdiği renk mavi']);
+    expect((await notes()).map((m) => [m.content, m.unverified])).toEqual([['Sevdiği renk mavi', true]]);
     expect(await changes()).toEqual([]);
   });
 

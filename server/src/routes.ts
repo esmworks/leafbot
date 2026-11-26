@@ -116,6 +116,8 @@ import {
   ApiSourceCreate,
   TicketCommentCreate,
   RowValues,
+  TableShareSet,
+  TableView,
   type TableRow,
   TicketCreate,
   TicketUpdate,
@@ -1042,6 +1044,24 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const p = z.object({ id: z.string(), rowId: z.string() }).parse(req.params);
     return { deleted: await s.tables.deleteRows(p.id, [p.rowId]) };
   });
+  // Letting another bot into a table puts its rows before everyone who talks to that bot, so it
+  // takes the right to change both bots; taking it back takes only the table's.
+  app.get('/api/tables/:id/shares', async (req) => s.tables.shares(IdParams.parse(req.params).id));
+  app.put('/api/tables/:id/shares/:botId', async (req) => {
+    const p = z.object({ id: z.string(), botId: z.string() }).parse(req.params);
+    const level = await s.access.level(me(req), p.botId);
+    if (level === 'none') throw notFound('bot');
+    if (level !== 'edit') throw new HttpError(403, 'error.tableShareEdit');
+    return s.tables.share(p.id, p.botId, TableShareSet.parse(req.body ?? {}).write, me(req).userId);
+  });
+  app.delete('/api/tables/:id/shares/:botId', async (req) => {
+    const p = z.object({ id: z.string(), botId: z.string() }).parse(req.params);
+    await s.tables.unshare(p.id, p.botId);
+    return { ok: true };
+  });
+  app.put('/api/tables/:id/view', async (req) =>
+    s.tables.setView(IdParams.parse(req.params).id, TableView.parse(req.body)),
+  );
   app.delete('/api/tables/:id', async (req) => {
     await s.tables.remove(IdParams.parse(req.params).id);
     return { ok: true };
@@ -2242,7 +2262,11 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   const ownNote = async (req: FastifyRequest, id: string) => {
     const reach = await memoryReach(req);
     const note = await s.memory.get(id);
-    if (!s.memory.canEdit(note, reach.botIds, reach.userId, reach.places)) throw notFound('memory');
+    if (!s.memory.canEdit(note, reach.botIds, reach.userId, reach.places, reach.managesServer)) {
+      // Everyone sees the notes for every bot; only those who look after the server change them.
+      if (note.scope === 'common') throw new HttpError(403, 'error.adminOnly');
+      throw notFound('memory');
+    }
     return note;
   };
   /** A waiting change the person decides on; another's reads as missing. */
@@ -2254,7 +2278,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.get('/api/memory', async (req) => {
     const q = z
       .object({
-        scope: z.enum(['bot', 'user', 'room']).optional(),
+        scope: z.enum(['bot', 'user', 'room', 'common']).optional(),
         botId: z.string().optional(),
       })
       .parse(req.query);
@@ -2265,6 +2289,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const b = MemoryCreate.parse(req.body);
     // A bot's note needs its bot, and leave to change it.
     if (b.scope === 'bot') await s.access.requireBot(me(req), b.botId ?? '', 'edit');
+    // A note for every bot reaches everyone's conversations: those who look after the server write it.
+    if (b.scope === 'common') requireAdmin(me(req));
     // `source` says a person wrote it; the history says which person.
     return s.memory.create({ ...b, userId: me(req).userId, source: 'user', actor: actorOf(req) });
   });
@@ -2272,8 +2298,14 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const id = IdParams.parse(req.params).id;
     await ownNote(req, id);
     // A change of the words may carry the version it was made on; pinning alone has none.
-    const { updatedAt, ...patch } = MemoryUpdate.parse(req.body);
-    return s.memory.update(id, { ...patch, expectedUpdatedAt: updatedAt }, actorOf(req));
+    const { updatedAt, verified, ...patch } = MemoryUpdate.parse(req.body);
+    // Words the person wrote, or a note they say is right, are theirs: no longer outside text's.
+    const vouched = verified || patch.content !== undefined;
+    return s.memory.update(
+      id,
+      { ...patch, ...(vouched && { unverified: false }), expectedUpdatedAt: updatedAt },
+      actorOf(req),
+    );
   });
   // Every note one bot keeps for itself.
   app.delete('/api/bots/:id/memory', async (req) =>

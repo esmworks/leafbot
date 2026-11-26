@@ -470,7 +470,12 @@ export class MemoryTidyService {
     const content = redactSecrets(v.content!, t('memory.redacted')).text;
     if (content === m.content) return false;
     try {
-      await this.services.memory.update(m.id, { content, expectedUpdatedAt: m.updatedAt }, TIDY_ACTOR);
+      // The new words are the page's: outside text, read as data until the person vouches for them.
+      await this.services.memory.update(
+        m.id,
+        { content, expectedUpdatedAt: m.updatedAt, unverified: true },
+        TIDY_ACTOR,
+      );
       return true;
     } catch (err) {
       if (err instanceof HttpError && err.status === 409) return false;
@@ -651,6 +656,9 @@ export class MemoryTidyService {
           if (rest.length > deletesLeft) continue;
           for (const m of list) touched.add(m.id);
           if (content !== keep!.content && !(await rewrite(keep!, content))) continue;
+          // Words taken from a note written from outside text keep its mark in the note that stays.
+          if (list.some((m) => m.unverified) && !keep!.unverified)
+            await memory.update(keep!.id, { unverified: true }, TIDY_ACTOR);
           await memory.removeMany(
             rest.map((m) => m.id),
             TIDY_ACTOR,
