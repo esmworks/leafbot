@@ -2,6 +2,7 @@ import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { useUpdates } from 'expo-updates';
 import * as WebBrowser from 'expo-web-browser';
+import { problemReport } from '@leafbot/shared';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 import { toast } from '@/components/overlay';
 import { Row, Section } from '@/components/page';
@@ -21,15 +22,10 @@ import LOGO from '../../../assets/logo.png';
  */
 const REPO_URL = 'https://github.com/esmworks/leafbot';
 
-/** A new issue with the version and the device filled in, so a report starts with what it needs. */
+/** The issue form with the version and the device filled in, so a report starts with what it needs. */
 function issueUrl(version: string | undefined): string {
-  const body = [
-    `Version: ${version ?? '?'}`,
-    `Device: ${Platform.OS} ${String(Platform.Version)}`,
-    '',
-    '',
-  ].join('\n');
-  return `${REPO_URL}/issues/new?body=${encodeURIComponent(body)}`;
+  return problemReport({ ...(version && { version }), system: `${Platform.OS} ${String(Platform.Version)}` })
+    .url;
 }
 
 const fmt = formatters(locale, t);

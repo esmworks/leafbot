@@ -9,6 +9,7 @@ import {
   type BotNoteGroup,
   type Locale,
   type Memory,
+  problemReport,
   type ServerInfo,
 } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -1910,10 +1911,9 @@ function ArchivedBots() {
 
 const REPO_URL = 'https://github.com/esmworks/leafbot';
 
-/** A new issue with the version and the device filled in, so a report starts with what it needs. */
+/** The issue form with the version and the browser filled in, so a report starts with what it needs. */
 function issueUrl(version: string | undefined): string {
-  const body = [`Version: ${version ?? '?'}`, `Browser: ${navigator.userAgent}`, '', ''].join('\n');
-  return `${REPO_URL}/issues/new?body=${encodeURIComponent(body)}`;
+  return problemReport({ ...(version && { version }), system: navigator.userAgent }).url;
 }
 
 /**

@@ -25,7 +25,7 @@ import type { Services } from './index';
  * Conversations a card is not shown in: a room's members answer in turn, another bot cannot press,
  * and a rehearsal has no one to answer.
  */
-const NO_CARDS: Thread['kind'][] = ['room', 'bot', 'rehearsal'];
+export const NO_CARDS: Thread['kind'][] = ['room', 'bot', 'rehearsal'];
 
 /** What a press sends: the part pressed, the card's revision it was made on, and the field values. */
 export interface CardAnswerInput {

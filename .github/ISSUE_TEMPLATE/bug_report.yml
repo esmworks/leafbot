@@ -1,0 +1,37 @@
+# Fields are filled from the link the app opens, by their ids; keep the ids in step with
+# shared/src/problem-report.ts.
+name: Bug report
+description: Something in Leaf Bot does not work as it should.
+labels: ['bug']
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: What went wrong, and what you expected instead. Include the exact error text.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: What you did before it happened, as short numbered steps.
+  - type: textarea
+    id: errors
+    attributes:
+      label: Errors in the conversation
+      description: Error messages shown in the conversation around the time it happened.
+      render: text
+  - type: input
+    id: version
+    attributes:
+      label: Leaf Bot version
+  - type: input
+    id: system
+    attributes:
+      label: Where the server runs
+      description: Operating system and architecture, or the browser for a problem in the app.
+  - type: input
+    id: engine
+    attributes:
+      label: Bot engine and model

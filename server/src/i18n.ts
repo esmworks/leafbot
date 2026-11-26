@@ -1282,6 +1282,21 @@ const tr = {
   'card.ticksForBot':
     'Kişi son turundan beri {id} kartındaki listeyi işaretledi; liste şimdi şöyle:\n{items}',
   'card.issue.badSeries': '"{detail}" serisinin hiçbir satırda sayısı yok',
+  'tool.report_problem':
+    "Leaf Bot'un kendisindeki bir arızanın raporunu taslak olarak yaz; kişi onu GitHub'a kendisi kaydeder. Kart taslağı ve GitHub'ın yeni kayıt formunu önceden doldurulmuş açan bir düğmeyi gösterir; kişi orada gözden geçirip kendisi gönderir. Sunucu hiçbir şey göndermez. Leaf Bot taslağa sürümünü, sunucunun işletim sistemini, motorunu ve modelini, bu konuşmanın son bir saatteki hata mesajlarını ekler; anahtarlar, e-posta adresleri ve ev klasörü gizlenir. Kişi bir şeyi bildirmek istediğinde asked: true ile çağır. Kendiliğinden yalnızca Leaf Bot aynı işte üst üste iki kez kendi hatasıyla düştüğünde öner. Kişinin düzeltebileceği nedenler için kullanma (eksik bir anahtar ya da oturum, sağlayıcı kotası, ağ, kendi dosyaları, kodu ya da hesapları): bunun yerine çözümü anlat. Kayıt takipçisi İngilizce olduğu için title, what_happened ve steps alanlarını İngilizce yaz. title: birkaç kelimeyle özellik ve belirti. what_happened: arıza ve olması gereken, hata metnini kelimesi kelimesine alıntılayarak. steps: oraya nasıl gelindiği, kısa numaralı bir liste; belli değilse atla. Konuşmanın özel içeriğini (mesajlar, adlar, dosya içerikleri) dışarıda tut. Slack ya da Telegram gibi sohbet uygulamalarında kart bağlantısız düz metin olarak gider: kişiye kaydetmek için bu konuşmayı Leaf Bot uygulamasında açmasını söyle. Şimdi değil seçilirse sorulmadıkça yeniden açma.",
+  'tool.problemShown':
+    "Kişi raporu GitHub'dan kendisi gönderir; gönderip göndermediğini bilemezsin. Gönderildi deme ve kaydı başka bir yoldan açma.",
+  'tool.problemNotAllowed':
+    'Hata raporu yalnızca kişinin kendi konuşmasındaki kendi mesajı için hazırlanır. Sorunu bunun yerine yanıtında anlat.',
+  'tool.problemIsSetup':
+    "Buradaki hatalar bir oturum ya da sağlayıcı sınırı; kişi bunu Ayarlar'dan düzeltir, Leaf Bot'taki bir hata değil. Kişiye nasıl düzelteceğini söyle. Rapor yalnızca kişi isterse hazırlanır (asked: true).",
+  'problem.cardTitle': 'Bir hata mı buldun? Bildir',
+  'problem.steps': 'Adımlar',
+  'problem.errors': 'Bu konuşmadaki hatalar',
+  'problem.note':
+    "Düğme GitHub'da doldurulmuş bir kayıt açar; orada kontrol edip kendin gönderirsin. Buradan hiçbir şey gönderilmez.",
+  'problem.notNow': 'Şimdi değil',
+  'problem.open': "GitHub'da aç",
   'card.yes': 'Evet',
   'card.no': 'Hayır',
   'card.forBot': '[Kart cevabı · eylem: {action} · değerler: {values}]',
@@ -3705,6 +3720,21 @@ const en: Catalog<ServerKey> = {
   'card.ticksForBot':
     'Since your last turn the person ticked the checklist on card {id}; it now reads:\n{items}',
   'card.issue.badSeries': 'the series "{detail}" has no number in any row',
+  'tool.report_problem':
+    "Draft a report of a fault in Leaf Bot itself, which the person files on GitHub. The card shows the draft and a button that opens GitHub's new-issue form already filled in; the person reviews it there and submits it themselves. The server sends nothing. To the draft, Leaf Bot attaches its version, the server's operating system, your engine and model, and the error messages of this conversation from the past hour, with keys, email addresses and the home folder hidden. Call it with asked: true when the person wants to report something. Suggest it unprompted only after Leaf Bot itself has failed twice in a row on the same thing. Do not use it for causes the person can fix (a missing key or sign-in, a provider's quota, the network, their own files, code or accounts): explain the fix instead. Write title, what_happened and steps in English, since the issue tracker is in English. title: the feature and the symptom in a few words. what_happened: the failure and what should have happened, quoting the error word for word. steps: how to get there, as a short numbered list; skip it if unclear. Keep the conversation's private matter (messages, names, file contents) out. In chat apps such as Slack or Telegram the card arrives as plain text without the link: tell the person to open this conversation in the Leaf Bot app to file it. After Not now, do not bring it up again unless asked.",
+  'tool.problemShown':
+    'The person sends it themselves from GitHub; you cannot know whether they did. Do not say it was sent, and do not open an issue another way.',
+  'tool.problemNotAllowed':
+    "A problem report is drafted only for the person's own message in their conversation. Describe the problem in your reply instead.",
+  'tool.problemIsSetup':
+    "The errors here are a sign-in or a provider's limit, which the person fixes in Settings, not a fault in Leaf Bot. Tell them how to fix it. Draft a report only if they ask for one (asked: true).",
+  'problem.cardTitle': 'Found a bug? Report it',
+  'problem.steps': 'Steps',
+  'problem.errors': 'Errors in this conversation',
+  'problem.note':
+    'The button opens a filled-in issue on GitHub; you check it there and submit it. Nothing is sent from here.',
+  'problem.notNow': 'Not now',
+  'problem.open': 'Open on GitHub',
   'card.yes': 'Yes',
   'card.no': 'No',
   'card.forBot': '[Card answer · action: {action} · values: {values}]',

@@ -23,6 +23,8 @@ export const CARD_LIMITS = {
   title: 160,
   actionType: 64,
   payloadBytes: 2_000,
+  /** An `open_url` payload never reaches the bot, and a filled-in form's address is long. */
+  linkBytes: 8_000,
   value: 4_000,
   fallback: 1_500,
   chartPoints: 120,
@@ -432,7 +434,8 @@ function action(raw: unknown, path: string): CardAction {
   }
   if (raw.payload === undefined || raw.payload === null) return { type: raw.type };
   const json = JSON.stringify(raw.payload);
-  if (json === undefined || json.length > CARD_LIMITS.payloadBytes) return refuse(path, 'badAction');
+  const max = raw.type === 'open_url' ? CARD_LIMITS.linkBytes : CARD_LIMITS.payloadBytes;
+  if (json === undefined || json.length > max) return refuse(path, 'badAction');
   return { type: raw.type, payload: JSON.parse(json) as unknown };
 }
 

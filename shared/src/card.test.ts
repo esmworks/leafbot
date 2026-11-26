@@ -148,6 +148,20 @@ describe('parseCard', () => {
     }
   });
 
+  it("lets a link's address be longer than another action's payload, up to its own limit", () => {
+    const card = (url: string) =>
+      parseCard({
+        type: 'Card',
+        children: [{ type: 'Button', label: 'B', onClickAction: { type: 'open_url', payload: { url } } }],
+      });
+    const long = `https://example.com/?q=${'x'.repeat(CARD_LIMITS.payloadBytes)}`;
+    expect(card(long)).toMatchObject({ ok: true });
+    expect(card(`https://example.com/?q=${'x'.repeat(CARD_LIMITS.linkBytes)}`)).toMatchObject({
+      ok: false,
+      error: { issue: 'badAction' },
+    });
+  });
+
   it('refuses a card past its limits', () => {
     const many = {
       type: 'Card',

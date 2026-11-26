@@ -75,7 +75,7 @@ export interface AppTool {
 export const APP_SERVER = 'leafbot';
 
 /** Tools that only add something under the reply; what is written with them is the reply. */
-const REPLY_TOOLS = new Set(['quick_replies', 'show_card']);
+const REPLY_TOOLS = new Set(['quick_replies', 'show_card', 'report_problem']);
 const isReplyTool = (name: string) => REPLY_TOOLS.has(name.replace(`mcp__${APP_SERVER}__`, ''));
 
 /** One answer of the model in a run: its text and the tools it called. */
