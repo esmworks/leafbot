@@ -25,7 +25,7 @@ curl -fsSL https://raw.githubusercontent.com/esmworks/leafbot/main/docker/instal
 Alan adı verilmezse sunucuya leafbot.cloud altında ücretsiz bir ad alınır: `k3x9q2mf.leafbot.cloud` gibi. Bunun için
 betik `names.leafbot.app`'e bir istek gönderir. Servis adı isteğin geldiği adrese yönlendirir ve bu adresi, adı ve
 sunucunun jetonunun özetini saklar. Sunucu adını her gün `leafbot-name` systemd zamanlayıcısıyla yeniler; 30 gün
-yenilenmeyen adlar silinir. Ad alınamazsa ya da `--sslip` verilirse sunucunun genel IP adresinden bir ad kullanılır:
+yenilenmeyen adlar silinir; silinmiş bir adın yerine `sudo leafbot update --new-name` yenisini alır. Ad alınamazsa ya da `--sslip` verilirse sunucunun genel IP adresinden bir ad kullanılır:
 `203.0.113.7` için `203-0-113-7.sslip.io`. Kurulu bir sunucu güncellemede adını korur. Kendi alan adınız varsa önce DNS
 kaydını sunucuya yönlendirin, sonra `--domain bot.example.com` verin. Sağlayıcının güvenlik duvarında 80 ve 443 açık
 olmalıdır.
@@ -38,6 +38,7 @@ herkes bu 50'yi paylaşır; leafbot.cloud altında yalnızca Leaf Bot sunucular�
 | ---------------------- | ----------------------------------------------------------------------- |
 | `--domain AD`          | Sunucunun alan adı                                                      |
 | `--sslip`              | leafbot.cloud adı istemeden sslip.io adı kullanır                       |
+| `--new-name`           | leafbot.cloud altında yeni bir ad alır (adres değişir)                  |
 | `--version vX.Y.Z`     | Kurulacak sürüm (varsayılan: en son sürüm)                              |
 | `--computer`           | Botların bilgisayarını açar (8 GB önerilir); `--no-computer` kapatır    |
 | `--access-key ANAHTAR` | Erişim anahtarını siz seçin (en az 24 karakter: harf, rakam, `- _ . ~`) |

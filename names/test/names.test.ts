@@ -59,13 +59,26 @@ describe('names service', () => {
     }
   });
 
-  it('keeps one name per address: a second claim replaces the first', async () => {
+  it('never lets a new claim take a name away: the first name keeps working', async () => {
     const { cf, names } = setup();
     const first = await names.claim(IP);
+    // Anything on the server, a bot's shell included, asks from the same address but has no token.
     const second = await names.claim(IP);
     expect(second.name).not.toBe(first.name);
-    expect([...cf.records.values()].map((r) => r.name)).toEqual([second.name]);
-    expect(await failure(names.refresh(first.name.split('.')[0]!, first.token, IP))).toBe('unknown');
+    expect([...cf.records.values()].map((r) => r.name).sort()).toEqual([first.name, second.name].sort());
+    expect(await names.refresh(first.name.split('.')[0]!, first.token, IP)).toEqual({
+      name: first.name,
+      ip: IP,
+    });
+  });
+
+  it('lets an address hold only a few names at once', async () => {
+    const { clock, names } = setup({ PER_IP: '2' });
+    await names.claim(IP);
+    await names.claim(IP);
+    clock.now += 2 * DAY;
+    expect(await failure(names.claim(IP))).toBe('too_many');
+    await names.claim(OTHER_IP);
   });
 
   it('limits new names per address per day, and across all servers per week', async () => {
@@ -81,11 +94,11 @@ describe('names service', () => {
     await names.claim(OTHER_IP);
   });
 
-  it('stops at the zone total, but an address that has a name may still replace it', async () => {
+  it('stops at the zone total', async () => {
     const { names } = setup({ TOTAL: '1' });
     await names.claim(IP);
     expect(await failure(names.claim(OTHER_IP))).toBe('full');
-    await names.claim(IP);
+    expect(await failure(names.claim(IP))).toBe('full');
   });
 
   it('answers full when Cloudflare refuses a record over the zone quota, and dns for other errors', async () => {
@@ -111,13 +124,16 @@ describe('names service', () => {
     expect([...cf.records.values()][0]!.content).toBe(OTHER_IP);
   });
 
-  it('drops a name left on an address another server moves to', async () => {
+  it('leaves other names alone when a server moves to their address', async () => {
     const { cf, names } = setup();
     const a = await names.claim(IP);
     const b = await names.claim(OTHER_IP);
     await names.refresh(a.name.split('.')[0]!, a.token, OTHER_IP);
-    expect([...cf.records.values()].map((r) => [r.name, r.content])).toEqual([[a.name, OTHER_IP]]);
-    expect(await failure(names.refresh(b.name.split('.')[0]!, b.token, OTHER_IP))).toBe('unknown');
+    expect(cf.records.size).toBe(2);
+    expect(await names.refresh(b.name.split('.')[0]!, b.token, OTHER_IP)).toEqual({
+      name: b.name,
+      ip: OTHER_IP,
+    });
   });
 
   it('gives a name up with its token', async () => {
@@ -140,12 +156,18 @@ describe('names service', () => {
   });
 
   it('sends someone who knows only the server’s address on to its name', async () => {
-    const { call, names } = setup();
+    const { call, clock, names } = setup();
     expect((await call('GET', `/${IP}`, OTHER_IP)).status).toBe(404);
+    const older = await names.claim(IP);
+    clock.now += 1000;
     const { name } = await names.claim(IP);
     const res = await call('GET', `/${IP}`, OTHER_IP);
     expect(res.status).toBe(302);
     expect(res.headers.get('location')).toBe(`https://${name}/`);
+    // The name its server renewed last wins.
+    clock.now += 1000;
+    await names.refresh(older.name.split('.')[0]!, older.token, IP);
+    expect((await call('GET', `/${IP}`, OTHER_IP)).headers.get('location')).toBe(`https://${older.name}/`);
     expect((await call('GET', '/10.0.0.1')).status).toBe(404);
   });
 

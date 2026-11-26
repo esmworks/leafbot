@@ -42,8 +42,19 @@ export class D1NameStore implements NameStore {
     return r ? toName(r) : null;
   }
 
-  async byIp(ip: string): Promise<NameRow | null> {
-    const r = await this.db.prepare('SELECT * FROM names WHERE ip = ?').bind(ip).first<Row>();
+  async countByIp(ip: string): Promise<number> {
+    const r = await this.db
+      .prepare('SELECT COUNT(*) AS n FROM names WHERE ip = ?')
+      .bind(ip)
+      .first<{ n: number }>();
+    return Number(r?.n ?? 0);
+  }
+
+  async latestByIp(ip: string): Promise<NameRow | null> {
+    const r = await this.db
+      .prepare('SELECT * FROM names WHERE ip = ? ORDER BY seen_at DESC, created_at DESC LIMIT 1')
+      .bind(ip)
+      .first<Row>();
     return r ? toName(r) : null;
   }
 

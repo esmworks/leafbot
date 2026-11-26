@@ -29,6 +29,7 @@ STAGE2=
 REF=
 LANG_GIVEN=
 SSLIP=
+NEW_NAME=
 NAME_TOKEN=
 REST=()
 # Hands out names under leafbot.cloud (the names/ folder of this repository). Set LEAFBOT_NAMES_URL to
@@ -69,6 +70,7 @@ Seçenekler:
                      sunucuya leafbot.cloud altında ücretsiz bir ad alınır; alınamazsa
                      IP adresinden bir sslip.io adı kullanılır.
   --sslip            leafbot.cloud adı istemeden sslip.io adı kullanır
+  --new-name         leafbot.cloud altında yeni bir ad alır (adres değişir)
   --version vX.Y.Z   Kurulacak sürüm (varsayılan: en son sürüm)
   --computer         Botların bilgisayarını açar (8 GB bellek önerilir)
   --no-computer      Botların bilgisayarını kapatır
@@ -98,6 +100,7 @@ Options:
                      Without it, the server gets a free name under leafbot.cloud, or, when
                      none can be had, an sslip.io name made from its IP address.
   --sslip            Use an sslip.io name without asking for a leafbot.cloud name
+  --new-name         Get a new name under leafbot.cloud (the address changes)
   --version vX.Y.Z   Release to install (default: the latest release)
   --computer         Turn on the bots' desktops (8 GB of memory recommended)
   --no-computer      Turn off the bots' desktops
@@ -149,6 +152,10 @@ parse_args() {
         ;;
       --sslip)
         SSLIP=1
+        shift
+        ;;
+      --new-name)
+        NEW_NAME=1
         shift
         ;;
       --access-key)
@@ -449,15 +456,26 @@ refresh_name() {
   domain=$(get_env LEAFBOT_DOMAIN)
   url=$(get_env LEAFBOT_NAMES_URL)
   [ -n "$token" ] || die "Bu kurulumun leafbot.cloud adı yok." "This installation has no leafbot.cloud name."
-  # The token goes to curl on its standard input, not its command line, where other users could see it.
-  printf 'header = "Authorization: Bearer %s"\n' "$token" |
-    curl -4 -fsS --max-time 20 --config - -X PUT "${url:-$NAMES_URL}/v1/names/${domain%%.*}" >/dev/null ||
-    die "$domain yenilenemedi; bir sonraki gün yeniden denenir." "Could not renew $domain; it is tried again the next day."
-  say "$domain yenilendi." "$domain renewed."
+  local code
+  code=$(name_request PUT "${url:-$NAMES_URL}" "${domain%%.*}" "$token") || code=000
+  case $code in
+    200) say "$domain yenilendi." "$domain renewed." ;;
+    404) die "$domain artık yok: 30 gün yenilenmeyen adlar silinir. Yeni bir ad için: sudo leafbot update --new-name (adres değişir; uygulamaları yeni adrese bağlayın)." \
+      "$domain is gone: names not renewed for 30 days are removed. For a new name: sudo leafbot update --new-name (the address changes; connect the apps to the new one)." ;;
+    *) die "$domain yenilenemedi (HTTP $code); bir sonraki gün yeniden denenir." \
+      "Could not renew $domain (HTTP $code); it is tried again the next day." ;;
+  esac
+}
+
+# PUT or DELETE on a name; prints the HTTP status. The token goes to curl on its standard input, not
+# its command line, where other users of the server could see it.
+name_request() {
+  printf 'header = "Authorization: Bearer %s"\n' "$4" |
+    curl -4 -sS --max-time 20 --config - -o /dev/null -w '%{http_code}' -X "$1" "$2/v1/names/$3"
 }
 
 choose_domain() {
-  DOMAIN=${DOMAIN:-$(get_env LEAFBOT_DOMAIN)}
+  [ -n "$NEW_NAME" ] || DOMAIN=${DOMAIN:-$(get_env LEAFBOT_DOMAIN)}
   local ip
   ip=$(public_ipv4 || true)
   if [ -z "$DOMAIN" ]; then
@@ -511,8 +529,10 @@ migrate_old_install() {
 }
 
 write_env() {
-  local file
+  local file old_domain old_token
   file=$(ENV_FILE)
+  old_domain=$(get_env LEAFBOT_DOMAIN)
+  old_token=$(get_env LEAFBOT_NAME_TOKEN)
   if [ ! -f "$file" ]; then
     (
       umask 077
@@ -535,6 +555,13 @@ write_env() {
     set_env LEAFBOT_ACCESS_KEY "$(random_hex)"
   fi
   set_env LEAFBOT_DOMAIN "$DOMAIN"
+  # A leafbot.cloud name the server no longer uses is given back, so it does not wait 30 days to expire.
+  if [ -n "$old_token" ] && [ "$old_domain" != "$DOMAIN" ]; then
+    local url
+    url=$(get_env LEAFBOT_NAMES_URL)
+    name_request DELETE "${url:-$NAMES_URL}" "${old_domain%%.*}" "$old_token" >/dev/null 2>&1 || true
+    set_env LEAFBOT_NAME_TOKEN ''
+  fi
   # The name's token sits with the other secrets: the file is 0600 and no container reads it.
   if [ -n "$NAME_TOKEN" ]; then
     set_env LEAFBOT_NAME_TOKEN "$NAME_TOKEN"
@@ -684,6 +711,11 @@ WantedBy=timers.target
 EOF
     systemctl daemon-reload
     systemctl enable --now --quiet leafbot-name.timer
+  elif [ -f /etc/systemd/system/leafbot-name.timer ]; then
+    # The server moved to its own domain or an sslip.io name: there is no name to renew.
+    systemctl disable --now --quiet leafbot-name.timer 2>/dev/null || true
+    rm -f /etc/systemd/system/leafbot-name.timer /etc/systemd/system/leafbot-name.service
+    systemctl daemon-reload
   fi
   cat >/usr/local/bin/leafbot <<EOF
 #!/bin/sh

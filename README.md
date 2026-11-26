@@ -220,7 +220,7 @@ across reboots), puts Caddy in front for HTTPS with a Let's Encrypt certificate,
 Without a domain the server gets a free name under leafbot.cloud, such as `k3x9q2mf.leafbot.cloud`. For that the
 script sends one request to `names.leafbot.app`, which points the name at the address the request came from and keeps
 that address, the name and a hash of the server's token; the server renews its name once a day, and names not renewed
-for 30 days are removed. When no name can be had, or with `--sslip`, it uses one made from the server's IP address
+for 30 days are removed (`leafbot update --new-name` gets another). When no name can be had, or with `--sslip`, it uses one made from the server's IP address
 (`1-2-3-4.sslip.io`) instead. An installed server keeps its name on updates. With your own domain, point its DNS record
 at the server first and pass it:
 

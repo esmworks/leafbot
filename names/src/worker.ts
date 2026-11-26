@@ -20,6 +20,7 @@ export interface Env {
   /** The zone names are made under, such as `leafbot.cloud`. */
   DOMAIN: string;
   PER_IP_PER_DAY?: string;
+  PER_IP?: string;
   PER_WEEK?: string;
   TOTAL?: string;
   STALE_DAYS?: string;
@@ -32,6 +33,7 @@ function limits(env: Env): NameLimits {
   };
   return {
     perIpPerDay: num(env.PER_IP_PER_DAY, DEFAULT_LIMITS.perIpPerDay),
+    perIp: num(env.PER_IP, DEFAULT_LIMITS.perIp),
     perWeek: num(env.PER_WEEK, DEFAULT_LIMITS.perWeek),
     total: num(env.TOTAL, DEFAULT_LIMITS.total),
     staleDays: num(env.STALE_DAYS, DEFAULT_LIMITS.staleDays),
@@ -47,6 +49,12 @@ export function service(env: Env, fetcher: typeof fetch = fetch, now?: () => num
     ...(now ? { now } : {}),
   });
 }
+
+/** Read by a person who opened `names.leafbot.app/<address>` before their server had a name. */
+const NO_NAME = {
+  en: 'No Leaf Bot server has a name at this address yet. The installer may still be running; try again in a few minutes.',
+  tr: 'Bu adreste henüz adı olan bir Leaf Bot sunucusu yok. Kurulum sürüyor olabilir; birkaç dakika sonra yeniden deneyin.',
+};
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -81,13 +89,11 @@ export async function handle(req: Request, names: NameService): Promise<Response
     if (byIp && req.method === 'GET') {
       const name = await names.nameFor(byIp[1] ?? '');
       if (name) return new Response(null, { status: 302, headers: { location: `https://${name}/` } });
-      return new Response(
-        'No Leaf Bot server has a name at this address yet. The installer may still be running.\n',
-        {
-          status: 404,
-          headers: { 'content-type': 'text/plain', 'cache-control': 'no-store' },
-        },
-      );
+      const lang = /^tr\b/i.test(req.headers.get('accept-language') ?? '') ? 'tr' : 'en';
+      return new Response(`${NO_NAME[lang]}\n`, {
+        status: 404,
+        headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' },
+      });
     }
     if (url.pathname === '/' && req.method === 'GET') {
       return new Response('Leaf Bot server names\n', { headers: { 'content-type': 'text/plain' } });

@@ -11,7 +11,9 @@ Renewals of existing certificates do not count.
 - `POST /v1/names` makes a random name and an A record (DNS only, not proxied) pointing at the address the request
   came from (`CF-Connecting-IP`), and answers `{ name, token }`. The caller has shown it holds that address, so nobody
   can point a name at someone else's server. Only public IPv4 addresses get a name; the installer asks over IPv4.
-- One name per address: a server set up again on the same address gets a new name and the old one is removed.
+- Asking for a name needs no token, and anything on a server (its bots' shells and browsers among them) leaves from
+  the server's address. So a new name never replaces an existing one: only the token's holder can move or give up a
+  name. A server set up again on the same address gets a new name, and the old one expires.
 - `PUT /v1/names/<label>` with `Authorization: Bearer <token>` says the server is still there and moves the name if
   the address changed. The installer's `leafbot-name` systemd timer calls it once a day and after a boot.
 - `DELETE /v1/names/<label>` with the token gives the name up.
@@ -28,6 +30,7 @@ days the address and time of each name handed out. The token itself stays on the
 | Limit                   | Default | Variable         | Why                                                                              |
 | ----------------------- | ------- | ---------------- | -------------------------------------------------------------------------------- |
 | New names per address   | 3 a day | `PER_IP_PER_DAY` | One server rarely needs more                                                     |
+| Names per address       | 3       | `PER_IP`         | Room to set a server up again before its old name expires                        |
 | New names in seven days | 40      | `PER_WEEK`       | Stays under Let's Encrypt's 50 new certificates a week for the domain            |
 | Names at once           | 180     | `TOTAL`          | Cloudflare's free plan allows 200 DNS records in a zone created after 2024-09-01 |
 | Days before removal     | 30      | `STALE_DAYS`     | A server switched off for a month gives its name back                            |
