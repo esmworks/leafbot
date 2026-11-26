@@ -1266,10 +1266,17 @@ describe('sohbet', () => {
 
   it('danışman, zaten o modelde çalışan bota ve yedek modelle süren işe gönderilmez', async () => {
     await t.api('PATCH', '/api/settings', { claudeAdvisorModel: 'opus', backupModel: 'openrouter/yedek' });
-    const same = await t.bot({ model: 'opus' });
+    // The same family under its full id is the same model.
+    const same = await t.bot({ model: 'claude-opus-5-5' });
     await t.send((await main(same.id)).id, 'merhaba');
     await t.services.turns.idle();
-    expect(t.engine.requests.at(-1)!.model).toBe('opus');
+    expect(t.engine.requests.at(-1)!.model).toBe('claude-opus-5-5');
+    expect(t.engine.requests.at(-1)!).not.toHaveProperty('advisorModel');
+
+    const pi = await t.bot({ engine: 'pi', model: 'openrouter/baska' });
+    await t.send((await main(pi.id)).id, 'merhaba');
+    await t.services.turns.idle();
+    expect(t.engine.requests.at(-1)!.model).toBe('openrouter/baska');
     expect(t.engine.requests.at(-1)!).not.toHaveProperty('advisorModel');
 
     const bot = await t.bot();

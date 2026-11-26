@@ -2890,7 +2890,7 @@ export const tr = {
   'model.moved': '{count} bot geçirildi.',
   'model.advisor': 'Danışman model',
   'model.advisorHint':
-    'Claude botlar takıldıklarında, büyük bir adımdan önce ve işi bitti saymadan önce bu daha güçlü modele danışabilir. Danışman sohbetin tamamını görür ve yalnızca bota cevap verir; harcadığı token kendi modelinin fiyatından ücretlendirilir ve harcamaya sayılır. Yalnızca botun modeli kadar ya da ondan daha güçlü olduğunda devreye girer.',
+    'Claude botlar takıldıklarında, büyük bir adımdan önce ve işi bitti saymadan önce bu daha güçlü modele danışabilir. Danışman sohbetin tamamını görür ve yalnızca bota cevap verir; harcadığı token kendi modelinin fiyatından ücretlendirilir ve harcamaya sayılır. Yalnızca botun modeli kadar ya da ondan daha güçlü olduğunda devreye girer. Claude aboneliğinde Fable’ı danışman yapmak için hesapta ek kullanımın açık olması gerekebilir.',
   'model.advisorOff': 'Kapalı',
   'model.compact': 'Sohbeti özetleme sınırı',
   'model.compactHint':

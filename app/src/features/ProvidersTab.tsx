@@ -870,7 +870,9 @@ function AdvisorModel() {
   // The ones this login lists, by their names there; one saved earlier stays even if no longer listed.
   const choices = CLAUDE_ADVISORS.flatMap((a) => {
     const listed = models.find((m) => m.value === a);
-    return listed || a === value ? [{ value: a, name: listed?.name ?? a }] : [];
+    return listed || a === value
+      ? [{ value: a, name: listed?.name ?? a[0]!.toUpperCase() + a.slice(1) }]
+      : [];
   });
   return (
     <Row label={t('model.advisor')} hint={t('model.advisorHint')}>

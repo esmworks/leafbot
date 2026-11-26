@@ -163,12 +163,24 @@ export function taggedSkill(text: string, name: string): boolean {
   return new RegExp(`(^|[\\s(])\\$${escaped}(?![\\w-])`).test(text);
 }
 
+/** A Claude model's family as the advisor setting names it: `claude-opus-5-5` and `opus[1m]` are `opus`. */
+export function claudeFamily(model: string): string {
+  return model
+    .toLowerCase()
+    .replace(/^claude-/, '')
+    .split(/[-[]/)[0]!;
+}
+
 /**
  * The advisor a Claude bot's runs may consult, from the setting; none for another engine, which has
- * no such tool, and none when the bot already runs on that model, which would only advise itself.
+ * no such tool, and none when the bot's own model is of that family, which would only advise itself.
+ * `botModel` is the bot's own, not a routine step's: the session's runs then all ask the same, and
+ * the CLI keeps the advisor's past answers and the cached conversation from run to run.
  */
-export function advisorFor(engine: string, model: string, setting: string): { advisorModel?: string } {
-  return engine === 'claude' && setting && setting !== model ? { advisorModel: setting } : {};
+export function advisorFor(engine: string, botModel: string, setting: string): { advisorModel?: string } {
+  return engine === 'claude' && setting && claudeFamily(botModel) !== setting
+    ? { advisorModel: setting }
+    : {};
 }
 
 export const attended = (source: TurnSource) => source === 'user' || source === 'reaction';
@@ -2316,12 +2328,11 @@ export class TurnManager {
     // A routine may name a cheaper or stronger model for its runs, and a step of it one for itself,
     // on the bot's own engine. A step another bot does names one of that bot's, or none: the
     // routine's model is for its own bot's engine.
+    const botModel =
+      bot.model || (bot.engine === 'claude' ? settings.defaultModel : '') || this.ctx.config.claudeModel;
     const model =
-      routineRun?.stepModel ||
-      (routineRun?.botId === turn.botId ? routineRun.model : '') ||
-      bot.model ||
-      (bot.engine === 'claude' ? settings.defaultModel : '') ||
-      this.ctx.config.claudeModel;
+      routineRun?.stepModel || (routineRun?.botId === turn.botId ? routineRun.model : '') || botModel;
+    const advisor = advisorFor(bot.engine, botModel, settings.claudeAdvisorModel);
     await this.ctx.db
       .update(schema.turns)
       .set({ engine: bot.engine, model })
@@ -2362,7 +2373,7 @@ export class TurnManager {
           : {}),
         compactWindow: settings.claudeCompactWindow,
         // The backup runs on another provider, which has no advisor tool.
-        ...(!backup && advisorFor(bot.engine, model, settings.claudeAdvisorModel)),
+        ...(!backup && advisor),
         prompt,
         context: [nowLine(new Date(), timezone, locale), appsDown].filter(Boolean).join('\n'),
         sessionId: backup ? null : session,

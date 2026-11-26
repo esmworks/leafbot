@@ -2939,7 +2939,7 @@ export const en: Catalog<MessageKey> = {
   'model.moved': { one: '1 bot moved.', other: '{count} bots moved.' },
   'model.advisor': 'Advisor model',
   'model.advisorHint':
-    "A Claude bot may ask this stronger model for advice when it is stuck, before a large step and before it calls its work done. The advisor sees the whole conversation and answers only the bot; its tokens are billed at its own model's rates and count toward spending. It applies only when it is at least as capable as the bot's model.",
+    "A Claude bot may ask this stronger model for advice when it is stuck, before a large step and before it calls its work done. The advisor sees the whole conversation and answers only the bot; its tokens are billed at its own model's rates and count toward spending. It applies only when it is at least as capable as the bot's model. On a Claude subscription, Fable as the advisor may need extra usage turned on for the account.",
   'model.advisorOff': 'Off',
   'model.compact': 'Conversation summary size',
   'model.compactHint':
