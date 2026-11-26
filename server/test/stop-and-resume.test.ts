@@ -77,7 +77,6 @@ describe('durdurma ve kaldığı yerden sürdürme', () => {
         name: 'Sipariş Senkronu',
         prompt: '[bekle:5000] siparişleri eşle',
         schedule: { type: 'interval', minutes: 60 },
-        inMain: false,
       })
     ).body;
     const run = (await t.api<RoutineRun>('POST', `/api/routines/${r.id}/run`)).body;
@@ -96,9 +95,22 @@ describe('durdurma ve kaldığı yerden sürdürme', () => {
     const all = await routineRuns(r.id);
     expect(all).toHaveLength(1);
     expect(all[0]!.status).toBe('done');
+    expect(t.engine.requests).toHaveLength(2);
     const prompt = t.engine.requests.at(-1)!.prompt;
     expect(prompt).toContain('önceki denemen yarıda kaldı');
     expect(prompt).toContain('siparişleri eşle');
+    // It ran in the person's own conversation, and its report is there once.
+    expect(run.threadId).toBe((await main(a.id)).id);
+    const [resumed] = await t.db.db
+      .select()
+      .from(schema.turns)
+      .where(eq(schema.turns.routineRunId, run.id))
+      .orderBy(desc(schema.turns.createdAt))
+      .limit(1);
+    const reports = (await t.messages(run.threadId!)).filter(
+      (m) => m.turnId === resumed!.id && m.role === 'assistant',
+    );
+    expect(reports).toHaveLength(1);
   });
 
   it('sürdürülen rutin turu da yarıda kalırsa bir daha sürmez, çalıştırma kapanır', async () => {
@@ -114,7 +126,7 @@ describe('durdurma ve kaldığı yerden sürdürme', () => {
     ).body;
     const run = (await t.api<RoutineRun>('POST', `/api/routines/${r.id}/run`)).body;
     await t.services.turns.idle();
-    const crash = async () => {
+    const crash = async (twice = false) => {
       const [last] = await t.db.db
         .select()
         .from(schema.turns)
@@ -126,12 +138,22 @@ describe('durdurma ve kaldığı yerden sürdürme', () => {
         .update(schema.routineRuns)
         .set({ status: 'running', finishedAt: null })
         .where(eq(schema.routineRuns.id, run.id));
+      // A stop while the turn was being closed: its note was written, its row not yet.
+      if (twice)
+        await t.services.threads.addMessage({
+          threadId: last!.threadId,
+          role: 'system',
+          author: 'system',
+          text: 'yarıda kaldı',
+          props: { resume: true },
+          turnId: last!.id,
+        });
       await t.services.turns.recover();
       await t.services.routines.recover();
       await t.services.turns.idle();
     };
     const before = t.engine.requests.length;
-    await crash();
+    await crash(true);
     expect(t.engine.requests).toHaveLength(before + 1);
     expect(t.engine.requests.at(-1)!.prompt).toContain('önceki denemen yarıda kaldı');
     expect((await routineRuns(r.id))[0]!.status).toBe('done');
@@ -140,6 +162,27 @@ describe('durdurma ve kaldığı yerden sürdürme', () => {
     await crash();
     expect(t.engine.requests).toHaveLength(before + 1);
     expect((await routineRuns(r.id))[0]!.status).toBe('error');
+  });
+
+  it('sohbet uygulamasından gelen istek kendiliğinden sürmez; kişiye yeniden yazması söylenir', async () => {
+    const a = await t.bot({ name: 'Ali' });
+    const thread = await main(a.id);
+    await t.send(thread.id, 'raporu hazırla');
+    await t.services.turns.idle();
+    await t.db.db.insert(schema.channels).values({ id: 'tg', kind: 'telegram', botId: a.id });
+    await t.db.db
+      .insert(schema.channelRequests)
+      .values({ channelId: 'tg', threadId: thread.id, place: { chat: '1' } });
+    const [turn] = await t.db.db.select().from(schema.turns).where(eq(schema.turns.threadId, thread.id));
+    await t.db.db.update(schema.turns).set({ status: 'running' }).where(eq(schema.turns.id, turn!.id));
+    const before = t.engine.requests.length;
+    await t.services.turns.recover();
+    await t.services.turns.idle();
+
+    expect(t.engine.requests).toHaveLength(before);
+    const note = (await t.messages(thread.id)).filter((m) => m.role === 'system').at(-1)!;
+    expect(note.props.resume).toBeUndefined();
+    expect(note.text).not.toContain('kaldığı yerden');
   });
 
   it('sunucu kapanırken yarıda kalan iş, sorana yeniden başlatma olarak ve yeniden sorulsun diye bildirilir', async () => {

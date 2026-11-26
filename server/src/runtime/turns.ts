@@ -478,7 +478,8 @@ export class TurnManager {
    */
   private async resumable(turn: TurnRow): Promise<boolean> {
     if (turn.source !== 'user' && turn.source !== 'routine') return false;
-    if (turn.jobId || turn.rehearsalId || resumedBefore(turn.prompt)) return false;
+    // A guest's request is not taken up again without them.
+    if (turn.jobId || turn.rehearsalId || turn.guest || resumedBefore(turn.prompt)) return false;
     const thread = await this.services.threads.row(turn.threadId).catch(() => null);
     if (!thread || !RESUMED_KINDS.has(thread.kind)) return false;
     const session =
@@ -505,41 +506,60 @@ export class TurnManager {
   /**
    * After a restart: the turns the stop cut short and marked to go on (see `resumable`) run again
    * in their session, told to look first at what was done. Each goes on once; one that cannot is
-   * left as a stopped turn, its routine's run ended by the routines' own recovery.
+   * left as a stopped turn, its note saying so, and its routine's run is ended by the routines' own
+   * recovery.
    */
   private async resumeLeft() {
     const notes = await this.ctx.db
       .select()
       .from(schema.messages)
-      .where(and(eq(schema.messages.role, 'system'), sql`${schema.messages.props} ? 'resume'`));
+      .where(and(eq(schema.messages.role, 'system'), sql`${schema.messages.props} ? 'resume'`))
+      .orderBy(asc(schema.messages.createdAt));
+    const t = await this.services.settings.translator();
+    // A stop that came while the turn was being closed can leave it two notes; it goes on once.
+    const taken = new Set<string>();
     for (const n of notes) {
       const { resume: _, ...props } = n.props as Record<string, unknown>;
       await this.services.threads.updateMessage(n.id, { props });
-      if (!n.turnId) continue;
-      try {
-        await this.resumeTurn(n.id, n.turnId);
-      } catch (err) {
-        console.warn(`Resuming turn ${n.turnId} after the restart failed: ${String(err)}`);
+      let resumed = false;
+      if (n.turnId && !taken.has(n.turnId)) {
+        taken.add(n.turnId);
+        try {
+          resumed = await this.resumeTurn(n.id, n.turnId);
+        } catch (err) {
+          console.warn(`Resuming turn ${n.turnId} after the restart failed: ${String(err)}`);
+        }
       }
+      if (!resumed) await this.services.threads.updateMessage(n.id, { text: t('turn.interruptedByRestart') });
     }
   }
 
-  private async resumeTurn(noteId: string, turnId: string) {
+  /** Whether the turn went on again. */
+  private async resumeTurn(noteId: string, turnId: string): Promise<boolean> {
     const [turn] = await this.ctx.db.select().from(schema.turns).where(eq(schema.turns.id, turnId));
-    if (!turn) return;
+    if (!turn) return false;
     const bot = await this.services.bots.get(turn.botId).catch(() => null);
-    if (!bot || bot.archivedAt) return;
+    if (!bot || bot.archivedAt) return false;
     // A person's request goes as the note's own retry would: only while nothing came after it.
-    if (turn.source === 'user') {
-      await this.retry(noteId);
-      return;
-    }
-    if (!turn.routineRunId) return;
+    if (turn.source === 'user') return !!(await this.retry(noteId));
+    if (!turn.routineRunId) return false;
     const [run] = await this.ctx.db
       .select({ status: schema.routineRuns.status })
       .from(schema.routineRuns)
       .where(eq(schema.routineRuns.id, turn.routineRunId));
-    if (run?.status !== 'running' && run?.status !== 'waiting') return;
+    if (run?.status !== 'running' && run?.status !== 'waiting') return false;
+    // The run already has a turn going on with it.
+    const [going] = await this.ctx.db
+      .select({ id: schema.turns.id })
+      .from(schema.turns)
+      .where(
+        and(
+          eq(schema.turns.routineRunId, turn.routineRunId),
+          inArray(schema.turns.status, ['queued', 'running']),
+        ),
+      )
+      .limit(1);
+    if (going) return false;
     const note = await this.services.threads.message(noteId);
     await this.services.threads.updateMessage(noteId, { props: { ...note.props, retried: true } });
     const t = await this.services.settings.translator();
@@ -557,6 +577,7 @@ export class TurnManager {
       .update(schema.routineStepRuns)
       .set({ turnId: again.id })
       .where(eq(schema.routineStepRuns.turnId, turn.id));
+    return true;
   }
 
   /** After a restart: the retries still waiting are set again. */
