@@ -14,7 +14,9 @@ import {
   encodeFrame,
   FRAME,
   proofMessage,
+  SERVER_FEATURES,
   STREAM_WINDOW,
+  TUNNEL_VERSION,
   type CtlToClient,
 } from '@leafbot/shared/tunnel';
 import Fastify, { type FastifyInstance } from 'fastify';
@@ -266,7 +268,7 @@ async function connected() {
   const d = device();
   const ok = await prove(ctl, read, d);
   expect(ok).toMatchObject({ t: 'ok' });
-  return { peer, ctl, read, d };
+  return { peer, ctl, read, d, ok };
 }
 
 // ---- A minimal browser-side HTTP client over the channel -------------------------------------
@@ -329,6 +331,21 @@ function httpClient(ch: End, opts: { ackDelayMs?: number } = {}) {
 const tick = (ms = 20) => new Promise((r) => setTimeout(r, ms));
 
 describe('TunnelGateway', () => {
+  it('names its tunnel version and the parts of the app it offers once the proof is accepted', async () => {
+    const { ok } = await connected();
+    expect(ok).toMatchObject({ t: 'ok', v: TUNNEL_VERSION, features: [...SERVER_FEATURES] });
+    gateway.close();
+    gateway = new TunnelGateway({
+      server: app.server,
+      checker,
+      host: 'myserver.servers.example',
+      hostKey: hostKey.privateKey,
+      resolve: async (c) => (access.has(c.sub) ? { userId: access.get(c.sub)! } : null),
+      features: ['rooms'],
+    });
+    expect((await connected()).ok).toMatchObject({ features: ['rooms'] });
+  });
+
   it('serves requests as the person the ticket names, whatever headers the page sends', async () => {
     const { peer } = await connected();
     const http = peer.open(CHANNEL.http);
