@@ -480,7 +480,11 @@ importers:
         specifier: 4.6.7
         version: 4.6.7
 
-  webapp: {}
+  webapp:
+    devDependencies:
+      tsx:
+        specifier: 4.23.15
+        version: 4.23.15
 
 packages:
 
