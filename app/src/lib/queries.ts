@@ -34,6 +34,16 @@ export const useClaudeModels = (enabled = true) =>
     staleTime: 5 * 60_000,
   });
 export const useProviders = () => useQuery({ queryKey: ['providers'], queryFn: api.providers });
+/**
+ * Models that make pictures through a saved key; under `providers` so a key saved or removed
+ * refreshes it. Null on a server older than the choice.
+ */
+export const useImageModels = () =>
+  useQuery({
+    queryKey: ['providers', 'image-models'],
+    queryFn: () =>
+      api.imageModels().catch((e) => (e instanceof ApiError && e.status === 404 ? null : Promise.reject(e))),
+  });
 export const useProviderModels = (id: string | null) =>
   useQuery({
     queryKey: ['provider-models', id],

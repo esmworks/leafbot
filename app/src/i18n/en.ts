@@ -2103,6 +2103,17 @@ export const en: Catalog<MessageKey> = {
   'bot.upload': 'Upload',
   'bot.chooseImage': 'Choose image',
   'bot.reset': 'Reset',
+  'bot.describe': 'Describe',
+  'bot.describePlaceholder':
+    'What does it look like? For example: a small green robot with round glasses, holding a watering can',
+  'bot.describeMake': 'Create',
+  'bot.describeMaking': 'Creating…',
+  'bot.describeHint':
+    "Each picture is paid for on the provider's account and scaled down to 256×256. Create again for another.",
+  'bot.describeNoKey':
+    'Creating a picture needs an OpenAI or xAI API key. Add one under Providers, then describe the avatar here.',
+  'bot.describeAddKey': 'Open Providers',
+  'bot.describeUnavailable': 'This server cannot create avatars from a description yet.',
   'bot.imageHint': 'The image is scaled down to 256×256.',
 
   'settings.title': 'Settings',
@@ -2918,6 +2929,15 @@ export const en: Catalog<MessageKey> = {
   'model.idleCompact': 'Summarise ahead while idle',
   'model.idleCompactHint':
     'When a long conversation nears this size and has been quiet for half an hour, the bot summarises it while nobody waits, so the next message is answered without waiting for a summary. Summarising uses the model and counts toward spending; it starts off because after a pause the model reads the conversation again without its cache.',
+  'model.image': 'Image model',
+  'model.imageAuto': 'Automatic',
+  'model.imageOption': '{provider} · {model}',
+  'model.imageAutoHint':
+    "Makes bots' pictures and avatars from a description; automatic uses the bot's own provider when it has a key.",
+  'model.imageChosenHint': "Makes bots' pictures and avatars from a description.",
+  'model.imageGone':
+    "The chosen model's provider has no key any more; pictures use another saved key until it is added back.",
+  'model.imageNoKey': 'Add an OpenAI or xAI API key to make pictures and avatars from a description.',
   'model.backup': 'Backup model',
   'model.backupHint':
     'When the usage limit is used up, the model cannot answer or it is no longer offered, the work goes on with this model instead of waiting; it gets the recent conversation. While this is off no other model is used: the work waits and is sent again by itself once the limit resets.',

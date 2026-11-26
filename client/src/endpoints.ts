@@ -180,6 +180,12 @@ export interface JobView {
   };
   messages: Message[];
 }
+/** A model that makes pictures, as `provider/model`, with the name to show. */
+export interface ImageModel {
+  ref: string;
+  provider: string;
+  name: string;
+}
 export interface Settings {
   userName: string;
   /** Profile fields and `onboarded` are missing on servers older than the first-run questions. */
@@ -197,6 +203,8 @@ export interface Settings {
   piModel?: string;
   /** `provider/model` that carries a turn once the usage limit is spent; empty waits instead. */
   backupModel?: string;
+  /** `provider/model` that makes pictures; empty picks one from the saved keys. Missing on older servers. */
+  imageModel?: string;
   /** Tokens at which a Claude bot folds the conversation into a summary; 0 leaves it to Claude. Missing on older servers. */
   claudeCompactWindow?: number;
   /** Long conversations are summarised while idle, before the size above is reached. Missing on older servers. */
@@ -315,6 +323,11 @@ export function endpoints(send: Transport, base = '') {
     updatePerson: (id: string, p: PersonUpdate) => http.patch<PersonInfo>(`/api/people/${id}`, p),
     removePerson: (id: string) => http.del<{ ok: true }>(`/api/people/${id}`),
     setBotAccess: (id: string, access: BotAccess) => http.put<Bot>(`/api/bots/${id}/access`, access),
+    /** Models that make pictures through a saved key; the chosen one is the `imageModel` setting. */
+    imageModels: () => http.get<{ models: ImageModel[] }>('/api/images/models'),
+    /** A square picture made from a description of the avatar, as a data URL. */
+    makeAvatar: (description: string, model?: string) =>
+      http.post<{ image: string; model: string }>('/api/images/avatar', { description, model }),
     providers: () => http.get<ProviderInfo[]>('/api/providers'),
     providerModels: (id: string) => http.get<string[]>(`/api/providers/${encodeURIComponent(id)}/models`),
     providerModelInfo: (id: string) =>

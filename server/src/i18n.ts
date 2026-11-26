@@ -345,6 +345,8 @@ const tr = {
   'error.endpointUrl': 'Adres http:// ya da https:// ile başlayan geçerli bir adres olmalı',
   'error.endpointModels': 'Uç nokta model listesini vermedi ({message}); modelleri elle yaz',
   'error.noProviderKey': 'Önce bu sağlayıcının API anahtarını kaydedin',
+  'error.imageNoKey':
+    'Resim oluşturmak için Ayarlar → Sağlayıcılar bölümünden bir OpenAI ya da xAI API anahtarı ekleyin',
   'error.subscriptionToken': 'Bu bir Claude abonelik jetonu; burada yalnızca API anahtarı kullanılır',
   'error.notClaudeToken':
     'Bu bir Claude abonelik belirteci değil; claude setup-token çıktısı sk-ant-oat ile başlar',
@@ -2776,6 +2778,7 @@ const en: Catalog<ServerKey> = {
   'error.endpointUrl': 'The address must be a valid http:// or https:// address',
   'error.endpointModels': 'The endpoint did not list its models ({message}); type them in',
   'error.noProviderKey': "Save this provider's API key first",
+  'error.imageNoKey': 'To make a picture, add an OpenAI or xAI API key under Settings → Providers',
   'error.subscriptionToken': 'This is a Claude subscription token; only API keys are used here',
   'error.notClaudeToken':
     'This is not a Claude subscription token; the output of claude setup-token starts with sk-ant-oat',

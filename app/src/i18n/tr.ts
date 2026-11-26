@@ -2069,6 +2069,17 @@ export const tr = {
   'bot.upload': 'Karşıya yükle',
   'bot.chooseImage': 'Görsel seç',
   'bot.reset': 'Sıfırla',
+  'bot.describe': 'Anlat',
+  'bot.describePlaceholder':
+    'Neye benziyor? Örneğin: yuvarlak gözlüklü, elinde sulama kabı tutan küçük yeşil bir robot',
+  'bot.describeMake': 'Oluştur',
+  'bot.describeMaking': 'Oluşturuluyor…',
+  'bot.describeHint':
+    'Her görsel sağlayıcının hesabından ücretlendirilir ve 256×256 boyutuna küçültülür. Başka bir tane için yeniden oluşturun.',
+  'bot.describeNoKey':
+    'Görsel oluşturmak için bir OpenAI ya da xAI API anahtarı gerekir. Sağlayıcılar bölümünden ekleyin, sonra avatarı burada anlatın.',
+  'bot.describeAddKey': 'Sağlayıcıları aç',
+  'bot.describeUnavailable': 'Bu sunucu henüz anlatılan avatarı oluşturamıyor.',
   'bot.imageHint': 'Görsel 256×256 boyutuna küçültülür.',
 
   // Settings
@@ -2868,6 +2879,15 @@ export const tr = {
   'model.idleCompact': 'Boştayken önceden özetle',
   'model.idleCompactHint':
     'Uzun bir sohbet bu sınıra yaklaştıysa ve yarım saattir sessizse, bot onu beklerken özetler; bir sonraki mesaj özetlemeyi beklemeden cevaplanır. Özetleme modeli kullanır ve harcamaya sayılır; ara verdikten sonra model sohbeti önbelleksiz okuduğu için kapalı başlar.',
+  'model.image': 'Görsel modeli',
+  'model.imageAuto': 'Otomatik',
+  'model.imageOption': '{provider} · {model}',
+  'model.imageAutoHint':
+    'Botların görsellerini ve anlatılan avatarları oluşturur; otomatik, anahtarı varsa botun kendi sağlayıcısını kullanır.',
+  'model.imageChosenHint': 'Botların görsellerini ve anlatılan avatarları oluşturur.',
+  'model.imageGone':
+    'Seçilen modelin sağlayıcısının artık anahtarı yok; anahtar yeniden eklenene kadar görseller kayıtlı başka bir anahtarla oluşturulur.',
+  'model.imageNoKey': 'Görsel ve anlatılan avatar oluşturmak için bir OpenAI ya da xAI API anahtarı ekleyin.',
   'model.backup': 'Yedek model',
   'model.backupHint':
     'Kullanım sınırı dolunca, model yanıt veremeyince ya da artık sunulmayınca iş beklemek yerine bu modelle sürer; sohbetin geçmişi ona aktarılır. Kapalıyken başka modele geçilmez: iş bekler ve sınır sıfırlanınca kendiliğinden yeniden gönderilir.',
