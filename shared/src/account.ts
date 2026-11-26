@@ -66,6 +66,15 @@ export const TicketClaims = z.object({
    * neither the relay nor a TURN server can sit in the middle. Required on `client` tickets.
    */
   cnf: z.object({ jkt: z.string().regex(/^[A-Za-z0-9_-]{43}$/) }).optional(),
+  /**
+   * The server's own Ed25519 public key (raw, base64url), as it registered it when it was linked.
+   * The browser checks the server's proof on the tunnel against it, so a relay cannot pose as the
+   * server. Required on `client` tickets.
+   */
+  hkey: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{43}$/)
+    .optional(),
 });
 export type TicketClaims = z.infer<typeof TicketClaims>;
 

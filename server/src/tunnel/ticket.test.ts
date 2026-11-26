@@ -43,6 +43,7 @@ function ticket(
       mid: 'mem_12345678',
       epoch: 3,
       cnf: { jkt: 'A'.repeat(43) },
+      hkey: 'H'.repeat(43),
       ...claims,
     }),
   ).toString('base64url');
@@ -90,6 +91,7 @@ describe('TicketChecker', () => {
       'ticket',
     );
     expect(await refusal(c.check(ticket(iss, { cnf: undefined })))).toBe('ticket');
+    expect(await refusal(c.check(ticket(iss, { hkey: undefined })))).toBe('ticket');
   });
 
   it('refuses expired, future and long-lived tickets', async () => {

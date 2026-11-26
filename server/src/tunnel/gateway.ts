@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createPublicKey, randomBytes, sign, type KeyObject } from 'node:crypto';
 import {
   request,
   type ClientRequest,
@@ -19,6 +19,9 @@ import {
   DROPPED_RESPONSE_HEADERS,
   encodeAck,
   encodeFrame,
+  encodeRt,
+  hostProofMessage,
+  RtAssembler,
   FRAME,
   MAX_FRAME_PAYLOAD,
   MAX_RT_CHANNELS,
@@ -65,6 +68,12 @@ export interface GatewayOptions {
   resolve(claims: TicketClaims): Promise<{ userId: string } | null>;
   /** The Host header tunnelled requests carry: the address the browser loaded the app from. */
   host: string;
+  /**
+   * This server's Ed25519 key. The account service holds its public half and names it in every
+   * ticket (`hkey`); the server signs both fingerprints with it so the browser knows it reached
+   * this server and not a relay posing as it.
+   */
+  hostKey: KeyObject;
   /** How long a proof holds before a fresh ticket is due, in seconds. */
   refreshS?: number;
 }
@@ -133,12 +142,14 @@ class TunnelSession {
   /** Everything opened for this connection, closed with it. */
   private owned = new Set<{ destroy(): void }>();
   private over = false;
+  private readonly hostPublic: string;
 
   constructor(
     private peer: TunnelPeer,
     private opts: GatewayOptions,
     private onEnd: () => void,
   ) {
+    this.hostPublic = createPublicKey(opts.hostKey).export({ format: 'jwk' }).x ?? '';
     peer.onChannel((ch) => this.channel(ch));
     peer.onClose(() => this.end(null));
     // A browser that does not prove who it is within a ticket's life is let go.
@@ -191,6 +202,8 @@ class TunnelSession {
       const was = this.identity;
       if (was && (was.accountUserId !== claims.sub || was.sessionId !== claims.sid))
         throw new TunnelRefusal('ticket');
+      // A ticket naming another key would fail in the browser; say so here, where it is clear.
+      if (claims.hkey !== this.hostPublic) throw new TunnelRefusal('ticket');
       const local = await this.opts.resolve(claims);
       if (!local) throw new TunnelRefusal('access');
       if (was && was.userId !== local.userId) throw new TunnelRefusal('access');
@@ -205,7 +218,12 @@ class TunnelSession {
       const refreshIn = this.opts.refreshS ?? TICKET_REFRESH_S;
       if (this.refresh) clearTimeout(this.refresh);
       this.refresh = setTimeout(() => this.end('expired'), refreshIn * 1000);
-      send(this.ctl, { t: 'ok', refreshIn });
+      const proof = hostProofMessage({
+        clientFingerprint: this.peer.remoteFingerprint,
+        serverFingerprint: this.peer.localFingerprint,
+        cnonce: msg.cnonce,
+      });
+      send(this.ctl, { t: 'ok', refreshIn, sig: sign(null, proof, this.opts.hostKey).toString('base64url') });
       send(this.ctl, { t: 'challenge', nonce: this.nonce });
     } catch (err) {
       this.end(err instanceof TunnelRefusal ? err.code : 'ticket');
@@ -220,7 +238,7 @@ class TunnelSession {
     return d;
   }
 
-  /** One Socket.IO connection: each channel message is one WebSocket message, both ways. */
+  /** One Socket.IO connection: each WebSocket message travels as one or more pieces (`encodeRt`). */
   private realtime(ch: TunnelChannel) {
     this.rt++;
     const ws = new WebSocket(`ws://${this.opts.host}/socket.io/?EIO=4&transport=websocket`, {
@@ -234,13 +252,23 @@ class TunnelSession {
       for (const m of early.splice(0)) ws.send(m);
     });
     ws.on('message', (data: Buffer, isBinary) => {
-      ch.send(
-        isBinary ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength) : data.toString('utf8'),
-      );
+      const m = isBinary
+        ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+        : data.toString('utf8');
+      for (const piece of encodeRt(m)) ch.send(piece);
       if (ch.bufferedAmount >= BUFFER_HIGH) ws.pause();
     });
     ch.onDrain(() => ws.resume());
-    ch.onMessage((m) => {
+    const pieces = new RtAssembler();
+    ch.onMessage((raw) => {
+      let m: string | Uint8Array | null;
+      try {
+        if (typeof raw === 'string') throw new Error('text piece');
+        m = pieces.push(raw);
+      } catch {
+        return ch.close();
+      }
+      if (m === null) return;
       if (ws.readyState === WebSocket.OPEN) ws.send(m);
       else if (ws.readyState === WebSocket.CONNECTING && early.length < MAX_EARLY_MESSAGES) early.push(m);
       else ch.close();
@@ -285,6 +313,8 @@ interface Stream {
   inflight: number;
   /** Request body bytes that arrived, and how many were reported written. */
   received: number;
+  /** The body length the browser declared, or null when it sends until END; none for GET and HEAD. */
+  declared: number | null;
   acked: number;
   written: number;
   /** Response bytes read from the app and not yet sent, held while the window is full. */
@@ -338,6 +368,8 @@ class HttpStreams {
       case FRAME.DATA:
         if (!s) return;
         s.received += f.payload.byteLength;
+        // More than the declared body would reach the app as the start of another request.
+        if (s.declared !== null && s.received > s.declared) return this.reset(f.stream);
         // The browser may not send more than the window ahead of what was written.
         if (s.received - s.written > STREAM_WINDOW + MAX_FRAME_PAYLOAD) return this.reset(f.stream);
         s.req.write(Buffer.from(f.payload), () => {
@@ -350,7 +382,10 @@ class HttpStreams {
         });
         return;
       case FRAME.END:
-        s?.req.end();
+        if (!s) return;
+        // A body shorter than declared would leave the app waiting for the rest.
+        if (s.declared !== null && s.received !== s.declared) return this.reset(f.stream);
+        s.req.end();
         return;
       case FRAME.RESET:
         if (!s) return;
@@ -400,6 +435,7 @@ class HttpStreams {
       res: null,
       inflight: 0,
       received: 0,
+      declared: head.length ?? (head.method === 'GET' || head.method === 'HEAD' ? 0 : null),
       acked: 0,
       written: 0,
       queue: [],

@@ -3,8 +3,10 @@ import { z } from 'zod';
 /**
  * How a browser reaches a Leaf Bot server that opens no port. Both find each other through the
  * signalling relay, then talk over WebRTC data channels. The relay and any TURN server in between
- * see only encrypted DTLS; who is on the other end is proven inside the channel (`ctl`), bound to
- * both ends' DTLS fingerprints, so neither the relay nor TURN can sit in the middle.
+ * see only encrypted DTLS. Both ends prove who they are inside the channel (`ctl`): the browser
+ * with its device key, which its ticket names, and the server with its own key, which the ticket
+ * names too. Both proofs cover both ends' DTLS fingerprints, so neither the relay nor TURN can
+ * sit in the middle by making a DTLS connection of its own to each side.
  *
  * Kept free of Node APIs (Uint8Array, DataView, TextEncoder) because the browser uses it too.
  */
@@ -20,6 +22,65 @@ export const CHANNEL = { ctl: 'ctl', rt: 'rt', http: 'http' } as const;
 
 /** Socket.IO channels one connection may hold open; each reconnect opens a fresh one. */
 export const MAX_RT_CHANNELS = 4;
+
+/**
+ * The largest message put on any channel. Browsers and WebRTC libraries agree on 16 KiB on every
+ * pairing; larger messages work on some and close the channel on others.
+ */
+export const MAX_MESSAGE = 16 * 1024;
+
+// ---- Socket.IO over `rt` --------------------------------------------------------------------
+
+/**
+ * A WebSocket message can be far larger than a channel message (a screen frame, a long event), so
+ * it is cut into pieces: each piece starts with one flag byte, and the last one carries RT_FIN.
+ * Text travels as UTF-8 with RT_BINARY unset.
+ */
+export const RT_FIN = 1;
+export const RT_BINARY = 2;
+/** The largest WebSocket message put back together; a longer one closes the channel. */
+export const MAX_RT_MESSAGE = 16 * 1024 * 1024;
+
+/** The pieces of one WebSocket message, each a channel message. */
+export function encodeRt(data: string | Uint8Array): Uint8Array[] {
+  const binary = typeof data !== 'string';
+  const bytes = binary ? data : new TextEncoder().encode(data);
+  const step = MAX_MESSAGE - 1;
+  const out: Uint8Array[] = [];
+  for (let i = 0; i === 0 || i < bytes.byteLength; i += step) {
+    const part = bytes.subarray(i, i + step);
+    const piece = new Uint8Array(part.byteLength + 1);
+    piece[0] = (i + step >= bytes.byteLength ? RT_FIN : 0) | (binary ? RT_BINARY : 0);
+    piece.set(part, 1);
+    out.push(piece);
+  }
+  return out;
+}
+
+/** Puts pieces back together; `push` returns the whole message once its last piece arrived. */
+export class RtAssembler {
+  private parts: Uint8Array[] = [];
+  private size = 0;
+
+  /** Throws on a malformed piece or a message past MAX_RT_MESSAGE: the channel should close. */
+  push(piece: Uint8Array): string | Uint8Array | null {
+    if (piece.byteLength < 1 || piece.byteLength > MAX_MESSAGE) throw new RangeError('bad piece');
+    const flags = piece[0]!;
+    this.size += piece.byteLength - 1;
+    if (this.size > MAX_RT_MESSAGE) throw new RangeError('message too large');
+    this.parts.push(piece.subarray(1));
+    if (!(flags & RT_FIN)) return null;
+    const whole = new Uint8Array(this.size);
+    let at = 0;
+    for (const p of this.parts) {
+      whole.set(p, at);
+      at += p.byteLength;
+    }
+    this.parts = [];
+    this.size = 0;
+    return flags & RT_BINARY ? whole : new TextDecoder().decode(whole);
+  }
+}
 
 // ---- Requests over the `http` channel ------------------------------------------------------
 
@@ -44,11 +105,8 @@ export const FRAME = {
 export type FrameType = (typeof FRAME)[keyof typeof FRAME];
 
 export const FRAME_HEADER = 5;
-/**
- * The largest payload in one message. Browsers and libdatachannel agree on 16 KiB without
- * splitting messages; larger ones fail on some pairings.
- */
-export const MAX_FRAME_PAYLOAD = 16 * 1024;
+/** The largest payload in one frame: a frame is one channel message. */
+export const MAX_FRAME_PAYLOAD = MAX_MESSAGE - FRAME_HEADER;
 /**
  * What a stream may send before the other end reports it used it. A 200 MB download then holds a
  * window's worth in memory, not the file, and a slow reader slows the sender down.
@@ -200,16 +258,22 @@ const Challenge = z.object({ t: z.literal('challenge'), nonce: B64Url(22, 64) })
 /**
  * Sent by the browser, first and then before `TICKET_REFRESH_S` runs out: a ticket for this server
  * and person, the device's Ed25519 public key (raw, base64url) whose thumbprint is the ticket's
- * `cnf.jkt`, and that key's signature over `proofMessage(...)`.
+ * `cnf.jkt`, that key's signature over `proofMessage(...)`, and a nonce of its own for the server
+ * to sign.
  */
 const Auth = z.object({
   t: z.literal('auth'),
   ticket: z.string().min(16).max(4096),
   key: B64Url(43, 43),
   sig: B64Url(86, 86),
+  cnonce: B64Url(22, 64),
 });
-/** The proof was accepted; the next one is due within `refreshIn` seconds. */
-const Ok = z.object({ t: z.literal('ok'), refreshIn: z.number().int().positive() });
+/**
+ * The proof was accepted; the next one is due within `refreshIn` seconds. `sig` is the server's
+ * own proof: its Ed25519 signature over `hostProofMessage(...)`, checked by the browser against the
+ * key the ticket names (`hkey`). Until it checks out, the browser sends nothing else.
+ */
+const Ok = z.object({ t: z.literal('ok'), refreshIn: z.number().int().positive(), sig: B64Url(86, 86) });
 /** The proof was refused, or the connection is being closed; the channel closes after it. */
 const Denied = z.object({ t: z.literal('denied'), code: TunnelDenial });
 
@@ -250,6 +314,28 @@ export function proofMessage(p: {
       normalizeFingerprint(p.clientFingerprint),
       normalizeFingerprint(p.serverFingerprint),
       p.nonce,
+    ].join('\n'),
+  );
+}
+
+const HOST_PROOF_CONTEXT = 'leafbot-tunnel-host-v1';
+
+/**
+ * What the server's key signs: both DTLS fingerprints and the browser's nonce. A relay that made
+ * its own DTLS connection to the browser has a different server fingerprint and no server key, so
+ * the browser finds out before it sends anything.
+ */
+export function hostProofMessage(p: {
+  clientFingerprint: string;
+  serverFingerprint: string;
+  cnonce: string;
+}): Uint8Array {
+  return new TextEncoder().encode(
+    [
+      HOST_PROOF_CONTEXT,
+      normalizeFingerprint(p.clientFingerprint),
+      normalizeFingerprint(p.serverFingerprint),
+      p.cnonce,
     ].join('\n'),
   );
 }

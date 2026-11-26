@@ -1,6 +1,13 @@
-import { createHash, generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
+import { createHash, generateKeyPairSync, randomBytes, sign, verify, type KeyObject } from 'node:crypto';
 import {
+  BUFFER_HIGH,
+  BUFFER_LOW,
   CHANNEL,
+  encodeRt,
+  hostProofMessage,
+  MAX_FRAME_PAYLOAD,
+  MAX_MESSAGE,
+  RtAssembler,
   decodeFrame,
   ed25519ThumbprintInput,
   encodeAck,
@@ -24,19 +31,48 @@ const SERVER_FP = 'sha-256 BB:03:04';
 
 // ---- A data channel pair, delivering asynchronously like a real one ---------------------------
 
+const size = (m: string | Uint8Array) => (typeof m === 'string' ? Buffer.byteLength(m) : m.byteLength);
+
 class End implements TunnelChannel {
   other!: End;
   bufferedAmount = 0;
+  /** The most that ever waited in this end's send buffer. */
+  maxBuffered = 0;
   closed = false;
+  /** Bytes delivered per millisecond; 0 delivers each message on the next turn. */
+  slow = 0;
+  private queue: (string | Uint8Array)[] = [];
+  private pumping = false;
   private message: ((d: string | Uint8Array) => void)[] = [];
   private closeCbs: (() => void)[] = [];
+  private drainCbs: (() => void)[] = [];
   constructor(readonly label: string) {}
+  private deliver(m: string | Uint8Array) {
+    if (!this.other.closed) for (const cb of this.other.message) cb(m);
+  }
   send(d: string | Uint8Array) {
     if (this.closed) throw new Error('closed');
     const copy = typeof d === 'string' ? d : new Uint8Array(d);
-    setImmediate(() => {
-      if (!this.other.closed) for (const cb of this.other.message) cb(copy);
-    });
+    if (!this.slow) return void setImmediate(() => this.deliver(copy));
+    this.queue.push(copy);
+    this.bufferedAmount += size(copy);
+    this.maxBuffered = Math.max(this.maxBuffered, this.bufferedAmount);
+    if (this.pumping) return;
+    this.pumping = true;
+    const tick = () => {
+      let budget = this.slow;
+      while (this.queue.length && budget > 0) {
+        const m = this.queue.shift()!;
+        budget -= size(m);
+        const was = this.bufferedAmount;
+        this.bufferedAmount -= size(m);
+        this.deliver(m);
+        if (was > BUFFER_LOW && this.bufferedAmount <= BUFFER_LOW) for (const cb of this.drainCbs) cb();
+      }
+      if (this.queue.length && !this.closed) setTimeout(tick, 1);
+      else this.pumping = false;
+    };
+    setTimeout(tick, 1);
   }
   close() {
     if (this.closed) return;
@@ -52,13 +88,16 @@ class End implements TunnelChannel {
   onClose(cb: () => void) {
     this.closeCbs.push(cb);
   }
-  onDrain() {}
+  onDrain(cb: () => void) {
+    this.drainCbs.push(cb);
+  }
 }
 
 class FakePeer implements TunnelPeer {
   localFingerprint = SERVER_FP;
   remoteFingerprint = CLIENT_FP;
   closed = false;
+  serverEnds: End[] = [];
   private channelCb: ((ch: TunnelChannel) => void) | null = null;
   private closeCbs: (() => void)[] = [];
   onChannel(cb: (ch: TunnelChannel) => void) {
@@ -72,10 +111,12 @@ class FakePeer implements TunnelPeer {
     this.closed = true;
     for (const cb of this.closeCbs) cb();
   }
-  /** The browser opens a channel; returns its end. */
-  open(label: string): End {
+  /** The browser opens a channel; returns its end. `slow` holds the server's sends back. */
+  open(label: string, slow = 0): End {
     const browser = new End(label);
     const server = new End(label);
+    server.slow = slow;
+    this.serverEnds.push(server);
     browser.other = server;
     server.other = browser;
     setImmediate(() => this.channelCb?.(server));
@@ -86,6 +127,9 @@ class FakePeer implements TunnelPeer {
 // ---- Tickets -------------------------------------------------------------------------------
 
 const issuerKey = generateKeyPairSync('ec', { namedCurve: 'P-256' });
+/** This server's own key; tickets name its public half. */
+const hostKey = generateKeyPairSync('ed25519');
+const HKEY = hostKey.publicKey.export({ format: 'jwk' }).x!;
 const jwk = { ...issuerKey.publicKey.export({ format: 'jwk' }), kid: 'k1' };
 
 function device() {
@@ -112,6 +156,7 @@ function ticket(jkt: string, claims: Record<string, unknown> = {}) {
       mid: 'mem_alice123',
       epoch: 1,
       cnf: { jkt },
+      hkey: HKEY,
       ...claims,
     }),
   ).toString('base64url');
@@ -147,8 +192,16 @@ async function prove(
   const sig = sign(null, proofMessage({ ticket: t, ...fps, nonce: challenge.nonce }), d.privateKey).toString(
     'base64url',
   );
-  ctl.send(JSON.stringify({ t: 'auth', ticket: t, key: d.x, sig }));
-  return read();
+  const cnonce = randomBytes(16).toString('base64url');
+  ctl.send(JSON.stringify({ t: 'auth', ticket: t, key: d.x, sig, cnonce }));
+  const answer = await read();
+  // The browser trusts nothing until the server proved it holds the key the ticket names.
+  if (answer.t === 'ok') {
+    const proof = hostProofMessage({ ...fps, cnonce });
+    if (!verify(null, proof, hostKey.publicKey, Buffer.from(answer.sig, 'base64url')))
+      throw new Error('bad host proof');
+  }
+  return answer;
 }
 
 // ---- The app on the other side -------------------------------------------------------------
@@ -193,6 +246,7 @@ beforeEach(async () => {
     server: app.server,
     checker,
     host: 'myserver.servers.example',
+    hostKey: hostKey.privateKey,
     resolve: async (c) => (access.has(c.sub) ? { userId: access.get(c.sub)! } : null),
   });
 });
@@ -264,8 +318,8 @@ function httpClient(ch: End, opts: { ackDelayMs?: number } = {}) {
       const head = { method, path, headers, ...(body && { length: body.length }) };
       ch.send(encodeFrame(FRAME.REQUEST, id, new TextEncoder().encode(JSON.stringify(head))));
       if (body)
-        for (let i = 0; i < body.length; i += 16 * 1024)
-          ch.send(encodeFrame(FRAME.DATA, id, body.subarray(i, i + 16 * 1024)));
+        for (let i = 0; i < body.length; i += MAX_FRAME_PAYLOAD)
+          ch.send(encodeFrame(FRAME.DATA, id, body.subarray(i, i + MAX_FRAME_PAYLOAD)));
       ch.send(encodeFrame(FRAME.END, id));
     });
   };
@@ -330,18 +384,85 @@ describe('TunnelGateway', () => {
     await expect(fetch('GET', '/api/who', { 'x-a': 'b\r\nCookie: c' })).rejects.toThrow('reset');
   });
 
+  /** Sends one request's frames as given and says whether the server reset the stream. */
+  async function raw(http: End, id: number, head: object, body: Uint8Array[], end = true) {
+    let reset = false;
+    http.onMessage((m) => {
+      const f = decodeFrame(m as Uint8Array);
+      if (f?.stream === id && f.type === FRAME.RESET) reset = true;
+    });
+    http.send(encodeFrame(FRAME.REQUEST, id, new TextEncoder().encode(JSON.stringify(head))));
+    for (const b of body) http.send(encodeFrame(FRAME.DATA, id, b));
+    if (end) http.send(encodeFrame(FRAME.END, id));
+    await tick(50);
+    return reset;
+  }
+
+  it('holds a body to the length the page declared', async () => {
+    const { peer } = await connected();
+    const http = peer.open(CHANNEL.http);
+    await tick();
+    const head = {
+      method: 'POST',
+      path: '/api/echo',
+      headers: { 'content-type': 'application/octet-stream' },
+    };
+    expect(await raw(http, 1, { ...head, length: 10 }, [new Uint8Array(20)])).toBe(true);
+    expect(await raw(http, 2, { ...head, length: 10 }, [new Uint8Array(5)])).toBe(true);
+    expect(await raw(http, 3, { method: 'GET', path: '/api/who' }, [new Uint8Array(5)])).toBe(true);
+    expect(await raw(http, 4, { ...head, length: 10 }, [new Uint8Array(10)])).toBe(false);
+  });
+
+  it('stops sending while the channel’s own buffer is full', async () => {
+    const { peer } = await connected();
+    const http = peer.open(CHANNEL.http, 512);
+    await tick();
+    const fetch = httpClient(http);
+    // Many streams at once fill the channel past what one stream's window could.
+    const all = await Promise.all(Array.from({ length: 8 }, () => fetch('GET', '/api/big?n=1000000')));
+    for (const r of all) expect(r.body.length).toBe(1_000_000);
+    const server = peer.serverEnds.find((e) => e.label === CHANNEL.http)!;
+    expect(server.maxBuffered).toBeGreaterThan(BUFFER_LOW);
+    expect(server.maxBuffered).toBeLessThanOrEqual(BUFFER_HIGH + MAX_MESSAGE);
+  });
+
+  /** The browser's side of a Socket.IO channel, in whole WebSocket messages. */
+  function realtime(rt: End) {
+    const got: (string | Uint8Array)[] = [];
+    const pieces = new RtAssembler();
+    rt.onMessage((p) => {
+      const m = pieces.push(p as Uint8Array);
+      if (m !== null) got.push(m);
+    });
+    return { got, send: (m: string | Uint8Array) => encodeRt(m).forEach((p) => rt.send(p)) };
+  }
+
   it('runs Socket.IO over a channel as the same person', async () => {
     const { peer } = await connected();
-    const rt = peer.open(CHANNEL.rt);
-    const got: (string | Uint8Array)[] = [];
-    rt.onMessage((m) => got.push(m));
+    const rt = realtime(peer.open(CHANNEL.rt));
     await tick(50);
     // The engine.io open packet arrives first, then the Socket.IO connect.
-    expect(String(got[0]).startsWith('0{')).toBe(true);
+    expect(String(rt.got[0]).startsWith('0{')).toBe(true);
     rt.send('40');
     await tick(50);
-    expect(got.some((m) => typeof m === 'string' && m.startsWith('40{'))).toBe(true);
-    expect(got.some((m) => m === '42["hello","user_alice"]')).toBe(true);
+    expect(rt.got.some((m) => typeof m === 'string' && m.startsWith('40{'))).toBe(true);
+    expect(rt.got.some((m) => m === '42["hello","user_alice"]')).toBe(true);
+  });
+
+  it('carries Socket.IO messages larger than a channel message, both ways', async () => {
+    const { peer } = await connected();
+    const channel = peer.open(CHANNEL.rt);
+    const rt = realtime(channel);
+    await tick(50);
+    rt.send('40');
+    await tick(50);
+    const long = 'x'.repeat(300_000);
+    rt.send(`421["echo","${long}"]`);
+    await tick(200);
+    expect(rt.got).toContain(`431["${long}"]`);
+    // Every piece on the channel stayed within the limit.
+    expect(peer.serverEnds.every((e) => !e.closed)).toBe(true);
+    expect(MAX_MESSAGE).toBe(16 * 1024);
   });
 
   it('serves nothing before the proof', async () => {
@@ -388,7 +509,7 @@ describe('TunnelGateway', () => {
 
   it('closes everything a connection opened when access is taken away', async () => {
     const { peer, ctl } = await connected();
-    const rt = peer.open(CHANNEL.rt);
+    const rt = realtime(peer.open(CHANNEL.rt));
     const http = peer.open(CHANNEL.http);
     await tick(50);
     rt.send('40');

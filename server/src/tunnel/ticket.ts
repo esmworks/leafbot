@@ -88,7 +88,7 @@ export class TicketChecker {
     if (!parsed.success) throw new TunnelRefusal('ticket');
     const c = parsed.data;
     if (c.iss !== this.opts.issuer || c.aud !== this.opts.hostId) throw new TunnelRefusal('ticket');
-    if (c.kind !== 'client' || !c.cnf || !c.role || !c.mid) throw new TunnelRefusal('ticket');
+    if (c.kind !== 'client' || !c.cnf || !c.hkey || !c.role || !c.mid) throw new TunnelRefusal('ticket');
     const now = this.now();
     if (c.iat > now + TICKET_SKEW_S || c.exp <= now - TICKET_SKEW_S) throw new TunnelRefusal('ticket');
     if (c.exp < c.iat || c.exp - c.iat > TICKET_TTL_S + TICKET_SKEW_S) throw new TunnelRefusal('ticket');

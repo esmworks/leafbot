@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   CtlToClient,
+  encodeRt,
+  hostProofMessage,
+  MAX_MESSAGE,
+  MAX_RT_MESSAGE,
+  RtAssembler,
   CtlToServer,
   decodeAck,
   decodeFrame,
@@ -110,12 +115,24 @@ describe('messages', () => {
   it('parses the control messages', () => {
     expect(CtlToClient.parse({ t: 'challenge', nonce: 'a'.repeat(22) }).t).toBe('challenge');
     expect(CtlToClient.parse({ t: 'denied', code: 'proof' }).t).toBe('denied');
+    expect(CtlToClient.safeParse({ t: 'ok', refreshIn: 600 }).success).toBe(false);
     expect(
-      CtlToServer.safeParse({ t: 'auth', ticket: 'x'.repeat(20), key: 'k'.repeat(43), sig: 's'.repeat(86) })
-        .success,
+      CtlToServer.safeParse({
+        t: 'auth',
+        ticket: 'x'.repeat(20),
+        key: 'k'.repeat(43),
+        sig: 's'.repeat(86),
+        cnonce: 'c'.repeat(22),
+      }).success,
     ).toBe(true);
     expect(
-      CtlToServer.safeParse({ t: 'auth', ticket: 'x'.repeat(20), key: 'short', sig: 's'.repeat(86) }).success,
+      CtlToServer.safeParse({
+        t: 'auth',
+        ticket: 'x'.repeat(20),
+        key: 'short',
+        sig: 's'.repeat(86),
+        cnonce: 'c'.repeat(22),
+      }).success,
     ).toBe(false);
   });
 
@@ -123,5 +140,44 @@ describe('messages', () => {
     const m = SignalFromRelay.parse({ t: 'revoke', epoch: 4, userId: 'user_123456' });
     expect(m).toEqual({ t: 'revoke', epoch: 4, userId: 'user_123456' });
     expect(SignalFromRelay.safeParse({ t: 'offer', cid: 'c', sdp: '' }).success).toBe(false);
+  });
+});
+
+describe('Socket.IO pieces', () => {
+  it('cuts a large binary message into channel-sized pieces and puts it back', () => {
+    const big = new Uint8Array(100_000).map((_, i) => i % 251);
+    const pieces = encodeRt(big);
+    expect(pieces.length).toBe(Math.ceil(big.byteLength / (MAX_MESSAGE - 1)));
+    for (const p of pieces) expect(p.byteLength).toBeLessThanOrEqual(MAX_MESSAGE);
+    const a = new RtAssembler();
+    const out = pieces.map((p) => a.push(p));
+    expect(out.slice(0, -1).every((o) => o === null)).toBe(true);
+    expect(out.at(-1)).toEqual(big);
+  });
+
+  it('keeps text as text, including an empty message', () => {
+    const a = new RtAssembler();
+    expect(a.push(encodeRt('42["hello","ü"]')[0]!)).toBe('42["hello","ü"]');
+    const empty = encodeRt('');
+    expect(empty.length).toBe(1);
+    expect(a.push(empty[0]!)).toBe('');
+    expect(a.push(encodeRt(new Uint8Array(0))[0]!)).toEqual(new Uint8Array(0));
+  });
+
+  it('refuses a message past the limit', () => {
+    const a = new RtAssembler();
+    const piece = new Uint8Array(MAX_MESSAGE);
+    expect(() => {
+      for (let i = 0; i <= MAX_RT_MESSAGE / (MAX_MESSAGE - 1) + 1; i++) a.push(piece);
+    }).toThrow();
+  });
+});
+
+describe('host proof', () => {
+  it('covers both fingerprints and the browser nonce', () => {
+    const m = new TextDecoder().decode(
+      hostProofMessage({ clientFingerprint: 'sha-256 aa', serverFingerprint: 'sha-256 bb', cnonce: 'cn' }),
+    );
+    expect(m).toBe('leafbot-tunnel-host-v1\nsha-256 AA\nsha-256 BB\ncn');
   });
 });

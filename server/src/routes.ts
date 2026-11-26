@@ -156,6 +156,7 @@ import { attachedFiles, cancelStagedUpload, saveStagedUpload, stagingDir } from 
 import { storageReport } from './storage';
 import { OWNER_ID } from './users';
 import { HttpError, notFound, truncate } from './util';
+import { tunnelIdentity } from './tunnel/identity';
 import { atLeast, managesServer } from './services/access';
 import { findProjects, findSetup } from './services/setup-import';
 import { APP_DIR } from './runtime/turns';
@@ -298,11 +299,11 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   };
   app.get('/api/session', async (req, reply) => {
     const token = req.cookies[SESSION_COOKIE];
-    // Over the tunnel the sign-in hook already knows who it is; there is no cookie to read.
-    const who =
-      req.principal?.via === 'tunnel'
-        ? req.principal
-        : await d.auth.authenticate(req.headers, token, clientAddress(req.headers, req.ip, d.config));
+    // Over the tunnel the sign-in hook already knows who it is, or that no one is; there is no
+    // cookie or key to read.
+    const who = tunnelIdentity(req.raw.socket)
+      ? req.principal
+      : await d.auth.authenticate(req.headers, token, clientAddress(req.headers, req.ip, d.config));
     // Each visit moves the cookie's end along with the session's.
     if (who?.via === 'session' && token) reply.setCookie(SESSION_COOKIE, token, sessionCookie);
     const user = who ? await d.auth.users.get(who.userId) : null;
