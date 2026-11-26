@@ -375,6 +375,11 @@ export type TurnOutcome = (
       byPerson?: boolean;
       /** For `interrupted`: the server stopped while the turn ran, not the person or the bot. */
       restarted?: boolean;
+      /**
+       * For `restarted`: the turn goes on by itself, in the same session, once the server is back;
+       * what waits on it (a routine's run) stays open for it.
+       */
+      resume?: boolean;
       /** What the turn spent before it failed, when the engine knows: it counts toward the limit. */
       costUsd?: number | null;
       /**

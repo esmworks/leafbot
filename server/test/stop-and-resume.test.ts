@@ -1,4 +1,4 @@
-import type { Room, Thread } from '@leafbot/shared';
+import type { Room, Routine, RoutineRun, Thread } from '@leafbot/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
@@ -14,25 +14,132 @@ describe('durdurma ve kaldığı yerden sürdürme', () => {
   const main = async (botId: string) => (await t.api<Thread>('GET', `/api/bots/${botId}/main-thread`)).body;
   const jobStatus = async (id: string) =>
     (await t.api<{ job: { status: string } }>('GET', `/api/jobs/${id}`)).body.job.status;
+  /** The server starting again on the same database, after `shutdown` stopped it. */
+  const restart = async () => {
+    (t.services.turns as unknown as { stopped: boolean }).stopped = false;
+    await t.services.turns.recover();
+    await t.services.routines.recover();
+  };
+  const routineRuns = async (id: string) =>
+    (await t.api<RoutineRun[]>('GET', `/api/routines/${id}/runs`)).body;
 
-  it('sunucu yeniden başlayınca yarıda kalan tur yeniden denenebilir; bot önce yapılanlara bakar', async () => {
+  it('sunucu çöküp açılınca yarıda kalan kişi turu kendiliğinden sürer; bot önce yapılanlara bakar', async () => {
     const a = await t.bot({ name: 'Ali' });
     const thread = await main(a.id);
     await t.send(thread.id, 'raporu hazırla');
     await t.services.turns.idle();
     const [turn] = await t.db.db.select().from(schema.turns).where(eq(schema.turns.threadId, thread.id));
+    const { engineSessionId } = await t.services.threads.row(thread.id);
     // As if the server stopped while the turn ran.
     await t.db.db.update(schema.turns).set({ status: 'running' }).where(eq(schema.turns.id, turn!.id));
     await t.services.turns.recover();
-
-    const note = (await t.messages(thread.id)).find((m) => m.text.includes('yeniden başladığı'))!;
-    expect(note.props.kind).toBe('interrupted');
-    const r = await t.api<{ turnId: string }>('POST', `/api/messages/${note.id}/retry`);
-    expect(r.status).toBe(200);
     await t.services.turns.idle();
+
+    const req = t.engine.requests.at(-1)!;
+    expect(req.prompt).toContain('önceki denemen yarıda kaldı');
+    expect(req.prompt).toContain('raporu hazırla');
+    expect(req.sessionId).toBe(engineSessionId);
+    const note = (await t.messages(thread.id)).find((m) => m.text.includes('yeniden başladığı'))!;
+    expect(note.text).toContain('kaldığı yerden');
+    expect(note.props.retried).toBe(true);
+    expect(note.props.resume).toBeUndefined();
+    // It went on once; the note offers it no more.
+    expect((await t.api('POST', `/api/messages/${note.id}/retry`)).status).toBe(409);
+  });
+
+  it('sunucu kapanırken yarıda kalan kişi turu açılışta aynı oturumda sürer', async () => {
+    const a = await t.bot({ name: 'Ali' });
+    const thread = await main(a.id);
+    await t.send(thread.id, '[bekle:5000] siparişleri eşle');
+    await waitFor(async () => (await t.services.threads.row(thread.id)).engineSessionId);
+    const { engineSessionId } = await t.services.threads.row(thread.id);
+
+    // A deploy stops the server while the bot works.
+    await t.services.turns.shutdown();
+    const note = (await t.messages(thread.id)).filter((m) => m.role === 'system').at(-1)!;
+    expect(note.props.resume).toBe(true);
+    expect(note.text).toContain('kaldığı yerden');
+
+    await restart();
+    await t.services.turns.idle(15_000);
+    const req = t.engine.requests.at(-1)!;
+    expect(req.prompt).toContain('önceki denemen yarıda kaldı');
+    expect(req.prompt).toContain('siparişleri eşle');
+    expect(req.sessionId).toBe(engineSessionId);
+    expect(t.engine.requests).toHaveLength(2);
+  });
+
+  it('sunucu kapanırken yarıda kalan rutin, bir şey değiştirmiş olsa da aynı çalıştırmada sürer', async () => {
+    const a = await t.bot({ name: 'Ali' });
+    const r = (
+      await t.api<Routine>('POST', '/api/routines', {
+        botId: a.id,
+        name: 'Sipariş Senkronu',
+        prompt: '[bekle:5000] siparişleri eşle',
+        schedule: { type: 'interval', minutes: 60 },
+        inMain: false,
+      })
+    ).body;
+    const run = (await t.api<RoutineRun>('POST', `/api/routines/${r.id}/run`)).body;
+    await waitFor(async () => (await t.services.threads.row(run.threadId!)).engineSessionId);
+    // It has already written something: run again from the start, it would do that twice.
+    await t.db.db.update(schema.turns).set({ changed: true }).where(eq(schema.turns.routineRunId, run.id));
+
+    await t.services.turns.shutdown();
+    expect((await routineRuns(r.id))[0]!.status).toBe('running');
+    const note = (await t.messages(run.threadId!)).filter((m) => m.role === 'system').at(-1)!;
+    // Only a person's request is run again from the note.
+    expect(note.props.kind).toBeUndefined();
+
+    await restart();
+    await t.services.turns.idle(15_000);
+    const all = await routineRuns(r.id);
+    expect(all).toHaveLength(1);
+    expect(all[0]!.status).toBe('done');
     const prompt = t.engine.requests.at(-1)!.prompt;
     expect(prompt).toContain('önceki denemen yarıda kaldı');
-    expect(prompt).toContain('raporu hazırla');
+    expect(prompt).toContain('siparişleri eşle');
+  });
+
+  it('sürdürülen rutin turu da yarıda kalırsa bir daha sürmez, çalıştırma kapanır', async () => {
+    const a = await t.bot({ name: 'Ali' });
+    const r = (
+      await t.api<Routine>('POST', '/api/routines', {
+        botId: a.id,
+        name: 'Rapor',
+        prompt: 'Raporu yaz',
+        schedule: { type: 'interval', minutes: 60 },
+        inMain: false,
+      })
+    ).body;
+    const run = (await t.api<RoutineRun>('POST', `/api/routines/${r.id}/run`)).body;
+    await t.services.turns.idle();
+    const crash = async () => {
+      const [last] = await t.db.db
+        .select()
+        .from(schema.turns)
+        .where(eq(schema.turns.routineRunId, run.id))
+        .orderBy(desc(schema.turns.createdAt))
+        .limit(1);
+      await t.db.db.update(schema.turns).set({ status: 'running' }).where(eq(schema.turns.id, last!.id));
+      await t.db.db
+        .update(schema.routineRuns)
+        .set({ status: 'running', finishedAt: null })
+        .where(eq(schema.routineRuns.id, run.id));
+      await t.services.turns.recover();
+      await t.services.routines.recover();
+      await t.services.turns.idle();
+    };
+    const before = t.engine.requests.length;
+    await crash();
+    expect(t.engine.requests).toHaveLength(before + 1);
+    expect(t.engine.requests.at(-1)!.prompt).toContain('önceki denemen yarıda kaldı');
+    expect((await routineRuns(r.id))[0]!.status).toBe('done');
+
+    // A turn that stops the server each time is not run again and again.
+    await crash();
+    expect(t.engine.requests).toHaveLength(before + 1);
+    expect((await routineRuns(r.id))[0]!.status).toBe('error');
   });
 
   it('sunucu kapanırken yarıda kalan iş, sorana yeniden başlatma olarak ve yeniden sorulsun diye bildirilir', async () => {
@@ -60,6 +167,8 @@ describe('durdurma ve kaldığı yerden sürdürme', () => {
     expect(turn!.error).toBe('Sunucu yeniden başladı');
     const note = (await t.messages(turn!.threadId)).find((m) => m.turnId === turn!.id && m.role === 'system');
     expect(note!.text).toContain('yeniden başladığı');
+    // Its sender asks again: the target does not go on with it by itself too.
+    expect(note!.props.resume).toBeUndefined();
   });
 
   it('bot_stop yalnız o işi durdurur; aynı bota gönderilen öteki iş sürer', async () => {
@@ -305,11 +414,14 @@ describe('durdurma ve kaldığı yerden sürdürme', () => {
       await t.services.turns.recover();
       return (await t.messages(threadId)).filter((m) => m.role === 'system').at(-1)!;
     };
+    // The first cut goes on by itself; the run again, cut short too, is left for the person.
     const first = await cut(thread.id);
-    expect((await t.api('POST', `/api/messages/${first.id}/retry`)).status).toBe(200);
+    expect(first.props.retried).toBe(true);
     await t.services.turns.idle();
     await t.api('PATCH', '/api/settings', { language: 'en' });
     const second = await cut(thread.id);
+    expect(second.props.retried).toBeUndefined();
+    expect(second.props.kind).toBe('interrupted');
     expect((await t.api('POST', `/api/messages/${second.id}/retry`)).status).toBe(200);
     await t.services.turns.idle();
     const prompt = t.engine.requests.at(-1)!.prompt;
