@@ -3094,6 +3094,10 @@ export const en: Catalog<MessageKey> = {
   'claude.signInPastePlaceholder': 'Code from the page',
   'claude.signInDone': 'Signed in to Claude',
   'claude.signInFailed': 'The sign-in did not finish: {detail}',
+  'claude.sharedSubscription':
+    "Everyone on this server talks through this Claude subscription. Anthropic says Pro and Max limits assume one person's ordinary use, and it does not allow apps to send other people's requests through a subscription; it may limit the account without notice. For a team it points to an API key. The choice is yours.",
+  'claude.sharedTerms': "Anthropic's terms",
+  'claude.useApiKey': 'Use an API key',
   'claude.otherWays': 'Other ways: a subscription token or an API key',
   'model.title': 'Model and effort',
   'model.body':

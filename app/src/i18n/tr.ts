@@ -3043,6 +3043,10 @@ export const tr = {
   'claude.signInPastePlaceholder': 'Sayfadaki kod',
   'claude.signInDone': "Claude'a giriş yapıldı",
   'claude.signInFailed': 'Giriş tamamlanmadı: {detail}',
+  'claude.sharedSubscription':
+    'Bu sunucudaki herkes bu Claude aboneliğiyle konuşuyor. Anthropic, Pro ve Max limitlerinin tek kişinin olağan kullanımına göre olduğunu ve uygulamaların başkalarının isteklerini bir abonelik üzerinden geçirmesine izin vermediğini söylüyor; hesabı haber vermeden sınırlayabilir. Takım için API anahtarını öneriyor. Karar senin.',
+  'claude.sharedTerms': "Anthropic'in şartları",
+  'claude.useApiKey': 'API anahtarı kullan',
   'claude.otherWays': "Diğer yollar: abonelik token'ı ya da API anahtarı",
   'model.title': 'Model ve effort',
   'model.body':
