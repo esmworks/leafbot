@@ -15,10 +15,7 @@ import type { ThemedToken } from 'shiki/core';
 import { toast } from 'sonner';
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import type { Options as MarkdownOptions } from 'react-markdown';
-import rehypeKatex from 'rehype-katex';
 import remarkGfm from 'remark-gfm';
-import remarkMath from 'remark-math';
-import 'katex/dist/katex.min.css';
 import { leftoverBold } from '@leafbot/shared';
 import { useLocale, useT } from '@/i18n';
 import { highlight } from '@/lib/highlight';
@@ -79,12 +76,58 @@ export function remarkLeftoverBold() {
 }
 
 // Only ~~double~~ tildes strike text through: "~5 to ~10 minutes" stays as written.
-const REMARK: MarkdownOptions['remarkPlugins'] = [
-  [remarkGfm, { singleTilde: false }],
-  [remarkMath, { singleDollarTextMath: false }],
-  remarkLeftoverBold,
-];
-const REHYPE: MarkdownOptions['rehypePlugins'] = [[rehypeKatex, { throwOnError: false, strict: 'ignore' }]];
+const GFM: [typeof remarkGfm, { singleTilde: false }] = [remarkGfm, { singleTilde: false }];
+const REMARK: MarkdownOptions['remarkPlugins'] = [GFM, remarkLeftoverBold];
+
+/**
+ * Typesetting math needs the parser plugin, KaTeX and its stylesheet, a large share of the app's
+ * code, and most messages hold no formula. They are fetched the first time a message has one;
+ * until they arrive that message shows its formula as written, then redraws.
+ */
+interface MathSupport {
+  remark: MarkdownOptions['remarkPlugins'];
+  rehype: MarkdownOptions['rehypePlugins'];
+}
+let math: MathSupport | null = null;
+let mathLoading: Promise<void> | null = null;
+
+function loadMath(): Promise<void> {
+  mathLoading ??= Promise.all([
+    import('remark-math'),
+    import('rehype-katex'),
+    import('katex/dist/katex.min.css'),
+  ]).then(
+    ([remark, rehype]) => {
+      math = {
+        remark: [GFM, [remark.default, { singleDollarTextMath: false }], remarkLeftoverBold],
+        rehype: [[rehype.default, { throwOnError: false, strict: 'ignore' }]],
+      };
+    },
+    () => {
+      // Left to try again with the next message that has a formula.
+      mathLoading = null;
+    },
+  );
+  return mathLoading;
+}
+
+/** Whether the text can hold math: `$$…$$` (`\(…\)` and `\[…\]` are turned into it first) or a ```math block. */
+export function mayHaveMath(text: string): boolean {
+  return text.includes('$$') || /^[ \t]*(`{3,}|~{3,})[ \t]*math\b/m.test(text);
+}
+
+function useMath(needed: boolean): MathSupport | null {
+  const [, loaded] = useState(0);
+  useEffect(() => {
+    if (!needed || math) return;
+    let live = true;
+    void loadMath().then(() => live && loaded((n) => n + 1));
+    return () => {
+      live = false;
+    };
+  }, [needed]);
+  return needed ? math : null;
+}
 
 /** `\(x\)` → `$$x$$` and `\[x\]` → a display block, outside code. */
 export function mathDelimiters(text: string): string {
@@ -254,11 +297,12 @@ export const Markdown = memo(function Markdown({
   className?: string;
 }) {
   text = mathDelimiters(repairTables(breaks ? hardBreaks(text) : text));
+  const typeset = useMath(mayHaveMath(text));
   return (
     <div className={className ?? 'prose-chat text-[15px] leading-relaxed break-words'}>
       <ReactMarkdown
-        remarkPlugins={REMARK}
-        rehypePlugins={REHYPE}
+        remarkPlugins={typeset?.remark ?? REMARK}
+        rehypePlugins={typeset?.rehype}
         components={COMPONENTS}
         urlTransform={keepAppLinks}
       >
