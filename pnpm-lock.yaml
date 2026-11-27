@@ -51,9 +51,22 @@ importers:
       '@leafbot/shared':
         specifier: workspace:*
         version: link:../shared
+      postgres:
+        specifier: 4.1.1
+        version: 4.1.1
       zod:
         specifier: 4.6.7
         version: 4.6.7
+    devDependencies:
+      '@electric-sql/pglite':
+        specifier: 0.5.16
+        version: 0.5.16
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
+      tsx:
+        specifier: 4.23.15
+        version: 4.23.15
 
   app:
     dependencies:
@@ -482,6 +495,9 @@ importers:
 
   webapp:
     devDependencies:
+      esbuild:
+        specifier: 0.28.2
+        version: 0.28.2
       tsx:
         specifier: 4.23.15
         version: 4.23.15
