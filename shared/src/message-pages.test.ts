@@ -1,6 +1,6 @@
-import type { Message } from '@leafbot/shared';
+import type { Message } from './schemas.js';
 import { describe, expect, it } from 'vitest';
-import { CHAT_PAGE, FULL_PAGE, keepEarlier, refreshLimit, withOlder } from './messagePages';
+import { CHAT_PAGE, FULL_PAGE, keepEarlier, refreshLimit, withOlder } from './message-pages';
 
 const msg = (id: string): Message => ({
   id,

@@ -1,4 +1,4 @@
-import type { Message } from '@leafbot/shared';
+import type { Message } from './schemas.js';
 
 /**
  * A conversation opens with this many of its latest messages: drawing hundreds of messages at once

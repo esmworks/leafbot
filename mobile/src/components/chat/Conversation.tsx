@@ -1,5 +1,15 @@
 import type { SlashCommand } from '@leafbot/app/src/lib/slash';
-import { cardPlace, streamParts, type Bot, type Message, type Room, type Thread } from '@leafbot/shared';
+import {
+  CHAT_PAGE,
+  cardPlace,
+  FULL_PAGE,
+  streamParts,
+  withOlder,
+  type Bot,
+  type Message,
+  type Room,
+  type Thread,
+} from '@leafbot/shared';
 import Feather from '@expo/vector-icons/Feather';
 import { useQueryClient } from '@tanstack/react-query';
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -29,7 +39,7 @@ import { foldRoutineRuns } from '@leafbot/app/src/features/routineRuns';
 import { nav } from '@/lib/nav';
 import { endWorkSeen, showWork, useLiveActivityChoice } from '@/lib/liveActivity';
 import { useLiveCards } from '@/lib/liveCards';
-import { useApprovals, useMessages, useRooms } from '@/lib/queries';
+import { useApprovals, useChatMessages, useRooms } from '@/lib/queries';
 import { useLiveCatchUp, useLiveState, useStream } from '@/lib/realtime';
 import { sendWithRetry } from '@/lib/sendRetry';
 import { useApi, useServer } from '@/lib/server';
@@ -38,7 +48,7 @@ import { useColors } from '@/lib/theme';
 import { GoalBar, MessageBoundary, PinnedBar, QuickReplies, ToBottom } from './Bars';
 import { Composer, type SendExtra } from './Composer';
 import { FindBar } from './FindBar';
-import { excerpt, MESSAGE_PAGE } from './text';
+import { excerpt } from './text';
 import { useThreadName, type ThreadActions } from './threads';
 
 const fmt = formatters(locale, t);
@@ -89,19 +99,22 @@ export function Conversation({
   const api = useApi();
   const qc = useQueryClient();
   const { origin } = useServer();
-  const messagesQ = useMessages(threadId);
-  const recent = messagesQ.data ?? NONE;
-
-  // Messages before the latest page, loaded on request and kept while the conversation is open.
-  const [older, setOlder] = useState<Message[]>([]);
-  const [olderDone, setOlderDone] = useState(false);
+  const messagesQ = useChatMessages(threadId);
+  const messages = messagesQ.data ?? NONE;
+  // Left with older pages on screen, the conversation opens again at its latest page.
+  useEffect(
+    () => () => {
+      qc.setQueryData<Message[]>(['messages', origin, threadId], (list) =>
+        list && list.length > CHAT_PAGE ? list.slice(-CHAT_PAGE) : list,
+      );
+    },
+    [qc, origin, threadId],
+  );
+  // The first message of the conversation, once a page older than it came back short.
+  const [firstId, setFirstId] = useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
-  const messages = useMemo(() => {
-    if (!older.length) return recent;
-    const ids = new Set(recent.map((m) => m.id));
-    return [...older.filter((m) => !ids.has(m.id)), ...recent];
-  }, [older, recent]);
-  const hasOlder = !olderDone && (older.length > 0 || recent.length >= MESSAGE_PAGE);
+  // A server from before smaller pages sends a full page anyway, which is still more than asked.
+  const hasOlder = messages.length >= CHAT_PAGE && messages[0]?.id !== firstId;
 
   const stream = useStream(threadId);
   // A reply under way when the screen opened, or while the socket was down, shows from its start.
@@ -144,23 +157,29 @@ export function Conversation({
     messagesRef.current = messages;
   }, [messages]);
   const busyOlder = useRef(false);
-  const loadOlder = useCallback(async () => {
-    const first = messagesRef.current[0];
-    if (!first || busyOlder.current) return;
-    busyOlder.current = true;
-    setLoadingOlder(true);
-    try {
-      const page = await api.messages(threadId, first.id);
-      setOlder((o) => [...page, ...o]);
-      if (page.length < MESSAGE_PAGE) setOlderDone(true);
-    } catch (e) {
-      toastError(e);
-      setTarget(null);
-    } finally {
-      busyOlder.current = false;
-      setLoadingOlder(false);
-    }
-  }, [api, threadId]);
+  // A message picked in the search may be far back: it is reached in full pages.
+  const loadOlder = useCallback(
+    async (size: number = CHAT_PAGE) => {
+      const first = messagesRef.current[0];
+      if (!first || busyOlder.current) return;
+      busyOlder.current = true;
+      setLoadingOlder(true);
+      try {
+        const page = await api.messages(threadId, first.id, size);
+        const merged = qc.setQueryData<Message[]>(['messages', origin, threadId], (list) =>
+          withOlder(page, list ?? []),
+        );
+        if (page.length < size) setFirstId(merged?.[0]?.id ?? null);
+      } catch (e) {
+        toastError(e);
+        setTarget(null);
+      } finally {
+        busyOlder.current = false;
+        setLoadingOlder(false);
+      }
+    },
+    [api, qc, origin, threadId],
+  );
 
   // --- Rows, newest first for the upside-down list ----------------------------------------
   const listed = useMemo(
@@ -303,7 +322,7 @@ export function Conversation({
     if (!target || messagesQ.isPending) return;
     // Further back than the pages on screen: older pages come in until it is there.
     if (targetIndex < 0) {
-      if (hasOlder && !loadingOlder) void loadOlder();
+      if (hasOlder && !loadingOlder) void loadOlder(FULL_PAGE);
       return;
     }
     // A moment for the rows that just came in to be laid out before scrolling to one.

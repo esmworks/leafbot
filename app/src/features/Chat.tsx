@@ -1,7 +1,10 @@
 import {
   cardPlace,
+  CHAT_PAGE,
+  FULL_PAGE,
   hasSecretShape,
   quoteExcerpt,
+  withOlder,
   type Bot,
   type Message,
   type Thread,
@@ -90,7 +93,6 @@ import {
 } from '@/lib/queries';
 import { useLayout } from '@/lib/layout';
 import { useLatestFirst } from '@/lib/latestFirst';
-import { CHAT_PAGE, FULL_PAGE, withOlder } from '@/lib/messagePages';
 import { usePaused, usePauseActions } from '@/lib/paused';
 import { PHONE } from '@/lib/media';
 import { useLiveCatchUp } from '@/lib/liveCatchUp';

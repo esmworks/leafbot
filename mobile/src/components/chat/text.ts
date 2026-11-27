@@ -38,6 +38,3 @@ export function threadLink(origin: string, threadId: string): string {
 
 /** Emoji a person can mark a conversation with, to find it again at a glance. */
 export const THREAD_ICONS = ['📌', '💼', '🏠', '💡', '📊', '🧾', '✈️', '🛒', '📚', '🔧', '❤️', '⭐'];
-
-/** Mirrors the server's page of messages: a full page means there may be older ones. */
-export const MESSAGE_PAGE = 500;

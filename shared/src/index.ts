@@ -42,3 +42,4 @@ export * from './routine-versions';
 export * from './unused';
 export * from './context-reset';
 export * from './problem-report';
+export * from './message-pages';

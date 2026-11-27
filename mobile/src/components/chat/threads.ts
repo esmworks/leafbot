@@ -1,4 +1,4 @@
-import { cardPlace, type Bot, type Message, type Thread } from '@leafbot/shared';
+import { cardPlace, FULL_PAGE, type Bot, type Message, type Thread } from '@leafbot/shared';
 import { conversationMarkdown } from '@leafbot/app/src/lib/exportChat';
 import { useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
@@ -10,7 +10,7 @@ import { formatters } from '@/lib/format';
 import { nav } from '@/lib/nav';
 import { useApprovals, useBots, useMainThread, useSettings, useThreads } from '@/lib/queries';
 import { useApi, useServer } from '@/lib/server';
-import { MESSAGE_PAGE, threadLink } from './text';
+import { threadLink } from './text';
 
 const fmt = formatters(locale, t);
 
@@ -144,9 +144,9 @@ export function useThreadActions(bot: Bot) {
       try {
         const all: Message[] = [];
         for (let before: string | undefined; ;) {
-          const page = await api.messages(threadId, before);
+          const page = await api.messages(threadId, before, FULL_PAGE);
           all.unshift(...page);
-          if (page.length < MESSAGE_PAGE || !page[0]) break;
+          if (page.length < FULL_PAGE || !page[0]) break;
           before = page[0].id;
         }
         const thread = threads.find((th) => th.id === threadId) ?? main.data;

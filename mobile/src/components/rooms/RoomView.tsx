@@ -1,4 +1,4 @@
-import { lastResetIndex, streamParts, type Bot, type Message, type Room } from '@leafbot/shared';
+import { FULL_PAGE, lastResetIndex, streamParts, type Bot, type Message, type Room } from '@leafbot/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -16,7 +16,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar } from '@/components/Avatar';
 import { Composer, type SendExtra } from '@/components/chat/Composer';
 import { MessageBoundary } from '@/components/chat/Bars';
-import { MESSAGE_PAGE } from '@/components/chat/text';
 import {
   LiveReply,
   LiveText,
@@ -86,7 +85,7 @@ export function RoomView({ room }: { room: Room }) {
   const hidden = resetAt >= 0 && earlierOf !== messages[resetAt]!.id ? resetAt + 1 : 0;
   const current = useMemo(() => (hidden ? messages.slice(hidden) : messages), [messages, hidden]);
   const showEarlier = () => setEarlierOf(messages[resetAt]?.id ?? null);
-  const hasOlder = !hidden && !olderDone && (older.length > 0 || recent.length >= MESSAGE_PAGE);
+  const hasOlder = !hidden && !olderDone && (older.length > 0 || recent.length >= FULL_PAGE);
   const messagesRef = useRef(messages);
   useEffect(() => {
     messagesRef.current = messages;
@@ -100,7 +99,7 @@ export function RoomView({ room }: { room: Room }) {
     try {
       const page = await api.messages(room.id, first.id);
       setOlder((o) => [...page, ...o]);
-      if (page.length < MESSAGE_PAGE) setOlderDone(true);
+      if (page.length < FULL_PAGE) setOlderDone(true);
     } catch (e) {
       toastError(e);
     } finally {

@@ -303,11 +303,12 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Changed
 
-- A long conversation opens faster: the app reads its latest 50 messages instead of 500, draws the latest ones
-  first and the earlier ones in the frames after, and brings in older pages as you scroll up. Opening a conversation
-  of 500 messages or more held the page for about half a second. A message row draws again only when it changes,
-  where a reply streaming in redrew every row. `GET /api/threads/:id/messages` takes `limit` (1–500); without it the
-  server still sends 500, so the phone apps work as before.
+- A long conversation opens faster: the app and the phone apps read its latest 50 messages instead of 500 and bring
+  in older pages as you scroll up; the app draws the latest ones first and the earlier ones in the frames after.
+  Opening a conversation of 500 messages or more held the page for about half a second. A message row draws again
+  only when it changes, where a reply streaming in redrew every row. `GET /api/threads/:id/messages` takes `limit`
+  (1–500); without it the server still sends 500, so phone apps from before keep working, and the new ones work
+  with a server from before.
 - The buttons at the foot of the sidebar have icons that tell them apart: a sun for Today, a checklist for Tasks, a
   bar chart for Dashboards and a grid for Apps. Dashboards and Apps had two near-identical sets of squares. Tasks show
   the same checklist in a conversation and on a message.
