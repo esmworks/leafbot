@@ -1,13 +1,27 @@
 import './old-env';
 import { pickLocale } from '@leafbot/shared';
 import { createServer } from './app';
+import { loginFromTerminal } from './cli/login';
 import { loadConfig } from './config';
 import { translator } from './i18n';
 import { loadRtc } from './tunnel/rtc-datachannel';
 
+// Terminal lines follow the terminal's language.
+const locale = pickLocale([process.env.LC_ALL, process.env.LC_MESSAGES, process.env.LANG]);
+const t = translator(locale);
 const config = loadConfig();
 /** The exit code that asks whoever runs the server (the desktop app, Docker) to start it again. */
 const RESTART_CODE = 75;
+
+// With no command the server starts, as the desktop app and Docker run it; a command does one job
+// on the same data folder and ends.
+const command = process.argv[2];
+if (command === 'login') process.exit(await loginFromTerminal(config, locale));
+if (command !== undefined) {
+  console.error(t('cli.unknownCommand', { command }));
+  process.exit(2);
+}
+
 const server = await createServer(config, {
   logger: process.env.LEAFBOT_LOG === '1',
   restart: () => void shutdown('restore', RESTART_CODE),
@@ -18,8 +32,6 @@ const server = await createServer(config, {
 const address = await server.listen();
 // The desktop shell reads this line to learn the port.
 console.log(`LEAFBOT_READY ${address}`);
-// Terminal lines follow the terminal's language.
-const t = translator(pickLocale([process.env.LC_ALL, process.env.LC_MESSAGES, process.env.LANG]));
 if (!config.accessKey) console.log(t('log.accessKey', { path: `${config.dataDir}/access-key` }));
 
 let closing = false;

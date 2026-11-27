@@ -9,7 +9,8 @@
 #
 # Without --domain the server gets an sslip.io name made from its public IPv4 address.
 #
-# Afterwards the `leafbot` command runs the same script: leafbot update | status | logs | restart | access-key.
+# Afterwards the `leafbot` command runs the same script: leafbot update | status | logs | restart | access-key |
+# login.
 #
 # It works in two stages. The first, possibly piped from the internet, only fetches the chosen release
 # into the installation folder; it then hands over to that release's own copy of this script, so the
@@ -55,6 +56,7 @@ Komutlar:
   logs [servis] Kayıtları izler (varsayılan: leafbot)
   restart       Kapsayıcıları yeniden başlatır
   access-key    Erişim anahtarını gösterir
+  login         Leaf Bot hesabınıza e-posta koduyla girip sunucuyu hesaba bağlar
   compose ...   docker compose'u bu kurulumun dosyalarıyla çalıştırır
 
 Seçenekler:
@@ -81,6 +83,7 @@ Commands:
   logs [service] Follow the logs (default: leafbot)
   restart       Restart the containers
   access-key    Show the access key
+  login         Sign in to your Leaf Bot account with an email code and link the server to it
   compose ...   Run docker compose with this installation's files
 
 Options:
@@ -103,7 +106,7 @@ need_value() { [ "$2" -ge 2 ] || die "$1 bir değer ister" "$1 needs a value"; }
 parse_args() {
   while [ $# -gt 0 ]; do
     case $1 in
-      install | update | status | restart | access-key)
+      install | update | status | restart | access-key | login)
         COMMAND=$1
         shift
         ;;
@@ -251,6 +254,13 @@ manage() {
       ! systemctl is-enabled --quiet leafbot-firewall.service 2>/dev/null || systemctl restart leafbot-firewall.service
       ;;
     access-key) get_env LEAFBOT_ACCESS_KEY ;;
+    login)
+      # Asks in the running server's container, on its own data and database, in the language of
+      # this installation; the server reaches the account only after it starts again.
+      compose exec -e LANG="$UI" leafbot node dist/index.mjs login
+      say "Sunucu yeniden başlatılıyor." "Restarting the server."
+      compose restart leafbot
+      ;;
     compose) compose "${REST[@]}" ;;
   esac
 }
@@ -614,8 +624,10 @@ summary() {
   printf '\n'
   say "Adresi açıp erişim anahtarıyla girin; ardından bir kullanıcı adı ve şifre seçersiniz. Masaüstü ya da telefon uygulamasından bağlanmak için bağlantı ayarlarına bu adresi ve anahtarı yazın." \
     "Open the address and sign in with the access key; you then choose a user name and password. To connect the desktop or phone app, enter this address and key in its connection settings."
-  say "Komutlar: leafbot status | logs | update | restart | access-key" \
-    "Commands: leafbot status | logs | update | restart | access-key"
+  say "Leaf Bot hesabınızla her yerden ulaşmak için girin: sudo leafbot login" \
+    "To reach it from anywhere through your Leaf Bot account, sign in: sudo leafbot login"
+  say "Komutlar: leafbot status | logs | update | restart | access-key | login" \
+    "Commands: leafbot status | logs | update | restart | access-key | login"
   say "Yedek: uygulamadaki şifreli tam yedek ya da $DIR/docker/.env dosyası ile Docker birimleri." \
     "Backups: the password-sealed full backup in the app, or $DIR/docker/.env together with the Docker volumes."
 }
@@ -637,7 +649,7 @@ main() {
     [ -z "$saved" ] || UI=$saved
   fi
   case $COMMAND in
-    status | logs | restart | access-key | compose)
+    status | logs | restart | access-key | login | compose)
       manage
       return
       ;;

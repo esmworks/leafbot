@@ -18,6 +18,17 @@ export interface AccountHostConfig {
   webHost: string;
 }
 
+/** Where a server meets its account: as configured, or the public service when nothing names one. */
+export function accountHostConfig(config: { account?: AccountHostConfig }): AccountHostConfig {
+  return (
+    config.account ?? {
+      issuer: 'https://api.leafbot.app',
+      relayUrl: 'wss://signal.leafbot.app/v1/signal',
+      webHost: 'www.leafbot.app',
+    }
+  );
+}
+
 /** What the server keeps once it is linked to an account (`kv`, key `account-host`). */
 interface Stored {
   hostId: string;

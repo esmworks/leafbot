@@ -228,6 +228,11 @@ Ports 80 and 443 must be open in the provider's firewall. Afterwards `leafbot up
 `leafbot logs` and `leafbot access-key` manage the installation; `--computer` turns on the bots' desktops (8 GB
 recommended) and `--help` lists the rest.
 
+`sudo leafbot login` signs the server in to your Leaf Bot account, as the desktop app does on first start: it asks
+for your email, mails you a code, asks for the code (and your name when the account has none), links the server to
+the account and restarts it. You are then the server's owner in the account and reach it from the phone and from
+www.leafbot.app/bots, with no port or address of its own needed.
+
 Most providers (Hetzner, DigitalOcean, Vultr and others) also take a script when the server is created, under "Cloud
 config" or "User data", which installs it with no SSH session at all:
 
@@ -265,6 +270,23 @@ to your domain. Have such a proxy send `LEAFBOT_PROXY_SECRET` in an `X-Leafbot-P
 address in `X-Forwarded-For`, so sign-in attempts are counted per person rather than all as the proxy's address
 (`docker/Caddyfile` shows how). To sign a phone or another computer in, get a one-time pairing code under Settings →
 Connection → Connect another device on a device already signed in.
+
+To link the server to your Leaf Bot account from the terminal, run the `login` command in its container:
+
+```bash
+docker compose -f docker/compose.yml --env-file docker/.env exec leafbot node dist/index.mjs login
+```
+
+```bash
+docker compose -f docker/compose.yml --env-file docker/.env restart leafbot
+```
+
+It asks for your email, the code mailed to it and, when the account has none, your name; the server reaches the
+account once it has restarted. The command works on the server's data folder (`LEAFBOT_DATA_DIR`) and its database,
+so it also runs before the server's first start. A server on the embedded database (no `DATABASE_URL`) must be stopped
+first, because only one process may open that database: `docker run --rm -it -v <data volume>:/data <image> node
+dist/index.mjs login`, then start the server again. From a checkout, `pnpm --filter ./server login` does the same with
+`server/data`.
 
 [docker/README.md](docker/README.md) covers the details (in Turkish): signing in to Claude, the browser and password
 vault, the Bash sandbox, AppArmor on Ubuntu 23.10+, and the bots' desktops. Back up `/data/vault.key` together with the

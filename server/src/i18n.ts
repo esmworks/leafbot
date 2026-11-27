@@ -2234,6 +2234,21 @@ const tr = {
   // Terminal
   'log.accessKey': 'Erişim anahtarı: {path}',
   'log.shuttingDown': '{signal} alındı, kapanıyor',
+  'cli.unknownCommand': 'Bilinmeyen komut: {command}. Komutlar: login',
+  'login.stopServer':
+    'Sunucu çalışıyor ve veritabanını açık tutuyor. Önce sunucuyu durdurun, girişi yapın, sonra yeniden başlatın.',
+  'login.alreadyLinked':
+    'Bu sunucu zaten bir Leaf Bot hesabına bağlı. Giriş yaparsanız gireceğiniz hesaba yeniden bağlanır.',
+  'login.askEmail': 'Leaf Bot hesabınızın e-posta adresi: ',
+  'login.codeSent': '{email} adresine bir giriş kodu gönderildi.',
+  'login.askCode': 'Giriş kodu (yeni bir kod için boş bırakıp Enter): ',
+  'login.codeWrong':
+    'Kod yanlış ya da süresi dolmuş. Yeniden yazın ya da yeni bir kod için boş bırakıp Enter’a basın.',
+  'login.linked':
+    '{email} olarak giriş yapıldı. Bu sunucu artık Leaf Bot hesabınıza bağlı ve sahibi sizsiniz.',
+  'login.askName': 'Hesabınızın henüz bir adı yok. Adınız: ',
+  'login.named': 'Adınız {name} olarak kaydedildi.',
+  'login.restart': 'Çalışan sunucuya hesabınız üzerinden, sunucu yeniden başladıktan sonra ulaşılır.',
 
   // Phone notifications
   'push.bot': 'Bot',
@@ -4725,6 +4740,21 @@ const en: Catalog<ServerKey> = {
 
   'log.accessKey': 'Access key: {path}',
   'log.shuttingDown': '{signal} received, shutting down',
+  'cli.unknownCommand': 'Unknown command: {command}. Commands: login',
+  'login.stopServer':
+    'The server is running and holds its database open. Stop the server first, sign in, then start it again.',
+  'login.alreadyLinked':
+    'This server is already linked to a Leaf Bot account. Signing in links it again, to the account you sign in with.',
+  'login.askEmail': 'Your Leaf Bot account’s email address: ',
+  'login.codeSent': 'A sign-in code was sent to {email}.',
+  'login.askCode': 'Sign-in code (leave empty and press Enter for a new one): ',
+  'login.codeWrong':
+    'The code is wrong or has expired. Type it again, or leave it empty and press Enter for a new one.',
+  'login.linked':
+    'Signed in as {email}. This server is now linked to your Leaf Bot account, and you are its owner.',
+  'login.askName': 'Your account has no name yet. Your name: ',
+  'login.named': 'Your name is saved as {name}.',
+  'login.restart': 'The running server is reached through your account once it has started again.',
 
   // Phone notifications
   'push.bot': 'Bot',
