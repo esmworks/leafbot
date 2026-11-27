@@ -327,6 +327,27 @@ export const roomMembers = pgTable(
   (t) => [uniqueIndex('room_members_uq').on(t.roomId, t.botId)],
 );
 
+/**
+ * The people in a room besides the one who opened it (`threads.userId`), who manages it with the
+ * admins among them. Once a room has anyone here, its bots use only what the team shares, never
+ * one person's own apps, notes or sign-ins, since everyone in the room reads their answers.
+ */
+export const roomPeople = pgTable(
+  'room_people',
+  {
+    roomId: text('room_id')
+      .notNull()
+      .references(() => rooms.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Who put them in; null when they came with the room as it passed to them. */
+    addedBy: text('added_by'),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.roomId, t.userId] }), index('room_people_user_idx').on(t.userId)],
+);
+
 /** One step of a turn as it is kept: the tool's short name, what it did, and what it was given. */
 export interface TurnStep {
   tool: string;

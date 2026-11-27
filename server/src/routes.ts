@@ -68,6 +68,7 @@ import {
   RehearsalStart,
   RoutineHealthDismiss,
   RoomCreate,
+  RoomPeopleChange,
   RoomSend,
   MeetingAnswer,
   MeetingSave,
@@ -410,6 +411,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     // Signed out first, so nothing new of theirs starts while they are removed.
     await d.auth.users.change(id, { disabled: true });
     await peopleChanged(id, true);
+    // A room they opened that others are in stays for them, managed by the next in line.
+    await s.rooms.passOn(id);
     const threads = await s.ctx.db
       .select({ id: schema.threads.id, botId: schema.threads.botId })
       .from(schema.threads)
@@ -1827,6 +1830,36 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   });
   app.delete('/api/rooms/:id', async (req) => {
     await s.rooms.remove(IdParams.parse(req.params).id);
+    return { ok: true };
+  });
+  // People put in a room, or taken out. Those put in are told; each may talk there with the room's
+  // bots, even ones not shared with them.
+  app.put('/api/rooms/:id/people', async (req) => {
+    const id = IdParams.parse(req.params).id;
+    const added = await s.rooms.setPeople(id, RoomPeopleChange.parse(req.body), me(req).userId);
+    for (const userId of added) void s.push.roomAdded(userId, me(req).userId, id);
+    return s.rooms.get(id);
+  });
+  // For each person who may sign in, the room's bots not shared with them: whoever puts them in
+  // is told they will talk with these there all the same.
+  app.get('/api/rooms/:id/unshared', async (req) => {
+    const id = IdParams.parse(req.params).id;
+    const room = await s.rooms.get(id);
+    const bots = (await s.bots.list({ includeArchived: true })).filter((b) => room.members.includes(b.id));
+    const people = (await d.auth.users.list()).filter((p) => !p.disabled);
+    const out: Record<string, string[]> = {};
+    for (const p of people) {
+      const levels = await s.access.levels(await s.access.viewerOf(p.id));
+      const missing = bots.filter((b) => !atLeast(levels.get(b.id) ?? 'none', 'chat')).map((b) => b.name);
+      if (missing.length) out[p.id] = missing;
+    }
+    return out;
+  });
+  app.post('/api/rooms/:id/leave', async (req) => {
+    const id = IdParams.parse(req.params).id;
+    if ((await s.threads.row(id)).userId === me(req).userId)
+      throw new HttpError(400, 'error.roomOwnerLeaves');
+    await s.rooms.setPeople(id, { remove: [me(req).userId] }, me(req).userId);
     return { ok: true };
   });
   app.post('/api/rooms/:id/messages', async (req, reply) => {

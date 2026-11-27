@@ -746,6 +746,8 @@ export class ToolFactory {
     whatsappReader?: boolean;
     /** A WhatsApp chat the bot answers for the person: one given to it, or the front door. */
     contact?: 'route' | 'door';
+    /** A room with more than one person in it: no one's own notes, apps or sign-ins. */
+    shared?: boolean;
   }): AppTool[] {
     const { bot, thread, turn, signal, t, plan } = opts;
     const reads = () => opts.outside?.() ?? null;
@@ -770,8 +772,9 @@ export class ToolFactory {
         .record({ turnId: turn.id, threadId: thread.id, botId: bot.id, userId: person }, c)
         .catch((err: unknown) => console.warn(`Could not journal a change of a turn: ${String(err)}`));
     // A team conversation acts for who asked but uses no one's own notes, apps or sign-ins; so
-    // does a WhatsApp chat a bot answers for the person, where someone else writes.
-    const team = thread.kind === 'team' || !!opts.contact;
+    // does a WhatsApp chat a bot answers for the person, where someone else writes, and a room
+    // more than one person is in.
+    const team = thread.kind === 'team' || !!opts.contact || !!opts.shared;
     const own = team ? null : person;
     // Asked by someone with no account here (a Discord member): the turn acts for the person it
     // works for, but may do no more with the bots than talk with them.

@@ -459,6 +459,8 @@ export const Message = z.object({
   clientId: z.string().nullable(),
   /** Turn that produced the message; lets the client drop its streaming buffer. */
   turnId: Id.nullable(),
+  /** The person who wrote a `user` message, so a room with several people shows who said what. */
+  userId: z.string().nullable().optional(),
   createdAt: z.string(),
 });
 export type Message = z.infer<typeof Message>;
@@ -646,6 +648,16 @@ export const MeetingSave = z.object({
 export type MeetingSave = z.infer<typeof MeetingSave>;
 
 /** A conversation of the person with several bots. Its id is also its thread's id. */
+/** A member bot of a room as everyone in it sees it: its name and look, nothing more. */
+export const RoomFace = z.object({
+  id: Id,
+  name: z.string(),
+  color: z.string(),
+  avatar: z.string(),
+  material: BotMaterial,
+});
+export type RoomFace = z.infer<typeof RoomFace>;
+
 export const Room = z.object({
   id: Id,
   title: z.string(),
@@ -663,6 +675,15 @@ export const Room = z.object({
   /** The bot speaking now, if any. */
   speakerId: Id.nullable(),
   preview: z.string().nullable(),
+  /** Who opened the room and manages it. Missing from older servers. */
+  ownerId: z.string().optional(),
+  /** The people put in the room besides its owner, earliest first. Missing from older servers. */
+  people: z.array(z.string()).optional(),
+  /**
+   * How the member bots look, for someone in the room whom a bot is not shared with: they still
+   * see who speaks. Missing from older servers.
+   */
+  faces: z.array(RoomFace).optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -680,6 +701,13 @@ export type RoomCreate = z.infer<typeof RoomCreate>;
 
 export const RoomUpdate = RoomCreate.partial();
 export type RoomUpdate = z.infer<typeof RoomUpdate>;
+
+/** People put in a room, or taken out of it, by whoever manages it. */
+export const RoomPeopleChange = z.object({
+  add: z.array(z.string().min(1)).max(100).optional(),
+  remove: z.array(z.string().min(1)).max(100).optional(),
+});
+export type RoomPeopleChange = z.infer<typeof RoomPeopleChange>;
 
 export const RoomSend = z.object({
   clientId: z.string().min(8).max(64),

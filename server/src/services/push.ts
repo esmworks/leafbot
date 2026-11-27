@@ -400,6 +400,41 @@ export class PushService {
     }));
   }
 
+  /** Tells someone put in a room who put them there; the room shows in their list as it is. */
+  async roomAdded(userId: string, by: string, roomId: string): Promise<void> {
+    try {
+      const [room] = await this.ctx.db
+        .select({ title: schema.threads.title })
+        .from(schema.threads)
+        .where(eq(schema.threads.id, roomId))
+        .limit(1);
+      const [adder] = await this.ctx.db
+        .select({ displayName: schema.users.displayName, username: schema.users.username })
+        .from(schema.users)
+        .where(eq(schema.users.id, by))
+        .limit(1);
+      const name = adder?.displayName || adder?.username;
+      const devices = (await this.liveDevices()).filter((d) => d.userId === userId && d.level !== 'off');
+      await Promise.all(
+        devices.map((d) => {
+          const t = translator(isLocale(d.locale) ? d.locale : 'tr');
+          const title = room?.title ?? '';
+          return this.send(d, {
+            title: t('push.roomAddedTitle'),
+            body: name
+              ? t('push.roomAdded', { name, room: title })
+              : t('push.roomAddedNameless', { room: title }),
+            threadId: 'room-added',
+            collapseId: `room-added:${roomId}`,
+            data: { kind: 'room-added' },
+          });
+        }),
+      );
+    } catch (err) {
+      console.warn('push room added', err);
+    }
+  }
+
   /** A message about the person `userId` to the phones of those who look after the server. */
   private async toManagers(
     what: string,

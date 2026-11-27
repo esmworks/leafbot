@@ -705,18 +705,32 @@ export class ApprovalService {
   }
 
   /**
-   * Whether `by` may answer a card. In a team conversation a card is the one who asked: only they,
-   * or someone who may change the bot, answer it; anyone else in the team only sees it.
+   * Whether `by` may answer a card. In a team conversation, or a room more than one person is in,
+   * a card is the one who asked: only they, or someone who may change the bot, answer it; anyone
+   * else there only sees it.
    */
   async mayAnswer(card: { id: string }, by: string | null): Promise<boolean> {
     if (!by) return true;
     const [row] = await this.ctx.db
-      .select({ kind: schema.threads.kind, turnId: schema.approvals.turnId, botId: schema.approvals.botId })
+      .select({
+        kind: schema.threads.kind,
+        threadId: schema.threads.id,
+        turnId: schema.approvals.turnId,
+        botId: schema.approvals.botId,
+      })
       .from(schema.approvals)
       .innerJoin(schema.threads, eq(schema.threads.id, schema.approvals.threadId))
       .where(eq(schema.approvals.id, card.id))
       .limit(1);
-    if (row?.kind !== 'team') return true;
+    if (!row) return true;
+    if (row.kind === 'room') {
+      const [other] = await this.ctx.db
+        .select({ userId: schema.roomPeople.userId })
+        .from(schema.roomPeople)
+        .where(eq(schema.roomPeople.roomId, row.threadId))
+        .limit(1);
+      if (!other) return true;
+    } else if (row.kind !== 'team') return true;
     if (row.turnId) {
       const [turn] = await this.ctx.db
         .select({ userId: schema.turns.userId })

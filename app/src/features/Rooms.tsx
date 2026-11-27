@@ -2,18 +2,19 @@ import {
   lastResetIndex,
   MAX_ROOM_MEMBERS,
   MAX_ROOM_ROUNDS,
-  type Bot,
   type Message,
   type Room,
   type RoomMinutes,
+  type RoomFace as BotFace,
   type RoomResponders,
 } from '@leafbot/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowUp,
   ChevronLeft,
   ClipboardList,
   History,
+  LogOut,
   MoreHorizontal,
   NotebookPen,
   Pencil,
@@ -28,6 +29,7 @@ import {
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { BotAvatar } from '@/components/BotAvatar';
+import { Markdown } from '@/components/Markdown';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -54,28 +56,42 @@ import { useThreadActivity } from '@/lib/botActivity';
 import { newClientId, useFormat } from '@/lib/format';
 import { useLiveCards } from '@/lib/liveCards';
 import { PHONE } from '@/lib/media';
-import { useBots, useMessages, useRooms } from '@/lib/queries';
+import { useBots, useMessages, usePeople, useRooms, useSession } from '@/lib/queries';
 import { useLiveCatchUp } from '@/lib/liveCatchUp';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { useFitHeight } from '@/lib/fitHeight';
+import { personName } from './PeopleTab';
 import { Field } from './RoutinePage';
 import { AssistantCard, CardDock, ExchangeCards, MessageItem, replyExcerpt, Working } from './MessageItem';
 import { MeetingBar, MeetingCard, MinutesDialog, showMinutes, useStartMeeting } from './Meetings';
 
 const heading = 'px-4 pt-3 pb-1 text-[13px] font-semibold tracking-wide text-muted-foreground uppercase';
 
-/** The bots of a room that still exist, in speaking order. */
-function useMembers(room: Room | undefined): Bot[] {
+/**
+ * The bots of a room that still exist, in speaking order. One not shared with the person, who was
+ * put in the room, shows as the room describes it.
+ */
+function useMembers(room: Room | undefined): BotFace[] {
   const { data: bots = [] } = useBots();
   return useMemo(
-    () => (room?.members ?? []).map((id) => bots.find((b) => b.id === id)).filter((b): b is Bot => !!b),
-    [room?.members, bots],
+    () =>
+      (room?.members ?? [])
+        .map((id) => bots.find((b) => b.id === id) ?? room?.faces?.find((f) => f.id === id))
+        .filter((b): b is BotFace => !!b),
+    [room?.members, room?.faces, bots],
   );
 }
 
+/** Whether the one signed in opened the room, and whether they may manage it (an admin in it may). */
+function useRoomRole(room: Room) {
+  const user = useSession().data?.user;
+  const owner = !room.ownerId || room.ownerId === user?.id;
+  return { me: user?.id, owner, manages: owner || user?.role === 'owner' || user?.role === 'admin' };
+}
+
 /** Up to three member avatars overlapping, as the room's picture. */
-function RoomFace({ members, size = 22 }: { members: Bot[]; size?: number }) {
+function RoomFace({ members, size = 22 }: { members: BotFace[]; size?: number }) {
   const shown = members.slice(0, 3);
   if (!shown.length)
     return (
@@ -122,7 +138,7 @@ const CLUSTER: Record<number, { size: number; at: [number, number][] }> = {
 };
 
 /** The room's picture fitted to a `box` px square, the size of a bot's avatar in the same list. */
-function RoomCluster({ members, box }: { members: Bot[]; box: number }) {
+function RoomCluster({ members, box }: { members: BotFace[]; box: number }) {
   const shown = members.slice(0, 3);
   const layout = CLUSTER[shown.length];
   if (!layout)
@@ -503,6 +519,9 @@ export function RoomView({ room }: { room: Room }) {
   const { data: bots = [] } = useBots();
   const botMap = useMemo(() => new Map(bots.map((b) => [b.id, b])), [bots]);
   const members = useMembers(room);
+  const faceMap = useMemo(() => new Map(members.map((b) => [b.id, b])), [members]);
+  const { me } = useRoomRole(room);
+  const { data: everyone = [] } = usePeople();
   const { data: messages = [], isLoading } = useMessages(room.id);
   // A room started fresh opens empty: what came before its last reset shows only when asked for,
   // and hides again once the room is reset anew.
@@ -515,7 +534,7 @@ export function RoomView({ room }: { room: Room }) {
   const live = useUi((s) => s.states[room.id]);
   const state = live ?? room.state;
   const busy = state !== 'idle';
-  const speaker = room.speakerId ? botMap.get(room.speakerId) : undefined;
+  const speaker = room.speakerId ? (botMap.get(room.speakerId) ?? faceMap.get(room.speakerId)) : undefined;
   const activity = useThreadActivity(speaker?.id ?? '', room.id, state);
   const [pending, setPending] = useState<Message[]>([]);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -545,13 +564,22 @@ export function RoomView({ room }: { room: Room }) {
     return () => ro.disconnect();
   }, []);
 
-  /** Whose words a row is: a bot's id, `user`, or null for the room's own notes. */
+  /**
+   * Whose words a row is: a bot's id, `user` for the one signed in, `person:<id>` for someone else
+   * in the room, or null for the room's own notes. A line with no person is the room's opener's.
+   */
   const speakerOf = (m: Message) =>
     m.role === 'assistant' || m.role === 'approval' || (m.role === 'system' && m.author.startsWith('bot:'))
       ? m.author.slice(4)
       : m.role === 'user'
-        ? 'user'
+        ? m.author !== 'user' || (m.userId ?? room.ownerId ?? me) === me
+          ? 'user'
+          : `person:${m.userId ?? room.ownerId}`
         : null;
+  const nameOf = (id: string) => {
+    const p = everyone.find((x) => x.id === id);
+    return p ? personName(p, t('people.owner')) : t('room.someone');
+  };
   // Of the rows drawn above the streaming reply: a card placed inside it comes after its words.
   const lastSpeaker =
     [...rows]
@@ -592,7 +620,9 @@ export function RoomView({ room }: { room: Room }) {
                 .reverse()
                 .map(speakerOf)
                 .find((s) => s !== null);
-              const bot = who && who !== 'user' ? botMap.get(who) : undefined;
+              const person = who?.startsWith('person:') ? who.slice(7) : null;
+              const bot =
+                who && who !== 'user' && !person ? (botMap.get(who) ?? faceMap.get(who)) : undefined;
               // The room's own line about a meeting is drawn as the meeting's card.
               if (m.role === 'system' && m.props.meeting)
                 return (
@@ -612,14 +642,18 @@ export function RoomView({ room }: { room: Room }) {
                       {dayLabel(m.createdAt)}
                     </div>
                   )}
-                  {who && who !== 'user' && who !== before && <SpeakerLine bot={bot} />}
-                  <MessageItem
-                    m={m}
-                    bots={botMap}
-                    botId={bot?.id}
-                    onReply={m.role === 'assistant' ? setReplyTo : undefined}
-                    pending={waiting.has(m.clientId)}
-                  />
+                  {who && who !== 'user' && !person && who !== before && <SpeakerLine bot={bot} />}
+                  {person ? (
+                    <PersonMessage m={m} name={nameOf(person)} named={who !== before} />
+                  ) : (
+                    <MessageItem
+                      m={m}
+                      bots={botMap}
+                      botId={bot?.id}
+                      onReply={m.role === 'assistant' ? setReplyTo : undefined}
+                      pending={waiting.has(m.clientId)}
+                    />
+                  )}
                 </Fragment>
               );
             })}
@@ -665,13 +699,25 @@ export function RoomView({ room }: { room: Room }) {
   );
 }
 
+/** Someone else's line in a room more than one person is in: on the other side, under their name. */
+function PersonMessage({ m, name, named }: { m: Message; name: string; named: boolean }) {
+  return (
+    <div className="flex flex-col items-start gap-1" data-message-id={m.id}>
+      {named && <span className="ps-3 text-xs font-semibold text-muted-foreground">{name}</span>}
+      <div className="wallpaper-bubble max-w-[80%] rounded-3xl border bg-background px-4 py-2.5 text-[15px] [overflow-wrap:anywhere]">
+        <Markdown text={m.text} breaks className="prose-chat leading-relaxed break-words" />
+      </div>
+    </div>
+  );
+}
+
 function needsDivider(prev: Message | undefined, m: Message) {
   if (!prev) return true;
   return new Date(m.createdAt).getTime() - new Date(prev.createdAt).getTime() > 60 * 60 * 1000;
 }
 
 /** The name above a bot's turn in the room, when another spoke before it. */
-function SpeakerLine({ bot }: { bot?: Bot }) {
+function SpeakerLine({ bot }: { bot?: BotFace }) {
   const t = useT();
   return (
     <div className="-mb-2 flex items-center gap-2 pt-1 text-sm">
@@ -687,7 +733,7 @@ function SpeakerLine({ bot }: { bot?: Bot }) {
   );
 }
 
-function RoomEmpty({ room, members }: { room: Room; members: Bot[] }) {
+function RoomEmpty({ room, members }: { room: Room; members: BotFace[] }) {
   const t = useT();
   return (
     <div className="flex flex-col items-center gap-3 pt-[12vh] text-center">
@@ -701,7 +747,7 @@ function RoomEmpty({ room, members }: { room: Room; members: Bot[] }) {
   );
 }
 
-function RoomHeader({ room, members }: { room: Room; members: Bot[] }) {
+function RoomHeader({ room, members }: { room: Room; members: BotFace[] }) {
   const t = useT();
   const showList = useUi((s) => s.showList);
   const openRoomDialog = useUi((s) => s.openRoomDialog);
@@ -709,6 +755,19 @@ function RoomHeader({ room, members }: { room: Room; members: Bot[] }) {
   const qc = useQueryClient();
   const startMeeting = useStartMeeting(room.id);
   const meetingLive = room.meeting?.status === 'active';
+  const { owner, manages } = useRoomRole(room);
+  const [peopleOpen, setPeopleOpen] = useState(false);
+  // Only whoever opened the room changes its bots: an admin put in it may not see them all.
+  const openSettings = () =>
+    owner ? openRoomDialog({ mode: 'edit', roomId: room.id }) : setPeopleOpen(true);
+  const leave = useMutation({
+    mutationFn: () => api.leaveRoom(room.id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['rooms'] });
+      openRoom(null);
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
   const remove = useMutation({
     mutationFn: () => api.deleteRoom(room.id),
     onSuccess: () => {
@@ -741,7 +800,7 @@ function RoomHeader({ room, members }: { room: Room; members: Bot[] }) {
         </div>
         <button
           type="button"
-          onClick={() => openRoomDialog({ mode: 'edit', roomId: room.id })}
+          onClick={openSettings}
           className="pointer-events-auto flex max-w-full min-w-0 items-center gap-2 rounded-full border bg-background/80 py-1.5 pe-3 ps-1.5 shadow-sm backdrop-blur transition-colors hover:bg-accent"
         >
           <RoomFace members={members} size={24} />
@@ -753,13 +812,23 @@ function RoomHeader({ room, members }: { room: Room; members: Bot[] }) {
         <div className="pointer-events-auto flex items-center justify-end">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="rounded-full" aria-label={t('room.edit')}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+                aria-label={owner ? t('room.edit') : t('room.menu')}
+              >
                 <MoreHorizontal />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="rounded-2xl">
-              <DropdownMenuItem onClick={() => openRoomDialog({ mode: 'edit', roomId: room.id })}>
-                <Pencil /> {t('room.edit')}
+              {owner && (
+                <DropdownMenuItem onClick={() => openRoomDialog({ mode: 'edit', roomId: room.id })}>
+                  <Pencil /> {t('room.edit')}
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={() => setPeopleOpen(true)}>
+                <Users /> {t('room.people')}
               </DropdownMenuItem>
               {!meetingLive && (
                 <DropdownMenuItem disabled={startMeeting.isPending} onClick={() => startMeeting.mutate()}>
@@ -769,26 +838,184 @@ function RoomHeader({ room, members }: { room: Room; members: Bot[] }) {
               <DropdownMenuItem onClick={() => showMinutes(room.id)}>
                 <ClipboardList /> {t('meeting.list')}
               </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={reset.isPending}
-                onClick={() => confirm(t('room.resetConfirm')) && reset.mutate()}
-              >
-                <RotateCcw /> {t('room.reset')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-destructive"
-                onClick={() => confirm(t('room.deleteConfirm', { name: room.title })) && remove.mutate()}
-              >
-                <Trash2 /> {t('room.delete')}
-              </DropdownMenuItem>
+              {manages && (
+                <DropdownMenuItem
+                  disabled={reset.isPending}
+                  onClick={() => confirm(t('room.resetConfirm')) && reset.mutate()}
+                >
+                  <RotateCcw /> {t('room.reset')}
+                </DropdownMenuItem>
+              )}
+              {!owner && (
+                <DropdownMenuItem
+                  disabled={leave.isPending}
+                  onClick={() => confirm(t('room.leaveConfirm', { name: room.title })) && leave.mutate()}
+                >
+                  <LogOut /> {t('room.leave')}
+                </DropdownMenuItem>
+              )}
+              {manages && (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => confirm(t('room.deleteConfirm', { name: room.title })) && remove.mutate()}
+                >
+                  <Trash2 /> {t('room.delete')}
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
+      <RoomPeopleDialog room={room} open={peopleOpen} onOpenChange={setPeopleOpen} manages={manages} />
       <div className="mt-2 flex justify-center px-3 empty:hidden">
         <MeetingBar room={room} />
       </div>
     </div>
+  );
+}
+
+/**
+ * Who is in the room. Whoever manages it puts people in or takes them out, and is told when someone
+ * would talk here with a bot not shared with them.
+ */
+function RoomPeopleDialog({
+  room,
+  open,
+  onOpenChange,
+  manages,
+}: {
+  room: Room;
+  open: boolean;
+  onOpenChange(open: boolean): void;
+  manages: boolean;
+}) {
+  const t = useT();
+  const qc = useQueryClient();
+  const { me } = useRoomRole(room);
+  const { data: everyone = [] } = usePeople();
+  const [adding, setAdding] = useState<string[]>([]);
+  const unshared = useQuery({
+    queryKey: ['room-unshared', room.id, room.members.join()],
+    queryFn: () => api.roomUnshared(room.id),
+    enabled: open && manages,
+  });
+  const change = useMutation({
+    mutationFn: (c: { add?: string[]; remove?: string[] }) => api.setRoomPeople(room.id, c),
+    onSuccess: (saved) => {
+      qc.setQueryData<Room[]>(['rooms'], (old = []) => old.map((r) => (r.id === saved.id ? saved : r)));
+      void qc.invalidateQueries({ queryKey: ['rooms'] });
+      setAdding([]);
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+  const inRoom = [...(room.ownerId ? [room.ownerId] : []), ...(room.people ?? [])];
+  const nameOf = (id: string) => {
+    const p = everyone.find((x) => x.id === id);
+    return p ? personName(p, t('people.owner')) : t('room.someone');
+  };
+  const candidates = everyone.filter((p) => !p.disabled && !inRoom.includes(p.id));
+  const toggle = (id: string) => setAdding((a) => (a.includes(id) ? a.filter((x) => x !== id) : [...a, id]));
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(o) => {
+        if (!o) setAdding([]);
+        onOpenChange(o);
+      }}
+    >
+      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden rounded-3xl sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>{t('room.people')}</DialogTitle>
+          <DialogDescription>{t('room.peopleHint')}</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          <ul className="space-y-0.5">
+            {inRoom.map((id) => (
+              <li key={id} className="flex min-h-9 items-center gap-3 rounded-xl px-2.5">
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">
+                  {nameOf(id)}
+                  {id === me && (
+                    <span className="font-normal text-muted-foreground"> · {t('room.peopleYou')}</span>
+                  )}
+                </span>
+                {id === room.ownerId ? (
+                  <span className="shrink-0 text-xs text-muted-foreground">{t('room.peopleOwner')}</span>
+                ) : (
+                  manages &&
+                  id !== me && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 rounded-full"
+                      disabled={change.isPending}
+                      onClick={() => change.mutate({ remove: [id] })}
+                      aria-label={t('room.peopleRemove', { name: nameOf(id) })}
+                      title={t('room.peopleRemove', { name: nameOf(id) })}
+                    >
+                      <X />
+                    </Button>
+                  )
+                )}
+              </li>
+            ))}
+          </ul>
+          {manages && candidates.length > 0 && (
+            <Field label={t('room.peopleAdd')}>
+              <div className="scroll-thin max-h-56 space-y-0.5 overflow-y-auto rounded-2xl border p-1">
+                {candidates.map((p) => {
+                  const on = adding.includes(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => toggle(p.id)}
+                      aria-pressed={on}
+                      className={cn(
+                        'flex w-full items-center gap-3 rounded-xl px-2.5 py-1.5 text-start transition-colors hover:bg-accent/60',
+                        on && 'bg-accent/70',
+                      )}
+                    >
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{nameOf(p.id)}</span>
+                      <span
+                        className={cn(
+                          'flex size-5 shrink-0 items-center justify-center rounded-full border',
+                          on && 'border-transparent bg-primary text-primary-foreground',
+                        )}
+                      >
+                        {on && <Plus className="size-3" />}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {adding
+                .filter((id) => unshared.data?.[id]?.length)
+                .map((id) => (
+                  <p key={id} className="text-xs text-amber-600 dark:text-amber-400">
+                    {t('room.peopleUnshared', { name: nameOf(id), bots: unshared.data![id]!.join(', ') })}
+                  </p>
+                ))}
+            </Field>
+          )}
+        </DialogBody>
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="ghost" className="rounded-full" onClick={() => onOpenChange(false)}>
+            {t('common.close')}
+          </Button>
+          {manages && candidates.length > 0 && (
+            <Button
+              type="button"
+              className="rounded-full"
+              disabled={!adding.length || change.isPending}
+              onClick={() => change.mutate({ add: adding })}
+            >
+              {t('room.peopleAddButton')}
+            </Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -809,7 +1036,7 @@ function RoomComposer({
   onFailed,
 }: {
   room: Room;
-  members: Bot[];
+  members: BotFace[];
   busy: boolean;
   replyTo: Message | null;
   onReplyChange(m: Message | null): void;
@@ -819,6 +1046,7 @@ function RoomComposer({
   const t = useT();
   const intl = useLocale((s) => s.intl);
   const qc = useQueryClient();
+  const { me } = useRoomRole(room);
   const [text, setText] = useState('');
   const [caret, setCaret] = useState(0);
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -835,7 +1063,7 @@ function RoomComposer({
   const choices = mention
     ? members.filter((b) => b.name.toLocaleLowerCase(intl).startsWith(mention.query.toLocaleLowerCase(intl)))
     : [];
-  const pick = (b: Bot) => {
+  const pick = (b: BotFace) => {
     if (!mention) return;
     const next = `${text.slice(0, mention.start)}@${b.name} ${text.slice(caret)}`;
     const at = mention.start + b.name.length + 2;
@@ -872,6 +1100,7 @@ function RoomComposer({
       threadId: room.id,
       role: 'user',
       author: 'user',
+      userId: me,
       text: value,
       props: replyTo ? { replyTo: { id: replyTo.id, text: replyExcerpt(replyTo) } } : {},
       clientId,

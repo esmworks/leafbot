@@ -505,6 +505,10 @@ export function endpoints(send: Transport, base = '') {
     createRoom: (input: RoomCreate) => http.post<Room>('/api/rooms', input),
     updateRoom: (id: string, patch: RoomUpdate) => http.patch<Room>(`/api/rooms/${id}`, patch),
     deleteRoom: (id: string) => http.del<{ ok: true }>(`/api/rooms/${id}`),
+    setRoomPeople: (id: string, change: { add?: string[]; remove?: string[] }) =>
+      http.put<Room>(`/api/rooms/${id}/people`, change),
+    leaveRoom: (id: string) => http.post<{ ok: true }>(`/api/rooms/${id}/leave`),
+    roomUnshared: (id: string) => http.get<Record<string, string[]>>(`/api/rooms/${id}/unshared`),
     sendToRoom: (id: string, clientId: string, text: string, replyTo?: string) =>
       http.post<Message>(`/api/rooms/${id}/messages`, { clientId, text, replyTo }),
     stopRoom: (id: string) => http.post<{ stopped: boolean }>(`/api/rooms/${id}/stop`),

@@ -307,11 +307,15 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'GET /api/rooms': 'self',
   'POST /api/rooms': 'self',
   'GET /api/rooms/:id': read(),
-  'PATCH /api/rooms/:id': read(),
-  'DELETE /api/rooms/:id': read(),
+  // A room is managed by whoever opened it and the admins put in it; its other people talk and leave.
+  'PATCH /api/rooms/:id': manage(),
+  'DELETE /api/rooms/:id': manage(),
+  'PUT /api/rooms/:id/people': manage(),
+  'GET /api/rooms/:id/unshared': manage(),
+  'POST /api/rooms/:id/leave': read(),
   'POST /api/rooms/:id/messages': write(),
   'POST /api/rooms/:id/stop': read(),
-  'POST /api/rooms/:id/reset': read(),
+  'POST /api/rooms/:id/reset': manage(),
   // A room's meetings and minutes are the room's: its person reads, starts, ends and approves them.
   'GET /api/rooms/:id/meetings': read(),
   'POST /api/rooms/:id/meetings': write(),

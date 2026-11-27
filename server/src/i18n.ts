@@ -390,6 +390,8 @@ const tr = {
   'error.secondNotYou': 'Bu adımın ikinci onayını siz veremezsiniz',
   'error.secondNamedFirst': 'Bu kuralda ikinci onayı verecek kişi sizsiniz; ilk onay başka birinden gelmeli',
   'error.teamThreadManage': 'Ekip konuşmasını yalnızca botu değiştirebilenler düzenleyebilir ya da silebilir',
+  'error.roomManage': 'Odayı yalnızca açan kişi ve odadaki yöneticiler değiştirebilir',
+  'error.roomOwnerLeaves': 'Odayı açan kişi ayrılamaz; istersen odayı silebilirsin',
   'error.slackToken':
     'Slack anahtarları geçerli görünmüyor: uygulama anahtarı xapp- ile, bot anahtarı xoxb- ile başlar',
   'error.slackRefused': 'Slack anahtarı kabul etmedi ({reason})',
@@ -2280,6 +2282,9 @@ const tr = {
   'push.spaceRequestTitle': 'Katılma isteği',
   'push.spaceRequest': '{name}, {space} alanına katılmak istiyor.',
   'push.spaceRequestNameless': 'Biri {space} alanına katılmak istiyor.',
+  'push.roomAddedTitle': 'Yeni oda',
+  'push.roomAdded': '{name} seni {room} odasına ekledi.',
+  'push.roomAddedNameless': '{room} odasına eklendin.',
   'push.error': '{name} bir sorunla karşılaştı',
   'activity.working': 'Çalışıyor',
   'activity.waiting': 'Sizi bekliyor',
@@ -2914,6 +2919,8 @@ const en: Catalog<ServerKey> = {
   'error.secondNamedFirst':
     'In this rule you are the one who gives the second yes; the first must come from someone else',
   'error.teamThreadManage': 'Only those who may change the bot can edit or delete a team conversation',
+  'error.roomManage': 'Only whoever opened the room and the admins in it can change it',
+  'error.roomOwnerLeaves': 'Whoever opened the room cannot leave it; they can delete it instead',
   'error.slackToken':
     "The Slack tokens don't look right: the app token starts with xapp-, the bot token with xoxb-",
   'error.slackRefused': 'Slack did not accept the token ({reason})',
@@ -4813,6 +4820,9 @@ const en: Catalog<ServerKey> = {
   'push.spaceRequestTitle': 'Request to join',
   'push.spaceRequest': '{name} asks to join {space}.',
   'push.spaceRequestNameless': 'Someone asks to join {space}.',
+  'push.roomAddedTitle': 'New room',
+  'push.roomAdded': '{name} added you to {room}.',
+  'push.roomAddedNameless': 'You were added to {room}.',
   'push.error': '{name} ran into a problem',
   'activity.working': 'Working',
   'activity.waiting': 'Needs you',

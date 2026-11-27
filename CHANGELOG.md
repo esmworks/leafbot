@@ -27,6 +27,13 @@ version is 0.x, a minor release may change the data format or the API; the serve
 - A step that waits for someone's second yes is asked of them in a box at the bottom right too, with the bot, the
   step, who asked and who said yes first, and buttons to say yes or deny. Before, it was listed only in Today, and
   waited unseen until that was opened. Closing the box puts it away on that device; Today still lists it.
+- Rooms with more than one person. Whoever opens a room puts people in it, or takes them out, under the room's
+  People; an admin put in it may too. The others there talk with the room's bots (even ones not shared with them,
+  in that room only, which the one adding them is told of), see the whole conversation with each line under its
+  writer's name, and can leave. Someone put in a room is told on their phone. While a room has more than one person,
+  its bots use nobody's own profile, notes, connections or sign-ins, and a card is answered only by who asked or by
+  someone who may change the bot. Admins do not see rooms they are not in. When the person who opened a room is
+  removed, it passes to the earliest admin in it, else to the earliest person put in it.
 - Someone invited to a server, the first time they come, sees a welcome with the server's name, the team spaces
   they are in and the bots there (or that their bots show once they are put in a space), then a short question
   about themselves they can skip. No starter bots are made for them; the first run that sets up bots and the AI is

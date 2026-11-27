@@ -7,10 +7,11 @@ import {
   type OutsideTrigger,
   type Room,
   type RoomCreate,
+  type RoomPeopleChange,
   type RoomSend,
   type RoomUpdate,
 } from '@leafbot/shared';
-import { and, asc, desc, eq, inArray, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import { isSilentReply, SILENT_REPLY, type TurnOutcome } from '../engine/types';
@@ -71,12 +72,21 @@ export class RoomService {
     return !!(await this.roomRow(threadId));
   }
 
-  /** One person's rooms; every room without `userId`. */
+  /** One person's rooms, those they opened and those they were put in; every room without `userId`. */
   async list(userId?: string): Promise<Room[]> {
+    const putIn = this.ctx.db
+      .select({ id: schema.roomPeople.roomId })
+      .from(schema.roomPeople)
+      .where(eq(schema.roomPeople.userId, userId ?? ''));
     const rows = await this.ctx.db
       .select({ id: schema.threads.id })
       .from(schema.threads)
-      .where(and(eq(schema.threads.kind, 'room'), userId ? eq(schema.threads.userId, userId) : undefined))
+      .where(
+        and(
+          eq(schema.threads.kind, 'room'),
+          userId ? or(eq(schema.threads.userId, userId), inArray(schema.threads.id, putIn)) : undefined,
+        ),
+      )
       .orderBy(desc(schema.threads.updatedAt));
     return Promise.all(rows.map((r) => this.get(r.id)));
   }
@@ -86,6 +96,28 @@ export class RoomService {
     if (!room) throw notFound('room');
     const thread = await this.services.threads.get(id);
     const members = await this.members(id);
+    const owner = await this.services.threads.row(id);
+    const people = await this.services.access.roomPeople(id);
+    const faces = members.length
+      ? await this.ctx.db
+          .select({
+            id: schema.bots.id,
+            name: schema.bots.name,
+            color: schema.bots.color,
+            avatar: schema.bots.avatar,
+            material: schema.bots.material,
+          })
+          .from(schema.bots)
+          .where(
+            and(
+              inArray(
+                schema.bots.id,
+                members.map((m) => m.botId),
+              ),
+              isNull(schema.bots.archivedAt),
+            ),
+          )
+      : [];
     const [speaking] = await this.ctx.db
       .select({ botId: schema.turns.botId })
       .from(schema.turns)
@@ -105,6 +137,9 @@ export class RoomService {
       state: thread.state,
       speakerId: speaking?.botId ?? null,
       preview: last?.props.kind === 'contextReset' ? null : thread.preview,
+      ...(owner.userId && { ownerId: owner.userId }),
+      people,
+      faces,
       createdAt: thread.createdAt,
       updatedAt: thread.updatedAt,
     };
@@ -191,6 +226,89 @@ export class RoomService {
     await this.ctx.db.update(schema.threads).set({ botId: botIds[0]! }).where(eq(schema.threads.id, id));
   }
 
+  /**
+   * Puts people in the room, or takes them out; returns those newly put in. The owner is in it
+   * already, and someone who may no longer sign in is not put in.
+   */
+  async setPeople(id: string, change: RoomPeopleChange, by: string): Promise<string[]> {
+    if (!(await this.roomRow(id))) throw notFound('room');
+    const owner = (await this.services.threads.row(id)).userId;
+    const before = new Set(await this.services.access.roomPeople(id));
+    const wanted = [...new Set(change.add ?? [])].filter((u) => u !== owner && !before.has(u));
+    const able = wanted.length
+      ? (
+          await this.ctx.db
+            .select({ id: schema.users.id })
+            .from(schema.users)
+            .where(and(inArray(schema.users.id, wanted), isNull(schema.users.disabledAt)))
+        ).map((r) => r.id)
+      : [];
+    if (able.length !== wanted.length) throw notFound('person');
+    if (able.length) {
+      await this.ctx.db
+        .insert(schema.roomPeople)
+        .values(able.map((userId) => ({ roomId: id, userId, addedBy: by })));
+    }
+    if (change.remove?.length) {
+      await this.ctx.db
+        .delete(schema.roomPeople)
+        .where(and(eq(schema.roomPeople.roomId, id), inArray(schema.roomPeople.userId, change.remove)));
+    }
+    this.services.access.forget();
+    this.ctx.bus.refresh({ scope: 'rooms' });
+    return able;
+  }
+
+  /**
+   * The rooms a person opened pass on before they are removed: to the earliest admin in the room,
+   * else to the earliest one put in it. A room with nobody else goes with them.
+   */
+  async passOn(userId: string): Promise<void> {
+    const owned = await this.ctx.db
+      .select({ id: schema.threads.id })
+      .from(schema.threads)
+      .where(and(eq(schema.threads.kind, 'room'), eq(schema.threads.userId, userId)));
+    for (const { id } of owned) {
+      const people = await this.ctx.db
+        .select({ userId: schema.roomPeople.userId, role: schema.users.role })
+        .from(schema.roomPeople)
+        .innerJoin(schema.users, eq(schema.users.id, schema.roomPeople.userId))
+        .where(and(eq(schema.roomPeople.roomId, id), isNull(schema.users.disabledAt)))
+        .orderBy(asc(schema.roomPeople.createdAt));
+      const heir = people.find((p) => p.role === 'owner' || p.role === 'admin') ?? people[0];
+      if (!heir) continue;
+      await this.ctx.db.update(schema.threads).set({ userId: heir.userId }).where(eq(schema.threads.id, id));
+      await this.ctx.db
+        .delete(schema.roomPeople)
+        .where(and(eq(schema.roomPeople.roomId, id), eq(schema.roomPeople.userId, heir.userId)));
+    }
+    this.services.access.forget();
+    this.ctx.bus.refresh({ scope: 'rooms' });
+  }
+
+  /** What each person in the room is called to its bots: their own name, else their username. */
+  private async names(roomId: string, t: T): Promise<Map<string, string>> {
+    const owner = (await this.services.threads.row(roomId)).userId;
+    const ids = [...(owner ? [owner] : []), ...(await this.services.access.roomPeople(roomId))];
+    const rows = ids.length
+      ? await this.ctx.db
+          .select({
+            id: schema.users.id,
+            displayName: schema.users.displayName,
+            username: schema.users.username,
+          })
+          .from(schema.users)
+          .where(inArray(schema.users.id, ids))
+      : [];
+    const names = new Map<string, string>();
+    for (const id of ids) {
+      const row = rows.find((r) => r.id === id);
+      const own = (await this.services.settings.all(id)).userName;
+      names.set(id, own || row?.displayName || row?.username || t('room.person'));
+    }
+    return names;
+  }
+
   async remove(id: string) {
     if (!(await this.roomRow(id))) throw notFound('room');
     await this.stop(id);
@@ -275,11 +393,17 @@ export class RoomService {
       .where(and(eq(schema.roomMembers.roomId, roomId), eq(schema.roomMembers.botId, botId)));
   }
 
-  /** What the system prompt says about the room to one of its members. */
+  /**
+   * What the system prompt says about the room to one of its members. With several people in it,
+   * they are all named, since each line says who wrote it.
+   */
   async context(roomId: string, bot: Bot, user: string, t: T) {
     const thread = await this.services.threads.row(roomId);
     const others = (await this.activeBots(roomId)).filter((b) => b.id !== bot.id);
-    return { title: thread.title, user: user || t('room.person'), members: others };
+    const people = (await this.services.access.sharedRoom(roomId))
+      ? [...(await this.names(roomId, t)).values()].join(', ')
+      : user || t('room.person');
+    return { title: thread.title, user: people, members: others };
   }
 
   /** The person writes in the room; the members it names (or as the room is set) answer in turn. */
@@ -357,13 +481,13 @@ export class RoomService {
       .from(schema.roomMembers)
       .where(and(eq(schema.roomMembers.roomId, roomId), eq(schema.roomMembers.botId, bot.id)))
       .limit(1);
-    // The room is its person's: their name is the one the bots read.
+    // Each person's line carries their name; one no longer in the room keeps the plain word.
+    const people = await this.names(roomId, t);
     const room = await this.services.threads.row(roomId);
-    const settings = await this.services.settings.all(room.userId ?? undefined);
     const bots = await this.services.bots.list({ includeArchived: true });
     const name = (m: Message) =>
       m.author === 'user'
-        ? settings.userName || t('room.person')
+        ? (people.get(m.userId ?? room.userId ?? '') ?? t('room.person'))
         : m.author === `bot:${bot.id}`
           ? t('room.you', { name: bot.name })
           : (bots.find((b) => `bot:${b.id}` === m.author)?.name ?? m.author);

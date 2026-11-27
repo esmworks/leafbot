@@ -102,6 +102,7 @@ export const toMessage = (r: Row<typeof schema.messages>): Message => ({
   props: r.props,
   clientId: r.clientId,
   turnId: r.turnId,
+  userId: r.userId,
   createdAt: r.createdAt.toISOString(),
 });
 
