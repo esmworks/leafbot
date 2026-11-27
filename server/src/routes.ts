@@ -1,4 +1,5 @@
-import { createReadStream, readdirSync, realpathSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { readFile, rm } from 'node:fs/promises';
 import type { BackupService } from './services/backup';
 import type { ClaudeSignInService } from './services/claude-sign-in';
@@ -44,6 +45,9 @@ import {
   GroupCreate,
   GroupMove,
   MAX_BOT_IMPORT_BYTES,
+  BOT_IMPORT_LIMITS,
+  botImportFromText,
+  BotImportTextProblem,
   MemoryCreate,
   MemoryUpdate,
   CardAnswer,
@@ -152,6 +156,8 @@ import { clientMetadata, clientMetadataUrlFor, OAUTH_CLIENT_PATH } from './conne
 import { OAUTH_CALLBACK_PATH, oauthRedirectUrl } from './services/connections';
 import { fetchSkillFile, privateHost } from './services/skill-link';
 import { readGrokLink } from './services/grok-link';
+import { grokBotNames } from './services/grok-chat';
+import { findExports, MOVE_BODY_MAX, MOVE_HOOK_PATH, MoveLink, readExports } from './services/grok-move';
 import { avatarPrompt, ImageError } from './services/images';
 import { isPersonal, serverLocale, Settings } from './services/settings';
 import { EMOJI } from './tools';
@@ -303,6 +309,21 @@ function browserHttpError(err: unknown): unknown {
 
 export function registerRoutes(app: FastifyInstance, d: Deps) {
   const s = d.services;
+  // One link to Grok Bot at a time, ended with the server.
+  const moveLink = new MoveLink({
+    publicUrl: d.config.publicUrl,
+    onUserComputer: d.config.onUserComputer,
+    instructions: exportInstructions(d.config.appDir),
+    check: async (doc) => {
+      try {
+        await s.botImport.preview(doc);
+      } catch (err) {
+        throw err instanceof HttpError ? new Error(err.message) : err;
+      }
+    },
+    onArrival: () => {},
+  });
+  app.addHook('onClose', async () => moveLink.stop());
 
   app.get('/api/health', async () => ({ ok: true }));
 
@@ -2472,11 +2493,85 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     reply.header('content-disposition', `attachment; filename="leafbot-bots-${day}.json"`);
     return file;
   });
+  // The file, or the other app's reply pasted as it came: the document is found in its words,
+  // repaired and its parts joined before the import reads it.
   app.post('/api/import/bots', async (req) => {
     const { preview } = z.object({ preview: z.enum(['1']).optional() }).parse(req.query);
     if (!(req.body instanceof Readable)) throw new HttpError(415, 'error.uploadType');
-    const raw = await readJson(req.body, MAX_BOT_IMPORT_BYTES);
+    const raw = importDocument(await readText(req.body, MAX_BOT_IMPORT_BYTES));
     return preview ? s.botImport.preview(raw) : s.botImport.commit(raw);
+  });
+
+  // Moving from Grok Bot on the person's own computer: the export files it wrote to Downloads,
+  // and whether its desktop app is here, whose bots' chats can come over. Only the owner may, as
+  // these read the computer's home folder; a server elsewhere has neither.
+  app.get('/api/import/grok', async () => {
+    const home = homedir();
+    return {
+      onComputer: d.config.onUserComputer,
+      files: d.config.onUserComputer ? findExports(home) : [],
+      appBots: d.config.onUserComputer ? grokBotNames(home) : null,
+    };
+  });
+  app.post('/api/import/grok/files', async (req) => {
+    if (!d.config.onUserComputer) throw new HttpError(404, 'error.notFound');
+    const { names } = z.object({ names: z.array(z.string().max(200)).min(1).max(5) }).parse(req.body);
+    try {
+      return { text: readExports(homedir(), names) };
+    } catch {
+      throw new HttpError(404, 'error.fileMissing');
+    }
+  });
+  // Each moved bot's chat from the Grok Bot app, by its name there, into a conversation here.
+  app.post('/api/import/grok/chats', async (req) => {
+    if (!d.config.onUserComputer) throw new HttpError(404, 'error.notFound');
+    const { bots } = z
+      .object({
+        bots: z
+          .array(z.object({ id: z.string().min(1).max(64), name: z.string().min(1).max(200) }))
+          .min(1)
+          .max(BOT_IMPORT_LIMITS.bots),
+      })
+      .parse(req.body);
+    const t = await s.settings.translator();
+    const userId = me(req).userId;
+    const out = [];
+    for (const bot of bots) {
+      await s.bots.get(bot.id);
+      out.push({
+        id: bot.id,
+        ...(await s.botImport.importGrokChat({
+          botId: bot.id,
+          name: bot.name,
+          userId,
+          title: t('import.grokChatTitle'),
+          home: homedir(),
+        })),
+      });
+    }
+    return out;
+  });
+  // The link Grok Bot sends bots over, and what has arrived on it after `after`.
+  app.get('/api/import/grok/link', async (req) => {
+    const { after } = z.object({ after: z.coerce.number().int().min(0).default(0) }).parse(req.query);
+    return moveLink.state(after);
+  });
+  app.post('/api/import/grok/link', async () => {
+    if (!moveLink.available()) throw new HttpError(404, 'error.moveUnavailable');
+    try {
+      return await moveLink.connect();
+    } catch (err) {
+      console.warn('grok move link:', (err as Error).message);
+      throw new HttpError(502, 'error.moveFailed');
+    }
+  });
+  app.delete('/api/import/grok/link', async () => moveLink.end());
+  // The link itself, where the server has a public address: its key is the only way in.
+  app.post(`${MOVE_HOOK_PATH}/:key`, { bodyLimit: MOVE_BODY_MAX }, async (req, reply) => {
+    const { key } = z.object({ key: z.string().max(100) }).parse(req.params);
+    if (!moveLink.matches(key)) return reply.code(404).send();
+    reply.hijack();
+    await moveLink.handle(req.raw, reply.raw, req.body);
   });
 
   // What a Grok Bot share link shows: the bot's name, who shared it and its description. Read
@@ -3121,8 +3216,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   });
 }
 
-/** A request body read as JSON, refused past `max` bytes. */
-async function readJson(body: Readable, max: number): Promise<unknown> {
+/** A request body read as UTF-8 text, refused past `max` bytes. */
+async function readText(body: Readable, max: number): Promise<string> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of body) {
@@ -3130,14 +3225,18 @@ async function readJson(body: Readable, max: number): Promise<unknown> {
     if (size > max) throw new HttpError(413, 'error.fileTooLarge', { max: Math.round(max / 1024 / 1024) });
     chunks.push(chunk as Buffer);
   }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/** The import document in a file or a pasted reply, or the reason there is none. */
+export function importDocument(text: string): Record<string, unknown> {
   try {
-    return JSON.parse(
-      Buffer.concat(chunks)
-        .toString('utf8')
-        .replace(/^\uFEFF/, ''),
-    ) as unknown;
-  } catch {
-    throw new HttpError(400, 'error.importFormat');
+    return botImportFromText(text);
+  } catch (err) {
+    if (!(err instanceof BotImportTextProblem)) throw err;
+    throw new HttpError(err.code === 'tooLarge' ? 413 : 400, `error.importText.${err.code}`, {
+      keys: err.keys.join(', '),
+    });
   }
 }
 
@@ -3147,4 +3246,20 @@ const escapeHtml = (v: string) =>
 /** The small page the person's browser lands on after signing in to a service. */
 function callbackPage(title: string, heading: string, body: string): string {
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title><style>body{font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;background:#fff;color:#111}@media(prefers-color-scheme:dark){body{background:#111;color:#eee}}main{max-width:28rem;padding:2rem;text-align:center}h1{font-size:1.25rem;font-weight:600}p{opacity:.75;line-height:1.5}</style></head><body><main><h1>${escapeHtml(heading)}</h1><p>${escapeHtml(body)}</p></main></body></html>`;
+}
+
+/**
+ * The export instructions the other app follows, served with the app; read once, when first
+ * asked. Where the built app is not present (a server run from source), the copy in its source.
+ */
+function exportInstructions(appDir: string | null): () => string {
+  let text: string | null = null;
+  return () => {
+    if (text === null) {
+      const built = appDir && join(appDir, 'import', 'grok-bot-export.md');
+      const source = resolve(import.meta.dirname, '../../app/public/import/grok-bot-export.md');
+      text = readFileSync(built && existsSync(built) ? built : source, 'utf8');
+    }
+    return text;
+  };
 }

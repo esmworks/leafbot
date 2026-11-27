@@ -131,6 +131,13 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'GET /api/export/bots': 'admin',
   'POST /api/import/bots': 'admin',
   'POST /api/import/grok-link': 'admin',
+  // These read the host computer's home folder or open a link into this server.
+  'GET /api/import/grok': 'owner',
+  'POST /api/import/grok/files': 'owner',
+  'POST /api/import/grok/chats': 'owner',
+  'GET /api/import/grok/link': 'owner',
+  'POST /api/import/grok/link': 'owner',
+  'DELETE /api/import/grok/link': 'owner',
   'POST /api/mcp': 'owner',
   'GET /api/mcp': 'owner',
   'DELETE /api/mcp': 'owner',

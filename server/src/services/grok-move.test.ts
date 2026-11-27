@@ -1,0 +1,146 @@
+import { createServer, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import { afterEach, describe, expect, it } from 'vitest';
+import { findExports, MOVE_HOOK_PATH, MoveLink, readExports } from './grok-move';
+
+const doc = (ref: string, extra: Record<string, unknown> = {}) => ({
+  format: 'leafbot-bot-import',
+  version: 1,
+  bots: [{ ref, name: ref.toUpperCase(), instructions: 'Work.', ...extra }],
+});
+
+describe('MoveLink', () => {
+  let http: Server | null = null;
+  let link: MoveLink | null = null;
+  afterEach(() => {
+    http?.close();
+    link?.stop();
+  });
+
+  /** A link on a public address, served by a plain HTTP server the way the route serves it. */
+  const open = async (check: (doc: Record<string, unknown>) => Promise<void> = async () => {}) => {
+    let arrivals = 0;
+    http = createServer((req, res) => {
+      const key = req.url!.slice(`${MOVE_HOOK_PATH}/`.length);
+      if (req.method !== 'POST' || !link!.matches(key)) return res.writeHead(404).end();
+      let body = '';
+      req.on('data', (c: Buffer) => (body += c.toString('utf8')));
+      req.on('end', () => void link!.handle(req, res, JSON.parse(body)));
+    });
+    await new Promise<void>((r) => http!.listen(0, '127.0.0.1', r));
+    const base = `http://127.0.0.1:${(http.address() as AddressInfo).port}`;
+    link = new MoveLink({
+      publicUrl: base,
+      onUserComputer: false,
+      instructions: () => 'THE INSTRUCTIONS',
+      check,
+      onArrival: () => arrivals++,
+    });
+    const state = await link.connect();
+    const client = new Client({ name: 'grok-bot', version: '1' });
+    await client.connect(new StreamableHTTPClientTransport(new URL(state.url!)));
+    return { state, client, arrivals: () => arrivals };
+  };
+  const text = (r: unknown) => (r as { content: { text: string }[] }).content[0]!.text;
+
+  it('takes documents over MCP and gives back nothing but a count', async () => {
+    const { state, client, arrivals } = await open();
+    expect(state.url).toMatch(new RegExp(`${MOVE_HOOK_PATH}/[A-Za-z0-9_-]{43}$`));
+    const tools = (await client.listTools()).tools.map((t) => t.name).sort();
+    expect(tools).toEqual(['get_export_instructions', 'move_status', 'send_export']);
+    expect(text(await client.callTool({ name: 'get_export_instructions', arguments: {} }))).toBe(
+      'THE INSTRUCTIONS',
+    );
+    const sent = await client.callTool({ name: 'send_export', arguments: { document: doc('a') } });
+    expect(sent.isError).toBeFalsy();
+    expect(text(sent)).toContain('Received: A');
+    // A document as text, the way some apps pass a nested object.
+    await client.callTool({ name: 'send_export', arguments: { document: JSON.stringify(doc('b')) } });
+    expect(text(await client.callTool({ name: 'move_status', arguments: {} }))).toContain('2 bot(s)');
+    expect(arrivals()).toBe(2);
+    const seen = link!.state();
+    expect(seen.arrived.map((a) => a.names)).toEqual([['A'], ['B']]);
+    expect(link!.state(seen.arrived[0]!.seq).arrived.map((a) => a.names)).toEqual([['B']]);
+    await client.close();
+  });
+
+  it('refuses a document with credentials or one the import would refuse, keeping nothing', async () => {
+    const { client } = await open(async (d) => {
+      if ((d.bots as { name: string }[])[0]!.name === 'BAD')
+        throw new Error('the field bots.0.name is wrong');
+    });
+    const keys = await client.callTool({
+      name: 'send_export',
+      arguments: { document: doc('a', { api_key: 'x' }) },
+    });
+    expect(keys.isError).toBe(true);
+    expect(text(keys)).toContain('api_key');
+    const bad = await client.callTool({ name: 'send_export', arguments: { document: doc('bad') } });
+    expect(bad.isError).toBe(true);
+    expect(text(bad)).toContain('bots.0.name');
+    expect(link!.state().arrived).toEqual([]);
+    await client.close();
+  });
+
+  it('answers a wrong key with nothing, and the link stops when ended', async () => {
+    const { state, client } = await open();
+    expect(link!.matches('x'.repeat(43))).toBe(false);
+    await client.close();
+    link!.end();
+    expect(link!.matches(state.url!.split('/').at(-1)!)).toBe(false);
+    expect(link!.state()).toMatchObject({ url: null, stopped: false, arrived: [] });
+  });
+
+  it('is unavailable with no public address and no cloudflared', async () => {
+    const none = new MoveLink({
+      publicUrl: null,
+      onUserComputer: true,
+      instructions: () => '',
+      check: async () => {},
+      onArrival: () => {},
+      findCloudflared: () => null,
+    });
+    expect(none.available()).toBe(false);
+    expect((await none.connect()).url).toBeNull();
+  });
+});
+
+describe('findExports', () => {
+  let home: string;
+  afterEach(() => rmSync(home, { recursive: true, force: true }));
+
+  it('finds recent export files in Downloads, newest first, skipping links and other files', () => {
+    home = mkdtempSync(join(tmpdir(), 'leafbot-home-'));
+    const downloads = join(home, 'Downloads');
+    mkdirSync(downloads);
+    const put = (name: string, body: unknown, ageDays = 0) => {
+      writeFileSync(join(downloads, name), typeof body === 'string' ? body : JSON.stringify(body));
+      const t = (Date.now() - ageDays * 86_400_000) / 1000;
+      utimesSync(join(downloads, name), t, t);
+    };
+    put('leafbot-bots.json', doc('older'), 2);
+    put('leafbot-bots (1).json', `Here it is:\n\`\`\`json\n${JSON.stringify(doc('newer'))}\n\`\`\``, 1);
+    put('leafbot-bots-old.json', doc('stale'), 60);
+    put('leafbot-bots-broken.json', '{ nope');
+    put('notes.json', doc('other'));
+    symlinkSync(join(downloads, 'leafbot-bots.json'), join(downloads, 'leafbot-bots-link.json'));
+    const found = findExports(home);
+    expect(found.map((f) => [f.name, f.bots])).toEqual([
+      ['leafbot-bots (1).json', ['NEWER']],
+      ['leafbot-bots.json', ['OLDER']],
+    ]);
+    expect(readExports(home, ['leafbot-bots.json'])).toContain('"older"');
+    expect(() => readExports(home, ['leafbot-bots-link.json'])).toThrow();
+    expect(readExports(home, ['../secret.json'])).toBe('');
+  });
+
+  it('finds nothing without a Downloads folder', () => {
+    home = mkdtempSync(join(tmpdir(), 'leafbot-home-'));
+    expect(findExports(home)).toEqual([]);
+  });
+});

@@ -7,6 +7,7 @@ export * from './i18n';
 export * from './computer';
 export * from './connections';
 export * from './bot-import';
+export * from './bot-import-text';
 export * from './quote';
 export * from './skill';
 export * from './cron';

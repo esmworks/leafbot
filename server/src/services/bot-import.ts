@@ -17,10 +17,11 @@ import {
   type BotImportResult,
   type BotImportWarning,
 } from '@leafbot/shared';
-import { asc, inArray, isNull, max } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, max } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import { HttpError, newId } from '../util';
+import { readGrokChat, type GrokChatReason } from './grok-chat';
 import { snapshotSteps } from './routine-steps';
 import type { SettingsService } from './settings';
 
@@ -306,6 +307,68 @@ export class BotImportService {
       this.ctx.bus.refresh({ scope });
     }
     return { plan, botIds };
+  }
+
+  /**
+   * A moved bot's recent chat from the Grok Bot app on this computer, as one new conversation of
+   * the person's with the bot. It is a record only: nothing runs, replies, notifies or is learned
+   * from it, and its messages keep their times in the app. Asked again, the conversation it made
+   * is found and nothing is added. `name` is the bot's name in the app, before any renaming here.
+   */
+  async importGrokChat(o: {
+    botId: string;
+    name: string;
+    userId: string;
+    title: string;
+    home: string;
+  }): Promise<{ messages: number } | { reason: GrokChatReason }> {
+    const earlier = await this.ctx.db
+      .select({ id: schema.threads.id, title: schema.threads.title })
+      .from(schema.threads)
+      .where(
+        and(
+          eq(schema.threads.botId, o.botId),
+          eq(schema.threads.userId, o.userId),
+          eq(schema.threads.kind, 'user'),
+        ),
+      );
+    for (const t of earlier.filter((t) => t.title === o.title)) {
+      const kept = await this.ctx.db
+        .select({ id: schema.messages.id })
+        .from(schema.messages)
+        .where(eq(schema.messages.threadId, t.id));
+      if (kept.length) return { messages: kept.length };
+    }
+    const chat = readGrokChat(o.home, o.name);
+    if ('reason' in chat) return chat;
+    const threadId = newId();
+    const last = chat.lines.at(-1)!.at;
+    await this.ctx.db.transaction(async (tx) => {
+      await tx.insert(schema.threads).values({
+        id: threadId,
+        botId: o.botId,
+        userId: o.userId,
+        kind: 'user',
+        title: o.title,
+        createdAt: chat.lines[0]!.at,
+        updatedAt: last,
+      });
+      await tx.insert(schema.messages).values(
+        chat.lines.map((line) => ({
+          id: newId(),
+          threadId,
+          role: line.role,
+          author: line.role === 'user' ? 'user' : `bot:${o.botId}`,
+          userId: line.role === 'user' ? o.userId : null,
+          text: line.text,
+          props: {},
+          clientId: `grok:${line.seq}`,
+          createdAt: line.at,
+        })),
+      );
+    });
+    this.ctx.bus.refresh({ scope: 'threads', botId: o.botId });
+    return { messages: chat.lines.length };
   }
 
   private async prepare(raw: unknown): Promise<Prepared> {
