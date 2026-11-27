@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import {
   createServer as httpServer,
@@ -206,7 +206,11 @@ describe('botun bilgisayarı', () => {
     fake.max = Infinity;
     t = await testServer({ computer: { url: fake.url, token: TOKEN }, computerIdleMs: 60_000 });
   });
-  afterEach(() => t.dispose());
+  const projects: string[] = [];
+  afterEach(async () => {
+    await t.dispose();
+    for (const d of projects.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
 
   const main = async (botId: string) => (await t.api<Thread>('GET', `/api/bots/${botId}/main-thread`)).body;
   const tool = (name: string): AppTool => t.engine.requests.at(-1)!.tools.find((x) => x.name === name)!;
@@ -574,7 +578,9 @@ describe('botun bilgisayarı', () => {
   });
 
   it('proje klasörlü bot sunucudaki Bash ile kalır; salt okunur botun klasörleri salt okunur bağlanır', async () => {
-    const project = await t.bot({ projectDir: mkdtempSync(join(tmpdir(), 'leafbot-proje-')) });
+    const dir = mkdtempSync(join(tmpdir(), 'leafbot-proje-'));
+    projects.push(dir);
+    const project = await t.bot({ projectDir: dir });
     await t.send((await main(project.id)).id, 'merhaba');
     await t.services.turns.idle();
     expect(t.engine.requests.at(-1)!.shell).toBe('sandbox');

@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -30,10 +30,15 @@ describe('proje klasörü', () => {
     beforeEach(async () => {
       t = await testServer();
     });
-    afterEach(() => t.dispose());
+    const made: string[] = [];
+    afterEach(async () => {
+      await t.dispose();
+      for (const d of made.splice(0)) rmSync(d, { recursive: true, force: true });
+    });
     it('bot oluşturulurken ve güncellenirken uygular', async () => {
       expect((await t.api('POST', '/api/bots', { name: 'X', projectDir: homedir() })).status).toBe(400);
       const ok = mkdtempSync(join(tmpdir(), 'leafbot-proje-'));
+      made.push(ok);
       const bot = await t.bot({ projectDir: ok });
       expect(bot.projectDir).toBe(ok);
       expect((await t.api('PATCH', `/api/bots/${bot.id}`, { projectDir: t.dataDir })).status).toBe(400);

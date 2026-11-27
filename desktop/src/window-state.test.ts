@@ -1,4 +1,4 @@
-import { mkdtempSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -42,11 +42,15 @@ describe('pencere durumu', () => {
 
   it('kaydedilen durumu geri okur', () => {
     const dir = mkdtempSync(join(tmpdir(), 'leafbot-window-'));
-    expect(readWindowState(dir)).toBeNull();
-    writeWindowState(dir, { bounds: { x: 10, y: 20, width: 1000, height: 700 }, maximized: false });
-    expect(readWindowState(dir)).toEqual({
-      bounds: { x: 10, y: 20, width: 1000, height: 700 },
-      maximized: false,
-    });
+    try {
+      expect(readWindowState(dir)).toBeNull();
+      writeWindowState(dir, { bounds: { x: 10, y: 20, width: 1000, height: 700 }, maximized: false });
+      expect(readWindowState(dir)).toEqual({
+        bounds: { x: 10, y: 20, width: 1000, height: 700 },
+        maximized: false,
+      });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
@@ -16,6 +16,11 @@ import { KEY, testServer, type TestServer } from './helpers';
 const MIGRATIONS = resolve(import.meta.dirname, '../drizzle');
 
 /** The migrations folder as it was before people came in: every migration up to `users`. */
+const migrationDirs: string[] = [];
+afterAll(() => {
+  for (const d of migrationDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+});
+
 function migrationsBeforeUsers(): string {
   const journal = JSON.parse(readFileSync(join(MIGRATIONS, 'meta/_journal.json'), 'utf8')) as {
     entries: { tag: string }[];
@@ -23,6 +28,7 @@ function migrationsBeforeUsers(): string {
   const upTo = journal.entries.findIndex((e) => e.tag.endsWith('_users'));
   expect(upTo).toBeGreaterThan(0);
   const dir = mkdtempSync(join(tmpdir(), 'leafbot-migrations-'));
+  migrationDirs.push(dir);
   mkdirSync(join(dir, 'meta'));
   const entries = journal.entries.slice(0, upTo);
   for (const e of entries) copyFileSync(join(MIGRATIONS, `${e.tag}.sql`), join(dir, `${e.tag}.sql`));
