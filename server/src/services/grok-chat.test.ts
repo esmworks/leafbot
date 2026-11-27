@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -128,5 +128,37 @@ describe('Grok Bot chat cache', () => {
       },
     ]);
     expect(lines[0]!.text).toBe('Bookkeeper:\nDone');
+  });
+
+  it('skips a cache file over 32 MiB', () => {
+    const big = JSON.stringify({
+      schemaVersion: 1,
+      value: { rows: [{ id: 'b9', name: 'Big' }], pad: 'x'.repeat(33 * 1024 * 1024) },
+    });
+    writeFileSync(join(folder, fileName(`${ACCOUNT}.roster.last-roster`)), big);
+    expect(grokBotNames(home)).toEqual([]);
+  });
+
+  it('does not follow a symlink for the cache folder or a cache file', () => {
+    const real = join(home, 'real-cache');
+    mkdirSync(real);
+    const other = mkdtempSync(join(tmpdir(), 'leafbot-home-'));
+    try {
+      mkdirSync(join(other, '.config', 'Grok Bot'), { recursive: true });
+      symlinkSync(real, join(other, '.config', 'Grok Bot', 'sand-client-persistence'));
+      expect(grokBotNames(other)).toBeNull();
+
+      const target = join(home, 'elsewhere.json');
+      writeFileSync(
+        target,
+        JSON.stringify({ schemaVersion: 1, value: { rows: [{ id: 'b9', name: 'Linked' }] } }),
+      );
+      const name = fileName(`${ACCOUNT}.roster.last-roster`);
+      rmSync(join(folder, name));
+      symlinkSync(target, join(folder, name));
+      expect(grokBotNames(home)).toEqual([]);
+    } finally {
+      rmSync(other, { recursive: true, force: true });
+    }
   });
 });
