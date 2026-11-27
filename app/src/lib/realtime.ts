@@ -32,7 +32,9 @@ export function connectRealtime(qc: QueryClient, opts: { notices?: boolean } = {
         transports: [
           class TunnelTransport extends WebSocketTransport {
             override createSocket() {
-              return tunnel.realtime() as unknown as WebSocket;
+              // The tunnel in use now: after a dropped one is opened again, reconnects go through the
+              // new one. Until then the old one refuses, and Socket.IO keeps backing off.
+              return (currentTunnel() ?? tunnel).realtime() as unknown as WebSocket;
             }
           },
         ],

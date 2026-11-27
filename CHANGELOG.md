@@ -15,7 +15,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
   cannot reach each other), so the website never sees what passes. Before, reaching a server from elsewhere needed
   a public address with HTTPS, which a server behind a home router or a company firewall could not have. Each
   browser proves itself with a key of its own and a short-lived ticket from the account, and the server checks both;
-  linking and unlinking are refused over the tunnel, so a connection cannot move the server to another account. On
+  linking and unlinking are refused over the tunnel, so a connection cannot move the server to another account. A
+  connection that drops (the server restarting, the network) is opened again by itself for up to five minutes, with
+  the app left as it was; a refusal, such as access taken away, is shown at once. On
   the web, pages bots make and connected apps' views are not shown and PDFs are downloaded, since their scripts
   would run on the website's address. The direct address keeps working as before for the phone apps, webhooks and
   shared pages. `LEAFBOT_ACCOUNT_URL`, `LEAFBOT_RELAY_URL` and `LEAFBOT_WEB_HOST` point a server at other hosts.

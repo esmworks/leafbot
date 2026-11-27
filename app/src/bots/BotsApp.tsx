@@ -13,6 +13,7 @@ import { catchServerLinks, dropServerFiles } from '@/lib/server-files';
 import { setMissingFeatureHandler, setTunnel } from '@/lib/transport';
 import { account, AccountError, signInUrl, type ServerEntry } from './account';
 import { openServer } from './connect';
+import { passing, reconnect } from './reconnect';
 
 const LAST = 'leafbot.web.server';
 
@@ -120,30 +121,51 @@ export function BotsApp() {
   const open = useCallback(
     (servers: ServerEntry[], server: ServerEntry) => {
       const n = ++attempt.current;
+      const current = () => attempt.current === n;
       remember(server.id);
       setView({ at: 'connecting', servers, server });
-      const ended = (code: TunnelEndCode) => {
-        if (attempt.current !== n) return;
-        leave();
-        const p = problemOf(new TunnelError(code), true);
+      const fail = (err: unknown, opened: boolean) => {
+        if (!current()) return;
+        if (opened) leave();
+        const p = problemOf(err, opened);
         if (p === 'signIn') location.assign(signInUrl());
         else if (p === 'accountDown') setView({ at: 'accountDown' });
         else setView({ at: 'problem', servers, server, problem: p });
       };
+      // An open server's tunnel that drops for a passing reason (a restart, the network) is opened again
+      // underneath the app, which stays as it was: its requests and Socket.IO wait out the gap as they do
+      // for a server reached directly, and the next connection names the new tunnel.
+      // A tunnel that ends while it is still opening is answered by its own rejection; one loop at a time
+      // opens the next.
+      let opened = false;
+      let reconnecting = false;
+      const ended = (code: TunnelEndCode) => {
+        if (!current() || !opened || reconnecting) return;
+        const err = new TunnelError(code);
+        if (!passing(err)) return fail(err, true);
+        reconnecting = true;
+        void reconnect({
+          open: () =>
+            openServer(server, ended).then((tunnel) => {
+              if (!current()) return tunnel.close();
+              setTunnel(tunnel);
+              setView({ at: 'open', servers, server, tunnel });
+            }),
+          current,
+          fail: (e) => fail(e, true),
+        }).finally(() => {
+          reconnecting = false;
+        });
+      };
       openServer(server, ended).then(
         (tunnel) => {
-          if (attempt.current !== n) return tunnel.close();
+          if (!current()) return tunnel.close();
           leave();
+          opened = true;
           setTunnel(tunnel);
           setView({ at: 'open', servers, server, tunnel });
         },
-        (err: unknown) => {
-          if (attempt.current !== n) return;
-          const p = problemOf(err, false);
-          if (p === 'signIn') location.assign(signInUrl());
-          else if (p === 'accountDown') setView({ at: 'accountDown' });
-          else setView({ at: 'problem', servers, server, problem: p });
-        },
+        (err: unknown) => fail(err, false),
       );
     },
     [leave],
