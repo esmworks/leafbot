@@ -88,6 +88,8 @@ export class AccountHost {
       /** Makes WebRTC connections; null when this build has no WebRTC library. */
       rtc: RtcFactory | null;
       fetcher?: typeof fetch;
+      /** Told when a ticket changed a person's name here. */
+      onNameChanged?: () => void;
     },
   ) {
     this.fetcher = deps.fetcher ?? ((i, init) => fetch(i, init));
@@ -220,7 +222,7 @@ export class AccountHost {
         return res.json();
       },
     });
-    const links = new AccountLinks(this.deps.db);
+    const links = new AccountLinks(this.deps.db, this.deps.onNameChanged);
     this.gateway = new TunnelGateway({
       server: this.deps.server,
       checker,

@@ -578,11 +578,12 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     server: app.server,
     config: accountHostConfig(config),
     rtc: opts.rtc ?? null,
+    onNameChanged: () => bus.refresh({ scope: 'info' }),
   });
   const accountSignIn = new AccountSignIn({
     issuer: accountHostConfig(config).issuer,
     host: accountHost,
-    links: new AccountLinks(db.db),
+    links: new AccountLinks(db.db, () => bus.refresh({ scope: 'info' })),
   });
 
   registerMcpServer(app, services);

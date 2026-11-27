@@ -23,6 +23,8 @@ export function AccountGate({ onDone }: { onDone(): void }) {
   const t = useT();
   const qc = useQueryClient();
   const [step, setStep] = useState<Step>({ at: 'email' });
+  // The account service (or its mail) out of reach: the owner is not kept out of their own bots.
+  const [offline, setOffline] = useState(false);
   const finish = () => {
     void Promise.all([
       qc.invalidateQueries({ queryKey: ['account-host'] }),
@@ -50,13 +52,27 @@ export function AccountGate({ onDone }: { onDone(): void }) {
                   : t('accountGate.nameHint')}
             </p>
           </div>
-          {step.at === 'email' && <EmailForm onSent={(email) => setStep({ at: 'code', email })} />}
+          {step.at === 'email' && (
+            <EmailForm
+              onSent={(email) => setStep({ at: 'code', email })}
+              onFailed={(e) => setOffline(unreachable(e))}
+            />
+          )}
           {step.at === 'code' && (
             <CodeForm
               email={step.email}
               onBack={() => setStep({ at: 'email' })}
               onSignedIn={(needsName) => (needsName ? setStep({ at: 'name' }) : finish())}
+              onFailed={(e) => setOffline(unreachable(e))}
             />
+          )}
+          {offline && step.at !== 'name' && (
+            <div className="space-y-2 text-center">
+              <p className="text-sm text-muted-foreground">{t('accountGate.offline')}</p>
+              <Button type="button" variant="outline" className="h-12 w-full rounded-full" onClick={onDone}>
+                {t('accountGate.skip')}
+              </Button>
+            </div>
           )}
           {step.at === 'name' && <NameForm onSaved={finish} />}
         </div>
@@ -67,6 +83,8 @@ export function AccountGate({ onDone }: { onDone(): void }) {
 }
 
 const message = (e: unknown, fallback: string) => (e instanceof ApiError ? e.message : fallback);
+/** The sign-in cannot go on for now: the account service, its mail or the server itself is out of reach. */
+const unreachable = (e: unknown) => !(e instanceof ApiError) || !e.fromServer || e.status >= 502;
 
 function Field({ error, children }: { error: string | null; children: ReactNode }) {
   return (
@@ -81,14 +99,17 @@ function Field({ error, children }: { error: string | null; children: ReactNode 
   );
 }
 
-function EmailForm({ onSent }: { onSent(email: string): void }) {
+function EmailForm({ onSent, onFailed }: { onSent(email: string): void; onFailed(e: unknown): void }) {
   const t = useT();
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
   const send = useMutation({
     mutationFn: (address: string) => api.accountSignInStart(address),
     onSuccess: (_, address) => onSent(address),
-    onError: (e) => setError(message(e, t('login.unreachable'))),
+    onError: (e) => {
+      setError(message(e, t('login.unreachable')));
+      onFailed(e);
+    },
   });
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -130,10 +151,12 @@ function CodeForm({
   email,
   onBack,
   onSignedIn,
+  onFailed,
 }: {
   email: string;
   onBack(): void;
   onSignedIn(needsName: boolean): void;
+  onFailed(e: unknown): void;
 }) {
   const t = useT();
   const [code, setCode] = useState('');
@@ -142,7 +165,10 @@ function CodeForm({
   const verify = useMutation({
     mutationFn: (c: string) => api.accountSignInVerify(email, c),
     onSuccess: (r) => onSignedIn(r.needsName),
-    onError: (e) => setError(message(e, t('login.unreachable'))),
+    onError: (e) => {
+      setError(message(e, t('login.unreachable')));
+      onFailed(e);
+    },
   });
   const resend = useMutation({
     mutationFn: () => api.accountSignInStart(email),
@@ -150,7 +176,10 @@ function CodeForm({
       setCode('');
       setResent(true);
     },
-    onError: (e) => setError(message(e, t('login.unreachable'))),
+    onError: (e) => {
+      setError(message(e, t('login.unreachable')));
+      onFailed(e);
+    },
   });
   const submit = (e: FormEvent) => {
     e.preventDefault();

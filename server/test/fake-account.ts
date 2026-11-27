@@ -15,6 +15,7 @@ export function fakeAccount(
 ) {
   const calls: { path: string; body: Record<string, unknown> | null; auth: string | null }[] = [];
   let name = opts.name ?? '';
+  let signIns = 0;
   const fetcher = (async (input: string | URL | Request, init?: RequestInit) => {
     if (opts.down) throw new TypeError('fetch failed');
     const path = String(input).slice(ISSUER.length);
@@ -31,7 +32,12 @@ export function fakeAccount(
       return opts.mailDown ? json(503, { error: 'mail_unavailable' }) : json(204, null);
     if (path === '/v1/auth/email/verify')
       return body?.code === '123456' && body.client === 'desktop'
-        ? json(200, { user: user(), sessionId: 'sess_00000001', token: 'desk-token-0000000000000000' })
+        ? json(200, {
+            user: user(),
+            sessionId: 'sess_00000001',
+            // A new token for each sign-in, so a test can tell which one was ended.
+            token: `desk-token-${String(signIns++).padStart(16, '0')}`,
+          })
         : json(400, { error: 'invalid_code' });
     if (path === '/v1/servers/install-codes')
       return opts.installRefused

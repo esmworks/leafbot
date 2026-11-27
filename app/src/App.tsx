@@ -135,12 +135,17 @@ function Authed() {
   // Decided once, like the first-run questions: unlinking in Settings does not swap the open app
   // for the sign-in; the next start asks again.
   const [askAccount, setAskAccount] = useState<boolean | null>(null);
-  // The answer the sign-in page got before signing in says no one; it is asked again here.
+  // The answer the sign-in page got before signing in says no one; it is asked again here. Still no
+  // one then, the session has ended (signed out elsewhere): back to the sign-in page.
   const sessionStale = session.data?.authenticated === false;
   const refetchSession = session.refetch;
+  const setAuthed = useUi((s) => s.setAuthed);
   useEffect(() => {
-    if (sessionStale) void refetchSession();
-  }, [sessionStale, refetchSession]);
+    if (!sessionStale) return;
+    void refetchSession().then((r) => {
+      if (r.data?.authenticated === false) setAuthed(false);
+    });
+  }, [sessionStale, refetchSession, setAuthed]);
   useLocaleSync();
   // The desktop app's quick window shows only what waits for the person.
   if (isQuickView()) return <QuickPanel />;

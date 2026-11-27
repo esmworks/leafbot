@@ -4,13 +4,31 @@ import { schema, type Db } from '../db';
 import { OWNER_ID } from '../users';
 import { newId } from '../util';
 
+/** The longest name a ticket carries, counted as the contract counts it (UTF-16 units). */
+const MAX_NAME = 80;
+
+/** The text cut to at most `max` UTF-16 units without splitting a character in two. */
+function upTo(text: string, max: number): string {
+  if (text.length <= max) return text;
+  let out = '';
+  for (const ch of text) {
+    if (out.length + ch.length > max) break;
+    out += ch;
+  }
+  return out;
+}
+
 /**
  * Who an account is on this server. The account service decides who may use the server and with
  * which role (its memberships); this keeps a person here for each of those accounts, so their
  * bots, threads and settings have someone to belong to.
  */
 export class AccountLinks {
-  constructor(private db: Db) {}
+  constructor(
+    private db: Db,
+    /** Told when a person's name changed here, so open apps show the new one. */
+    private onNameChanged: () => void = () => {},
+  ) {}
 
   /**
    * The person for a checked ticket, made on the account's first visit. The server's owner is the
@@ -43,7 +61,7 @@ export class AccountLinks {
    * here themselves stays. Written only when the account's name changed, as tickets come often.
    */
   async useName(userId: string, raw: string, opts: { always?: boolean } = {}): Promise<void> {
-    const name = raw.trim().slice(0, 80);
+    const name = upTo(raw.trim(), MAX_NAME).trim();
     if (!name) return;
     const [row] = await this.db
       .select({ displayName: schema.users.displayName, profile: schema.users.profile })
@@ -70,6 +88,7 @@ export class AccountLinks {
         .insert(schema.kv)
         .values({ key: 'setting.userName', value: name })
         .onConflictDoUpdate({ target: schema.kv.key, set: { value: name } });
+    this.onNameChanged();
   }
 
   private async find(claims: TicketClaims): Promise<{ userId: string } | null> {
