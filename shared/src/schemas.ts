@@ -439,10 +439,10 @@ export const SendMessage = z
     /** Said aloud in a voice call: the answer is read aloud, so it is kept short and plain. */
     spoken: z.boolean().optional(),
     /**
-     * Sent from the side panel of the person's Chrome while it shares that Chrome: the turn may
-     * then read its tabs (see `ChromeBridge`).
+     * Sent from the side panel of the person's Chrome while it shares that Chrome: the panel's own
+     * socket id. The turn may then read the tabs of that Chrome (see `ChromeBridge`).
      */
-    chrome: z.boolean().optional(),
+    chrome: z.string().min(1).max(64).optional(),
   })
   .refine((m) => m.text.length > 0 || m.files.length > 0, {
     message: 'validation.emptyMessage',

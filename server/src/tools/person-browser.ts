@@ -26,14 +26,16 @@ export function personBrowserTools(opts: {
   t: T;
   chromes: ChromeBridge;
   person: string;
+  /** The turn, whose own panel is asked. */
+  turnId: string;
   /** Shown on the panel's card when the extension may not read a site yet. */
   botName: string;
 }): AppTool[] {
-  const { def, t, chromes, person, botName } = opts;
+  const { def, t, chromes, person, turnId, botName } = opts;
 
   const ask = async (q: ChromeAsk): Promise<ToolResult> => {
     try {
-      return chromeAnswerText(await chromes.ask(person, q), t);
+      return chromeAnswerText(await chromes.ask(turnId, person, q), t);
     } catch (err) {
       if (err instanceof ChromeUnreachable) return t('chrome.unreachable');
       throw err;

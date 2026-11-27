@@ -3190,15 +3190,16 @@ export class ToolFactory {
     if (
       chromes &&
       writer &&
-      chromes.has(writer) &&
-      chromes.fromChrome(turn.id) &&
+      chromes.panelOf(turn.id, writer) &&
       turn.source === 'user' &&
       !team &&
       !turn.guest &&
       !turn.rehearsalId &&
       bot.permissionMode !== 'readonly'
     ) {
-      tools.push(...personBrowserTools({ def, t, chromes, person: writer, botName: bot.name }));
+      tools.push(
+        ...personBrowserTools({ def, t, chromes, person: writer, turnId: turn.id, botName: bot.name }),
+      );
     }
     // Listening to a call in the bot's browser: the other people's voices go to the speech-to-text
     // service, so only in work the person's own message started, in their own conversation, and

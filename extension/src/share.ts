@@ -51,10 +51,16 @@ const shown = (tab: OpenTab, front: number | undefined): ChromeTab => ({
 });
 
 /**
- * Chrome's answer to one question from the server. Nothing is read while sharing is off; a page is
- * read only on a site the person allowed, now or before.
+ * Chrome's answer to one question from the server at `server`. Nothing is read while sharing is off;
+ * a page is read only on a site the person allowed, now or before. The server's own pages are asked
+ * for each time: the extension may reach them to talk to the server, which is no yes to reading them.
  */
-export async function answerAsk(raw: unknown, sharing: boolean, browser: Browser): Promise<ChromeAnswer> {
+export async function answerAsk(
+  raw: unknown,
+  sharing: boolean,
+  browser: Browser,
+  server: string,
+): Promise<ChromeAnswer> {
   if (!sharing) return { ok: false, reason: 'off' };
   const parsed = ChromeAsk.safeParse(raw);
   if (!parsed.success) return { ok: false, reason: 'failed' };
@@ -72,7 +78,9 @@ export async function answerAsk(raw: unknown, sharing: boolean, browser: Browser
     if (!tab || tab.id === undefined) return { ok: false, reason: 'notFound' };
     const origin = isWeb(tab.url) ? originOf(tab.url) : null;
     if (!origin) return { ok: false, reason: 'notWeb' };
-    const allowed = (await browser.mayRead(origin)) || (await browser.askToRead(origin, ask.bot ?? null));
+    const allowed =
+      (origin !== server && (await browser.mayRead(origin))) ||
+      (await browser.askToRead(origin, ask.bot ?? null));
     if (!allowed) return { ok: false, reason: 'denied' };
     const text = (await browser.text(tab.id)).trim();
     return {

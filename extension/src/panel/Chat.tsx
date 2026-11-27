@@ -12,12 +12,13 @@ interface Props {
   api: Api;
   origin: string;
   bot: Bot;
-  sharing: boolean;
+  /** The panel's socket while it shares Chrome, sent with each message (see `Live.panelId`). */
+  panelId: () => string | undefined;
   subscribe: (fn: (e: LiveEvent) => void) => () => void;
 }
 
 /** The bot's main conversation with the person, as in the app, in a narrow column. */
-export function Chat({ api, origin, bot, sharing, subscribe }: Props) {
+export function Chat({ api, origin, bot, panelId, subscribe }: Props) {
   const [thread, setThread] = useState<Thread | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [cards, setCards] = useState<Approval[]>([]);
@@ -81,7 +82,7 @@ export function Chat({ api, origin, bot, sharing, subscribe }: Props) {
     setDraft('');
     setError(null);
     void api
-      .send(thread.id, crypto.randomUUID(), text, [], undefined, undefined, undefined, sharing)
+      .send(thread.id, crypto.randomUUID(), text, [], undefined, undefined, undefined, panelId())
       .then(() => reload(thread.id))
       .catch((err: unknown) => {
         setDraft(text);

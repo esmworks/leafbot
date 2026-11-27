@@ -11,15 +11,15 @@ export function App() {
     void loadStored().then(setStored);
   }, []);
   if (!stored) return null;
-  if (!stored.server) return <Connect onConnected={(server) => setStored({ ...stored, server })} />;
+  // Read again from storage each time, since the panel changes sharing there while it is open: a
+  // choice made before disconnecting holds after connecting again.
+  const reload = () => void loadStored().then(setStored);
+  if (!stored.server) return <Connect onConnected={reload} />;
   return (
     <Home
       origin={stored.server}
       sharing={stored.sharing}
-      onDisconnect={() => {
-        void saveServer(null);
-        setStored({ ...stored, server: null });
-      }}
+      onDisconnect={() => void saveServer(null).then(reload)}
     />
   );
 }
@@ -39,7 +39,7 @@ function originFrom(address: string): string | null {
  * Connects the panel to the person's server: Chrome's permission to reach that address, then the
  * pairing code if this Chrome is not signed in there already.
  */
-function Connect({ onConnected }: { onConnected: (origin: string) => void }) {
+function Connect({ onConnected }: { onConnected: () => void }) {
   const [address, setAddress] = useState('http://localhost:4319');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
@@ -61,7 +61,7 @@ function Connect({ onConnected }: { onConnected: (origin: string) => void }) {
         const session = await api.session();
         if (!session.authenticated) return setError(t('connect.needCode'));
         await saveServer(origin);
-        onConnected(origin);
+        onConnected();
       })
       .catch((err: unknown) =>
         setError(
