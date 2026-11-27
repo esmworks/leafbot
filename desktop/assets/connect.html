@@ -93,6 +93,13 @@
         margin-top: 12px;
         min-height: 18px;
       }
+      .new {
+        margin: 16px 0 0;
+        font-size: 13px;
+      }
+      a {
+        color: var(--accent);
+      }
     </style>
   </head>
   <body>
@@ -118,6 +125,14 @@
         <button type="submit" class="primary" id="go" data-i18n="connect">Bağlan</button>
       </div>
     </form>
+    <!-- A server not set up yet has no address or key: the account's page gives the install command
+         that sets it up and adds it to the account. The shell opens the link in the browser. -->
+    <p class="new">
+      <span data-i18n="newServer">Yeni bir sunucu mu kuruyorsunuz?</span>
+      <a href="https://www.leafbot.app/setup" target="_blank" data-i18n="newServerLink"
+        >Kurulum komutunu hesabınızdan alın</a
+      >
+    </p>
     <script>
       const $ = (id) => document.getElementById(id);
       // The shell passes the app's language as ?lang=; the markup above is the Turkish default.
@@ -132,6 +147,8 @@
           local: "Bu Mac'i kullan",
           connect: 'Bağlan',
           failed: 'Bağlanılamadı',
+          newServer: 'Yeni bir sunucu mu kuruyorsunuz?',
+          newServerLink: 'Kurulum komutunu hesabınızdan alın',
         },
         en: {
           title: 'Connect to a remote server',
@@ -143,6 +160,8 @@
           local: 'Use this Mac',
           connect: 'Connect',
           failed: 'Could not connect',
+          newServer: 'Setting up a new server?',
+          newServerLink: 'Get its install command from your account',
         },
       };
       const lang = new URLSearchParams(location.search).get('lang') === 'en' ? 'en' : 'tr';

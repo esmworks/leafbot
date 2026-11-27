@@ -52,6 +52,21 @@ başlatır (durdurulmuş bir sunucu bağlanır ama durmuş kalır). Ardından he
 açmadan ve sunucuya ayrı bir adres vermeden ulaşırsınız. Gelen kod yanlışsa yeniden yazılır; boş bırakıp Enter'a
 basmak yeni bir kod gönderir.
 
+### Hesaptan kurulum kodu ile
+
+www.leafbot.app'te hesabınızın "Sunucu ekle" sayfası, aynı kurulum komutunu bir kurulum koduyla verir:
+
+```bash
+{ echo LEAFBOT_INSTALL_CODE=ABCDE-FGHJK-LMNPQ-RSTUV; curl -fsSL https://raw.githubusercontent.com/esmworks/leafbot/main/docker/install.sh; } | sudo bash -s
+```
+
+Kurulum bittiğinde sunucu kodu kullanıp kendiliğinden o hesaba bağlanır; e-posta ya da kod sorulmaz ve hesap
+sayfası yeni sunucuyu gösterir. Kod 15 dakika geçerlidir ve bir kez kullanılır. Kod komut satırına argüman ya da sudo
+değişkeni olarak yazılmaz, çünkü sudo kaydı ve `ps` ikisini de gösterir; betikten önceki satır onu betiği çalıştıran
+kabuğa verir. Süresi dolmuş ya da geçersiz bir kod kurulumu durdurmaz; sunucu kurulur ve `sudo leafbot login` ile
+bağlanır. Kurulu bir sunucu da aynı yolla bağlanabilir: `echo KOD | sudo leafbot compose exec -T leafbot node
+dist/index.mjs login --code` ve ardından `sudo leafbot restart`.
+
 `update` seçenek alır: `sudo leafbot update --computer` botların bilgisayarını sonradan açar.
 
 ### Sunucuyu oluştururken (cloud-init)

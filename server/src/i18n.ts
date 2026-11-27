@@ -2276,6 +2276,8 @@ const tr = {
   'login.askName': 'Hesabınızın henüz bir adı yok. Adınız: ',
   'login.named': 'Adınız {name} olarak kaydedildi.',
   'login.restart': 'Çalışan sunucuya hesabınız üzerinden, sunucu yeniden başladıktan sonra ulaşılır.',
+  'login.askInstallCode': 'Kurulum kodu: ',
+  'login.linkedWithCode': 'Bu sunucu Leaf Bot hesabınıza bağlandı; kodu alan hesap onun sahibi.',
 
   // Phone notifications
   'push.bot': 'Bot',
@@ -4809,6 +4811,9 @@ const en: Catalog<ServerKey> = {
   'login.askName': 'Your account has no name yet. Your name: ',
   'login.named': 'Your name is saved as {name}.',
   'login.restart': 'The running server is reached through your account once it has started again.',
+  'login.askInstallCode': 'Install code: ',
+  'login.linkedWithCode':
+    'This server is now linked to your Leaf Bot account; the account that made the code owns it.',
 
   // Phone notifications
   'push.bot': 'Bot',
