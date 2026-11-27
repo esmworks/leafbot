@@ -110,6 +110,8 @@ export function Home(props: { origin: string; sharing: boolean; onDisconnect: ()
     if (!on) sites.forEach((s) => s.answer(false));
   };
 
+  const panelId = useCallback(() => live.current?.panelId, []);
+
   const subscribe = useCallback((fn: (e: LiveEvent) => void) => {
     listeners.current.add(fn);
     return () => void listeners.current.delete(fn);
@@ -172,7 +174,7 @@ export function Home(props: { origin: string; sharing: boolean; onDisconnect: ()
         </div>
       ))}
       {bot ? (
-        <Chat key={bot.id} api={api} origin={origin} bot={bot} sharing={sharing} subscribe={subscribe} />
+        <Chat key={bot.id} api={api} origin={origin} bot={bot} panelId={panelId} subscribe={subscribe} />
       ) : (
         <ul className="bots">
           {bots && !sorted.length && <li className="empty">{t('bots.empty')}</li>}

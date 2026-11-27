@@ -128,6 +128,8 @@ export class Inbox {
       answers?: boolean;
       /** Read by the bot after the message and not shown, e.g. what a card's press asks for. */
       forBot?: string;
+      /** The socket of the Chrome side panel it was written in, which shares that Chrome now. */
+      chromePanel?: string;
     },
   ): Promise<{ message: Message; created: boolean }> {
     const s = this.services;
@@ -275,11 +277,21 @@ export class Inbox {
       userId: input.userId ?? null,
       ...(input.guest && { guest: true, modeCap: 'ask' as const }),
       messageId: message.id,
+      ...(input.chromePanel && { chromePanel: input.chromePanel }),
     });
     // Written while the bot answers the person: it reads the new words at its next step instead of
     // after the answer, as the person would when talking. When the turn takes no more steps, or is
     // not the person's own, the message keeps its own turn after it.
-    if (queued && !forwarded && !chatAnswer && !input.guest && input.answers !== false) {
+    // Words from the Chrome panel wait for their own turn: only that turn may read the panel's Chrome,
+    // and the turn under way, started elsewhere, was given no Chrome to read.
+    if (
+      queued &&
+      !forwarded &&
+      !chatAnswer &&
+      !input.guest &&
+      input.answers !== false &&
+      !input.chromePanel
+    ) {
       await s.turns.steer(threadId, turn.id, message.id, true);
     }
     if (aside) await s.approvals.stepAside(aside.id, input.userId ?? null);

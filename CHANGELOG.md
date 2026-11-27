@@ -34,7 +34,7 @@ version is 0.x, a minor release may change the data format or the API; the serve
   the containers out of the host, so the server could not reach TURN and browsers could not reach the server.
 - A Chrome extension (`extension/`, early): a side panel to talk to the bots beside any page. With sharing on, a
   message written in the panel lets the bot list the open tabs and read the text of one, so a question about the page
-  in front needs no copying. Only turns started from the panel reach Chrome, the first read in each turn asks on a
+  in front needs no copying. Only turns started from the panel reach Chrome, and only the Chrome of that panel; the first read in each turn asks on a
   card at every permission level, and each new site needs the person's own yes in Chrome. The server lets in
   requests from the extension's own id only.
 - A coding agent bot's effort is now set as the agent's own thinking level, or the nearest level it has, when

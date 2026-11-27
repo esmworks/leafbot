@@ -1390,19 +1390,19 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       return reply.code(created ? 201 : 200).send(message);
     }
     const { offline, spoken, chrome, ...body } = SendMessage.parse(req.body);
+    // Sent from the side panel of the writer's Chrome while it shares it: that turn may read the tabs
+    // of that Chrome. Only a panel of the writer that is connected and sharing now counts.
+    const chromePanel = chrome && s.ctx.chromes?.shares(chrome, me(req).userId) ? chrome : undefined;
     const { message, created } = await s.inbox.send(id, {
       ...body,
       userId: me(req).userId,
+      ...(chromePanel && { chromePanel }),
       // Kept on the message, so the conversation shows it was held while the app was offline, or
       // said aloud in a call.
       ...((offline || spoken) && {
         props: { ...(offline && { sentOffline: true }), ...(spoken && { spoken: true }) },
       }),
     });
-    // Sent from the side panel of the writer's Chrome while it shares it: that turn may read its
-    // tabs. Said by a panel that is connected now, so a stale flag from elsewhere reaches nothing.
-    const chromes = s.ctx.chromes;
-    if (chrome && created && message.turnId && chromes?.has(me(req).userId)) chromes.noteTurn(message.turnId);
     return reply.code(created ? 201 : 200).send(message);
   });
 

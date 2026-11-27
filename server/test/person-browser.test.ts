@@ -13,47 +13,59 @@ const PAGE: ChromeAnswer = {
 };
 
 describe('Chrome köprüsü', () => {
-  it('soruyu yalnız o kişinin en son paylaşan paneline gönderir', async () => {
+  it('soruyu yalnız turun yazıldığı panele gönderir, kişinin başka paneline değil', async () => {
     const chromes = new ChromeBridge(50);
     const sent: string[] = [];
     chromes.attach(async (socket) => {
       sent.push(socket);
       return PAGE;
     });
-    chromes.offer('eski', 'ali', true);
-    chromes.offer('yeni', 'ali', true);
+    chromes.offer('evdeki', 'ali', true);
+    chromes.offer('isteki', 'ali', true);
     chromes.offer('baskasi', 'ayse', true);
     // Only a plain yes shares.
     chromes.offer('sahte', 'veli', 'true');
-    expect(chromes.has('ali')).toBe(true);
-    expect(chromes.has('veli')).toBe(false);
-    expect(await chromes.ask('ali', { kind: 'read' })).toEqual(PAGE);
-    expect(sent).toEqual(['yeni']);
+    expect(chromes.shares('evdeki', 'ali')).toBe(true);
+    expect(chromes.shares('baskasi', 'ali')).toBe(false);
+    expect(chromes.shares('sahte', 'veli')).toBe(false);
 
-    // A panel that stops sharing, or goes away, is no longer asked.
-    chromes.offer('yeni', 'ali', false);
-    chromes.drop('eski');
-    expect(chromes.has('ali')).toBe(false);
-    await expect(chromes.ask('ali', { kind: 'read' })).rejects.toThrow('chrome not reachable');
+    chromes.noteTurn('tur', 'evdeki');
+    expect(await chromes.ask('tur', 'ali', { kind: 'read' })).toEqual(PAGE);
+    expect(sent).toEqual(['evdeki']);
+    // Another person's turn noted with this panel does not reach it.
+    await expect(chromes.ask('tur', 'ayse', { kind: 'read' })).rejects.toThrow('chrome not reachable');
+
+    // The panel the turn came from stops sharing: the other panel is not asked in its place.
+    chromes.offer('evdeki', 'ali', false);
+    expect(chromes.panelOf('tur', 'ali')).toBeNull();
+    await expect(chromes.ask('tur', 'ali', { kind: 'read' })).rejects.toThrow('chrome not reachable');
+    expect(sent).toEqual(['evdeki']);
   });
 
   it('cevap gelmezse ya da başka türde gelirse kullanılmaz', async () => {
     const chromes = new ChromeBridge(50);
     chromes.offer('s', 'ali', true);
+    chromes.noteTurn('tur', 's');
     chromes.attach(() => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10)));
-    await expect(chromes.ask('ali', { kind: 'tabs' })).rejects.toThrow('chrome not reachable');
+    await expect(chromes.ask('tur', 'ali', { kind: 'tabs' })).rejects.toThrow('chrome not reachable');
     chromes.attach(async () => PAGE);
-    expect(await chromes.ask('ali', { kind: 'tabs' })).toEqual({ ok: false, reason: 'failed' });
+    expect(await chromes.ask('tur', 'ali', { kind: 'tabs' })).toEqual({ ok: false, reason: 'failed' });
     chromes.attach(async () => ({ ok: true, kind: 'read', tab: { id: -1 }, text: 'x', cut: false }));
-    expect(await chromes.ask('ali', { kind: 'read' })).toEqual({ ok: false, reason: 'failed' });
+    expect(await chromes.ask('tur', 'ali', { kind: 'read' })).toEqual({ ok: false, reason: 'failed' });
   });
 
-  it('panelden başlayan turları sınırlı sayıda hatırlar', () => {
+  it('panelden başlayan turları sınırlı sayıda hatırlar; birleşen tura paneli taşır', () => {
     const chromes = new ChromeBridge(50);
-    for (let i = 0; i < 201; i++) chromes.noteTurn(`tur-${i}`);
-    expect(chromes.fromChrome('tur-0')).toBe(false);
-    expect(chromes.fromChrome('tur-1')).toBe(true);
-    expect(chromes.fromChrome('tur-200')).toBe(true);
+    chromes.offer('p', 'ali', true);
+    for (let i = 0; i < 201; i++) chromes.noteTurn(`tur-${i}`, 'p');
+    expect(chromes.panelOf('tur-0', 'ali')).toBeNull();
+    expect(chromes.panelOf('tur-1', 'ali')).toBe('p');
+    expect(chromes.panelOf('tur-200', 'ali')).toBe('p');
+
+    chromes.carry(['tur-200'], 'ilk');
+    expect(chromes.panelOf('ilk', 'ali')).toBe('p');
+    chromes.carry(['yok'], 'bos');
+    expect(chromes.panelOf('bos', 'ali')).toBeNull();
   });
 });
 
@@ -78,7 +90,7 @@ describe('kişinin Chrome’u: botlar ve onay', () => {
     const r = await t.api<Message>('POST', `/api/threads/${threadId}/messages`, {
       clientId: `c-${Math.random().toString(36).slice(2, 12)}`,
       text,
-      chrome: true,
+      chrome: 'panel',
     });
     if (r.status >= 300) throw new Error(JSON.stringify(r.body));
     return r.body;
@@ -134,6 +146,23 @@ describe('kişinin Chrome’u: botlar ve onay', () => {
     expect(reply).toContain('outside-data');
   });
 
+  it('bot meşgulken panelden yazılan mesaj çalışan işe karışmaz; kendi işinde Chrome’u görür', async () => {
+    t.services.ctx.chromes!.offer('panel', OWNER_ID, true);
+    const bot = await t.bot({ permissionMode: 'auto' });
+    const thread = await main(bot.id);
+    await t.send(thread.id, '[bekle:800] [araç:memory_search {"query":"x"}]');
+    await waitFor(async () => t.services.turns.isRunning(thread.id));
+    const panel = await fromPanel(thread.id, 'bu sayfada ne yazıyor');
+    await t.services.turns.idle();
+    expect(t.engine.requests).toHaveLength(2);
+    const [first, second] = t.engine.requests;
+    expect(first!.tools.some((x) => x.name.startsWith('person_browser_'))).toBe(false);
+    expect(second!.prompt).toContain('bu sayfada ne yazıyor');
+    expect(chromeTools()).toEqual(['person_browser_tabs', 'person_browser_read']);
+    const msgs = await t.messages(thread.id);
+    expect(msgs.find((m) => m.id === panel.id)!.turnId).toBe(msgs.at(-1)!.turnId);
+  });
+
   it('panel yanıt vermezse “ulaşılamadı” der', async () => {
     t.services.ctx.chromes!.offer('panel', OWNER_ID, true);
     t.services.ctx.chromes!.attach(async () => {
@@ -171,7 +200,7 @@ describe('kişinin Chrome’u: botlar ve onay', () => {
     await member.api('POST', `/api/threads/${theirs.id}/messages`, {
       clientId: 'c-uyeninmesaji',
       text: '[araç:person_browser_tabs]',
-      chrome: true,
+      chrome: 'panel',
     });
     await t.services.turns.idle();
     expect(chromeTools()).toEqual([]);

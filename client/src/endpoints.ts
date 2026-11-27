@@ -521,8 +521,8 @@ export function endpoints(send: Transport, base = '') {
       replyTo?: string,
       offline?: boolean,
       spoken?: boolean,
-      /** Sent from the Chrome extension's panel while it shares Chrome with the bots. */
-      chrome?: boolean,
+      /** The socket id of the Chrome extension's panel it is sent from, while it shares Chrome. */
+      chrome?: string,
     ) =>
       http.post<Message>(`/api/threads/${threadId}/messages`, {
         clientId,
@@ -531,7 +531,7 @@ export function endpoints(send: Transport, base = '') {
         replyTo,
         ...(offline && { offline: true }),
         ...(spoken && { spoken: true }),
-        ...(chrome && { chrome: true }),
+        ...(chrome && { chrome }),
       }),
     search: (q: string, opts: { threadId?: string; limit?: number } = {}) =>
       http.get<SearchHit[]>(
