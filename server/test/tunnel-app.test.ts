@@ -85,10 +85,12 @@ describe('requests that came over the tunnel', () => {
   });
 
   it('does not start a session of the server’s own', async () => {
-    for (const path of ['/api/login', '/api/access', '/api/pair']) {
+    for (const path of ['/api/access', '/api/account-host/phone-code']) {
       const res = await call(as('ayse'), 'POST', path, {});
       expect(res.status, path).toBe(403);
     }
+    // Over the tunnel nobody is on the server's own computer: the key is never offered.
+    expect((await call(as('ayse'), 'GET', '/api/session')).body).toMatchObject({ local: false });
   });
 
   it('stops working once the person is disabled or gone', async () => {

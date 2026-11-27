@@ -646,12 +646,6 @@ function AccountMenu({
               </DropdownMenuItem>
             )}
           </>
-        ) : sw.shellMenu ? (
-          <DropdownMenuItem onSelect={sw.shellMenu} className="gap-2">
-            <Server className="text-muted-foreground" />
-            <span className="min-w-0 flex-1 truncate">{sw.name}</span>
-            <span className="text-xs text-muted-foreground">{t('sidebar.switchServer')}</span>
-          </DropdownMenuItem>
         ) : (
           <DropdownMenuLabel className="flex items-center gap-2 font-normal text-muted-foreground">
             <Server className="size-4" />

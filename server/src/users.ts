@@ -1,6 +1,6 @@
 import type { PersonInfo, Role } from '@leafbot/shared';
 import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm';
-import { hashPassword, verifyPassword } from './account';
+import { hashPassword } from './account';
 import { schema, type Db } from './db';
 import type { PasswordHash } from './db/schema';
 import { HttpError, isUniqueViolation, newId, notFound } from './util';
@@ -159,6 +159,24 @@ export class Users {
     return !!row;
   }
 
+  /** The account a person comes in with, by its account id; null for someone without one. */
+  async accountOf(id: string): Promise<string | null> {
+    const [row] = await this.db
+      .select({ accountUserId: schema.accountLinks.accountUserId })
+      .from(schema.accountLinks)
+      .where(eq(schema.accountLinks.userId, id))
+      .limit(1);
+    return row?.accountUserId ?? null;
+  }
+
+  /**
+   * Forgets which account a person comes in with. They keep what is theirs here, and an invite to
+   * their (new) address brings them back as the same person.
+   */
+  async unlinkAccount(id: string): Promise<void> {
+    await this.db.delete(schema.accountLinks).where(eq(schema.accountLinks.userId, id));
+  }
+
   async person(id: string): Promise<PersonInfo | null> {
     const [row] = await this.db.select().from(schema.users).where(eq(schema.users.id, id)).limit(1);
     return row ? personOf(row) : null;
@@ -195,18 +213,22 @@ export class Users {
     return personOf(row!);
   }
 
-  /** Changes a person other than the owner: name, role, whether they may sign in, password. */
+  /** Changes a person other than the owner: name, role, whether they may sign in. */
   async change(
     id: string,
-    patch: { displayName?: string | null; role?: 'admin' | 'member'; disabled?: boolean; password?: string },
+    patch: { displayName?: string | null; role?: 'admin' | 'member'; disabled?: boolean },
   ): Promise<PersonInfo> {
+    if (patch.displayName === undefined && !patch.role && patch.disabled === undefined) {
+      const same = await this.person(id);
+      if (!same || same.role === 'owner') throw new HttpError(404, 'error.notFound.person');
+      return same;
+    }
     const [row] = await this.db
       .update(schema.users)
       .set({
         ...(patch.displayName !== undefined && { displayName: patch.displayName?.trim() || null }),
         ...(patch.role && { role: patch.role }),
         ...(patch.disabled !== undefined && { disabledAt: patch.disabled ? new Date() : null }),
-        ...(patch.password !== undefined && { password: await hashPassword(patch.password) }),
       })
       .where(and(eq(schema.users.id, id), ne(schema.users.role, 'owner')))
       .returning();
@@ -216,66 +238,5 @@ export class Users {
 
   async remove(id: string) {
     await this.db.delete(schema.users).where(and(eq(schema.users.id, id), ne(schema.users.role, 'owner')));
-  }
-
-  /** Whether anyone can sign in with a username and password yet, rather than only the access key. */
-  async anyPassword(): Promise<boolean> {
-    const rows = await this.db.select({ password: schema.users.password }).from(schema.users);
-    return rows.some((r) => r.password !== null);
-  }
-
-  /**
-   * The person a username and password belong to, or null. A hash made at an older, lower cost is
-   * made again at today's once the password is known right. A disabled person cannot sign in.
-   */
-  async check(username: string, password: string): Promise<User | null> {
-    const [row] = await this.db
-      .select()
-      .from(schema.users)
-      .where(eq(schema.users.usernameKey, usernameKey(username)))
-      .limit(1);
-    return this.verify(row ?? null, password);
-  }
-
-  /** Whether the password is this person's own, as asked before they change it. */
-  async checkFor(userId: string, password: string): Promise<boolean> {
-    const [row] = await this.db.select().from(schema.users).where(eq(schema.users.id, userId)).limit(1);
-    return (await this.verify(row ?? null, password)) !== null;
-  }
-
-  private async verify(row: Row | null, password: string): Promise<User | null> {
-    // The hash is worked out whoever asks, so the time a reply takes tells nothing.
-    const { ok, stale } = await verifyPassword(password, row?.password ?? null);
-    if (!row || !ok || row.disabledAt) return null;
-    // The sign-in stands even if the new hash cannot be written; it is tried again next time.
-    if (stale) await this.setPassword(row.id, password).catch(() => {});
-    return userOf(row);
-  }
-
-  /** Sets a person's username and password; a username another person has is refused. */
-  async setCredentials(userId: string, username: string, password: string): Promise<User> {
-    const key = usernameKey(username);
-    const [taken] = await this.db
-      .select({ id: schema.users.id })
-      .from(schema.users)
-      .where(and(eq(schema.users.usernameKey, key), ne(schema.users.id, userId)))
-      .limit(1);
-    if (taken) throw new HttpError(409, 'error.usernameTaken');
-    const hash = await hashPassword(password);
-    const [row] = await this.db
-      .update(schema.users)
-      .set({ username: username.trim(), usernameKey: key, password: hash })
-      .where(eq(schema.users.id, userId))
-      .returning()
-      .catch(usernameTaken);
-    if (!row) throw new HttpError(404, 'error.notFound');
-    return userOf(row);
-  }
-
-  private async setPassword(userId: string, password: string) {
-    await this.db
-      .update(schema.users)
-      .set({ password: await hashPassword(password) })
-      .where(eq(schema.users.id, userId));
   }
 }

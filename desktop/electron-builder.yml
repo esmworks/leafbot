@@ -26,10 +26,17 @@ protocols:
 files:
   - dist/**
   - package.json
+# node-datachannel (WebRTC for the tunnel to an account server) is a native module: its .node build
+# lives in a package of its own per platform, and a native file cannot be loaded from inside the
+# asar archive.
+asarUnpack:
+  - '**/*.node'
+  - node_modules/node-datachannel/**
+  - node_modules/@node-datachannel/**
 # Electron's build-time switches, flipped in the packaged binary so that nobody can start this signed
 # app as something else: no --inspect debugger or NODE_OPTIONS to inject code, app code only from the
-# app.asar archive, whose hash is checked on load (macOS and Windows), and cookies encrypted with the
-# same keychain key as the saved access key.
+# app.asar archive, whose hash is checked on load (macOS and Windows), and cookies (the website's
+# sign-in among them) encrypted with a key kept in the system keychain.
 electronFuses:
   # Stays on: the app starts its server as a Node process of its own binary (ELECTRON_RUN_AS_NODE, see
   # src/server-process.ts). The server's environment is built from scratch, without NODE_OPTIONS.
@@ -39,8 +46,7 @@ electronFuses:
   enableEmbeddedAsarIntegrityValidation: true
   onlyLoadAppFromAsar: true
   enableCookieEncryption: true
-  # The app's pages come from the server over http(s); the connect page is the only file:// page and
-  # needs nothing beyond what a browser gives a file.
+  # The app's pages come over http(s), from this computer's server or the website; no page is a file.
   grantFileProtocolExtraPrivileges: false
   # Flipping a fuse changes the binary and breaks its signature. Without a Developer ID (a build with
   # no certificate) electron-builder does not sign again, and Apple silicon refuses to start a binary

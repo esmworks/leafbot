@@ -288,6 +288,51 @@ export class HttpStreams {
 
 const NULL_BODY = new Set([101, 103, 204, 205, 304]);
 
+/** What a runtime without a usable `Request` and `Response` (React Native) sends and reads by hand. */
+export interface RawRequest {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: Uint8Array | null;
+  signal?: AbortSignal | undefined;
+}
+
+function checkPath(input: string) {
+  if (!input.startsWith('/') || input.startsWith('//')) throw new TypeError('tunnel requests take a path');
+}
+
+/**
+ * One request over the tunnel with no `Request` or `Response` in between: the method, headers and
+ * bytes go as given and the answer's status, headers and body stream come back as they are.
+ */
+export async function tunnelRequest(
+  http: () => Promise<HttpStreams>,
+  input: string,
+  init: RawRequest = {},
+): Promise<TunnelResponse> {
+  checkPath(input);
+  const method = (init.method ?? 'GET').toUpperCase() as RequestHead['method'];
+  const headers: Record<string, string> = {};
+  for (const [k, v] of Object.entries(init.headers ?? {})) headers[k.toLowerCase()] = v;
+  const body = method !== 'GET' && method !== 'HEAD' ? (init.body ?? null) : null;
+  const url = new URL(`http://tunnel.invalid${input}`);
+  const res = await (
+    await http()
+  ).request(
+    { method, path: url.pathname + url.search, headers, ...(body ? { length: body.byteLength } : {}) },
+    body,
+    init.signal ?? undefined,
+  );
+  if (res.status < 200 || NULL_BODY.has(res.status) || method === 'HEAD') {
+    void res.body.cancel();
+    return { status: res.status < 200 ? 502 : res.status, headers: res.headers, body: emptyBody() };
+  }
+  return res;
+}
+
+function emptyBody(): ReadableStream<Uint8Array> {
+  return new ReadableStream<Uint8Array>({ start: (c) => c.close() });
+}
+
 /**
  * A `fetch` for paths on the server, answered over the tunnel. Only paths are sent, never a full
  * address: the server writes the Host itself, so nothing here can reach another site.
@@ -297,7 +342,7 @@ export async function tunnelFetch(
   input: string,
   init: RequestInit = {},
 ): Promise<Response> {
-  if (!input.startsWith('/') || input.startsWith('//')) throw new TypeError('tunnel requests take a path');
+  checkPath(input);
   // A Request reads every body type (string, Blob, FormData, URLSearchParams) and sets its type.
   const req = new Request(`http://tunnel.invalid${input}`, init);
   const method = req.method.toUpperCase() as RequestHead['method'];

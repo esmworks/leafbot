@@ -8,11 +8,10 @@ import { createTranslator, type Catalog, type Locale, type Translate } from '@le
 const tr = {
   // HTTP errors
   'error.accessKeyWrong': 'Erişim anahtarı yanlış',
-  'error.loginWrong': 'Kullanıcı adı ya da şifre yanlış',
+  'error.accessKeyLocalOnly':
+    'Erişim anahtarı yalnızca sunucunun çalıştığı bilgisayarda geçer. Başka yerden Leaf Bot hesabınla, leafbot.app üzerinden gir.',
   'error.loginBlocked':
     'Çok fazla yanlış deneme oldu; 15 dakika sonra yeniden deneyin ya da erişim anahtarıyla girin',
-  'error.passwordShort': 'Şifre en az {min} karakter olmalı',
-  'error.currentPasswordWrong': 'Mevcut şifre ya da erişim anahtarı yanlış',
   'error.usernameTaken': 'Bu kullanıcı adı başka birinde',
   'error.adminOnly': 'Bunu yalnızca sunucuyu yönetenler yapabilir',
   'error.ownerOnly': 'Bunu yalnızca sunucunun sahibi yapabilir',
@@ -37,7 +36,7 @@ const tr = {
   'error.accountCodeWrong': 'Kod yanlış ya da süresi dolmuş. Yeni bir kod isteyin.',
   'error.accountMailUnavailable': 'Giriş kodu şu an gönderilemiyor. Biraz sonra yeniden deneyin.',
   'error.accountNameInvalid': 'Adınızı yazın (en çok 80 karakter).',
-  'error.serverNotLinked': 'Davet göndermek için önce bu sunucuyu Leaf Bot hesabınıza bağlayın.',
+  'error.serverNotLinked': 'Bunun için önce bu sunucuyu Leaf Bot hesabınıza bağlayın.',
   'error.inviteMailUnavailable': 'Davet e-postası şu an gönderilemiyor. Biraz sonra yeniden deneyin.',
   'error.inviteGone': 'Bu davet artık yok.',
   'error.personAlreadyLinked': 'Bu kişi zaten Leaf Bot hesabıyla giriyor.',
@@ -337,8 +336,6 @@ const tr = {
   'error.signInNoPaste': 'Bu oturum açma şu an yapıştırılan bir adres beklemiyor',
   'error.claudeSignInMissing':
     "Bu sunucuda Claude girişi için gereken Claude Code programı yok; abonelik token'ı veya API anahtarı kullanın",
-  'error.pairingWrong':
-    'Eşleştirme kodu yanlış, kullanılmış ya da süresi dolmuş; bağlı bir cihazda yenisini alın',
   'error.transcribeNone': 'Sesi yazıya çevirmek için bir OpenAI ya da Groq API anahtarı kaydedin',
   'error.transcribeEmpty': 'Kayıtta ses yok',
   'error.transcribeFailed': 'Ses yazıya çevrilemedi: {message}',
@@ -2274,7 +2271,12 @@ const tr = {
   // Terminal
   'log.accessKey': 'Erişim anahtarı: {path}',
   'log.shuttingDown': '{signal} alındı, kapanıyor',
-  'cli.unknownCommand': 'Bilinmeyen komut: {command}. Komutlar: login',
+  'cli.unknownCommand': 'Bilinmeyen komut: {command}. Komutlar: login, phone',
+  'phone.startServer': 'Önce sunucuyu başlat: telefon, çalışan sunucuya Leaf Bot hesabın üzerinden bağlanır.',
+  'phone.codeFailed':
+    'Telefon kodu alınamadı. Sunucunun Leaf Bot hesabına bağlı olduğundan emin ol ve yeniden dene.',
+  'phone.scan':
+    'Leaf Bot telefon uygulamasında “QR kodu tara”ya dokun ve bu kodu okut; ya da {code} kodunu yaz. Kod iki dakika, bir kez geçer.',
   'login.stopServer':
     'Sunucu çalışıyor ve veritabanını açık tutuyor. Önce sunucuyu durdurun, girişi yapın, sonra yeniden başlatın.',
   'login.alreadyLinked':
@@ -2552,10 +2554,9 @@ export type ServerKey = keyof typeof tr;
 
 const en: Catalog<ServerKey> = {
   'error.accessKeyWrong': 'Wrong access key',
-  'error.loginWrong': 'Wrong username or password',
+  'error.accessKeyLocalOnly':
+    'The access key works only on the computer the server runs on. From anywhere else, sign in with your Leaf Bot account at leafbot.app.',
   'error.loginBlocked': 'Too many wrong attempts; try again in 15 minutes or sign in with the access key',
-  'error.passwordShort': 'The password must be at least {min} characters',
-  'error.currentPasswordWrong': 'The current password or access key is wrong',
   'error.usernameTaken': 'Someone else already has this username',
   'error.adminOnly': 'Only the people who manage this server can do this',
   'error.ownerOnly': 'Only the owner of this server can do this',
@@ -2581,7 +2582,7 @@ const en: Catalog<ServerKey> = {
   'error.accountCodeWrong': 'The code is wrong or has expired. Ask for a new one.',
   'error.accountMailUnavailable': "The sign-in code can't be sent right now. Try again in a little while.",
   'error.accountNameInvalid': 'Write your name (80 characters at most).',
-  'error.serverNotLinked': 'To send invites, first link this server to your Leaf Bot account.',
+  'error.serverNotLinked': 'For this, first link this server to your Leaf Bot account.',
   'error.inviteMailUnavailable': "The invite email can't be sent right now. Try again in a little while.",
   'error.inviteGone': 'This invite no longer exists.',
   'error.personAlreadyLinked': 'This person already signs in with a Leaf Bot account.',
@@ -2884,7 +2885,6 @@ const en: Catalog<ServerKey> = {
   'error.signInNoPaste': 'This sign-in is not waiting for a pasted address now',
   'error.claudeSignInMissing':
     'The Claude Code program that signs in to Claude is missing on this server; use a subscription token or an API key',
-  'error.pairingWrong': 'The pairing code is wrong, used or expired; get a new one on a signed-in device',
   'error.transcribeNone': 'Save an OpenAI or Groq API key to turn speech into text',
   'error.transcribeEmpty': 'The recording holds no sound',
   'error.transcribeFailed': 'The speech could not be turned into text: {message}',
@@ -4831,7 +4831,13 @@ const en: Catalog<ServerKey> = {
 
   'log.accessKey': 'Access key: {path}',
   'log.shuttingDown': '{signal} received, shutting down',
-  'cli.unknownCommand': 'Unknown command: {command}. Commands: login',
+  'cli.unknownCommand': 'Unknown command: {command}. Commands: login, phone',
+  'phone.startServer':
+    'Start the server first: the phone reaches the running server through your Leaf Bot account.',
+  'phone.codeFailed':
+    'Could not get a phone code. Make sure the server is linked to your Leaf Bot account and try again.',
+  'phone.scan':
+    'In the Leaf Bot phone app, tap “Scan QR code” and scan this, or type the code {code}. It works once, for two minutes.',
   'login.stopServer':
     'The server is running and holds its database open. Stop the server first, sign in, then start it again.',
   'login.alreadyLinked':

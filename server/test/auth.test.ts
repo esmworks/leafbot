@@ -33,40 +33,31 @@ describe('erişim', () => {
     expect((await req({ url: '/api/health' })).statusCode).toBe(200);
   });
 
-  it('eşleştirme kodu bir cihazı bir kez, beş dakika içinde içeri alır', async () => {
-    const auth = { authorization: `Bearer ${KEY}` };
-    expect((await req({ method: 'POST', url: '/api/pairing' })).statusCode).toBe(401);
-    const made = await req({ method: 'POST', url: '/api/pairing', headers: auth });
-    const { code } = made.json() as { code: string };
-    expect(code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
-    // Typed loosely: lower case, without the dash.
-    const ok = await req({
-      method: 'POST',
-      url: '/api/pair',
-      payload: { code: code.replace('-', ' ').toLowerCase() },
-    });
-    expect(ok.statusCode).toBe(200);
-    const cookie = String(ok.headers['set-cookie']).split(';')[0]!;
-    expect((await req({ headers: { cookie } })).statusCode).toBe(200);
-    // Once only.
-    expect((await req({ method: 'POST', url: '/api/pair', payload: { code } })).statusCode).toBe(401);
-    // The desktop app asks for the session itself, to keep it with its window's cookies.
-    const second = (await req({ method: 'POST', url: '/api/pairing', headers: auth })).json() as {
-      code: string;
-    };
-    const withToken = await req({
-      method: 'POST',
-      url: '/api/pair',
-      payload: { code: second.code, token: true },
-    });
-    const given = withToken.json() as { token: string; cookie: string };
-    expect(given.cookie).toBe('leafbot_session');
-    expect((await req({ headers: { cookie: `leafbot_session=${given.token}` } })).statusCode).toBe(200);
-    // A device signed in before the rename sends the cookie under its old name.
-    expect((await req({ headers: { cookie: `yumakbot_session=${given.token}` } })).statusCode).toBe(200);
-    // And not after five minutes.
-    const late = t.auth.createPairingCode(OWNER_ID, Date.now() - 6 * 60_000).code;
-    expect(t.auth.usePairingCode(late)).toBeNull();
+  it('anahtar yalnızca sunucunun bilgisayarından geçer; şifre ve eşleştirme ile giriş yoktur', async () => {
+    const away = { 'x-forwarded-for': '203.0.113.9' };
+    expect((await req({ headers: { authorization: `Bearer ${KEY}`, ...away } })).statusCode).toBe(401);
+    const access = await req({ method: 'POST', url: '/api/access', payload: { key: KEY }, headers: away });
+    expect(access.statusCode).toBe(403);
+    expect(access.headers['set-cookie']).toBeUndefined();
+    const here = await req({ url: '/api/session' });
+    expect(here.json()).toMatchObject({ authenticated: false, local: true });
+    expect((await req({ url: '/api/session', headers: away })).json()).toMatchObject({ local: false });
+    for (const url of ['/api/login', '/api/pair']) {
+      const r = await req({
+        method: 'POST',
+        url,
+        payload: { username: 'a', password: 'b', code: 'ABCD-2345' },
+      });
+      expect(r.statusCode).toBe(401);
+      expect(r.headers['set-cookie']).toBeUndefined();
+    }
+    expect(
+      (await req({ method: 'POST', url: '/api/pairing', headers: { authorization: `Bearer ${KEY}` } }))
+        .statusCode,
+    ).toBe(404);
+    expect((await req({ url: '/api/account', headers: { authorization: `Bearer ${KEY}` } })).statusCode).toBe(
+      404,
+    );
   });
 
   it('anahtarı sorgu dizesinde kabul etmez', async () => {
@@ -266,10 +257,9 @@ describe('checkHostOrigin', () => {
     expect(check('localhost', 'https://attacker.com')).not.toBeNull();
     expect(check('localhost', 'null')).not.toBeNull();
   });
-  it('yalnız Leaf Bot uzantısının kendi sayfaları', () => {
-    expect(check('localhost:4319', CHROME_EXTENSION_ORIGIN)).toBeNull();
+  it('uzantı sunucuya adresinden değil tünelden ulaşır', () => {
+    expect(check('localhost:4319', CHROME_EXTENSION_ORIGIN)).not.toBeNull();
     expect(check('localhost:4319', 'chrome-extension://abcdefghijklmnopabcdefghijklmnop')).not.toBeNull();
-    expect(check('attacker.com', CHROME_EXTENSION_ORIGIN)).not.toBeNull();
   });
 });
 
@@ -318,28 +308,24 @@ describe('ters vekil arkasında', () => {
     ).toBe('198.51.100.7');
   });
 
-  // Behind Caddy every request arrives from the same address; without the proxy's word, ten wrong
-  // passwords from one person would lock everyone out.
-  it('giriş sınırı vekilin bildirdiği adrese göre sayılır', async () => {
+  // Behind Caddy every request arrives from this computer; only the proxy's word tells where it came
+  // from, and the key works only for one that came from here.
+  it('vekilin arkasında anahtar yalnızca bu bilgisayardan gelen isteğe geçer', async () => {
     const t = await testServer(config);
     try {
-      const account = await t.app.inject({
-        method: 'PUT',
-        url: '/api/account',
-        headers: { host: 'localhost', authorization: `Bearer ${KEY}` },
-        payload: { username: 'erhan', password: 'gizli-sifre' },
-      });
-      expect(account.statusCode).toBe(200);
-      const login = (from: string) =>
+      const through = (from: string) =>
         t.app.inject({
-          method: 'POST',
-          url: '/api/login',
-          headers: { host: 'localhost', 'x-forwarded-for': from, 'x-leafbot-proxy': config.proxySecret },
-          payload: { username: 'erhan', password: 'yanlis-sifre' },
+          method: 'GET',
+          url: '/api/bots',
+          headers: {
+            host: 'localhost',
+            authorization: `Bearer ${KEY}`,
+            'x-forwarded-for': from,
+            'x-leafbot-proxy': config.proxySecret,
+          },
         });
-      for (let i = 0; i < 10; i++) expect((await login('203.0.113.1')).statusCode).toBe(401);
-      expect((await login('203.0.113.1')).statusCode).toBe(429);
-      expect((await login('203.0.113.2')).statusCode).toBe(401);
+      expect((await through('203.0.113.1')).statusCode).toBe(401);
+      expect((await through('127.0.0.1')).statusCode).toBe(200);
     } finally {
       await t.dispose();
     }

@@ -12,8 +12,6 @@ import { Readable } from 'node:stream';
 import { basename, extname, join, relative, resolve, sep } from 'node:path';
 import {
   AccessRequest,
-  AccountSet,
-  PersonCreate,
   PersonInvite,
   PersonUpdate,
   connectionToolParts,
@@ -42,7 +40,6 @@ import {
   CustomEndpointCreate,
   CustomEndpointUpdate,
   FileName,
-  LoginRequest,
   GroupCreate,
   GroupMove,
   GroupUpdate,
@@ -140,10 +137,10 @@ import type { FastifyInstance, FastifyReply, FastifyRequest, RouteShorthandOptio
 import { ACP_COMMANDS, onPath, shellPath } from './engine/acp';
 import { eventHeader } from './services/webhook-signatures';
 import { z } from 'zod';
-import { MIN_PASSWORD } from './account';
 import {
   canAdminister,
   clientAddress,
+  isLocalRequest,
   requireAdmin,
   OLD_SESSION_COOKIE,
   SESSION_COOKIE,
@@ -353,14 +350,19 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     // cookie or key to read.
     const who = tunnelIdentity(req.raw.socket)
       ? req.principal
-      : await d.auth.authenticate(req.headers, token, clientAddress(req.headers, req.ip, d.config));
+      : await d.auth.authenticate(
+          req.headers,
+          token,
+          clientAddress(req.headers, req.ip, d.config),
+          isLocalRequest(req.headers, req.ip, d.config),
+        );
     // Each visit moves the cookie's end along with the session's.
     if (who?.via === 'session' && token) reply.setCookie(SESSION_COOKIE, token, sessionCookie);
     const user = who ? await d.auth.users.get(who.userId) : null;
     return {
       authenticated: !!who,
-      // Whether the sign-in page asks for a username and password or for the access key.
-      account: await d.auth.users.anyPassword(),
+      // Whether the sign-in page may offer the access key: only on the computer the server runs on.
+      local: !tunnelIdentity(req.raw.socket) && isLocalRequest(req.headers, req.ip, d.config),
       ...(user && { user: { id: user.id, username: user.username, role: user.role } }),
     };
   });
@@ -379,11 +381,6 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     if (person.role === 'admin' && who.role !== 'owner') throw new HttpError(403, 'error.ownerManagesAdmins');
     return person;
   };
-  const checkPassword = (password: string | undefined) => {
-    if (password !== undefined && password.length < MIN_PASSWORD) {
-      throw new HttpError(400, 'error.passwordShort', { min: String(MIN_PASSWORD) });
-    }
-  };
   /** After a change to a person: what was remembered about them is forgotten. */
   const peopleChanged = async (userId: string, signOut: boolean) => {
     await d.auth.forgetPerson(userId, signOut);
@@ -393,18 +390,6 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     d.dropSockets(userId);
     s.ctx.bus.refresh({ scope: 'people' });
   };
-  app.post('/api/people', async (req) => {
-    const body = PersonCreate.parse(req.body);
-    checkPassword(body.password);
-    if (body.role === 'admin' && me(req).role !== 'owner')
-      throw new HttpError(403, 'error.ownerManagesAdmins');
-    const made = await d.auth.users.create(body);
-    s.access.forget();
-    s.ctx.bus.refresh({ scope: 'people' });
-    // The others who look after the server learn of them; the one who added them knows.
-    void s.push.newcomer(made.id, me(req).userId);
-    return made;
-  });
   // Invites through the Leaf Bot account: to someone new, or to someone already here, who then comes
   // in with their account as the same person, with what is theirs.
   app.get('/api/people/invites', async () => ({ invites: await d.accountHost.invites() }));
@@ -455,13 +440,30 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const { id } = IdParams.parse(req.params);
     await changeable(req, id);
     const patch = PersonUpdate.parse(req.body);
-    checkPassword(patch.password);
     if (patch.role === 'admin' && me(req).role !== 'owner')
       throw new HttpError(403, 'error.ownerManagesAdmins');
+    // Someone who comes in with an account gets the role there too, first: their next ticket would
+    // otherwise put the old one back.
+    const account = patch.role ? await d.auth.users.accountOf(id) : null;
+    if (account && patch.role) await d.accountHost.setMemberRole(account, patch.role);
     const changed = await d.auth.users.change(id, patch);
-    // A new password or a disabled person signs out everywhere; a new role counts at once.
-    await peopleChanged(id, patch.password !== undefined || patch.disabled === true);
+    // A disabled person signs out everywhere; a new role counts at once.
+    await peopleChanged(id, patch.disabled === true);
     return changed;
+  });
+  /**
+   * Ends a person's sign-in with their account, keeping them and what is theirs here: someone who
+   * moved to another address is invited again with it and comes back as the same person.
+   */
+  app.delete('/api/people/:id/account', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    await changeable(req, id);
+    const account = await d.auth.users.accountOf(id);
+    if (!account) return { ok: true };
+    await d.accountHost.removeMember(account);
+    await d.auth.users.unlinkAccount(id);
+    await peopleChanged(id, true);
+    return { ok: true };
   });
   /**
    * Removes a person. Their conversations go with them, files included; the bots they made pass to
@@ -492,6 +494,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       if (c.kind === 'whatsapp') await s.whatsapp.disconnect();
     }
     await s.bots.leftBy(id, OWNER_ID);
+    // The account lists the server for them no more; when the service cannot be reached, the link
+    // that outlives them here still keeps them out.
+    const account = await d.auth.users.accountOf(id);
+    if (account) await d.accountHost.removeMember(account).catch(() => undefined);
     await d.auth.users.remove(id);
     await peopleChanged(id, true);
     return { ok: true };
@@ -538,6 +544,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
 
   app.post('/api/access', async (req, reply) => {
     const { key } = AccessRequest.parse(req.body);
+    // From anywhere but this computer a person signs in with their account, never the key.
+    if (!isLocalRequest(req.headers, req.ip, d.config)) throw new HttpError(403, 'error.accessKeyLocalOnly');
     // The key cannot be guessed, but an address that keeps trying is still turned away. Only per
     // address: a flood of wrong keys from elsewhere must not shut the owner out of this way in.
     const attempt = d.auth.keyThrottle.attempt(clientAddress(req.headers, req.ip, d.config), {
@@ -553,85 +561,6 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const token = await d.auth.createSession(OWNER_ID, req.headers['user-agent']);
     reply.setCookie(SESSION_COOKIE, token, sessionCookie);
     return { ok: true };
-  });
-
-  app.post('/api/login', async (req, reply) => {
-    const { username, password } = LoginRequest.parse(req.body);
-    // The try is counted before the slow check, so many sent at once cannot all get past the limit.
-    const attempt = d.auth.throttle.attempt(clientAddress(req.headers, req.ip, d.config));
-    if (!attempt) throw new HttpError(429, 'error.loginBlocked');
-    const user = await d.auth.users.check(username, password);
-    if (!user) throw new HttpError(401, 'error.loginWrong');
-    attempt.succeeded();
-    reply.setCookie(
-      SESSION_COOKIE,
-      await d.auth.createSession(user.id, req.headers['user-agent']),
-      sessionCookie,
-    );
-    return { ok: true };
-  });
-
-  // Pairing: a signed-in device makes a short code; another device signs in with it once.
-  app.post('/api/pairing', async (req) => ({
-    ...d.auth.createPairingCode(me(req).userId),
-    // Where the other device finds this server, when it is known to the server.
-    url: d.config.publicUrl ?? null,
-  }));
-  app.post('/api/pair', async (req, reply) => {
-    const { code, token: wantToken } = z
-      .object({ code: z.string().min(1).max(40), token: z.boolean().optional() })
-      .parse(req.body);
-    // Wrong codes count with wrong passwords: guessing either is slowed the same way.
-    const attempt = d.auth.throttle.attempt(clientAddress(req.headers, req.ip, d.config));
-    if (!attempt) throw new HttpError(429, 'error.loginBlocked');
-    // The new device signs in as whoever made the code.
-    const userId = d.auth.usePairingCode(code);
-    if (!userId) {
-      await new Promise((r) => setTimeout(r, 300));
-      throw new HttpError(401, 'error.pairingWrong');
-    }
-    attempt.succeeded();
-    const token = await d.auth.createSession(userId, req.headers['user-agent']);
-    reply.setCookie(SESSION_COOKIE, token, sessionCookie);
-    // The desktop app pairs from its own process and puts the session in its window's cookies.
-    return wantToken
-      ? { ok: true, token, cookie: SESSION_COOKIE, maxAge: sessionCookie.maxAge }
-      : { ok: true };
-  });
-
-  // The signed-in person's own username and password.
-  app.get('/api/account', async (req) => ({
-    username: (await d.auth.users.get(me(req).userId))?.username ?? null,
-  }));
-  app.put('/api/account', async (req) => {
-    const { username, password, current } = AccountSet.parse(req.body);
-    if (password.length < MIN_PASSWORD) {
-      throw new HttpError(400, 'error.passwordShort', { min: String(MIN_PASSWORD) });
-    }
-    const who = me(req);
-    const user = await d.auth.users.get(who.userId);
-    if (!user) throw new HttpError(401, 'error.accessKeyRequired');
-    // Changing it takes the current password, or, for the owner, the access key when that is forgotten.
-    const changing = user.username !== null;
-    if (changing) {
-      // Only a signed-in device gets here, so the count across all addresses is left alone: a
-      // flood of guesses at the sign-in page must not stop the owner changing the password.
-      const attempt = d.auth.throttle.attempt(clientAddress(req.headers, req.ip, d.config), {
-        shared: false,
-      });
-      if (!attempt) throw new HttpError(429, 'error.loginBlocked');
-      const ok =
-        !!current &&
-        ((user.role === 'owner' && d.auth.checkKey(current)) ||
-          (await d.auth.users.checkFor(user.id, current)));
-      if (!ok) throw new HttpError(403, 'error.currentPasswordWrong');
-      attempt.succeeded();
-    }
-    const saved = await d.auth.users.setCredentials(user.id, username, password);
-    // A new password is often set because the old one got out: whoever signed in with it is
-    // signed out, everywhere but on the device that made the change.
-    if (changing) await d.auth.revokeSessions(req.cookies[SESSION_COOKIE], user.id, 'others');
-    return { username: saved.username };
   });
 
   app.post('/api/logout', async (req, reply) => {
@@ -1708,6 +1637,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       .parse(req.body);
     return d.accountSignIn.verify(email, code);
   });
+  // A QR code that signs the owner's phone in to their account, shown at the server itself.
+  app.post('/api/account-host/phone-code', async () => d.accountHost.phoneCode());
   app.post('/api/account-host/name', async (req) => {
     const { name } = z.object({ name: z.string().max(200) }).parse(req.body);
     return d.accountSignIn.setName(name);

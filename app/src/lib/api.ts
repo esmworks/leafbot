@@ -51,7 +51,7 @@ async function request<T>(method: string, path: string, body?: unknown, opts: Se
   }
   const { data, reason } = readAnswer(text);
   if (!res.ok) {
-    if (res.status === 401 && path !== '/api/access' && path !== '/api/login') onUnauthorized();
+    if (res.status === 401 && path !== '/api/access') onUnauthorized();
     throw new ApiError(
       res.status,
       reason ?? getT()('error.requestFailed', { status: res.status }),

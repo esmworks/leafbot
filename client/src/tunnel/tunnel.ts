@@ -9,7 +9,7 @@ import {
 } from '@leafbot/shared/tunnel';
 import type { Channel, Peer } from './channel';
 import { randomB64url, verifyHost, type DeviceKey } from './device';
-import { HttpStreams, tunnelFetch } from './http';
+import { HttpStreams, tunnelFetch, tunnelRequest, type RawRequest, type TunnelResponse } from './http';
 import { RtSocket } from './rt';
 
 /**
@@ -38,6 +38,11 @@ export interface TunnelOptions {
   answerMs?: number;
   /** Called once when the tunnel ends after it opened. */
   onEnd?: (code: TunnelEndCode) => void;
+  /**
+   * Checks the server's Ed25519 signature; WebCrypto's by default. A runtime without Ed25519 in
+   * WebCrypto (React Native) passes its own.
+   */
+  verify?: (hkey: string, message: Uint8Array, sig: string) => Promise<boolean>;
 }
 
 type Ok = Extract<CtlToClient, { t: 'ok' }>;
@@ -129,7 +134,7 @@ async function prove(
   if (ok.t === 'denied') throw new TunnelError(ok.code);
   if (ok.t !== 'ok') throw new TunnelError('closed');
   // Nothing the server says counts until it proved it holds the key the ticket names.
-  if (!(await verifyHost(opts.hostKey, hostProofMessage({ ...fps, cnonce }), ok.sig)))
+  if (!(await (opts.verify ?? verifyHost)(opts.hostKey, hostProofMessage({ ...fps, cnonce }), ok.sig)))
     throw new TunnelError('host-proof');
   return { ok, nonce: await challenge(reader, answerMs) };
 }
@@ -237,6 +242,14 @@ export class Tunnel {
   /** A request to a path on the server, answered over the tunnel. */
   fetch(path: string, init?: RequestInit): Promise<Response> {
     return tunnelFetch(() => this.streams(), path, init);
+  }
+
+  /**
+   * A request to a path on the server answered as bytes, for a runtime whose `Request` and `Response`
+   * cannot carry a stream (React Native): the status, headers and a body stream as they came.
+   */
+  request(path: string, init?: RawRequest): Promise<TunnelResponse> {
+    return tunnelRequest(() => this.streams(), path, init);
   }
 
   /** A new Socket.IO connection, shaped like a WebSocket, on a channel of its own. */

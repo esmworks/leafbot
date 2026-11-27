@@ -10,7 +10,6 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { AccountGate } from '@/features/AccountGate';
-import { CreateAccount } from '@/features/AccountSetup';
 import { BotFormPage } from '@/features/BotFormPage';
 import { AppsPage } from '@/features/Connections';
 import { ComputerDialog } from '@/features/Computer';
@@ -115,12 +114,6 @@ function Authed() {
   const settings = useSettings();
   const bots = useBots();
   const [onboarding, setOnboarding] = useState<boolean | null>(null);
-  // In a browser, a server without an account asks for one right after the key: from then on the
-  // username and password sign in. The desktop app signs in by itself and does not ask.
-  // Reached through the account, the person is already known and never makes a server account.
-  const local = !desktop && !viaTunnel();
-  const account = useQuery({ queryKey: ['account'], queryFn: api.account, enabled: local, retry: false });
-  const [accountDone, setAccountDone] = useState(false);
   // The owner signs in to their Leaf Bot account once, before anything else, on a server that is
   // not linked to one; the server links itself on the way. Decided by what the server has stored,
   // never by asking the account service, so the app opens without it once linked. Through the
@@ -169,12 +162,6 @@ function Authed() {
     return <Loading />;
   }
   if (askAccount) return <AccountGate onDone={() => setAskAccount(false)} />;
-  // Signed in through the account, the owner needs no username and password of the server's own.
-  const viaAccount = accountHost.data?.linked === true;
-  if (local && !accountDone && !viaAccount) {
-    if (account.isPending) return <Loading />;
-    if (account.data?.username === null) return <CreateAccount onDone={() => setAccountDone(true)} />;
-  }
   if (onboarding === null) {
     const first =
       settings.isError || bots.isError

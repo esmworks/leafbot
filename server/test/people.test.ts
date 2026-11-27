@@ -17,52 +17,37 @@ describe('kişileri yönetmek', () => {
   });
   afterAll(() => t.dispose());
 
-  const login = async (username: string, password: string) =>
-    t.app.inject({
-      method: 'POST',
-      url: '/api/login',
-      headers: { host: 'localhost', origin: 'http://localhost' },
-      payload: { username, password },
-    });
-
-  it('yönetici üye ekler; eklenen kendi şifresiyle girer; üye kimseyi ekleyemez', async () => {
-    const made = await admin.api<PersonInfo>('POST', '/api/people', {
-      username: 'Zeynep',
-      password: 'zeynep-sifre',
-      displayName: 'Zeynep K.',
-    });
-    expect(made.status).toBe(200);
-    expect(made.body).toMatchObject({ username: 'Zeynep', role: 'member', disabled: false });
-    expect((await login('zeynep', 'zeynep-sifre')).statusCode).toBe(200);
+  it('kişi yalnızca hesapla davetle gelir: şifreyle kişi eklenemez; yöneticilere sahip ve kendine dokunulmaz', async () => {
+    expect((await admin.api('POST', '/api/people', { username: 'x', password: 'x-sifre-uzun' })).status).toBe(
+      404,
+    );
     // Everyone sees who is here, to share a bot with them.
-    const seen = (await member.api<PersonInfo[]>('GET', '/api/people')).body.map((p) => p.username);
-    expect(seen).toContain('Zeynep');
-    expect(seen[0]).toBe(null); // the owner, who has only used the access key
-
-    expect(
-      (await member.api('POST', '/api/people', { username: 'x', password: 'x-sifre-uzun' })).status,
-    ).toBe(403);
-    expect((await admin.api('POST', '/api/people', { username: 'kisa', password: 'kisa' })).status).toBe(400);
-    expect(
-      (await admin.api('POST', '/api/people', { username: 'ZEYNEP', password: 'baska-sifre' })).status,
-    ).toBe(409);
-  });
-
-  it('yöneticileri yalnızca sahip ekler ve değiştirir; sahibe ve kendine dokunulmaz', async () => {
-    expect(
-      (await admin.api('POST', '/api/people', { username: 'y2', password: 'y2-sifre-uzun', role: 'admin' }))
-        .status,
-    ).toBe(403);
-    const other = await t.api<PersonInfo>('POST', '/api/people', {
-      username: 'y3',
-      password: 'y3-sifre-uzun',
-      role: 'admin',
-    });
-    expect(other.body.role).toBe('admin');
-    expect((await admin.api('PATCH', `/api/people/${other.body.id}`, { disabled: true })).status).toBe(403);
+    const seen = (await member.api<PersonInfo[]>('GET', '/api/people')).body.map((p) => p.id);
+    expect(seen).toContain(admin.id);
+    const other = await t.person('y3', 'admin');
+    expect((await admin.api('PATCH', `/api/people/${other.id}`, { disabled: true })).status).toBe(403);
     expect((await admin.api('PATCH', `/api/people/${OWNER_ID}`, { disabled: true })).status).toBe(404);
     expect((await admin.api('PATCH', `/api/people/${admin.id}`, { role: 'member' })).status).toBe(403);
     expect((await admin.api('PATCH', `/api/people/${member.id}`, { role: 'admin' })).status).toBe(403);
+    // A password is no longer something to give.
+    const q = await t.person('sifresiz');
+    expect((await t.api('PATCH', `/api/people/${q.id}`, { password: 'yeni-sifre-1' })).status).toBe(200);
+    expect((await q.api('GET', '/api/bots')).status).toBe(200);
+  });
+
+  it('hesap bağı kaldırılır: kişi ve ona ait olanlar kalır, cihazları çıkar, yeniden davet edilebilir', async () => {
+    const p = await t.person('bagli');
+    await t.services.ctx.db
+      .insert(schema.accountLinks)
+      .values({ accountUserId: 'acct_people_02', userId: p.id });
+    expect((await member.api('DELETE', `/api/people/${p.id}/account`)).status).toBe(403);
+    expect((await admin.api('DELETE', `/api/people/${p.id}/account`)).status).toBe(200);
+    expect((await p.api('GET', '/api/bots')).status).toBe(401);
+    const after = (await admin.api<PersonInfo[]>('GET', '/api/people')).body.find((x) => x.id === p.id);
+    expect(after).toMatchObject({ linked: false, disabled: false });
+    // Someone without an account link: nothing to end.
+    expect((await admin.api('DELETE', `/api/people/${member.id}/account`)).status).toBe(200);
+    expect((await admin.api('DELETE', `/api/people/${OWNER_ID}/account`)).status).toBe(404);
   });
 
   it('hesapla davet: üye davet edemez, yöneticiyi yalnızca sahip getirir, sahip davet edilmez', async () => {
@@ -95,7 +80,7 @@ describe('kişileri yönetmek', () => {
     expect(after.find((p) => p.id === withAccount.id)?.linked).toBe(true);
   });
 
-  it('devre dışı kalan ya da şifresi değişen hemen çıkar; yeni rol hemen geçerli olur', async () => {
+  it('devre dışı kalan hemen çıkar; yeni rol hemen geçerli olur', async () => {
     const p = await t.person('gecici');
     expect((await p.api('GET', '/api/push/apns')).status).toBe(403);
     expect((await t.api('PATCH', `/api/people/${p.id}`, { role: 'admin' })).status).toBe(200);
@@ -106,11 +91,6 @@ describe('kişileri yönetmek', () => {
     expect((await t.api('PATCH', `/api/people/${p.id}`, { disabled: false })).status).toBe(200);
     // Brought back, they sign in again: the old devices stay signed out.
     expect((await p.api('GET', '/api/bots')).status).toBe(401);
-
-    const q = await t.person('sifreli');
-    expect((await admin.api('PATCH', `/api/people/${q.id}`, { password: 'yeni-sifre-1' })).status).toBe(200);
-    expect((await q.api('GET', '/api/bots')).status).toBe(401);
-    expect((await login('sifreli', 'yeni-sifre-1')).statusCode).toBe(200);
   });
 
   it('devre dışı kişi adına hiçbir iş çalışmaz: rutini, sohbet uygulaması, bot-bot isteği', async () => {

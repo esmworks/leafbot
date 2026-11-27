@@ -7,6 +7,17 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- One way in for everyone: the Leaf Bot account. The app, the desktop app, the phone app and the Chrome extension
+  reach a server through the person's account and the tunnel, never by its address. A device already signed in
+  shows a one-time code as a QR code under Settings → Connection → Connect another device; the phone app scans it,
+  and the Chrome extension takes it typed. The code works once, for two minutes. On a server linked to an account,
+  `leafbot phone` prints the same QR code in the terminal for the server's owner.
+- Settings → People has "Unlink account" for a person who came in with an account: the account loses its way into
+  the server, and the person, with what is theirs, stays for a new invite. A role changed here, or a person removed
+  here, is changed at the account too, so the account's list and the server agree.
+- The desktop app opens the servers of the Leaf Bot account in its window (Settings → Connection, and the first
+  start), and keeps its offers to a server (the way out to the web, the Mac's apps) through the tunnel.
+
 - People are invited through the Leaf Bot account. Settings → People → Invite sends an invite to an email address;
   with its link the person signs in to their account (made with that email if they have none) and comes to the
   server. Someone already on the server who signs in with a username and password gets "Invite to an account" on
@@ -415,6 +426,17 @@ version is 0.x, a minor release may change the data format or the API; the serve
 - Files on a message are listed one under another, each with an icon coloured by its kind (document, PDF, web page,
   sheet, slides, code, archive) and a download button beside it, so a file the preview can show no longer has to be
   opened to be saved. Pictures and players still sit side by side, and the download-all button comes after the list.
+
+### Removed
+
+- Signing in with a username and password, with a pairing code, and connecting to a server by its address, in the
+  app, the desktop app, the phone app and the Chrome extension; and `POST /api/login`, `/api/pair`,
+  `/api/pairing`, `GET`/`PUT /api/account` and `POST /api/people`. Every sign-in made those ways ends with this
+  update. The access key now works only from the server's own computer (or through a proxy that proves itself with
+  `LEAFBOT_PROXY_SECRET` and forwards such an address), for the owner when the account cannot be reached and for
+  scripts there. To move over: link the server to your account (the `login` command, or Settings → Connection),
+  invite each person from Settings → People (someone already on the server comes back as the same person), and sign
+  the phone app and the Chrome extension in with the QR code. Passwords stay in the database, unused.
 
 ### Fixed
 

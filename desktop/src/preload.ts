@@ -1,23 +1,13 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-// The page gets only these calls; no Node or Electron objects cross the bridge.
+// Only the page of this computer's own server gets these calls (the window that shows the website
+// is made without this script); no Node or Electron objects cross the bridge.
 const bridge = {
   /** True when the window has no title bar and the page must leave room for the window buttons. */
   framelessTitleBar: process.platform === 'darwin',
   accessKey: (): Promise<string | null> => ipcRenderer.invoke('leafbot:access-key'),
-  connectRemote: (url: string, key: string): Promise<{ ok: boolean; error?: string }> =>
-    ipcRenderer.invoke('leafbot:connect-remote', url, key),
-  useLocal: (): Promise<void> => ipcRenderer.invoke('leafbot:use-local'),
-  server: (): Promise<{ mode: 'local' | 'remote'; url: string | null } | null> =>
-    ipcRenderer.invoke('leafbot:server'),
-  /** Every server the app keeps; the window shows one, and one is the main server. */
-  servers: (): Promise<{ id: string; url: string | null; main: boolean; shown: boolean }[] | null> =>
-    ipcRenderer.invoke('leafbot:servers'),
-  /** Shows another kept server in the window; `local` is this computer's own. */
-  showServer: (id: string): Promise<void> => ipcRenderer.invoke('leafbot:show-server', id),
-  /** Opens the app's menu of its servers at the pointer; the page is not told the list. */
-  serverMenu: (): Promise<void> => ipcRenderer.invoke('leafbot:server-menu'),
-  openConnect: (): Promise<void> => ipcRenderer.invoke('leafbot:open-connect'),
+  /** Shows the website's page of the person's account servers in the window. */
+  openAccount: (): Promise<void> => ipcRenderer.invoke('leafbot:open-account'),
   setLocale: (locale: string): Promise<void> => ipcRenderer.invoke('leafbot:set-locale', locale),
   setUnread: (count: number): Promise<void> => ipcRenderer.invoke('leafbot:set-unread', count),
   setBusy: (busy: boolean): Promise<void> => ipcRenderer.invoke('leafbot:set-busy', busy),

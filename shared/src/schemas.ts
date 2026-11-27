@@ -1487,13 +1487,6 @@ export const PersonInfo = z.object({
 export type PersonInfo = z.infer<typeof PersonInfo>;
 /** The roles a person can be given; there is only ever one owner. */
 export const GivenRole = z.enum(['admin', 'member']);
-export const PersonCreate = z.object({
-  username: z.string().trim().min(1).max(100),
-  password: z.string().min(1).max(200),
-  displayName: z.string().trim().max(100).optional(),
-  role: GivenRole.default('member'),
-});
-export type PersonCreate = z.input<typeof PersonCreate>;
 /**
  * An invite to the server through the Leaf Bot account, sent to an address. With `personId`, it is
  * for someone already here: whoever accepts it comes in as that person, with what is theirs.
@@ -1520,24 +1513,10 @@ export const PersonUpdate = z.object({
   displayName: z.string().trim().max(100).nullable().optional(),
   role: GivenRole.optional(),
   disabled: z.boolean().optional(),
-  /** A new password, for someone who forgot theirs; their devices are signed out. */
-  password: z.string().min(1).max(200).optional(),
 });
 export type PersonUpdate = z.input<typeof PersonUpdate>;
 
 export const AccessRequest = z.object({ key: z.string().min(1).max(500) });
-export const LoginRequest = z.object({
-  username: z.string().trim().min(1).max(100),
-  password: z.string().min(1).max(200),
-});
-/** Makes the account, or changes it; a change needs the current password or the access key. */
-export const AccountSet = z.object({
-  username: z.string().trim().min(1).max(100),
-  password: z.string().min(1).max(200),
-  current: z.string().max(500).optional(),
-});
-export type AccountSet = z.infer<typeof AccountSet>;
-
 /** A device signed in to the server. */
 export const SessionInfo = z.object({
   id: z.string(),

@@ -18,6 +18,7 @@ function fakeAccount(opts: { taken?: boolean; inviteError?: [number, string] } =
   const claims: { hostId: string; publicKey: string; name: string }[] = [];
   const tickets: string[] = [];
   const invites: { auth: string; body: Record<string, unknown>; id: string }[] = [];
+  const members: { method: string; userId: string; body: unknown }[] = [];
   const fetcher = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     const json = (status: number, body: unknown) =>
@@ -66,13 +67,26 @@ function fakeAccount(opts: { taken?: boolean; inviteError?: [number, string] } =
       invites.splice(at, 1);
       return new Response(null, { status: 204 });
     }
+    const member = /\/v1\/host\/members\/(.+)$/.exec(url);
+    if (member) {
+      members.push({
+        method: init?.method ?? 'GET',
+        userId: decodeURIComponent(member[1]!),
+        body: init?.body ? JSON.parse(String(init.body)) : null,
+      });
+      if (member[1] === 'acct_gone_0001') return json(404, { error: 'not_found' });
+      return new Response(null, { status: 204 });
+    }
+    if (url === `${ISSUER}/v1/host/connect-codes` && init?.method === 'POST') {
+      return json(201, { code: 'ABCDE-FGHJK', expiresAt: 99, url: 'leafbot://connect?code=ABCDE-FGHJK' });
+    }
     if (url === `${ISSUER}/v1/host/ticket`) {
       tickets.push(new Headers(init?.headers).get('authorization') ?? '');
       return json(200, { ticket: `host-ticket-${tickets.length}`, expiresAt: 0, epoch: 1 });
     }
     return json(404, { error: 'not_found' });
   }) as typeof fetch;
-  return { fetcher, claims, tickets, invites };
+  return { fetcher, claims, tickets, invites, members };
 }
 
 describe('linking the server to an account', () => {
@@ -178,6 +192,32 @@ describe('linking the server to an account', () => {
     ]);
     await h.revokeInvite('inv_1_abcdefgh');
     await expect(h.revokeInvite('inv_1_abcdefgh')).rejects.toMatchObject({ key: 'error.inviteGone' });
+  });
+
+  it('keeps the account in step with roles and removals here, and makes the owner’s phone code', async () => {
+    const account = fakeAccount();
+    const h = host(account);
+    await h.unlink();
+    // Not linked: no tickets come to undo anything, so there is nothing to tell.
+    await h.setMemberRole('acct_member_01', 'admin');
+    await h.removeMember('acct_member_01');
+    expect(account.members).toEqual([]);
+    await expect(h.phoneCode()).rejects.toMatchObject({ key: 'error.serverNotLinked' });
+    await h.link(CODE, 'Office');
+    await h.setMemberRole('acct_member_01', 'admin');
+    await h.removeMember('acct_member_01');
+    // Someone the account no longer lists needs nothing.
+    await h.removeMember('acct_gone_0001');
+    expect(account.members).toEqual([
+      { method: 'PATCH', userId: 'acct_member_01', body: { role: 'admin' } },
+      { method: 'DELETE', userId: 'acct_member_01', body: null },
+      { method: 'DELETE', userId: 'acct_gone_0001', body: null },
+    ]);
+    expect(await h.phoneCode()).toEqual({
+      code: 'ABCDE-FGHJK',
+      expiresAt: 99,
+      url: 'leafbot://connect?code=ABCDE-FGHJK',
+    });
   });
 
   it('says why the account would not send an invite', async () => {

@@ -4,9 +4,31 @@ import type { ServerInfo } from '@leafbot/shared';
 import { dialPublic, EgressError, EgressMux } from '@leafbot/shared/egress';
 import { io, type Socket as IoSocket } from 'socket.io-client';
 import { afterEach, describe, expect, it } from 'vitest';
+import type { RtSocket } from '@leafbot/client/tunnel';
+import WebSocket from 'ws';
 import { startEgress } from '../../desktop/src/egress';
+import type { TunnelListener } from '../../desktop/src/tunnel-socket';
 import { EgressHub, startLocalSocks } from '../src/egress/hub';
 import { KEY, testServer, waitFor } from './helpers';
+
+/**
+ * The desktop app's tunnel to the server, stood in for by a plain WebSocket from this computer with
+ * the access key: what the exit says over it is the same.
+ */
+const viaKey =
+  (url: string) =>
+  (listener: TunnelListener): (() => void) => {
+    listener({
+      realtime: () => {
+        const ws = new WebSocket(`${url.replace(/^http/, 'ws')}/socket.io/?EIO=4&transport=websocket`, {
+          headers: { authorization: `Bearer ${KEY}` },
+        });
+        ws.binaryType = 'arraybuffer';
+        return ws as unknown as RtSocket;
+      },
+    });
+    return () => undefined;
+  };
 
 const servers: Server[] = [];
 const cleanups: (() => void)[] = [];
@@ -238,8 +260,7 @@ describe('the desktop app connection', () => {
     const t = await testServer({ onUserComputer: false });
     const url = await t.listen();
     const stop = startEgress({
-      url,
-      headers: async () => ({ authorization: `Bearer ${KEY}` }),
+      tunnel: viaKey(url),
       device: 'Test Mac',
       log: () => {},
     });
@@ -269,8 +290,7 @@ describe('the desktop app connection', () => {
     const url = await t.listen();
     const start = (device: string, lines: string[]) =>
       startEgress({
-        url,
-        headers: async () => ({ authorization: `Bearer ${KEY}` }),
+        tunnel: viaKey(url),
         device,
         log: (_level, line) => lines.push(line),
       });

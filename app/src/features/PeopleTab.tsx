@@ -1,6 +1,6 @@
 import type { PersonInfo } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, KeyRound, Mail, Pause, Play, Plus, Trash2, UserRound, X } from 'lucide-react';
+import { Archive, Link2Off, Mail, Pause, Play, Plus, Trash2, UserRound, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -9,9 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { useManagesServer, usePeople, useSession } from '@/lib/queries';
-
-/** The shortest password the server takes. */
-const MIN_PASSWORD = 8;
 
 /** A person's name as the lists show it. */
 export function personName(p: Pick<PersonInfo, 'displayName' | 'username'>, owner: string) {
@@ -113,7 +110,6 @@ function PersonRow({ person }: { person: PersonInfo }) {
   const t = useT();
   const qc = useQueryClient();
   const me = useSession().data?.user;
-  const [resetting, setResetting] = useState(false);
   const [inviting, setInviting] = useState(false);
   const isMe = me?.id === person.id;
   // The owner stays as they are; admins are the owner's to change.
@@ -124,6 +120,13 @@ function PersonRow({ person }: { person: PersonInfo }) {
   const done = () => void qc.invalidateQueries({ queryKey: ['people'] });
   const change = useMutation({
     mutationFn: (patch: Parameters<typeof api.updatePerson>[1]) => api.updatePerson(person.id, patch),
+    onSuccess: done,
+    onError: (e) => toast.error((e as Error).message),
+  });
+  // Their account stops reaching the server; they stay, with what is theirs, for an invite to
+  // another address to bring back.
+  const unlink = useMutation({
+    mutationFn: () => api.unlinkPerson(person.id),
     onSuccess: done,
     onError: (e) => toast.error((e as Error).message),
   });
@@ -181,16 +184,19 @@ function PersonRow({ person }: { person: PersonInfo }) {
                 <Mail />
               </Button>
             )}
-            {!person.linked && (
+            {person.linked && (
               <Button
                 variant="ghost"
                 size="icon"
                 className="rounded-full"
-                onClick={() => setResetting((r) => !r)}
-                aria-label={t('people.resetPassword')}
-                title={t('people.resetPassword')}
+                disabled={unlink.isPending}
+                onClick={() => {
+                  if (confirm(t('people.confirmUnlink', { name }))) unlink.mutate();
+                }}
+                aria-label={t('people.unlink')}
+                title={t('people.unlink')}
               >
-                <KeyRound />
+                <Link2Off />
               </Button>
             )}
             <Button
@@ -225,13 +231,6 @@ function PersonRow({ person }: { person: PersonInfo }) {
           personId={person.id}
           hint={t('people.inviteToAccountHint', { name })}
           onDone={() => setInviting(false)}
-        />
-      )}
-      {resetting && (
-        <NewPassword
-          onSave={(password) => change.mutate({ password }, { onSuccess: () => setResetting(false) })}
-          onCancel={() => setResetting(false)}
-          pending={change.isPending}
         />
       )}
     </div>
@@ -293,44 +292,6 @@ function PrivateBots({ person, name }: { person: PersonInfo; name: string }) {
         <Archive /> {t('people.archivePrivate')}
       </Button>
     </div>
-  );
-}
-
-function NewPassword({
-  onSave,
-  onCancel,
-  pending,
-}: {
-  onSave(password: string): void;
-  onCancel(): void;
-  pending: boolean;
-}) {
-  const t = useT();
-  const [password, setPassword] = useState('');
-  return (
-    <form
-      className="mt-3 flex items-center gap-2"
-      onSubmit={(e) => {
-        e.preventDefault();
-        onSave(password);
-      }}
-    >
-      <Input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder={t('people.newPassword', { min: String(MIN_PASSWORD) })}
-        aria-label={t('people.resetPassword')}
-        autoComplete="new-password"
-        className="flex-1"
-      />
-      <Button type="button" variant="ghost" className="rounded-full" onClick={onCancel}>
-        {t('common.cancel')}
-      </Button>
-      <Button type="submit" className="rounded-full" disabled={pending || password.length < MIN_PASSWORD}>
-        {t('common.save')}
-      </Button>
-    </form>
   );
 }
 

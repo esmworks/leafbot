@@ -6,8 +6,9 @@ const common = {
   platform: 'node',
   target: 'node22',
   format: 'cjs',
-  // ws (under socket.io-client) loads these optional speedups only if present.
-  external: ['electron', 'bufferutil', 'utf-8-validate'],
+  // ws (under socket.io-client) loads these optional speedups only if present. node-datachannel
+  // loads a native build, so it stays in node_modules (unpacked from the asar archive when packaged).
+  external: ['electron', 'bufferutil', 'utf-8-validate', 'node-datachannel'],
   sourcemap: true,
 };
 await build({ ...common, entryPoints: ['src/main.ts'], outfile: 'dist/main.cjs' });

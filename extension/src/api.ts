@@ -1,4 +1,5 @@
 import { ApiError, endpoints, NoAnswerError, readAnswer, type SendOptions } from '@leafbot/client';
+import type { Tunnel } from '@leafbot/client/tunnel';
 import { t, uiLocale } from './i18n';
 
 export { ApiError, NoAnswerError };
@@ -7,12 +8,11 @@ export { ApiError, NoAnswerError };
 const TIMEOUT_MS = 15_000;
 
 /**
- * One request to the server at `origin`, from the panel. Chrome sends the session cookie of that
- * server with it, the one pairing set or the one of the Leaf Bot page signed in in this Chrome;
- * the panel never holds the session itself.
+ * One request to the server, from the panel, through the tunnel: the server knows the person from
+ * the ticket the tunnel was opened with, so no cookie or key goes along.
  */
 async function request<T>(
-  origin: string,
+  tunnel: Tunnel,
   method: string,
   path: string,
   body?: unknown,
@@ -28,10 +28,9 @@ async function request<T>(
   opts.signal?.addEventListener('abort', stop, { once: true });
   let res: Response;
   try {
-    res = await fetch(`${origin}${path}`, {
+    res = await tunnel.fetch(path, {
       method,
       headers,
-      credentials: 'include',
       body: hasBody ? JSON.stringify(body ?? {}) : undefined,
       signal: ctrl.signal,
     });
@@ -51,9 +50,9 @@ async function request<T>(
   return data as T;
 }
 
-/** Typed endpoints of the server at `origin`. */
-export const apiFor = (origin: string) =>
-  endpoints((method, path, body, opts) => request(origin, method, path, body, opts), origin);
+/** Typed endpoints of the server at the other end of `tunnel`. */
+export const apiFor = (tunnel: Tunnel) =>
+  endpoints((method, path, body, opts) => request(tunnel, method, path, body, opts));
 
 export type Api = ReturnType<typeof apiFor>;
 

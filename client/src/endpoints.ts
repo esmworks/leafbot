@@ -61,7 +61,6 @@ import type {
   Bot,
   BotSummary,
   SessionInfo,
-  AccountSet,
   TodayReport,
   Group,
   MailSender,
@@ -159,7 +158,6 @@ import type {
   TicketUpdate,
   SessionUser,
   PersonInfo,
-  PersonCreate,
   PersonUpdate,
   BotAccess,
   StorageReport,
@@ -285,18 +283,13 @@ export interface Settings {
 export function endpoints(send: Transport, base = '') {
   const http = httpOf(send);
   return {
-    /** `account` is missing on servers older than username and password sign-in. */
-    session: () =>
-      http.get<{ authenticated: boolean; account?: boolean; user?: SessionUser }>('/api/session'),
-    /** Signs this browser in with a one-time pairing code from a signed-in device. */
-    pair: (code: string) => http.post<{ ok: true }>('/api/pair', { code }),
-    /** A one-time code that signs one more device in within five minutes. */
-    pairingCode: () => http.post<{ code: string; expiresAt: string; url: string | null }>('/api/pairing'),
+    /** `local`: this device is the computer the server runs on, where the access key works. */
+    session: () => http.get<{ authenticated: boolean; local?: boolean; user?: SessionUser }>('/api/session'),
+    /** The owner's way in on the computer the server runs on, when the account cannot be reached. */
     access: (key: string) => http.post<{ ok: true }>('/api/access', { key }),
-    login: (username: string, password: string) =>
-      http.post<{ ok: true }>('/api/login', { username, password }),
-    account: () => http.get<{ username: string | null }>('/api/account'),
-    setAccount: (input: AccountSet) => http.put<{ username: string }>('/api/account', input),
+    /** A one-time code (as a QR code) that signs the owner's phone in to their account. */
+    phoneCode: () =>
+      http.post<{ code: string; expiresAt: number; url: string }>('/api/account-host/phone-code'),
     logout: () => http.post<{ ok: true }>('/api/logout'),
     sessions: () => http.get<SessionInfo[]>('/api/sessions'),
     /** Signs out one device, or with `others` every device but this one. */
@@ -359,13 +352,14 @@ export function endpoints(send: Transport, base = '') {
     settings: () => http.get<Settings>('/api/settings'),
     updateSettings: (p: Partial<Settings>) => http.patch<Settings>('/api/settings', p),
     people: () => http.get<PersonInfo[]>('/api/people'),
-    addPerson: (p: PersonCreate) => http.post<PersonInfo>('/api/people', p),
     updatePerson: (id: string, p: PersonUpdate) => http.patch<PersonInfo>(`/api/people/${id}`, p),
     removePerson: (id: string) => http.del<{ ok: true }>(`/api/people/${id}`),
     /** Invites through the Leaf Bot account: someone new, or someone here (`personId`) to their account. */
     invitePerson: (p: PersonInvite) => http.post<{ id: string; expiresAt: number }>('/api/people/invites', p),
     personInvites: () => http.get<{ invites: AccountInvite[] }>('/api/people/invites'),
     revokeInvite: (id: string) => http.del<{ ok: true }>(`/api/people/invites/${id}`),
+    /** Ends a person's sign-in with their account; they stay, with what is theirs. */
+    unlinkPerson: (id: string) => http.del<{ ok: true }>(`/api/people/${id}/account`),
     setBotAccess: (id: string, access: BotAccess) => http.put<Bot>(`/api/bots/${id}/access`, access),
     /** Models that make pictures through a saved key; the chosen one is the `imageModel` setting. */
     imageModels: () => http.get<{ models: ImageModel[] }>('/api/images/models'),

@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useLocale, useT } from '@/i18n';
 import { api } from '@/lib/api';
-import { desktop, useDesktopServer } from '@/lib/desktop';
+import { desktop } from '@/lib/desktop';
 import { newBotEngine } from '@/lib/new-bot';
 import { isSpace, placeOf, SHARED } from '@/lib/places';
 import {
@@ -108,20 +108,20 @@ export function Onboarding({ onDone }: { onDone(): void }) {
         </Button>
       </header>
       {step === 'language' && (
-        <LanguageStep onNext={() => setStep(desktop?.openConnect ? 'server' : manages ? 'ai' : 'welcome')} />
+        <LanguageStep onNext={() => setStep(desktop?.openAccount ? 'server' : manages ? 'ai' : 'welcome')} />
       )}
       {step === 'server' && (
         <ServerStep onBack={() => setStep('language')} onNext={() => setStep(manages ? 'ai' : 'welcome')} />
       )}
       {step === 'welcome' && (
         <WelcomeStep
-          onBack={() => setStep(desktop?.openConnect ? 'server' : 'language')}
+          onBack={() => setStep(desktop?.openAccount ? 'server' : 'language')}
           onNext={() => setStep('about')}
         />
       )}
       {step === 'ai' && (
         <AiStep
-          onBack={() => setStep(desktop?.openConnect ? 'server' : 'language')}
+          onBack={() => setStep(desktop?.openAccount ? 'server' : 'language')}
           onNext={(connected) => {
             if (connected) setEngine(connected);
             setStep(connected ? 'model' : 'about');
@@ -269,29 +269,20 @@ function StepPage({
   );
 }
 
-/** Desktop app only: keep the server on this computer, or switch this window to a remote one. */
+/**
+ * Desktop app only: the server on this computer is the one shown here; the servers of the person's
+ * Leaf Bot account open in the window as the website's page, where they sign in.
+ */
 function ServerStep({ onBack, onNext }: { onBack(): void; onNext(): void }) {
   const t = useT();
-  const server = useDesktopServer();
-  const remote = server?.mode === 'remote';
   const options = [
+    { id: 'local', on: true, title: t('server.local'), hint: t('server.localHint'), pick: () => undefined },
     {
-      id: 'local',
-      on: !remote,
-      title: t('server.local'),
-      hint: t('server.localHint'),
-      pick: () => remote && void desktop?.useLocal(),
-    },
-    {
-      id: 'remote',
-      on: remote,
+      id: 'account',
+      on: false,
       title: t('server.remote'),
-      hint:
-        remote && server?.url
-          ? t('server.connectedTo', { host: hostOf(server.url) })
-          : t('server.remoteHint'),
-      // The connect window asks for the address and key, then this window opens that server.
-      pick: () => void desktop?.openConnect?.(),
+      hint: t('server.remoteHint'),
+      pick: () => void desktop?.openAccount?.(),
     },
   ];
   return (
@@ -328,14 +319,6 @@ function ServerStep({ onBack, onNext }: { onBack(): void; onNext(): void }) {
       </div>
     </StepPage>
   );
-}
-
-function hostOf(url: string) {
-  try {
-    return new URL(url).host;
-  } catch {
-    return url;
-  }
 }
 
 /** Claude, or another provider's API key; either is enough for the bots to answer. */

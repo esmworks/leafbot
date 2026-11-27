@@ -202,7 +202,10 @@ export class AccountHost {
    * Asks the account service, with this server's machine token, to do something about its invites.
    * Its refusals become the server's own messages; anything else reads as the service being away.
    */
-  private async hostCall(path: string, init: { method: string; body?: unknown }): Promise<unknown> {
+  private async hostCall(
+    path: string,
+    init: { method: string; body?: unknown; gone?: 'ok' | 'invite' },
+  ): Promise<unknown> {
     const secrets = await this.secrets();
     if (!secrets) throw new HttpError(409, 'error.serverNotLinked');
     const res = await this.fetcher(`${this.deps.config.issuer}${path}`, {
@@ -218,8 +221,10 @@ export class AccountHost {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
     if (res.ok) return body;
     if (res.status === 429) throw new HttpError(429, 'error.accountTooManyTries');
-    // Only a withdrawal names one invite; a 404 elsewhere is a service without these routes.
-    if (res.status === 404 && init.method === 'DELETE') throw new HttpError(404, 'error.inviteGone');
+    // A 404 means the thing asked about is gone only where the caller says so; elsewhere it is a
+    // service without these routes.
+    if (res.status === 404 && init.gone === 'ok') return null;
+    if (res.status === 404 && init.gone === 'invite') throw new HttpError(404, 'error.inviteGone');
     if (body?.error === 'already_member') throw new HttpError(409, 'error.personAlreadyLinked');
     if (body?.error === 'mail_unavailable' || body?.error === 'mail_failed')
       throw new HttpError(503, 'error.inviteMailUnavailable');
@@ -261,7 +266,45 @@ export class AccountHost {
   }
 
   async revokeInvite(id: string): Promise<void> {
-    await this.hostCall(`/v1/host/invites/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    await this.hostCall(`/v1/host/invites/${encodeURIComponent(id)}`, { method: 'DELETE', gone: 'invite' });
+  }
+
+  /**
+   * A one-time code that signs the owner's phone in to their account, shown here as a QR code to the
+   * person at the server. It works once, for two minutes.
+   */
+  async phoneCode(): Promise<{ code: string; expiresAt: number; url: string }> {
+    const made = (await this.hostCall('/v1/host/connect-codes', { method: 'POST' })) as {
+      code?: unknown;
+      expiresAt?: unknown;
+      url?: unknown;
+    } | null;
+    if (typeof made?.code !== 'string' || typeof made.expiresAt !== 'number' || typeof made.url !== 'string')
+      throw new HttpError(502, 'error.accountUnreachable');
+    return { code: made.code, expiresAt: made.expiresAt, url: made.url };
+  }
+
+  /**
+   * Gives someone who comes in with an account a new role on the account too, so their next ticket
+   * carries it instead of putting the old one back. Someone no longer a member there needs nothing.
+   */
+  async setMemberRole(accountUserId: string, role: 'admin' | 'member'): Promise<void> {
+    // A server no longer linked gets no tickets to put the old role back.
+    if (!(await this.secrets())) return;
+    await this.hostCall(`/v1/host/members/${encodeURIComponent(accountUserId)}`, {
+      method: 'PATCH',
+      body: { role },
+      gone: 'ok',
+    });
+  }
+
+  /** Ends someone's access through their account; the server lists them no more there. */
+  async removeMember(accountUserId: string): Promise<void> {
+    if (!(await this.secrets())) return;
+    await this.hostCall(`/v1/host/members/${encodeURIComponent(accountUserId)}`, {
+      method: 'DELETE',
+      gone: 'ok',
+    });
   }
 
   /** A host ticket from the account service, proving to the relay which server this is. */

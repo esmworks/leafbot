@@ -1,7 +1,7 @@
 import { LOCALE_NAMES, LOCALES } from '@leafbot/shared';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
-import { KeyRound, Loader2 } from 'lucide-react';
+import { ExternalLink, KeyRound, Loader2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -10,20 +10,23 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useLocale, useT } from '@/i18n';
 import { api, ApiError } from '@/lib/api';
-import { desktop, useDesktopServer } from '@/lib/desktop';
+import { desktop } from '@/lib/desktop';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 
+/** Where people sign in with their Leaf Bot account and reach their servers. */
+export const ACCOUNT_SERVERS_URL = 'https://www.leafbot.app/bots/';
+
 /**
- * The sign-in page: username and password once the account exists, the access key before that
- * (and whenever the password is forgotten). Older servers without accounts get the key alone.
+ * The sign-in page. People reach a server through their Leaf Bot account, on the website (or the
+ * desktop and phone apps); the server itself signs no one in by name. On the computer the server
+ * runs on, its owner may still use the access key, so the server stays theirs when the account
+ * cannot be reached.
  */
 export function Login() {
   const t = useT();
   const { data: session } = useQuery({ queryKey: ['session'], queryFn: api.session, retry: false });
-  const [useKey, setUseKey] = useState(false);
-  const [useCode, setUseCode] = useState(false);
-  const hasAccount = !!session?.account;
+  const local = !!session?.local;
   return (
     <div className="flex h-full flex-col items-center justify-center p-6">
       <div className="w-full max-w-sm space-y-6">
@@ -32,123 +35,26 @@ export function Login() {
             <AppMascot />
           </div>
           <h1 className="text-2xl font-semibold tracking-tight">Leaf Bot</h1>
-          <p className="text-sm text-muted-foreground">
-            {useCode ? t('login.codeHint') : hasAccount && !useKey ? t('login.accountHint') : t('login.hint')}
-          </p>
+          <p className="text-sm text-muted-foreground">{t('login.accountOnly')}</p>
         </div>
-        {useCode ? <CodeForm /> : hasAccount && !useKey ? <PasswordForm /> : <KeyForm />}
-        {hasAccount && !useCode && (
-          <Button variant="ghost" size="sm" className="w-full" onClick={() => setUseKey((v) => !v)}>
-            {useKey ? t('login.usePassword') : t('login.useKey')}
-          </Button>
-        )}
-        <Button variant="ghost" size="sm" className="w-full" onClick={() => setUseCode((v) => !v)}>
-          {useCode ? t('login.back') : t('login.useCode')}
+        <Button asChild className="h-12 w-full rounded-full">
+          <a href={ACCOUNT_SERVERS_URL} target="_blank" rel="noreferrer">
+            <ExternalLink />
+            {t('login.openAccount')}
+          </a>
         </Button>
+        {local && (
+          <div className="space-y-3 border-t pt-6">
+            <p className="text-center text-sm text-muted-foreground">{t('login.hint')}</p>
+            <KeyForm />
+          </div>
+        )}
       </div>
       <DesktopServerChoice />
       <LanguageSwitch />
     </div>
   );
 }
-
-function PasswordForm() {
-  const t = useT();
-  const setAuthed = useUi((s) => s.setAuthed);
-  const Form = useMemo(
-    () =>
-      z.object({
-        username: z.string().trim().min(1, t('login.enterUsername')),
-        password: z.string().min(1, t('login.enterPassword')),
-      }),
-    [t],
-  );
-  const form = useForm<z.infer<typeof Form>>({
-    resolver: zodResolver(Form),
-    defaultValues: { username: '', password: '' },
-  });
-  const submit = form.handleSubmit(async ({ username, password }) => {
-    try {
-      await api.login(username, password);
-      setAuthed(true);
-    } catch (e) {
-      form.setError('password', { message: e instanceof ApiError ? e.message : t('login.unreachable') });
-    }
-  });
-  const errors = form.formState.errors;
-  const error = errors.username?.message ?? errors.password?.message;
-  return (
-    <form onSubmit={submit} className="space-y-3">
-      <Input
-        {...form.register('username')}
-        autoFocus
-        autoComplete="username"
-        autoCapitalize="none"
-        spellCheck={false}
-        placeholder={t('login.username')}
-        aria-label={t('login.username')}
-        aria-invalid={!!errors.username}
-        className="h-12 rounded-full px-5"
-      />
-      <Input
-        {...form.register('password')}
-        type="password"
-        autoComplete="current-password"
-        placeholder={t('login.password')}
-        aria-label={t('login.password')}
-        aria-invalid={!!errors.password}
-        className="h-12 rounded-full px-5"
-      />
-      {error && <p className="px-4 text-sm text-destructive">{error}</p>}
-      <Button type="submit" className="h-12 w-full rounded-full" disabled={form.formState.isSubmitting}>
-        {form.formState.isSubmitting && <Loader2 className="animate-spin" />}
-        {t('login.submit')}
-      </Button>
-    </form>
-  );
-}
-
-/** A one-time code from a device already signed in (Settings → Connection). */
-function CodeForm() {
-  const t = useT();
-  const setAuthed = useUi((s) => s.setAuthed);
-  const Form = useMemo(() => z.object({ code: z.string().trim().min(1, t('login.enterCode')) }), [t]);
-  const form = useForm<z.infer<typeof Form>>({ resolver: zodResolver(Form), defaultValues: { code: '' } });
-  const submit = form.handleSubmit(async ({ code }) => {
-    try {
-      await api.pair(code);
-      setAuthed(true);
-    } catch (e) {
-      form.setError('code', { message: e instanceof ApiError ? e.message : t('login.unreachable') });
-    }
-  });
-  const error = form.formState.errors.code?.message;
-  return (
-    <form onSubmit={submit} className="space-y-6">
-      <div className="space-y-2">
-        <Input
-          {...form.register('code')}
-          autoFocus
-          autoComplete="one-time-code"
-          autoCapitalize="characters"
-          spellCheck={false}
-          placeholder={CODE_EXAMPLE}
-          aria-label={t('login.code')}
-          aria-invalid={!!error}
-          className="h-12 rounded-full px-5 text-center font-mono text-lg tracking-widest"
-        />
-        {error && <p className="px-4 text-sm text-destructive">{error}</p>}
-      </div>
-      <Button type="submit" className="h-12 w-full rounded-full" disabled={form.formState.isSubmitting}>
-        {form.formState.isSubmitting && <Loader2 className="animate-spin" />}
-        {t('login.submit')}
-      </Button>
-    </form>
-  );
-}
-
-/** The shape of a pairing code; an example, the same in every language. */
-const CODE_EXAMPLE = 'ABCD-2345';
 
 function KeyForm() {
   const t = useT();
@@ -189,17 +95,14 @@ function KeyForm() {
   );
 }
 
-/**
- * In the desktop app: which server this window shows, signing in with the key the app keeps,
- * and switching to another server (or back to the one on this computer).
- */
+/** In the desktop app, on this computer's own server: signing in with the key the app keeps. */
 function DesktopServerChoice() {
   const t = useT();
-  const server = useDesktopServer();
   const setAuthed = useUi((s) => s.setAuthed);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
-  if (!desktop || !server) return null;
+  // Only this computer's own page gets the shell's bridge.
+  if (!desktop) return null;
   const signIn = async () => {
     setBusy(true);
     setFailed(false);
@@ -214,27 +117,14 @@ function DesktopServerChoice() {
       setBusy(false);
     }
   };
-  const host = server.url ? new URL(server.url).host : '';
   return (
     <div className="mt-6 flex w-full max-w-sm flex-col items-center gap-1 text-center">
-      <p className="text-sm text-muted-foreground">
-        {server.mode === 'local' ? t('login.serverHere') : t('login.serverRemote', { host })}
-      </p>
+      <p className="text-sm text-muted-foreground">{t('login.serverHere')}</p>
       <Button variant="ghost" size="sm" onClick={() => void signIn()} disabled={busy}>
         {busy && <Loader2 className="animate-spin" />}
         {t('login.savedKey')}
       </Button>
       {failed && <p className="text-sm text-destructive">{t('login.unreachable')}</p>}
-      <div className="flex flex-wrap justify-center gap-1">
-        <Button variant="ghost" size="sm" onClick={() => void desktop!.openConnect?.()}>
-          {t('login.otherServer')}
-        </Button>
-        {server.mode === 'remote' && (
-          <Button variant="ghost" size="sm" onClick={() => void desktop!.useLocal()}>
-            {t('login.useLocal')}
-          </Button>
-        )}
-      </div>
     </div>
   );
 }

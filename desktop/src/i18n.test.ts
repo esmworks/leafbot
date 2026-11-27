@@ -17,7 +17,7 @@ describe('masaüstü dili', () => {
     expect(t('menu.quit')).toBe('Quit');
     saveLocale(dir, 'en');
     expect(loadLocale(dir, ['tr-TR'])).toBe('en');
-    expect(t('status.remote', { host: 'a.example.com' })).toBe('Remote server: a.example.com');
+    expect(t('status.account')).toBe('Leaf Bot account');
     rmSync(dir, { recursive: true, force: true });
   });
 });

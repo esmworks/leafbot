@@ -25,6 +25,7 @@ import {
   Auth,
   checkHostOrigin,
   clientAddress,
+  isLocalRequest,
   loadAccessKey,
   needsSignIn,
   parseCookie,
@@ -129,8 +130,6 @@ const personRoom = (userId: string) => `user:${userId}`;
 const PUBLIC_API = new Set([
   '/api/health',
   '/api/access',
-  '/api/login',
-  '/api/pair',
   '/api/session',
   OAUTH_CALLBACK_PATH,
   OAUTH_CLIENT_PATH,
@@ -145,12 +144,12 @@ const PUBLIC_API = new Set([
  */
 const TUNNEL_REFUSED = new Set([
   '/api/access',
-  '/api/login',
-  '/api/pair',
   '/api/account-host',
   '/api/account-host/email',
   '/api/account-host/verify',
   '/api/account-host/name',
+  // The owner's account would be handed to whoever holds a tunnel; over one, the account makes it.
+  '/api/account-host/phone-code',
 ]);
 /** Routes (as registered, not as a URL spells them) that need no access key or session. */
 const openRoute = (route: string) =>
@@ -540,7 +539,12 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     // `/%61pi/bots` runs the /api/bots handler while its URL does not start with /api/.
     if (!needsSignIn(req.routeOptions.url, req.url, openRoute)) return;
     const from = clientAddress(req.headers, req.ip, config);
-    const principal = await auth.authenticate(req.headers, req.cookies[SESSION_COOKIE], from);
+    const principal = await auth.authenticate(
+      req.headers,
+      req.cookies[SESSION_COOKIE],
+      from,
+      isLocalRequest(req.headers, req.ip, config),
+    );
     if (!principal) return sendError(req, reply, new HttpError(401, 'error.accessKeyRequired'));
     req.principal = principal;
     // Cookie-authenticated writes must come from our own page.
@@ -682,7 +686,12 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
           parseCookie(req.headers.cookie, OLD_SESSION_COOKIE);
         const from = clientAddress(req.headers, req.socket.remoteAddress ?? '', config);
         auth
-          .authenticate({ authorization: req.headers.authorization }, cookie, from)
+          .authenticate(
+            { authorization: req.headers.authorization },
+            cookie,
+            from,
+            isLocalRequest(req.headers, req.socket.remoteAddress ?? '', config),
+          )
           .then((principal) => {
             if (!principal) return refuse(new HttpError(401, 'error.accessKeyRequired'));
             socketPrincipals.set(req, principal);

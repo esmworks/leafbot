@@ -54,6 +54,11 @@ export const account = {
     return s;
   },
   servers: () => call<{ servers: ServerEntry[] }>('GET', '/servers').then((r) => r.servers),
+  /** A one-time code (as a QR code) that signs a phone in to this account; it works once, for two minutes. */
+  async connectCode(): Promise<{ code: string; expiresAt: number; url: string }> {
+    if (!csrf) await account.session();
+    return call<{ code: string; expiresAt: number; url: string }>('POST', '/connect-codes');
+  },
   /** A client ticket for one server, bound to this browser's device key. */
   ticket: (serverId: string, jkt: string) =>
     call<{ ticket: string; publicKey: string; expiresAt: number }>(

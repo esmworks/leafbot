@@ -19,7 +19,7 @@ describe('erişim kuralları', () => {
       });
 
   it('oturum isteyen her ucun bir kuralı var', async () => {
-    const open = new Set(['/api/health', '/api/access', '/api/login', '/api/pair', '/api/session']);
+    const open = new Set(['/api/health', '/api/access', '/api/session']);
     const missing = signedIn().filter((r) => {
       const path = r.slice(r.indexOf(' ') + 1);
       if (open.has(path) || path.startsWith('/api/hooks/') || path.startsWith('/api/connections/oauth/'))

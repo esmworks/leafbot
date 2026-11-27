@@ -135,9 +135,9 @@ describe('uzantının kimliği', () => {
     expect(manifest('1.0.0').key).toBe(EXTENSION_KEY);
   });
 
-  it('kurulurken hiçbir siteye erişim istemez', () => {
+  it('kurulurken yalnızca Leaf Bot hesabının adresine erişim ister', () => {
     const m = manifest('1.0.0') as Record<string, unknown>;
-    expect(m.host_permissions).toBeUndefined();
+    expect(m.host_permissions).toEqual(['https://api.leafbot.app/*']);
     expect(m.content_scripts).toBeUndefined();
     expect(m.permissions).toEqual(['sidePanel', 'storage', 'tabs', 'scripting']);
   });
