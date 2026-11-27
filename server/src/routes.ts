@@ -6,6 +6,7 @@ import type { MemoryReach } from './services/memory';
 import type { SkillReach } from './services/skills';
 import { MAX_AUDIO_BYTES, type TranscribeService } from './services/transcribe';
 import { MAX_EMAIL_BYTES } from './services/email';
+import { MESSAGE_PAGE } from './services/threads';
 import { Readable } from 'node:stream';
 import { basename, extname, join, relative, resolve, sep } from 'node:path';
 import {
@@ -1360,9 +1361,16 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   });
   app.get('/api/threads/:id/messages', async (req) => {
     const id = IdParams.parse(req.params).id;
-    const { before } = z.object({ before: z.string().max(100).optional() }).parse(req.query);
+    // A client asks for a smaller page to draw a conversation sooner; one that does not gets the
+    // full page, which installed apps count on to tell whether older messages are left.
+    const { before, limit } = z
+      .object({
+        before: z.string().max(100).optional(),
+        limit: z.coerce.number().int().min(1).max(MESSAGE_PAGE).optional(),
+      })
+      .parse(req.query);
     await s.threads.row(id);
-    return s.threads.messages(id, { before });
+    return s.threads.messages(id, { before, limit });
   });
   // What the bot has written so far of the reply it is writing now, for a client that missed some
   // of it (a reconnect, a page opened mid-reply); null when nothing runs there.

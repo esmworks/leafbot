@@ -59,6 +59,7 @@ import {
 import { AnimatePresence, motion } from 'motion/react';
 import {
   createContext,
+  memo,
   useContext,
   useEffect,
   useRef,
@@ -107,7 +108,11 @@ import { AppLogo } from './Connections';
 import { useTypewriter } from '@/lib/typewriter';
 import { cn } from '@/lib/utils';
 
-export function MessageItem({
+/**
+ * One row of the conversation. It draws again only when its own message or props change: a reply
+ * streaming in redraws the conversation many times a second, and every row with it held that up.
+ */
+export const MessageItem = memo(function MessageItem({
   m,
   bots,
   pending,
@@ -348,7 +353,7 @@ export function MessageItem({
         </div>
       );
   }
-}
+});
 
 /**
  * Tells a bot that ran out of steps mid-task to go on from where it stopped: its session holds the

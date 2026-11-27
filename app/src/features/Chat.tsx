@@ -75,15 +75,13 @@ import { useVoiceCall } from '@/lib/voiceCall';
 import { useLiveCards } from '@/lib/liveCards';
 import { newClientId, useFormat } from '@/lib/format';
 
-/** Mirrors the server's page of messages: a full page means there may be older ones. */
-const MESSAGE_PAGE = 500;
 import { conversationMarkdown, exportFileName } from '@/lib/exportChat';
 import {
   useApprovals,
   useBots,
   useMainThread,
+  useChatMessages,
   useManagesServer,
-  useMessages,
   useRooms,
   useSettings,
   useSkills,
@@ -91,6 +89,8 @@ import {
   useThreads,
 } from '@/lib/queries';
 import { useLayout } from '@/lib/layout';
+import { useLatestFirst } from '@/lib/latestFirst';
+import { CHAT_PAGE, FULL_PAGE, withOlder } from '@/lib/messagePages';
 import { usePaused, usePauseActions } from '@/lib/paused';
 import { PHONE } from '@/lib/media';
 import { useLiveCatchUp } from '@/lib/liveCatchUp';
@@ -217,9 +217,9 @@ function useExportConversation(bot: Bot) {
     try {
       const all: Message[] = [];
       for (let before: string | undefined; ;) {
-        const page = await api.messages(threadId, before);
+        const page = await api.messages(threadId, before, FULL_PAGE);
         all.unshift(...page);
-        if (page.length < MESSAGE_PAGE || !page[0]) break;
+        if (page.length < FULL_PAGE || !page[0]) break;
         before = page[0].id;
       }
       const thread = threads.find((th) => th.id === threadId) ?? main.data;
@@ -800,15 +800,18 @@ function Conversation({
   const t = useT();
   const qc = useQueryClient();
   const { dayLabel } = useFormat();
-  const { data: recent = [], isLoading } = useMessages(threadId);
-  // Messages before the latest page, loaded on request and kept while the conversation is open.
-  const [older, setOlder] = useState<Message[]>([]);
-  const [olderDone, setOlderDone] = useState(false);
-  const messages = useMemo(() => {
-    if (!older.length) return recent;
-    const ids = new Set(recent.map((m) => m.id));
-    return [...older.filter((m) => !ids.has(m.id)), ...recent];
-  }, [older, recent]);
+  const { data: messages = [], isLoading } = useChatMessages(threadId);
+  // Left with older pages on screen, the conversation opens again at its latest page.
+  useEffect(
+    () => () => {
+      qc.setQueryData<Message[]>(['messages', threadId], (list) =>
+        list && list.length > CHAT_PAGE ? list.slice(-CHAT_PAGE) : list,
+      );
+    },
+    [qc, threadId],
+  );
+  // The first message of the conversation, once a page older than it came back short.
+  const [firstId, setFirstId] = useState<string | null>(null);
   const { data: bots = [] } = useBots();
   const botMap = useMemo(() => new Map(bots.map((b) => [b.id, b])), [bots]);
   const stream = useUi((s) => s.streams[threadId]);
@@ -820,13 +823,16 @@ function Conversation({
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const loadOlder = useMutation({
-    mutationFn: () => api.messages(threadId, messages[0]!.id),
-    onSuccess: (page) => {
+    // A message picked in the search may be far back: it is reached in full pages.
+    mutationFn: async (size: number) => ({ size, page: await api.messages(threadId, messages[0]!.id, size) }),
+    onSuccess: ({ size, page }) => {
       const box = scroller.current;
       const from = box ? box.scrollHeight - box.scrollTop : 0;
       stick.current = false;
-      setOlder((o) => [...page, ...o]);
-      if (page.length < MESSAGE_PAGE) setOlderDone(true);
+      const merged = qc.setQueryData<Message[]>(['messages', threadId], (list) =>
+        withOlder(page, list ?? []),
+      );
+      if (page.length < size) setFirstId(merged?.[0]?.id ?? null);
       // Keep the message the person was looking at in place as the older ones go in above.
       requestAnimationFrame(() => {
         if (box) box.scrollTop = box.scrollHeight - from;
@@ -837,7 +843,8 @@ function Conversation({
       useUi.getState().focusMessage(null);
     },
   });
-  const hasOlder = !olderDone && (older.length > 0 || recent.length >= MESSAGE_PAGE);
+  // A server from before smaller pages sends a full page anyway, which is still more than asked.
+  const hasOlder = messages.length >= CHAT_PAGE && messages[0]?.id !== firstId;
   // Scrolling up to the top brings in the page before by itself; the button stays for keyboards.
   const olderEdge = useRef<HTMLDivElement>(null);
   const loadingOlder = loadOlder.isPending;
@@ -849,7 +856,7 @@ function Conversation({
     const watch = new IntersectionObserver(
       ([entry]) => {
         // Only once the person has scrolled: a short conversation shows the edge from the start.
-        if (entry?.isIntersecting && !loadingOlder && !stick.current) fetchOlder();
+        if (entry?.isIntersecting && !loadingOlder && !stick.current) fetchOlder(CHAT_PAGE);
       },
       { root: box, rootMargin: '200px 0px 0px 0px' },
     );
@@ -1001,10 +1008,12 @@ function Conversation({
   const focusTarget = useUi((s) => s.focusedMessage);
   const focused = focusTarget?.threadId === threadId ? focusTarget.id : null;
   const focusLoaded = !!focused && messages.some((m) => m.id === focused);
+  // A long conversation opens on its latest rows; a message to bring into view needs them all.
+  const hiddenRows = useLatestFirst(rows.length, !!focused || loadOlder.isPending);
   // A message further back than the pages on screen: older pages come in until it is there.
   useEffect(() => {
     if (!focused || focusLoaded || isLoading || loadOlder.isPending) return;
-    if (hasOlder) loadOlder.mutate();
+    if (hasOlder) loadOlder.mutate(FULL_PAGE);
     else useUi.getState().focusMessage(null);
   }, [focused, focusLoaded, hasOlder, isLoading, loadOlder]);
   useEffect(() => {
@@ -1127,42 +1136,44 @@ function Conversation({
                     size="sm"
                     className="rounded-full"
                     disabled={loadOlder.isPending}
-                    onClick={() => loadOlder.mutate()}
+                    onClick={() => loadOlder.mutate(CHAT_PAGE)}
                   >
                     {t('chat.loadOlder')}
                   </Button>
                 </div>
               )}
-              {rows.map((m, i) => (
-                <Fragment key={m.clientId ?? m.id}>
-                  {needsDivider(rows[i - 1], m) && (
-                    <div className="py-2 text-center text-xs text-muted-foreground">
-                      <span className="wallpaper-chip rounded-lg px-2 py-0.5">{dayLabel(m.createdAt)}</span>
-                    </div>
-                  )}
-                  {m.id === firstNew && (
-                    <div
-                      className="flex items-center gap-3 text-xs font-medium text-sky-600 dark:text-sky-400"
-                      role="separator"
-                    >
-                      <span className="h-px flex-1 bg-sky-500/40" />
-                      <span className="wallpaper-chip rounded-lg px-2 py-0.5">{t('chat.newSince')}</span>
-                      <span className="h-px flex-1 bg-sky-500/40" />
-                    </div>
-                  )}
-                  <ErrorBoundary fallback={<BrokenMessage />}>
-                    <MessageItem
-                      m={m}
-                      bots={botMap}
-                      tint={bot.color}
-                      botId={bot.id}
-                      onReply={setReplyTo}
-                      canRetry={i === rows.length - 1 && activity === 'idle' && !shown.length}
-                      pending={waiting.has(m.clientId)}
-                    />
-                  </ErrorBoundary>
-                </Fragment>
-              ))}
+              {rows.map((m, i) =>
+                i < hiddenRows ? null : (
+                  <Fragment key={m.clientId ?? m.id}>
+                    {needsDivider(rows[i - 1], m) && (
+                      <div className="py-2 text-center text-xs text-muted-foreground">
+                        <span className="wallpaper-chip rounded-lg px-2 py-0.5">{dayLabel(m.createdAt)}</span>
+                      </div>
+                    )}
+                    {m.id === firstNew && (
+                      <div
+                        className="flex items-center gap-3 text-xs font-medium text-sky-600 dark:text-sky-400"
+                        role="separator"
+                      >
+                        <span className="h-px flex-1 bg-sky-500/40" />
+                        <span className="wallpaper-chip rounded-lg px-2 py-0.5">{t('chat.newSince')}</span>
+                        <span className="h-px flex-1 bg-sky-500/40" />
+                      </div>
+                    )}
+                    <ErrorBoundary fallback={<BrokenMessage />}>
+                      <MessageItem
+                        m={m}
+                        bots={botMap}
+                        tint={bot.color}
+                        botId={bot.id}
+                        onReply={setReplyTo}
+                        canRetry={i === rows.length - 1 && activity === 'idle' && !shown.length}
+                        pending={waiting.has(m.clientId)}
+                      />
+                    </ErrorBoundary>
+                  </Fragment>
+                ),
+              )}
               {parts.map((p) =>
                 p.kind === 'text' ? (
                   <AssistantCard
@@ -1655,7 +1666,7 @@ function Composer({
     onPending(shown);
     send.mutate({ clientId, text: value, files: [], replyTo: null, shown, spoken: true });
   };
-  const { data: callMessages = [] } = useMessages(threadId);
+  const { data: callMessages = [] } = useChatMessages(threadId);
   const serverVoice = useServerVoice();
   const voiceCall = useVoiceCall({
     locale,
