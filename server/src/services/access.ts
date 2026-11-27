@@ -236,6 +236,39 @@ export class AccessService {
     return (await spaceMembers(this.ctx, bot.groupId)).size > 0;
   }
 
+  /**
+   * Refuses a place a person may not put a bot in. A new bot goes only to its owner's Private:
+   * none, or a folder of theirs. A folder holds only its owner's bots, put there by them. A bot
+   * goes into a team space by its owner, who must be in the space, or by those who look after the
+   * server; its notes and the space's shared folder then reach the space's people.
+   */
+  async checkPlace(
+    viewer: Viewer,
+    groupId: string | null | undefined,
+    ownerUserId: string | undefined,
+    creating = false,
+  ) {
+    if (!groupId) return;
+    const owner = ownerUserId ?? OWNER_ID;
+    const [group] = await this.ctx.db
+      .select({ ownerUserId: schema.groups.ownerUserId })
+      .from(schema.groups)
+      .where(eq(schema.groups.id, groupId))
+      .limit(1);
+    if (!group) throw notFound('group');
+    if (group.ownerUserId) {
+      if (group.ownerUserId !== viewer.userId || owner !== viewer.userId) {
+        throw new HttpError(403, 'error.folderNotYours');
+      }
+      return;
+    }
+    if (creating) throw new HttpError(400, 'error.newBotPrivate');
+    if (managesServer(viewer.role)) return;
+    if (owner !== viewer.userId || !(await spaceMembers(this.ctx, groupId)).has(viewer.userId)) {
+      throw new HttpError(403, 'error.spaceNotYours');
+    }
+  }
+
   /** The person who owns a bot; the server's owner when the bot is gone. */
   async botOwner(botId: string): Promise<string> {
     return (await this.bot(botId))?.ownerUserId ?? OWNER_ID;

@@ -254,11 +254,14 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'POST /api/skill-changes/:id/reject': 'self',
   'PUT /api/skills/:id/bots/:botId': edit('botParam'),
   'GET /api/groups': 'signedIn',
-  'POST /api/groups': 'admin',
-  'PATCH /api/groups/:id': 'admin',
-  'POST /api/groups/:id/move': 'admin',
-  'POST /api/groups/:id/pause': 'admin',
-  'DELETE /api/groups/:id': 'admin',
+  // Each person keeps folders in their own Private; team spaces are for those who look after the
+  // server. The handlers tell the two apart.
+  'POST /api/groups': 'self',
+  'PATCH /api/groups/:id': 'self',
+  'PUT /api/groups/:id/members': 'admin',
+  'POST /api/groups/:id/move': 'self',
+  'POST /api/groups/:id/pause': 'self',
+  'DELETE /api/groups/:id': 'self',
 
   // Conversations.
   'GET /api/bots/:id/threads': chat(),

@@ -96,7 +96,7 @@ import {
   type ChangeNote,
 } from '../services/turn-changes';
 import { OWNER_ID } from '../users';
-import { atLeast, managesServer } from '../services/access';
+import { atLeast, managesServer, seesGroup } from '../services/access';
 import { closestNames } from '../services/bots';
 import { privateHost } from '../services/skill-link';
 
@@ -3335,11 +3335,24 @@ export class ToolFactory {
     /** What the manager is told when the person did not approve, with their words if they wrote any. */
     const refused = (message: string, r: { words: string }) =>
       r.words ? `${message}\n\n${t('tool.changeAnswered', { answer: r.words })}` : message;
-    const groupId = async (name: string | undefined) => {
+    /**
+     * A group the person sees, by id or name; a name they have none of becomes a folder in their
+     * Private. With `own`, only their own folders: a new bot goes to their Private.
+     */
+    const groupId = async (name: string | undefined, own = false) => {
       if (!name) return undefined;
-      const groups = await s.bots.listGroups();
+      const viewer = await s.access.viewerOf(person);
+      const groups = (await s.bots.listGroups()).filter((g) =>
+        own ? g.ownerUserId === person : seesGroup(viewer, g),
+      );
       const g = groups.find((x) => x.id === name || x.name.toLowerCase() === name.toLowerCase());
-      return g ? g.id : (await s.bots.createGroup(name)).id;
+      return g ? g.id : (await s.bots.createGroup(name, { ownerUserId: person })).id;
+    };
+    /** The manager's place, when it is a folder of the person's: where a bot made for them goes. */
+    const home = async () => {
+      if (!manager.groupId) return null;
+      const g = await s.bots.getGroup(manager.groupId).catch(() => null);
+      return g?.ownerUserId === person ? g.id : null;
     };
     /** The cards waiting on the person that they may answer, newest first. */
     const waiting = async () => {
@@ -3559,8 +3572,9 @@ export class ToolFactory {
               engine,
               model,
               isManager: false,
-              // Without a group named, the new bot joins the manager's own section.
-              groupId: a.group !== undefined ? ((await groupId(a.group)) ?? null) : manager.groupId,
+              // A new bot goes to the person's Private: a folder of theirs named, or the manager's
+              // when it is one of theirs.
+              groupId: a.group !== undefined ? ((await groupId(a.group, true)) ?? null) : await home(),
               color: a.color ?? BRAND_COLOR,
               avatar: a.avatar ?? DEFAULT_AVATAR,
               material: a.material ?? 'flat',
@@ -3703,9 +3717,9 @@ export class ToolFactory {
           try {
             made = await s.botImport.commit(file, {
               owner: person,
-              // As a bot the manager creates alone: off the internet, in the manager's section.
+              // As a bot the manager creates alone: off the internet, in the person's Private.
               internet: false,
-              groupId: manager.groupId,
+              groupId: await home(),
               names: plan.bots.map((b) => b.name),
             });
           } catch (err) {
@@ -3837,7 +3851,15 @@ export class ToolFactory {
             ...(a.material !== undefined && { material: a.material }),
             ...modelPatch,
           };
+          const moved = patch.groupId !== undefined && patch.groupId !== target.groupId;
+          // A bot goes where the person could put it themselves.
+          if (moved)
+            await s.access.checkPlace(await s.access.viewerOf(person), patch.groupId, target.ownerUserId);
           const updated = await s.bots.update(target.id, patch);
+          if (moved) {
+            s.access.forget();
+            await s.approvals.refuseUnanswerable();
+          }
           await audit('update', target.id, target, updated);
           const keys = Object.keys(patch);
           await note({

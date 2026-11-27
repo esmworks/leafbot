@@ -43,6 +43,8 @@ import {
   LoginRequest,
   GroupCreate,
   GroupMove,
+  GroupUpdate,
+  SpaceMembersChange,
   MAX_BOT_IMPORT_BYTES,
   MemoryCreate,
   MemoryUpdate,
@@ -683,14 +685,12 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     if ((await s.access.botOwner(botId)) !== p.userId) throw new HttpError(403, 'error.botOwnerOnly');
   };
   /**
-   * A group's bots share its files folder, so a bot joins one only for someone who may change
-   * every bot already in it.
+   * A bot moved into or out of a team space is opened to or closed from its people: who hears
+   * about the bot changes, and someone who lost it can no longer give a second yes on its steps.
    */
-  const checkGroup = async (req: FastifyRequest, groupId: string | null | undefined) => {
-    if (!groupId || canAdminister(me(req).role)) return;
-    const editable = new Set(await s.access.botIds(me(req), 'edit'));
-    const members = (await s.bots.list({ includeArchived: true })).filter((b) => b.groupId === groupId);
-    if (!members.every((b) => editable.has(b.id))) throw new HttpError(403, 'error.groupNotYours');
+  const placeChanged = async () => {
+    s.access.forget();
+    await s.approvals.refuseUnanswerable();
   };
   /** A bot with what the asking person may do with it. */
   const leveled = async (req: FastifyRequest, bot: Bot): Promise<Bot> => ({
@@ -734,7 +734,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     if (body.personComputer) checkPersonComputer(req);
     checkAgent(req, body.engine, body.model);
     checkProjectDir(req, body.projectDir);
-    await checkGroup(req, body.groupId);
+    await s.access.checkPlace(me(req), body.groupId, me(req).userId, true);
     const bot = await s.bots.create(body, me(req).userId);
     return leveled(req, bot.instructionsUrl ? await s.instructionDocs.check(bot.id) : bot);
   });
@@ -756,7 +756,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     if (patch.projectDir !== undefined && patch.projectDir !== before.projectDir) {
       checkProjectDir(req, patch.projectDir);
     }
-    if (patch.groupId !== undefined && patch.groupId !== before.groupId) await checkGroup(req, patch.groupId);
+    const moved = patch.groupId !== undefined && patch.groupId !== before.groupId;
+    if (moved) await s.access.checkPlace(me(req), patch.groupId, before.ownerUserId);
     if (patch.personComputer && !before.personComputer) checkPersonComputer(req);
     if (patch.engine !== undefined || patch.model !== undefined) {
       const engine = patch.engine ?? before.engine;
@@ -764,6 +765,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
         checkAgent(req, engine, patch.model ?? before.model);
     }
     const bot = await s.bots.update(id, patch);
+    if (moved) await placeChanged();
     const relinked = !!bot.instructionsUrl && bot.instructionsUrl !== before.instructionsUrl;
     return leveled(req, relinked ? await s.instructionDocs.check(id) : bot);
   });
@@ -791,8 +793,12 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.post('/api/bots/:id/move', async (req) => {
     const id = IdParams.parse(req.params).id;
     const body = BotMove.parse(req.body);
-    if (body.groupId !== (await s.bots.get(id)).groupId) await checkGroup(req, body.groupId);
-    return s.bots.move(id, body);
+    const before = await s.bots.get(id);
+    if (body.groupId === before.groupId) return s.bots.move(id, body);
+    await s.access.checkPlace(me(req), body.groupId, before.ownerUserId);
+    const bot = await s.bots.move(id, body);
+    await placeChanged();
+    return bot;
   });
   app.post('/api/bots/:id/archive', async (req) => {
     const { id } = IdParams.parse(req.params);
@@ -1266,23 +1272,53 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
 
   // Each person sees the team spaces open to them and their own Private folders.
   app.get('/api/groups', async (req) => (await s.bots.listGroups()).filter((g) => seesGroup(me(req), g)));
-  app.post('/api/groups', async (req) => s.bots.createGroup(GroupCreate.parse(req.body).name));
-  app.patch('/api/groups/:id', async (req) =>
-    s.bots.renameGroup(IdParams.parse(req.params).id, GroupCreate.parse(req.body).name),
-  );
+  /** A group the person may change: a folder of their own, or a team space when they look after the server. */
+  const ownGroup = async (req: FastifyRequest) => {
+    const group = await s.bots.getGroup(IdParams.parse(req.params).id);
+    if (!seesGroup(me(req), group)) throw notFound('group');
+    if (group.ownerUserId ? group.ownerUserId !== me(req).userId : !canAdminister(me(req).role)) {
+      throw new HttpError(403, group.ownerUserId ? 'error.folderNotYours' : 'error.adminOnly');
+    }
+    return group;
+  };
+  app.post('/api/groups', async (req) => {
+    const body = GroupCreate.parse(req.body);
+    if (!body.space) return s.bots.createGroup(body.name, { ownerUserId: me(req).userId });
+    requireAdmin(me(req));
+    return s.bots.createGroup(body.name, { kind: body.kind });
+  });
+  app.patch('/api/groups/:id', async (req) => {
+    const group = await ownGroup(req);
+    const patch = GroupUpdate.parse(req.body);
+    if (patch.kind !== undefined || patch.membersEdit !== undefined) {
+      await s.bots.setSpace(group.id, patch);
+      await placeChanged();
+    }
+    return patch.name ? s.bots.renameGroup(group.id, patch.name) : s.bots.getGroup(group.id);
+  });
+  app.put('/api/groups/:id/members', async (req) => {
+    const group = await s.bots.setSpaceMembers(
+      IdParams.parse(req.params).id,
+      SpaceMembersChange.parse(req.body),
+    );
+    await placeChanged();
+    return group;
+  });
   app.post('/api/groups/:id/move', async (req) =>
-    s.bots.moveGroup(IdParams.parse(req.params).id, GroupMove.parse(req.body)),
+    s.bots.moveGroup((await ownGroup(req)).id, GroupMove.parse(req.body)),
   );
   app.post('/api/groups/:id/pause', async (req) => {
-    const id = IdParams.parse(req.params).id;
+    const id = (await ownGroup(req)).id;
     const { paused } = PauseBody.parse(req.body);
     const group = await s.bots.setGroupPaused(id, paused);
     if (paused) await s.turns.stopBots(await s.bots.groupBotIds(id));
     else s.turns.schedule();
     return group;
   });
+  // Its bots go back to their owners' Private: a team space's people no longer reach them.
   app.delete('/api/groups/:id', async (req) => {
-    await s.bots.deleteGroup(IdParams.parse(req.params).id);
+    await s.bots.deleteGroup((await ownGroup(req)).id);
+    await placeChanged();
     return { ok: true };
   });
 

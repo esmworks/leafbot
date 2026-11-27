@@ -109,6 +109,9 @@ import type {
   VaultLoginUpdate,
   BotMove,
   GroupMove,
+  GroupCreate,
+  GroupUpdate,
+  SpaceMembersChange,
   ProfileFocus,
   ProfileHelp,
   ClaudeAuthSet,
@@ -467,8 +470,12 @@ export function endpoints(send: Transport, base = '') {
     closeBrowserWindow: (botId: string) => http.del<{ ok: true }>(`/api/bots/${botId}/browser/window`),
 
     groups: () => http.get<Group[]>('/api/groups'),
-    createGroup: (name: string) => http.post<Group>('/api/groups', { name }),
+    createGroup: (name: string, opts: Omit<GroupCreate, 'name'> = {}) =>
+      http.post<Group>('/api/groups', { name, ...opts }),
     renameGroup: (id: string, name: string) => http.patch<Group>(`/api/groups/${id}`, { name }),
+    updateGroup: (id: string, patch: GroupUpdate) => http.patch<Group>(`/api/groups/${id}`, patch),
+    setSpaceMembers: (id: string, change: SpaceMembersChange) =>
+      http.put<Group>(`/api/groups/${id}/members`, change),
     moveGroup: (id: string, to: GroupMove) => http.post<Group>(`/api/groups/${id}/move`, to),
     deleteGroup: (id: string) => http.del<{ ok: true }>(`/api/groups/${id}`),
     pauseGroup: (id: string, paused: boolean) => http.post<Group>(`/api/groups/${id}/pause`, { paused }),

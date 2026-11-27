@@ -1,4 +1,4 @@
-import type { Bot } from '@leafbot/shared';
+import type { Bot, Group } from '@leafbot/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
@@ -100,5 +100,65 @@ describe('ekip alanları', () => {
     expect(await t.services.access.sharedWithAnyone(row)).toBe(false);
     await t.services.bots.setSpaceMembers(space.id, { add: ['mert'] });
     expect(await t.services.access.sharedWithAnyone(row)).toBe(true);
+  });
+
+  it('yeni bot Özel’e düşer: ekip alanında açılamaz, kendi klasöründe açılır', async () => {
+    const space = (await t.api<Group>('POST', '/api/groups', { name: 'Destek', space: true })).body;
+    expect(space.ownerUserId).toBeNull();
+    const refused = await ayse.api('POST', '/api/groups', { name: 'Olmaz', space: true });
+    expect(refused.status).toBe(403);
+    const folder = (await ayse.api<Group>('POST', '/api/groups', { name: 'İşlerim' })).body;
+    expect(folder.ownerUserId).toBe('ayse');
+
+    const body = { name: 'Yeni', description: '', instructions: '' };
+    expect((await ayse.api('POST', '/api/bots', { ...body, groupId: space.id })).status).toBe(400);
+    const made = await ayse.api<Bot>('POST', '/api/bots', { ...body, groupId: folder.id });
+    expect(made.status).toBe(200);
+    // Nobody else's folder takes it.
+    const others = (await t.api<Group>('POST', '/api/groups', { name: 'Sahibin klasörü' })).body;
+    expect(
+      (
+        await ayse.api('POST', `/api/bots/${made.body.id}/move`, {
+          pinned: false,
+          groupId: others.id,
+          beforeId: null,
+        })
+      ).status,
+    ).toBe(403);
+  });
+
+  it('sahibi botunu yalnızca üyesi olduğu alana taşır; yönetici her alana taşır', async () => {
+    const admin = await t.person('yonetici2', 'admin');
+    const space = (await t.api<Group>('POST', '/api/groups', { name: 'Proje', space: true })).body;
+    const made = await mert.api<Bot>('POST', '/api/bots', {
+      name: 'Mertin',
+      description: '',
+      instructions: '',
+    });
+    const move = (p: Person, groupId: string | null) =>
+      p.api('POST', `/api/bots/${made.body.id}/move`, { pinned: false, groupId, beforeId: null });
+
+    expect((await move(mert, space.id)).status).toBe(403);
+    await t.api('PUT', `/api/groups/${space.id}/members`, { add: ['mert', 'ayse'] });
+    expect((await move(mert, space.id)).status).toBe(200);
+    expect(await levelOf(ayse, made.body.id)).toBe('chat');
+    // Back to Private: the space's people lose it.
+    expect((await move(mert, null)).status).toBe(200);
+    expect(await levelOf(ayse, made.body.id)).toBe('none');
+    // Someone in the space may not move another's bot there; those who look after the server may.
+    expect((await move(ayse, space.id)).status).toBe(404);
+    expect((await move(admin, space.id)).status).toBe(200);
+    expect(await levelOf(ayse, made.body.id)).toBe('chat');
+  });
+
+  it('alan silinince botlar sahiplerinin Özel’ine döner, alandakiler erişimi kaybeder', async () => {
+    const space = (await t.api<Group>('POST', '/api/groups', { name: 'Silinecek', space: true })).body;
+    const bot = await t.bot({ name: 'Silinen alandaki' });
+    await t.api('POST', `/api/bots/${bot.id}/move`, { pinned: false, groupId: space.id, beforeId: null });
+    await t.api('PUT', `/api/groups/${space.id}/members`, { add: ['ayse'] });
+    expect(await levelOf(ayse, bot.id)).toBe('chat');
+    expect((await ayse.api('DELETE', `/api/groups/${space.id}`)).status).toBe(403);
+    expect((await t.api('DELETE', `/api/groups/${space.id}`)).status).toBe(200);
+    expect(await levelOf(ayse, bot.id)).toBe('none');
   });
 });

@@ -343,7 +343,26 @@ export function leavesForEngine(bot: BotEngineChoice, target: BotEngineChoice): 
   return bot.engine !== target.engine || (target.engine === 'pi' && bot.model !== target.model);
 }
 
-export const GroupCreate = z.object({ name: z.string().trim().min(1).max(60) });
+/** A folder in the person's own Private, or with `space` a team space (those who look after the server). */
+export const GroupCreate = z.object({
+  name: z.string().trim().min(1).max(60),
+  space: z.boolean().default(false),
+  kind: z.enum(['open', 'closed', 'secret']).optional(),
+});
+export type GroupCreate = z.input<typeof GroupCreate>;
+/** Renames a group; a team space also takes who sees it and what its members may do. */
+export const GroupUpdate = z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  kind: z.enum(['open', 'closed', 'secret']).optional(),
+  membersEdit: z.boolean().optional(),
+});
+export type GroupUpdate = z.infer<typeof GroupUpdate>;
+/** People put in a team space or taken out of it. */
+export const SpaceMembersChange = z.object({
+  add: z.array(z.string().min(1).max(100)).max(500).optional(),
+  remove: z.array(z.string().min(1).max(100)).max(500).optional(),
+});
+export type SpaceMembersChange = z.infer<typeof SpaceMembersChange>;
 
 /** Moves a group in the sidebar, before `beforeId` or to the end. */
 export const GroupMove = z.object({ beforeId: Id.nullable() });
