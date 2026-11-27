@@ -135,9 +135,7 @@ export function ImportTab() {
   return (
     <>
       <p className="mb-4 text-sm text-muted-foreground">{t('import.hint')}</p>
-      {look.data?.onComputer !== false && (
-        <GrokConnectCard disabled={busy} onArrived={(body) => read(body, t('import.fromLink'))} />
-      )}
+      <GrokConnectCard disabled={busy} onArrived={(body) => read(body, t('import.fromLink'))} />
       <GrokLinkCard onCopy={(scope, intro) => void copyInstructions(scope, intro)} />
       <Card title={t('import.step1')}>
         <Row label={t('import.instructions')} hint={t('import.instructionsHint')}>

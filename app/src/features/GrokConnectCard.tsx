@@ -1,7 +1,6 @@
 import type { GrokMoveLink } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Copy, Link2, Loader2, PackageOpen, Unlink } from 'lucide-react';
-import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,11 +43,18 @@ export function GrokConnectCard({
     onError: (e) => toast.error((e as Error).message),
   });
   const end = useMutation({ mutationFn: api.endGrokLink, onSuccess: set });
-  /** The last arrival already read into the import, so the same bots are not offered again. */
-  const [used, setUsed] = useState(0);
+  // The server marks what is read, so the same bots are not offered again, here or after a reload.
+  const take = useMutation({
+    mutationFn: api.takeGrokLink,
+    onSuccess: ({ text }) => {
+      if (text) onArrived(text);
+      void qc.invalidateQueries({ queryKey: KEY });
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
   const link = state.data;
   if (!link) return null;
-  const fresh = link.arrived.filter((a) => a.seq > used);
+  const fresh = link.arrived;
   const copy = async (text: string) => {
     if (await copyText(text)) toast.success(t('grokMove.copied'));
     else toast.error(t('grokMove.copyFailed'));
@@ -118,13 +124,14 @@ export function GrokConnectCard({
               <Button
                 size="sm"
                 className="rounded-full"
-                disabled={disabled}
-                onClick={() => {
-                  setUsed(fresh.at(-1)!.seq);
-                  onArrived(fresh.map((a) => a.text).join('\n\n'));
-                }}
+                disabled={disabled || take.isPending}
+                onClick={() => take.mutate(fresh.at(-1)!.seq)}
               >
-                <PackageOpen className="size-4" />
+                {take.isPending ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <PackageOpen className="size-4" />
+                )}
                 {t('grokMove.connect.use')}
               </Button>
             </Row>

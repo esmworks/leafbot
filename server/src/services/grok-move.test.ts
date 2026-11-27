@@ -1,6 +1,14 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -65,7 +73,13 @@ describe('MoveLink', () => {
     expect(arrivals()).toBe(2);
     const seen = link!.state();
     expect(seen.arrived.map((a) => a.names)).toEqual([['A'], ['B']]);
-    expect(link!.state(seen.arrived[0]!.seq).arrived.map((a) => a.names)).toEqual([['B']]);
+    expect(seen.arrived[0]).not.toHaveProperty('text');
+    // Read up to the first: only that one's text, and afterwards only the second is offered.
+    expect(JSON.parse(link!.take(seen.arrived[0]!.seq)!)).toMatchObject({ bots: [{ ref: 'a' }] });
+    expect(link!.state().arrived.map((a) => a.names)).toEqual([['B']]);
+    expect(link!.take(seen.arrived[1]!.seq)).toContain('"ref":"b"');
+    expect(link!.state().arrived).toEqual([]);
+    expect(link!.take(seen.arrived[1]!.seq)).toBe('');
     await client.close();
   });
 
@@ -94,6 +108,80 @@ describe('MoveLink', () => {
     link!.end();
     expect(link!.matches(state.url!.split('/').at(-1)!)).toBe(false);
     expect(link!.state()).toMatchObject({ url: null, stopped: false, arrived: [] });
+  });
+
+  describe('over a quick tunnel', () => {
+    let dir: string;
+    const dirs: string[] = [];
+    afterEach(() => dirs.splice(0).forEach((d) => rmSync(d, { recursive: true, force: true })));
+
+    /** A stand-in for cloudflared: notes its arguments and pid, prints an address, then waits. */
+    const stub = (body: string) => {
+      dir = mkdtempSync(join(tmpdir(), 'leafbot-cloudflared-'));
+      dirs.push(dir);
+      const bin = join(dir, 'cloudflared');
+      writeFileSync(bin, `#!/bin/sh\necho "$@" > "${dir}/args"\necho $$ > "${dir}/pid"\n${body}\n`, {
+        mode: 0o755,
+      });
+      return bin;
+    };
+    const tunnelLink = (bin: () => string | null) =>
+      new MoveLink({
+        publicUrl: null,
+        onUserComputer: true,
+        instructions: () => 'THE INSTRUCTIONS',
+        check: async () => {},
+        onArrival: () => {},
+        findCloudflared: bin,
+      });
+    const alive = (pid: number) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    it('opens cloudflared on a loopback port, answers there, and stops it when ended', async () => {
+      const bin = stub('echo "INF |  https://quick-test-link.trycloudflare.com  |" >&2\nexec sleep 30');
+      link = tunnelLink(() => bin);
+      expect(link.available()).toBe(true);
+      const state = await link.connect();
+      expect(state.url).toMatch(/^https:\/\/quick-test-link\.trycloudflare\.com\/move\/[A-Za-z0-9_-]{43}$/);
+      const args = readFileSync(join(dir, 'args'), 'utf8');
+      expect(args).toMatch(
+        /^tunnel --no-autoupdate --config \S+config\.yml --url http:\/\/127\.0\.0\.1:\d+$/m,
+      );
+      const local = `${args.trim().split(' ').at(-1)}/move/${state.url!.split('/').at(-1)}`;
+
+      const client = new Client({ name: 'grok-bot', version: '1' });
+      await client.connect(new StreamableHTTPClientTransport(new URL(local)));
+      await client.callTool({ name: 'send_export', arguments: { document: doc('a') } });
+      expect(link.state().arrived.map((a) => a.names)).toEqual([['A']]);
+      await client.close();
+      // Only POST carries a message; a wrong key is not told the link exists.
+      const get = await fetch(local);
+      expect(get.status).toBe(405);
+      expect(get.headers.get('allow')).toBe('POST');
+      expect((await fetch(local.replace(/[^/]+$/, 'x'.repeat(43)), { method: 'POST' })).status).toBe(404);
+
+      const pid = Number(readFileSync(join(dir, 'pid'), 'utf8'));
+      expect(alive(pid)).toBe(true);
+      link.end();
+      await expect.poll(() => alive(pid), { timeout: 5000 }).toBe(false);
+      await expect(fetch(local)).rejects.toThrow();
+    });
+
+    it('fails a start whose tunnel stops, and opens the next one', async () => {
+      const broken = stub('exit 1');
+      let bin = broken;
+      link = tunnelLink(() => bin);
+      await expect(link.connect()).rejects.toThrow('cloudflared stopped');
+      expect(link.state()).toMatchObject({ url: null, stopped: false });
+      bin = stub('echo "https://second-try.trycloudflare.com" >&2\nexec sleep 30');
+      expect((await link.connect()).url).toContain('second-try.trycloudflare.com');
+    });
   });
 
   it('is unavailable with no public address and no cloudflared', async () => {

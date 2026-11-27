@@ -64,8 +64,8 @@ export interface MoveLinkState {
   expiresAt: string | null;
   /** The link was made and stopped working before the person ended it. */
   stopped: boolean;
-  /** What arrived after the asked-for `seq`, oldest first. */
-  arrived: MoveArrival[];
+  /** What arrived since the person last read it into the import, oldest first; texts are read apart. */
+  arrived: Omit<MoveArrival, 'text'>[];
 }
 
 /** The `cloudflared` program on this computer: on the PATH or where Homebrew puts it. */
@@ -83,6 +83,13 @@ export function findCloudflared(env: NodeJS.ProcessEnv = process.env): string | 
   return null;
 }
 
+/** The answer to a GET or DELETE on the link: a stateless MCP server has no stream. */
+export const MOVE_NOT_ALLOWED = JSON.stringify({
+  jsonrpc: '2.0',
+  error: { code: -32000, message: 'Method not allowed.' },
+  id: null,
+});
+
 /** Equal keys, compared in constant time. */
 function sameKey(a: string, b: string): boolean {
   const x = Buffer.from(a);
@@ -94,8 +101,10 @@ interface Link {
   key: string;
   url: string;
   expiresAt: number;
-  timer: NodeJS.Timeout;
+  timer?: NodeJS.Timeout;
   arrivals: MoveArrival[];
+  /** The last arrival the person read into the import; earlier ones are not offered again. */
+  read: number;
   bytes: number;
   listener?: Server;
   tunnel?: ChildProcess;
@@ -135,24 +144,47 @@ export class MoveLink {
     return !!this.o.publicUrl || (this.o.onUserComputer && !!(this.o.findCloudflared ?? findCloudflared)());
   }
 
-  state(after = 0): MoveLinkState {
+  state(): MoveLinkState {
     const link = this.link;
     return {
       available: this.available(),
       url: link?.url ?? null,
       expiresAt: link ? new Date(link.expiresAt).toISOString() : null,
       stopped: !link && this.stopped,
-      arrived: link ? link.arrivals.filter((a) => a.seq > after) : [],
+      arrived: link ? link.arrivals.filter((a) => a.seq > link.read).map(({ text: _t, ...a }) => a) : [],
     };
+  }
+
+  /**
+   * What arrived up to `upTo` and was not read yet, as one text for the import's preview; marked
+   * read, so it is not offered again. Null when there is no link.
+   */
+  take(upTo: number): string | null {
+    const link = this.link;
+    if (!link) return null;
+    const fresh = link.arrivals.filter((a) => a.seq > link.read && a.seq <= upTo);
+    if (fresh.length) link.read = fresh.at(-1)!.seq;
+    return fresh.map((a) => a.text).join('\n\n');
   }
 
   /** The link to paste into Grok Bot: the one already made while it works, so pasting once is enough. */
   async connect(): Promise<MoveLinkState> {
     if (!this.link) {
       if (!this.available()) return this.state();
-      this.starting ??= this.open().finally(() => (this.starting = null));
-      this.link = await this.starting;
-      this.stopped = false;
+      // Two asks at once share one start; the timer is armed only once the link works, so a failed
+      // start leaves nothing behind to close a later link.
+      this.starting ??= this.open()
+        .then((link) => {
+          link.timer = setTimeout(() => {
+            if (this.link === link) this.close(true);
+          }, link.expiresAt - this.now);
+          link.timer.unref?.();
+          this.link = link;
+          this.stopped = false;
+          return link;
+        })
+        .finally(() => (this.starting = null));
+      await this.starting;
     }
     return this.state();
   }
@@ -165,31 +197,33 @@ export class MoveLink {
 
   private async open(): Promise<Link> {
     const key = randomBytes(32).toString('base64url');
-    const base = {
-      key,
-      expiresAt: this.now + MOVE_TTL_MS,
-      arrivals: [],
-      bytes: 0,
-      timer: setTimeout(() => this.close(true), MOVE_TTL_MS),
-    };
-    base.timer.unref?.();
+    const base = { key, expiresAt: this.now + MOVE_TTL_MS, arrivals: [], read: 0, bytes: 0 };
     if (this.o.publicUrl) {
       return { ...base, url: `${this.o.publicUrl.replace(/\/+$/, '')}${MOVE_HOOK_PATH}/${key}` };
     }
     const bin = (this.o.findCloudflared ?? findCloudflared)();
-    if (!bin) {
-      clearTimeout(base.timer);
-      throw new Error('cloudflared is not on this computer');
-    }
+    if (!bin) throw new Error('cloudflared is not on this computer');
     const listener = createServer((req, res) => void this.serveLoopback(req, res));
-    await new Promise<void>((resolve, reject) => {
-      listener.once('error', reject);
-      listener.listen(0, '127.0.0.1', resolve);
-    });
-    const port = (listener.address() as AddressInfo).port;
+    const link: Link = { ...base, url: '', listener };
+    try {
+      await new Promise<void>((resolve, reject) => {
+        listener.once('error', reject);
+        listener.listen(0, '127.0.0.1', resolve);
+      });
+      link.url = await this.tunnel(link, bin, (listener.address() as AddressInfo).port);
+      return link;
+    } catch (err) {
+      this.dispose(link);
+      throw err;
+    }
+  }
+
+  /** Opens the quick tunnel to `port`; its address, with the link's path. */
+  private async tunnel(link: Link, bin: string, port: number): Promise<string> {
     // An empty configuration of its own, so a tunnel the person set up for something else is not
     // the one this opens.
     const configDir = mkdtempSync(join(tmpdir(), 'leafbot-move-'));
+    link.configDir = configDir;
     writeFileSync(join(configDir, 'config.yml'), '');
     const tunnel = spawn(
       bin,
@@ -211,39 +245,33 @@ export class MoveLink {
         windowsHide: true,
       },
     );
-    const link: Link = { ...base, url: '', listener, tunnel, configDir };
-    try {
-      const address = await new Promise<string>((resolve, reject) => {
-        let log = '';
-        const timeout = setTimeout(() => reject(new Error('cloudflared gave no address')), START_TIMEOUT_MS);
-        const read = (chunk: Buffer) => {
-          log = (log + chunk.toString('utf8')).slice(-8192);
-          const found = TUNNEL_ADDRESS.exec(log)?.[0];
-          if (found) {
-            clearTimeout(timeout);
-            resolve(found);
-          }
-        };
-        tunnel.stdout?.on('data', read);
-        tunnel.stderr?.on('data', read);
-        tunnel.once('error', (err) => {
+    link.tunnel = tunnel;
+    const address = await new Promise<string>((resolve, reject) => {
+      let log = '';
+      const timeout = setTimeout(() => reject(new Error('cloudflared gave no address')), START_TIMEOUT_MS);
+      const read = (chunk: Buffer) => {
+        log = (log + chunk.toString('utf8')).slice(-8192);
+        const found = TUNNEL_ADDRESS.exec(log)?.[0];
+        if (found) {
           clearTimeout(timeout);
-          reject(err);
-        });
-        tunnel.once('exit', () => {
-          clearTimeout(timeout);
-          reject(new Error('cloudflared stopped'));
-        });
+          resolve(found);
+        }
+      };
+      tunnel.stdout?.on('data', read);
+      tunnel.stderr?.on('data', read);
+      tunnel.once('error', (err) => {
+        clearTimeout(timeout);
+        reject(err);
       });
-      link.url = `${address}${TUNNEL_PATH}${key}`;
       tunnel.once('exit', () => {
-        if (this.link === link) this.close(true);
+        clearTimeout(timeout);
+        reject(new Error('cloudflared stopped'));
       });
-      return link;
-    } catch (err) {
-      this.dispose(link);
-      throw err;
-    }
+    });
+    tunnel.once('exit', () => {
+      if (this.link === link) this.close(true);
+    });
+    return `${address}${TUNNEL_PATH}${link.key}`;
   }
 
   private close(stopped: boolean) {
@@ -266,11 +294,19 @@ export class MoveLink {
     this.close(false);
   }
 
-  /** The loopback listener: only POST to the link's own path; anything else is 404 with no body. */
+  /**
+   * The loopback listener: only the link's own path, and on it only POST; without sessions there
+   * is no stream to open or close, so GET and DELETE are told so. Anything else is 404, no body.
+   */
   private async serveLoopback(req: IncomingMessage, res: ServerResponse) {
     const key = req.url?.startsWith(TUNNEL_PATH) ? req.url.slice(TUNNEL_PATH.length) : '';
-    if (req.method !== 'POST' || !this.matches(key)) {
+    if (!this.matches(key)) {
       res.writeHead(404).end();
+      return;
+    }
+    if (req.method !== 'POST') {
+      res.writeHead(405, { allow: 'POST', 'content-type': 'application/json' });
+      res.end(MOVE_NOT_ALLOWED);
       return;
     }
     let body: unknown;

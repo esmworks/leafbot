@@ -157,7 +157,14 @@ import { OAUTH_CALLBACK_PATH, oauthRedirectUrl } from './services/connections';
 import { fetchSkillFile, privateHost } from './services/skill-link';
 import { readGrokLink } from './services/grok-link';
 import { grokBotNames } from './services/grok-chat';
-import { findExports, MOVE_BODY_MAX, MOVE_HOOK_PATH, MoveLink, readExports } from './services/grok-move';
+import {
+  findExports,
+  MOVE_BODY_MAX,
+  MOVE_HOOK_PATH,
+  MOVE_NOT_ALLOWED,
+  MoveLink,
+  readExports,
+} from './services/grok-move';
 import { avatarPrompt, ImageError } from './services/images';
 import { isPersonal, serverLocale, Settings } from './services/settings';
 import { EMOJI } from './tools';
@@ -2551,11 +2558,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     }
     return out;
   });
-  // The link Grok Bot sends bots over, and what has arrived on it after `after`.
-  app.get('/api/import/grok/link', async (req) => {
-    const { after } = z.object({ after: z.coerce.number().int().min(0).default(0) }).parse(req.query);
-    return moveLink.state(after);
-  });
+  // The link Grok Bot sends bots over, and the names of what has arrived on it.
+  app.get('/api/import/grok/link', async () => moveLink.state());
   app.post('/api/import/grok/link', async () => {
     if (!moveLink.available()) throw new HttpError(404, 'error.moveUnavailable');
     try {
@@ -2566,12 +2570,30 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     }
   });
   app.delete('/api/import/grok/link', async () => moveLink.end());
-  // The link itself, where the server has a public address: its key is the only way in.
-  app.post(`${MOVE_HOOK_PATH}/:key`, { bodyLimit: MOVE_BODY_MAX }, async (req, reply) => {
-    const { key } = z.object({ key: z.string().max(100) }).parse(req.params);
-    if (!moveLink.matches(key)) return reply.code(404).send();
+  // The arrivals up to `upTo` as one text for the preview; read once, so reopening the tab does
+  // not offer the same bots again.
+  app.post('/api/import/grok/link/take', async (req) => {
+    const { upTo } = z.object({ upTo: z.number().int().min(1) }).parse(req.body);
+    const text = moveLink.take(upTo);
+    if (text === null) throw new HttpError(404, 'error.moveUnavailable');
+    return { text };
+  });
+  // The link itself, where the server has a public address: its key is the only way in. A wrong
+  // key is turned away before the body is read; on the right one only POST carries a message.
+  const moveKey = async (req: FastifyRequest, reply: FastifyReply) => {
+    const key = (req.params as { key?: unknown }).key;
+    if (typeof key !== 'string' || !moveLink.matches(key)) return reply.code(404).send();
+  };
+  app.post(`${MOVE_HOOK_PATH}/:key`, { bodyLimit: MOVE_BODY_MAX, onRequest: moveKey }, async (req, reply) => {
     reply.hijack();
     await moveLink.handle(req.raw, reply.raw, req.body);
+  });
+  app.route({
+    method: ['GET', 'DELETE'],
+    url: `${MOVE_HOOK_PATH}/:key`,
+    onRequest: moveKey,
+    handler: async (_req, reply) =>
+      reply.code(405).header('allow', 'POST').type('application/json').send(MOVE_NOT_ALLOWED),
   });
 
   // What a Grok Bot share link shows: the bot's name, who shared it and its description. Read

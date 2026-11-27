@@ -262,7 +262,8 @@ export interface GrokMoveLink {
   expiresAt: string | null;
   /** The link stopped working before the person ended it: its hour ran out, or the tunnel closed. */
   stopped: boolean;
-  arrived: { seq: number; at: string; names: string[]; text: string }[];
+  /** What arrived and was not read into the import yet, oldest first; its text is read apart. */
+  arrived: { seq: number; at: string; names: string[] }[];
 }
 
 /** Why a moved bot's chat did not come over from the Grok Bot app. */

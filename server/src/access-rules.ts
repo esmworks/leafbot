@@ -138,6 +138,7 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'GET /api/import/grok/link': 'owner',
   'POST /api/import/grok/link': 'owner',
   'DELETE /api/import/grok/link': 'owner',
+  'POST /api/import/grok/link/take': 'owner',
   'POST /api/mcp': 'owner',
   'GET /api/mcp': 'owner',
   'DELETE /api/mcp': 'owner',

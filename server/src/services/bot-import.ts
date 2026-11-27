@@ -312,9 +312,11 @@ export class BotImportService {
 
   /**
    * A moved bot's recent chat from the Grok Bot app on this computer, as one new conversation of
-   * the person's with the bot. It is a record only: nothing runs, replies, notifies or is learned
-   * from it, and its messages keep their times in the app. Asked again, the conversation it made
-   * is found and nothing is added. `name` is the bot's name in the app, before any renaming here.
+   * the person's with the bot. Bringing it over runs, replies and notifies nothing, and its
+   * messages keep their times in the app; it becomes the bot's latest conversation, so the next
+   * message there carries on from it as any conversation does. Asked again, the conversation it
+   * made is found and nothing is added. `name` is the bot's name in the app, before any renaming
+   * here.
    */
   async importGrokChat(o: {
     botId: string;

@@ -138,4 +138,50 @@ describe('moving from Grok Bot', () => {
     expect(res.statusCode).toBe(404);
     expect(res.body).toBe('');
   });
+  it('on a public address, serves the link to POST only and reads what arrived once', async () => {
+    await t.close();
+    t = await testServer({ publicUrl: 'https://bots.example.test', onUserComputer: false });
+    const open = await t.api<{ url: string }>('POST', '/api/import/grok/link');
+    expect(open.status).toBe(200);
+    const path = new URL(open.body.url).pathname;
+    expect(path).toMatch(/^\/api\/hooks\/move\/[A-Za-z0-9_-]{43}$/);
+    const hook = (method: 'GET' | 'DELETE' | 'POST', url: string, payload?: unknown) =>
+      t.app.inject({
+        method,
+        url,
+        headers: {
+          host: 'localhost',
+          accept: 'application/json, text/event-stream',
+          ...(payload ? { 'content-type': 'application/json' } : {}),
+        },
+        ...(payload ? { payload: JSON.stringify(payload) } : {}),
+      });
+    for (const method of ['GET', 'DELETE'] as const) {
+      const res = await hook(method, path);
+      expect(res.statusCode).toBe(405);
+      expect(res.headers.allow).toBe('POST');
+    }
+    expect((await hook('GET', `/api/hooks/move/${'x'.repeat(43)}`)).statusCode).toBe(404);
+
+    const call = (id: number, method: string, params: unknown) => ({ jsonrpc: '2.0', id, method, params });
+    const sent = await hook(
+      'POST',
+      path,
+      call(1, 'tools/call', { name: 'send_export', arguments: { document: file } }),
+    );
+    expect(sent.statusCode).toBe(200);
+    expect(sent.body).toContain('Received: Trip Planner');
+
+    const state = await t.api<{ arrived: { seq: number; names: string[] }[] }>(
+      'GET',
+      '/api/import/grok/link',
+    );
+    expect(state.body.arrived).toEqual([expect.objectContaining({ names: ['Trip Planner'] })]);
+    expect(state.body.arrived[0]).not.toHaveProperty('text');
+    const taken = await t.api<{ text: string }>('POST', '/api/import/grok/link/take', {
+      upTo: state.body.arrived[0]!.seq,
+    });
+    expect(JSON.parse(taken.body.text)).toMatchObject({ bots: [{ ref: 'trip-planner' }] });
+    expect((await t.api<{ arrived: unknown[] }>('GET', '/api/import/grok/link')).body.arrived).toEqual([]);
+  });
 });
