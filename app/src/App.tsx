@@ -26,11 +26,13 @@ import { ShortcutsDialog } from '@/features/ShortcutsDialog';
 import { TodayDialog } from '@/features/TodayDialog';
 import { BoardDialog } from '@/features/board/BoardDialog';
 import { DashboardsDialog } from '@/features/DashboardsDialog';
+import { PageAppWindow } from '@/features/PageApps';
 import { RoutinePage, useOpenedRoutine } from '@/features/RoutinePage';
 import { QuickPanel } from '@/features/QuickPanel';
 import { Sidebar } from '@/features/Sidebar';
 import { useLocale, useT } from '@/i18n';
 import { api, setUnauthorizedHandler } from '@/lib/api';
+import { pageAppWindowOf } from '@/lib/pageAppWindow';
 import { isQuickView } from '@/lib/quick';
 import { screenBotOf } from '@/lib/screen';
 import { takeLinkedThread } from '@/lib/threadLink';
@@ -121,6 +123,9 @@ function Authed() {
   // The phone app's web view shows only a bot's computer.
   const screenBot = screenBotOf();
   if (screenBot) return <PhoneScreen botId={screenBot} />;
+  // The desktop app's window for one saved app shows only that app.
+  const appWindow = pageAppWindowOf();
+  if (appWindow) return <PageAppWindow id={appWindow} />;
   if (local && !accountDone) {
     if (account.isPending) return <Loading />;
     if (account.data?.username === null) return <CreateAccount onDone={() => setAccountDone(true)} />;
@@ -227,6 +232,7 @@ function Workspace() {
           if (!link) return;
           if (link.kind === 'thread') return openLinkedThread(link.id, t);
           if (link.kind === 'room') return useUi.getState().openRoom(link.id);
+          if (link.kind === 'app') return useUi.getState().openApps({ botId: null, pageAppId: link.id });
           useUi.getState().openChat(link.id);
         })
         .catch(() => {});

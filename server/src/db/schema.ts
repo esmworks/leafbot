@@ -1687,6 +1687,31 @@ export const pageShares = pgTable(
 );
 
 /**
+ * Pages a person saved as apps of their own: opened by name from the apps page, or from a launcher
+ * on their computer, without finding the conversation the bot showed it in. The page is read from
+ * the bot's folder each time, so the app is always the page as it is now.
+ */
+export const pageApps = pgTable(
+  'page_apps',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    /** The page's path in the bot's library, as its card in the conversation holds it. */
+    path: text('path').notNull(),
+    name: text('name').notNull(),
+    /** The conversation the page was shown in, for "Go to chat"; it may be gone since. */
+    threadId: text('thread_id'),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex('page_apps_page_uq').on(t.userId, t.botId, t.path)],
+);
+
+/**
  * API keys the person saved for bots to call a service with. The value is sealed with the vault
  * key; bots know a key only by its name, and the server adds it to requests for its origin alone.
  */

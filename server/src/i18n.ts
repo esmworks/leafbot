@@ -50,6 +50,7 @@ const tr = {
     'Bu adreste bir eklenti bulunamadı: plugin.json ya da .claude-plugin/plugin.json yok ya da adı yok',
   'error.pluginFormat': 'Eklentinin {file} dosyası okunamadı',
   'error.shareNotPage': 'Yalnızca bir HTML sayfası paylaşılabilir',
+  'error.appNotPage': 'Yalnızca bir HTML sayfası uygulama olarak kaydedilebilir',
   'share.gone.title': 'Bu sayfa artık paylaşılmıyor',
   'share.gone.body':
     'Bağlantı kapatılmış ya da sayfa kaldırılmış. Bağlantıyı gönderen kişiden yenisini isteyebilirsin.',
@@ -2514,6 +2515,7 @@ const en: Catalog<ServerKey> = {
     'No plugin found at this address: plugin.json or .claude-plugin/plugin.json is missing or has no name',
   'error.pluginFormat': 'The plugin’s {file} could not be read',
   'error.shareNotPage': 'Only an HTML page can be shared',
+  'error.appNotPage': 'Only an HTML page can be saved as an app',
   'share.gone.title': 'This page is no longer shared',
   'share.gone.body':
     'The link was turned off or the page was removed. You can ask whoever sent it for a new one.',

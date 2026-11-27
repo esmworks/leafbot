@@ -102,6 +102,8 @@ import {
   frameDocument,
   frameHeader,
   PAGE_LIBRARIES,
+  PageAppCreate,
+  PageAppRename,
   PageShareCreate,
   ApiCredentialCreate,
   ApiKeyImport,
@@ -2892,6 +2894,55 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     return s.email.settings();
   });
   app.get('/api/bots/:id/emails', async (req) => s.email.inbox(IdParams.parse(req.params).id, { limit: 50 }));
+
+  // Pages saved as apps. Each person keeps their own; opening one checks again that they may still
+  // see the page, as its card in the conversation would.
+  const AppIdParams = z.object({ id: z.string().regex(/^[\w-]{1,64}$/) });
+  const ownApp = async (req: FastifyRequest) => {
+    const found = await s.pageApps.get(me(req).userId, AppIdParams.parse(req.params).id);
+    if (!found) throw new HttpError(404, 'error.notFound');
+    return found;
+  };
+  app.get('/api/page-apps', async (req) => s.pageApps.list(me(req).userId));
+  // The app, and whether its page still opens for the person (moved, deleted, no longer theirs).
+  app.get('/api/page-apps/:id', async (req) => {
+    const found = await ownApp(req);
+    const available = await libraryFile(found.botId, found.path, me(req)).then(
+      ({ full }) => /\.html?$/i.test(full),
+      () => false,
+    );
+    return { ...found, available };
+  });
+  app.get('/api/bots/:id/library/app', async (req) => {
+    const { path } = z.object({ path: z.string().min(1) }).parse(req.query);
+    return { app: await s.pageApps.find(me(req).userId, IdParams.parse(req.params).id, path) };
+  });
+  app.post('/api/bots/:id/library/app', async (req) => {
+    const botId = IdParams.parse(req.params).id;
+    const body = PageAppCreate.parse(req.body);
+    // Only a page the person may open now, and only an HTML page, becomes an app.
+    const { full } = await libraryFile(botId, body.path, me(req));
+    if (!/\.html?$/i.test(full)) throw new HttpError(400, 'error.appNotPage');
+    if (body.threadId && !(await s.access.visibleThreads(me(req), [body.threadId])).has(body.threadId)) {
+      throw new HttpError(404, 'error.notFound');
+    }
+    return s.pageApps.save(me(req).userId, { botId, ...body });
+  });
+  app.patch('/api/page-apps/:id', async (req) => {
+    const { name } = PageAppRename.parse(req.body);
+    const renamed = await s.pageApps.rename(me(req).userId, AppIdParams.parse(req.params).id, name);
+    if (!renamed) throw new HttpError(404, 'error.notFound');
+    return renamed;
+  });
+  app.delete('/api/page-apps/:id', async (req) => {
+    await s.pageApps.remove(me(req).userId, AppIdParams.parse(req.params).id);
+    return { ok: true };
+  });
+  // The app's page, filling its view: sandboxed like the page in the conversation.
+  app.get('/api/page-apps/:id/page', async (req, reply) => {
+    const found = await ownApp(req);
+    return sendPage(reply, found.botId, found.path, { title: found.name, who: me(req) });
+  });
 
   // Links that open a page for anyone who has them.
   app.get('/api/page-shares', async (req) =>

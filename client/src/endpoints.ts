@@ -125,6 +125,7 @@ import type {
   UsageRange,
   UsageReport,
   ProviderSignIn,
+  PageApp,
   PageShare,
   ApiCredential,
   ApiCredentialCreate,
@@ -828,6 +829,21 @@ export function endpoints(send: Transport, base = '') {
     sharePage: (botId: string, path: string, name: string) =>
       http.post<PageShare>(`/api/bots/${botId}/library/share`, { path, name }),
     pageShares: () => http.get<PageShare[]>('/api/page-shares'),
+    /** Pages the person saved as apps, newest first. */
+    pageApps: () => http.get<PageApp[]>('/api/page-apps'),
+    /** A saved app, and whether its page still opens for the person. */
+    pageApp: (id: string) =>
+      http.get<PageApp & { available: boolean }>(`/api/page-apps/${encodeURIComponent(id)}`),
+    /** The app the person made of a page, if they saved it. */
+    pageAppOf: (botId: string, path: string) =>
+      http.get<{ app: PageApp | null }>(`/api/bots/${botId}/library/app?path=${encodeURIComponent(path)}`),
+    savePageApp: (botId: string, page: { path: string; name: string; threadId?: string }) =>
+      http.post<PageApp>(`/api/bots/${botId}/library/app`, page),
+    renamePageApp: (id: string, name: string) =>
+      http.patch<PageApp>(`/api/page-apps/${encodeURIComponent(id)}`, { name }),
+    removePageApp: (id: string) => http.del<{ ok: true }>(`/api/page-apps/${encodeURIComponent(id)}`),
+    /** A saved app's page, served to fill its view in the app's sandboxed frame. */
+    pageAppUrl: (id: string) => `${base}/api/page-apps/${encodeURIComponent(id)}/page`,
     unsharePage: (token: string) => http.del<{ ok: true }>(`/api/page-shares/${encodeURIComponent(token)}`),
     /** Several files of a bot's folders as one ZIP download. */
     zipUrl: (botId: string, paths: string[], name?: string) =>

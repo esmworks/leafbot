@@ -23,8 +23,24 @@ const bridge = {
   /** Whether the app opens at login; with `on`, sets it first. */
   openAtLogin: (on?: boolean): Promise<boolean | null> => ipcRenderer.invoke('leafbot:open-at-login', on),
   /** The chat a `leafbot://` link asked to open, once; null when there is none. */
-  takeLink: (): Promise<{ kind: 'thread' | 'bot' | 'room'; id: string } | null> =>
+  takeLink: (): Promise<{ kind: 'thread' | 'bot' | 'room' | 'app'; id: string } | null> =>
     ipcRenderer.invoke('leafbot:take-link'),
+  /** Opens a saved app in a window of its own. */
+  openApp: (id: string): Promise<void> => ipcRenderer.invoke('leafbot:open-app', id),
+  /** The saved apps installed on this computer; null where launchers cannot be made here. */
+  appInstalls: (): Promise<{ id: string; name: string; desktop: boolean }[] | null> =>
+    ipcRenderer.invoke('leafbot:app-installs'),
+  /** Installs a saved app on this computer, or renames its launchers. */
+  installApp: (id: string, name: string): Promise<{ id: string; name: string; desktop: boolean } | null> =>
+    ipcRenderer.invoke('leafbot:app-install', id, name),
+  uninstallApp: (id: string): Promise<void> => ipcRenderer.invoke('leafbot:app-uninstall', id),
+  /** Puts an installed app on the Desktop, or takes it off; adding it installs it first. */
+  appOnDesktop: (
+    id: string,
+    name: string,
+    on: boolean,
+  ): Promise<{ id: string; name: string; desktop: boolean } | null> =>
+    ipcRenderer.invoke('leafbot:app-desktop', id, name, on),
   /** Calls `fn` when a link arrives while the page is open; returns a function that stops it. */
   onOpenLink: (fn: () => void): (() => void) => {
     const listener = () => fn();

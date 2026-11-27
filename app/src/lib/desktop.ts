@@ -25,7 +25,19 @@ interface DesktopBridge {
   /** Calls `fn` when Settings is chosen in the menu bar; returns a function that stops it. Missing in older shells. */
   onOpenSettings?(fn: () => void): () => void;
   /** The chat a `leafbot://` link asked to open, once. Missing in older shells. */
-  takeLink?(): Promise<{ kind: 'thread' | 'bot' | 'room'; id: string } | null>;
+  takeLink?(): Promise<{ kind: 'thread' | 'bot' | 'room' | 'app'; id: string } | null>;
+  /** Opens a saved app in a window of its own. Missing in older shells. */
+  openApp?(id: string): Promise<void>;
+  /**
+   * The saved apps installed on this computer; null where launchers cannot be made (another
+   * server's page, an app run from source). Missing in older shells.
+   */
+  appInstalls?(): Promise<InstalledApp[] | null>;
+  /** Installs a saved app on this computer, or renames its launchers. Missing in older shells. */
+  installApp?(id: string, name: string): Promise<InstalledApp | null>;
+  uninstallApp?(id: string): Promise<void>;
+  /** Puts an installed app on the Desktop or takes it off; adding installs it first. Missing in older shells. */
+  appOnDesktop?(id: string, name: string, on: boolean): Promise<InstalledApp | null>;
   /** Calls `fn` when a link arrives while the page is open. Missing in older shells. */
   onOpenLink?(fn: () => void): () => void;
   /** Puts the quick window away. Missing in older shells. */
@@ -43,6 +55,9 @@ interface DesktopBridge {
 /** Shells made before the rename offer the bridge under its old name only. */
 const shell = window as unknown as { leafbotDesktop?: DesktopBridge; yumakbotDesktop?: DesktopBridge };
 export const desktop = shell.leafbotDesktop ?? shell.yumakbotDesktop ?? null;
+
+/** A saved app with a launcher on this computer, and whether it is on the Desktop too. */
+export type InstalledApp = { id: string; name: string; desktop: boolean };
 
 export type DesktopServer = { mode: 'local' | 'remote'; url: string | null };
 

@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { copyText } from '@/lib/clipboard';
 import { useInfo } from '@/lib/queries';
 import { publicOrigin, useTransport } from '@/lib/transport';
+import { SaveAsApp } from './PageApps';
 import { isLoopback } from './RoutinePage';
 
 /**
@@ -23,11 +24,14 @@ export function BotPage({
   name,
   title,
   height,
+  threadId,
 }: {
   botId: string;
   path: string;
   name: string;
   title: string;
+  /** The conversation it was shown in, which a saved app goes back to. */
+  threadId?: string;
   /** The height the bot asked for, for a page laid out to the window (a map, a canvas). */
   height?: number;
 }) {
@@ -40,6 +44,7 @@ export function BotPage({
     <div className="w-full max-w-(--bubble-width) space-y-2">
       <div className="flex items-center gap-3 px-1 text-sm">
         <span className="min-w-0 flex-1 truncate font-medium">{title || name}</span>
+        <SaveAsApp botId={botId} path={path} name={title || name} threadId={threadId} />
         <SharePage botId={botId} path={path} name={title || name} />
         {!tunnel && (
           <a

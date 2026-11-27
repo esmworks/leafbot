@@ -8,6 +8,12 @@ describe('parseLink', () => {
     expect(parseLink('leafbot:room/r-9')).toEqual({ kind: 'room', id: 'r-9' });
   });
 
+  it("reads the link a saved app's launcher opens", () => {
+    expect(parseLink('leafbot://app/Xy_9-a')).toEqual({ kind: 'app', id: 'Xy_9-a' });
+    expect(linkInArgs(['C:\\Leaf Bot\\Leaf Bot.exe', 'leafbot://app/a1'])).toEqual({ kind: 'app', id: 'a1' });
+    expect(parseLink('leafbot://app/a%20b')).toBeNull();
+  });
+
   it('opens links made before the rename', () => {
     expect(parseLink('yumakbot://thread/abc_12')).toEqual({ kind: 'thread', id: 'abc_12' });
     expect(linkInArgs(['/opt/Leaf Bot/leafbot', 'yumakbot://bot/b1'])).toEqual({ kind: 'bot', id: 'b1' });
