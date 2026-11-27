@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { UserPlus, X } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Button } from '@/components/ui/button';
 import { personName } from '@/features/PeopleTab';
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
@@ -30,7 +29,7 @@ function readClosed(): string[] {
 }
 
 /**
- * A box at the top right for each person who came and waits for their team spaces, over the app
+ * A box at the bottom right, in the app's own green so it does not pass for part of the page, for each person who came and waits for their team spaces, over the app
  * of those who look after the server. It stays until one of them chooses the spaces (even none),
  * which places the person for everyone, or closes it, which puts it away on this device only; the
  * person is still listed in Today.
@@ -51,7 +50,8 @@ export function NewcomerBoxes() {
   const shown = newcomers.filter((p) => !closed.includes(p.id));
   if (!shown.length) return null;
   return (
-    <div className="pointer-events-none fixed end-4 top-14 z-40 flex max-h-[calc(100%-4.5rem)] w-80 max-w-[calc(100vw-2rem)] flex-col gap-3 overflow-y-auto">
+    // On a phone it sits above the bar at the bottom of the list.
+    <div className="pointer-events-none fixed end-4 bottom-24 z-40 flex max-h-[calc(100%-7rem)] w-80 max-w-[calc(100vw-2rem)] flex-col-reverse gap-3 overflow-y-auto md:bottom-4 md:max-h-[calc(100%-2rem)]">
       {shown.map((p) => (
         <NewcomerCard key={p.id} person={p} onClose={() => close(p.id)} />
       ))}
@@ -79,31 +79,38 @@ function NewcomerCard({ person, onClose }: { person: PersonInfo; onClose: () => 
     <section
       role="dialog"
       aria-label={t('newcomer.joined', { name })}
-      className="pointer-events-auto rounded-2xl border bg-popover p-4 text-sm text-popover-foreground shadow-lg"
+      className="pointer-events-auto rounded-2xl bg-[var(--brand)] p-4 text-sm text-white shadow-xl ring-1 ring-black/10"
     >
-      <div className="flex items-center gap-2 font-medium">
-        <UserPlus className="size-4 shrink-0 text-primary" />
-        <span className="min-w-0 flex-1 truncate">{t('newcomer.joined', { name })}</span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="-me-2 size-7 rounded-lg"
+      <div className="flex items-start gap-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/15">
+          <UserPlus className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate font-semibold">{t('newcomer.joined', { name })}</div>
+          <p className="mt-0.5 text-xs text-white/80">
+            {spaces.length ? t('newcomer.choose') : t('newcomer.noSpaces')}
+          </p>
+        </div>
+        <button
+          type="button"
+          className="-me-1 -mt-1 flex size-7 shrink-0 items-center justify-center rounded-lg text-white/80 hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none"
           onClick={onClose}
           aria-label={t('newcomer.close')}
           title={t('newcomer.close')}
         >
           <X className="size-4" />
-        </Button>
+        </button>
       </div>
-      <p className="mt-1 text-xs text-muted-foreground">
-        {spaces.length ? t('newcomer.choose') : t('newcomer.noSpaces')}
-      </p>
       {spaces.length > 0 && (
-        <div className="mt-2 space-y-1">
+        <div className="mt-3 space-y-1">
           {spaces.map((g) => (
-            <label key={g.id} className="flex items-center gap-2 rounded-md px-1 py-0.5 hover:bg-accent/50">
+            <label
+              key={g.id}
+              className="flex cursor-pointer items-center gap-2.5 rounded-md bg-white/10 px-2.5 py-1.5 hover:bg-white/15"
+            >
               <input
                 type="checkbox"
+                className="size-4 accent-white"
                 checked={chosen.includes(g.id)}
                 onChange={(e) => toggle(g.id, e.target.checked)}
               />
@@ -112,10 +119,15 @@ function NewcomerCard({ person, onClose }: { person: PersonInfo; onClose: () => 
           ))}
         </div>
       )}
-      <div className="mt-3 flex gap-2">
-        <Button size="sm" className="rounded-lg" disabled={place.isPending} onClick={() => place.mutate()}>
+      <div className="mt-3 flex justify-end">
+        <button
+          type="button"
+          className="h-8 rounded-sm bg-white px-4 text-sm font-medium text-[var(--brand)] hover:bg-white/90 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none disabled:opacity-60"
+          disabled={place.isPending}
+          onClick={() => place.mutate()}
+        >
           {t('newcomer.done')}
-        </Button>
+        </button>
       </div>
     </section>
   );
