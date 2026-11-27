@@ -1,0 +1,22 @@
+# Addition to compose.yml for a hosting panel (Dokploy and the like) that should run the published
+# release instead of building whatever its checkout holds. A panel builds compose.yml's services on
+# every deploy, which takes 10-20 minutes and puts the newest commit on the server; with this file it
+# pulls the release's images and the server changes only when a release is deployed.
+#   docker compose -f docker/compose.yml -f docker/compose.images.yml up -d
+# See "Hazır imajlarla" under "Dokploy ve benzeri paneller" in docker/README.md.
+#
+# LEAFBOT_VERSION picks a release (0.10.0, without the v); unset, it is the latest release, pulled
+# again on every deploy. The checkout the panel deploys from is usually its branch, newer than the
+# release, so its compose files run an older server than they were written for; deploy from the
+# release's tag where the panel allows it.
+services:
+  leafbot:
+    # Without the build compose.yml gives, a panel's `--build` has nothing to build here.
+    build: !reset null
+    image: ghcr.io/esmworks/leafbot-server:${LEAFBOT_VERSION:-latest}
+    pull_policy: always
+
+  computer:
+    build: !reset null
+    image: ghcr.io/esmworks/leafbot-computer:${LEAFBOT_VERSION:-latest}
+    pull_policy: always

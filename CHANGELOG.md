@@ -322,6 +322,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
   and why.
 - Bots running commands on your Mac can ask for access to Calendar, Reminders and Contacts.
 - `tel:` and `sms:` links in a reply open the dialer or Messages on the phone.
+- A server on a hosting panel such as Dokploy can run the published release instead of building its branch on every
+  deploy: `docker/compose.images.yml`, added to the panel's compose command, pulls the release's images (the latest,
+  or the one `LEAFBOT_VERSION` names), so the server changes only when a release is deployed. See "Hazır imajlarla"
+  in docker/README.md.
 
 ### Changed
 
