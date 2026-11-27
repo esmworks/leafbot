@@ -46,6 +46,7 @@ import { useT, type MessageKey } from '@/i18n';
 import { api } from '@/lib/api';
 import { copyText } from '@/lib/clipboard';
 import { useBots, useConnections, useManagesServer } from '@/lib/queries';
+import { PageAppView, SavedApps } from './PageApps';
 import { TeamChoice } from './VaultTab';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
@@ -172,6 +173,15 @@ export function AppsPage() {
     if (apps?.connectionId) openApps({ botId: apps.botId });
     setView({ kind: 'browse' });
   };
+  // A page saved as an app fills the area; back is the apps page it was opened from, or the chat.
+  if (apps?.pageAppId)
+    return (
+      <PageAppView
+        key={apps.pageAppId}
+        id={apps.pageAppId}
+        onBack={() => openApps(apps.fromApps ? { botId: apps.botId } : null)}
+      />
+    );
   return (
     // The whole main area: the lists of apps take as many columns as its width holds.
     <section className="@container flex min-h-0 min-w-0 flex-1">
@@ -180,6 +190,7 @@ export function AppsPage() {
           <Browse
             onView={setView}
             onClose={() => openApps(null)}
+            onOpenApp={(id) => openApps({ botId: apps?.botId ?? null, pageAppId: id, fromApps: true })}
             initialQuery={catalogEntry(apps?.catalogId)?.name ?? ''}
           />
         )}
@@ -211,11 +222,14 @@ export function AppsPage() {
 function Browse({
   onView,
   onClose,
+  onOpenApp,
   initialQuery = '',
 }: {
   onView(v: View): void;
   /** Leaves the apps page for what was under it. */
   onClose(): void;
+  /** Opens a page saved as an app. */
+  onOpenApp(id: string): void;
   initialQuery?: string;
 }) {
   const t = useT();
@@ -371,6 +385,7 @@ function Browse({
         </div>
       )}
       <div className="scroll-thin relative flex-1 overflow-y-auto px-5 sm:px-8 pt-2 pb-8">
+        {!q && filter === 'all' && <SavedApps onOpen={onOpenApp} />}
         {shownServices.length > 0 && (
           <Section title={t('apps.yours')}>
             {shownServices.map((s) => {

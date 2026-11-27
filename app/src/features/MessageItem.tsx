@@ -221,6 +221,7 @@ export function MessageItem({
               name={page.name}
               title={m.text}
               height={page.height}
+              threadId={m.threadId}
             />
           ) : files.length ? (
             // Files the bot sent with send_file, with its note if it wrote one.

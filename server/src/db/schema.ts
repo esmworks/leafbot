@@ -1687,6 +1687,55 @@ export const pageShares = pgTable(
 );
 
 /**
+ * Pages a person saved as apps of their own: opened by name from the apps page, or from a launcher
+ * on their computer, without finding the conversation the bot showed it in. The page is read from
+ * the bot's folder each time, so the app is always the page as it is now.
+ */
+export const pageApps = pgTable(
+  'page_apps',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    /** The page's path in the bot's library, as its card in the conversation holds it. */
+    path: text('path').notNull(),
+    name: text('name').notNull(),
+    /** The conversation the page was shown in, for "Go to chat"; it may be gone since. */
+    threadId: text('thread_id'),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex('page_apps_page_uq').on(t.userId, t.botId, t.path)],
+);
+
+/**
+ * What a bot's page keeps for itself (`leafbot.state`): each person's own, per page, so the same
+ * page shows the same data in its conversation and as a saved app.
+ */
+export const pageState = pgTable(
+  'page_state',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    /** The page's path in the bot's library. */
+    path: text('path').notNull(),
+    key: text('key').notNull(),
+    value: jsonb('value').notNull(),
+    /** The value's size as JSON, for the page's limit. */
+    size: integer('size').notNull(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.botId, t.path, t.key] })],
+);
+
+/**
  * API keys the person saved for bots to call a service with. The value is sealed with the vault
  * key; bots know a key only by its name, and the server adds it to requests for its origin alone.
  */

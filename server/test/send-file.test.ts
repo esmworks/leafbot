@@ -176,7 +176,7 @@ describe('botun dosya göndermesi', () => {
     await t.send(thread.id, '[araç:show_page {"path":"notlar.txt"}]');
     await t.services.turns.idle();
     msgs = await t.messages(thread.id);
-    expect(msgs.at(-1)!.text).toContain('Yalnızca .html dosyası gösterilebilir');
+    expect(msgs.at(-1)!.text).toContain('Yalnızca .html ya da .jsx dosyası gösterilebilir');
   });
 
   it('klasörü sayfa olarak gösterir: betik, stil, resim ve veri dosyalarını taşır, taşıyamadıklarını söyler', async () => {

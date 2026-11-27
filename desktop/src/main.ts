@@ -1,6 +1,8 @@
 import './old-env';
-import { existsSync, lstatSync, readFileSync, readlinkSync, renameSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, readFileSync, readlinkSync, renameSync } from 'node:fs';
+import * as fsp from 'node:fs/promises';
 import { hostname } from 'node:os';
+import * as nodePath from 'node:path';
 import { dirname, join } from 'node:path';
 import {
   app,
@@ -37,6 +39,8 @@ import {
   type DesktopConfig,
   type ServerId,
 } from './desktop-config';
+import { canInstall, createInstaller, isAppId, type InstallEnv, type Installer } from './app-install';
+import { appWindowUrl, readAppWindowSize, writeAppWindowSize } from './app-windows';
 import { createCrashGuard, isCrash } from './crash-guard';
 import { DISPLAY_POLL_MS, DisplayHold, keepDisplayOn } from './display-awake';
 import { startEgress } from './egress';
@@ -200,13 +204,22 @@ const personComputer = () => {
 /** This system has a helper for bots to use the computer. */
 const helperSystem = () => process.platform === 'darwin' || process.platform === 'win32';
 
+const startLink = linkInArgs(process.argv);
 /** A `leafbot://` link waiting for the page to take it (see `links.ts`). */
-let pendingLink: AppLink | null = linkInArgs(process.argv);
+let pendingLink: AppLink | null = startLink?.kind === 'app' ? null : startLink;
+/** A saved app a launcher asked for before this computer's server was up. */
+let pendingApp: string | null = startLink?.kind === 'app' ? startLink.id : null;
+/** Saved apps open in windows of their own, one per app and server. */
+const appWindows = new Map<string, BrowserWindow>();
 
 /** Shows the chat a link names: the window comes forward and the page is told to open it. */
 function openLink(link: AppLink | null) {
   if (!link) {
     showWindow();
+    return;
+  }
+  if (link.kind === 'app') {
+    openLaunchedApp(link.id);
     return;
   }
   pendingLink = link;
@@ -226,6 +239,7 @@ if (!app.requestSingleInstanceLock()) {
     const link = parseLink(url);
     if (!link) return;
     if (app.isReady()) openLink(link);
+    else if (link.kind === 'app') pendingApp = link.id;
     else pendingLink = link;
   });
   void app.whenReady().then(boot);
@@ -376,6 +390,8 @@ async function connect() {
   pointAtShown();
   if (!config.local) {
     setStatus('status.remote', { host: hostOf(mainServer(config)) });
+    // Apps are installed from this computer's own server, which is off: the window opens instead.
+    pendingApp = null;
     showWindow();
     return;
   }
@@ -469,10 +485,10 @@ async function startLocal() {
     localKey = readFileSync(join(dataDir, 'access-key'), 'utf8').trim();
     setStatus('status.running');
     watchLocalWork();
-    if (config.shown === 'local') {
-      pointAtShown();
-      showWindow();
-    }
+    if (config.shown === 'local') pointAtShown();
+    // Started from an app's launcher: that app opens, in its own window, rather than the chat.
+    if (pendingApp) openLaunchedApp(pendingApp);
+    else if (config.shown === 'local') showWindow();
   } catch (err) {
     if (server !== proc) return;
     log.error('server failed to start', err);
@@ -539,8 +555,9 @@ async function applyNow(next: DesktopConfig) {
   const reshow =
     before.shown !== next.shown || remoteOf(before, next.shown)?.key !== remoteOf(next, next.shown)?.key;
   if (reshow) {
-    // The old page belongs to another origin; start fresh.
+    // The old page belongs to another origin; start fresh. Apps of this computer's server stay.
     closeQuick();
+    closeAppWindows(localOrigin);
     closeWindow();
     pointAtShown();
     showWindow();
@@ -688,6 +705,121 @@ function showWindow() {
     }
   });
   void win.loadURL(origin);
+}
+
+/**
+ * A saved app a launcher opened. Launchers are installed from this computer's own server's page,
+ * so the app opens there; until that server is up, it waits.
+ */
+function openLaunchedApp(id: string) {
+  if (localOrigin) {
+    pendingApp = null;
+    openAppWindow(id, localOrigin);
+    return;
+  }
+  if (config.local) pendingApp = id;
+  else showWindow();
+}
+
+/** Opens a saved app in a window of its own, or brings its window forward. */
+function openAppWindow(id: string, at: string) {
+  const key = `${at}#${id}`;
+  const open = appWindows.get(key);
+  if (open && !open.isDestroyed()) {
+    if (open.isMinimized()) open.restore();
+    open.show();
+    open.focus();
+    return;
+  }
+  const size = readAppWindowSize(userData, id);
+  const appWin = new BrowserWindow({
+    ...size,
+    minWidth: 360,
+    minHeight: 280,
+    title: 'Leaf Bot',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1b1b1b' : '#fafafa',
+    show: false,
+    webPreferences: {
+      preload: join(__dirname, 'preload.cjs'),
+      contextIsolation: true,
+      sandbox: true,
+      nodeIntegration: false,
+      spellcheck: true,
+    },
+  });
+  appWindows.set(key, appWin);
+  appWin.once('ready-to-show', () => appWin.show());
+  appWin.webContents.on('context-menu', (_e, params) => showContextMenu(appWin, params));
+  appWin.on('close', () => {
+    if (!appWin.isMaximized() && !appWin.isFullScreen()) {
+      const [width, height] = appWin.getSize();
+      writeAppWindowSize(userData, id, { width: width!, height: height! });
+    }
+  });
+  appWin.on('closed', () => {
+    if (appWindows.get(key) === appWin) appWindows.delete(key);
+  });
+  void appWin.loadURL(appWindowUrl(at, id));
+}
+
+/** Closes every app window of a server whose page is no longer shown. */
+function closeAppWindows(except?: string | null) {
+  for (const [key, w] of appWindows) {
+    if (except && key.startsWith(`${except}#`)) continue;
+    if (!w.isDestroyed()) w.close();
+    appWindows.delete(key);
+  }
+}
+
+/** The launchers of saved apps on this computer; null where none can be made (run from source). */
+let installer: Installer | null | undefined;
+function appInstaller(): Installer | null {
+  if (installer !== undefined) return installer;
+  const env: InstallEnv = {
+    platform: process.platform,
+    path: nodePath,
+    home: app.getPath('home'),
+    userData,
+    appData: process.platform === 'win32' ? app.getPath('appData') : undefined,
+    desktopDir: () => {
+      try {
+        return app.getPath('desktop');
+      } catch {
+        return null;
+      }
+    },
+    dataHome: process.env.XDG_DATA_HOME,
+    // An AppImage runs from a mount that changes each time: the launcher starts the file itself.
+    executable: process.env.APPIMAGE ?? process.execPath,
+    hostBundleId: 'com.esmworks.leafbot',
+    hostIcon: launcherIcon(),
+    fs: fsp as unknown as InstallEnv['fs'],
+    shell: process.platform === 'win32' ? shell : undefined,
+    log: (line) => log.info(`app launchers: ${line}`),
+  };
+  installer = app.isPackaged && canInstall(env) ? createInstaller(env) : null;
+  return installer;
+}
+
+/**
+ * Leaf Bot's icon for the launchers: the bundle's own on macOS; on Linux a copy in the data folder,
+ * since an AppImage's files are gone once it quits. Windows shows the executable's.
+ */
+function launcherIcon(): string | null {
+  try {
+    if (process.platform === 'darwin') {
+      const icns = join(process.resourcesPath, 'icon.icns');
+      return existsSync(icns) ? icns : null;
+    }
+    if (process.platform === 'linux') {
+      const kept = join(userData, 'app-launcher-icon.png');
+      copyFileSync(join(assets(), 'icon.png'), kept);
+      return kept;
+    }
+  } catch (err) {
+    log.warn('no icon for app launchers', err);
+  }
+  return null;
 }
 
 /** Saves the window's place and size as it changes, so the next start opens it there. */
@@ -927,9 +1059,42 @@ function fromLocalPage(e: IpcMainInvokeEvent) {
 function fromConnectPage(e: IpcMainInvokeEvent) {
   return !!connectWin && e.sender === connectWin.webContents;
 }
+/** From a saved app's own window, showing the page of this computer's server. */
+function fromLocalAppWindow(e: IpcMainInvokeEvent) {
+  if (!localOrigin) return false;
+  try {
+    const sent = new URL(e.senderFrame?.url ?? '').origin === localOrigin;
+    return sent && [...appWindows.values()].some((w) => !w.isDestroyed() && w.webContents === e.sender);
+  } catch {
+    return false;
+  }
+}
+const isAppName = (v: unknown): v is string =>
+  typeof v === 'string' && v.trim().length > 0 && v.length <= 120;
 
 function registerIpc() {
-  ipcMain.handle('leafbot:access-key', (e) => (fromMainPage(e) ? accessKey : null));
+  ipcMain.handle('leafbot:access-key', (e) =>
+    fromMainPage(e) ? accessKey : fromLocalAppWindow(e) ? localKey : null,
+  );
+  // Saved apps: a window of their own, from any server's page; launchers on this computer only
+  // from this computer's own server's page, whose apps they open.
+  ipcMain.handle('leafbot:open-app', (e, id: unknown) => {
+    if (fromMainPage(e) && origin && isAppId(id)) openAppWindow(id, origin);
+  });
+  ipcMain.handle('leafbot:app-installs', (e) =>
+    fromLocalPage(e) ? (appInstaller()?.installed() ?? null) : null,
+  );
+  ipcMain.handle('leafbot:app-install', async (e, id: unknown, name: unknown) => {
+    if (!fromLocalPage(e) || !isAppId(id) || !isAppName(name)) return null;
+    return appInstaller()?.install(id, name.trim()) ?? null;
+  });
+  ipcMain.handle('leafbot:app-uninstall', async (e, id: unknown) => {
+    if (fromLocalPage(e) && isAppId(id)) await appInstaller()?.uninstall(id);
+  });
+  ipcMain.handle('leafbot:app-desktop', async (e, id: unknown, name: unknown, on: unknown) => {
+    if (!fromLocalPage(e) || !isAppId(id) || !isAppName(name) || typeof on !== 'boolean') return null;
+    return appInstaller()?.setDesktop(id, name.trim(), on) ?? null;
+  });
   // The chat a `leafbot://` link named, once: the page asks when it starts and when told to.
   ipcMain.handle('leafbot:take-link', (e) => {
     if (!fromMainPage(e)) return null;

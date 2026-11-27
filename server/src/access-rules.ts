@@ -181,6 +181,17 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'POST /api/bots/:id/library/share': edit(),
   'GET /api/page-shares': 'self',
   'DELETE /api/page-shares/:token': 'self',
+  // Pages saved as apps: each person's own, and the page is checked again as it opens.
+  'GET /api/bots/:id/library/app': chat(),
+  'POST /api/bots/:id/library/app': chat(),
+  'GET /api/page-apps': 'self',
+  'GET /api/page-apps/:id': 'self',
+  'PATCH /api/page-apps/:id': 'self',
+  'DELETE /api/page-apps/:id': 'self',
+  'GET /api/page-apps/:id/page': 'self',
+  // A page's own calls (its data, the bot's tables, connected apps), checked call by call.
+  'POST /api/bots/:id/library/page-call': chat(),
+  'POST /api/page-apps/:id/call': 'self',
   'GET /api/summaries': 'self',
   'GET /api/search': 'self',
   'GET /api/today': 'self',

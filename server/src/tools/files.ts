@@ -1,4 +1,4 @@
-import { constants, realpathSync, statSync } from 'node:fs';
+import { constants, existsSync, realpathSync, statSync } from 'node:fs';
 import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { basename, extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { MAX_UPLOAD_BYTES, type Bot, type MessageFile, type Thread } from '@leafbot/shared';
@@ -11,6 +11,7 @@ import { workspacePaths } from '../workspace';
 import type { Define } from './index';
 import { MAX_RENDER_SIDE, renderPage } from '../browser/render';
 import { bundlePage } from './page-bundle';
+import { isJsxPage, isPageFile } from '../page-kit';
 
 const real = (p: string) => {
   try {
@@ -243,11 +244,12 @@ function pageFile(
 ): string | null {
   let page = path;
   try {
-    page = join(botFolder(dataDir, bot, threadId, path).full, 'index.html');
+    const folder = botFolder(dataDir, bot, threadId, path).full;
+    page = join(folder, existsSync(join(folder, 'index.jsx')) ? 'index.jsx' : 'index.html');
   } catch {
     // Not a folder: a page file.
   }
-  return /\.html?$/i.test(page) ? botFile(dataDir, bot, threadId, page, t).full : null;
+  return isPageFile(page) ? botFile(dataDir, bot, threadId, page, t).full : null;
 }
 
 /** Writes a new file in `dir` under a free name (`afiş.png`, `afiş-2.png`…) and returns its path. */
@@ -295,7 +297,8 @@ export function showPageTool(opts: {
       const to = await personThread(services, bot, thread);
       const file = await shareableFile(dataDir, bot, to.id, full, t);
       if (file.size > MAX_PAGE) return t('tool.pageTooLarge');
-      const { leftOut } = await bundlePage(full);
+      // A React page brings nothing from its folder; an HTML one carries the files it uses.
+      const { leftOut } = isJsxPage(full) ? { leftOut: [] } : await bundlePage(full);
       await services.threads.addMessage({
         threadId: to.id,
         role: 'assistant',
@@ -342,6 +345,8 @@ export function pageImageTool(opts: {
     async ({ path, width, height, scale, caption }) => {
       const full = pageFile(dataDir, bot, thread.id, path, t);
       if (!full) return t('tool.pageNotHtml');
+      // A React page loads its libraries from this server, which the picture's browser does not reach.
+      if (isJsxPage(full)) return t('tool.pageImageNotJsx');
       if (statSync(full).size > MAX_PAGE) return t('tool.pageTooLarge');
       const { html, leftOut } = await bundlePage(full);
       const png = await renderPage({

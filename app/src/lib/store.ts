@@ -136,9 +136,16 @@ export interface UiState {
   /**
    * The apps (connections) page, over whatever the main area shows, which stays as it was under it.
    * `botId` is the bot it was opened for, whose switch a new connection turns on; `catalogId` opens
-   * it on one service of the catalog, `connectionId` on one connection.
+   * it on one service of the catalog, `connectionId` on one connection, `pageAppId` on a page
+   * saved as an app (`fromApps`: opened from the apps page, which its back button returns to).
    */
-  apps: { botId: string | null; catalogId?: string; connectionId?: string } | null;
+  apps: {
+    botId: string | null;
+    catalogId?: string;
+    connectionId?: string;
+    pageAppId?: string;
+    fromApps?: boolean;
+  } | null;
   /** The bot whose computer (browser) is open. */
   computerBotId: string | null;
   /** Whether that browser shows in a small window over the chat rather than the large view. */

@@ -50,6 +50,15 @@ const tr = {
     'Bu adreste bir eklenti bulunamadı: plugin.json ya da .claude-plugin/plugin.json yok ya da adı yok',
   'error.pluginFormat': 'Eklentinin {file} dosyası okunamadı',
   'error.shareNotPage': 'Yalnızca bir HTML sayfası paylaşılabilir',
+  'error.appNotPage': 'Yalnızca bir HTML sayfası uygulama olarak kaydedilebilir',
+  'error.pageToolMissing':
+    'Bu sayfa {tool} aracını kullanamıyor: bağlı uygulama yok, bota açık değil ya da araç kapalı',
+  'error.pageCallConfirm': 'Bu işlem bir şeyi değiştirir; önce senin onayın gerekiyor',
+  'error.pageToolUndeclared': 'Sayfa {tool} aracını kullanacağını söylemedi',
+  'error.pageStateFull': 'Sayfanın sakladığı veri sınıra ulaştı',
+  'error.pageMethod': 'Sayfa bilinmeyen bir şey istedi',
+  'error.pageCallRate': 'Sayfa çok sık istekte bulunuyor; biraz sonra yeniden dene',
+  'error.pageTableWrite': 'Bu tabloya yalnızca botu düzenleyebilenler sayfadan yazabilir',
   'share.gone.title': 'Bu sayfa artık paylaşılmıyor',
   'share.gone.body':
     'Bağlantı kapatılmış ya da sayfa kaldırılmış. Bağlantıyı gönderen kişiden yenisini isteyebilirsin.',
@@ -1017,8 +1026,9 @@ const tr = {
   'tool.react':
     'Kullanıcının son mesajına emoji ile tepki ver (ör. 👍 ❤️ 🙏 😂 👏 🔥). Tek emoji ver; yeniden çağırırsan önceki tepkinin yerini alır.',
   'tool.show_page':
-    'Yaptığın bir HTML sayfasını (grafik, harita, küçük bir araç) sohbette çalışır hâlde göster. Sayfa yalıtılmış bir çerçevede çalışır: kitaplıkları cdn.jsdelivr.net, unpkg.com ya da cdnjs.cloudflare.com adresinden yükleyebilir, ama ağdan veri çekemez. Bir klasör de gösterebilirsin: index.html, yanındaki .js, .css, resimler ve .json, .geojson, .csv gibi veri dosyalarıyla birlikte taşınır (fetch ile okunur). Harita, tuval ya da oyun gibi pencereyi dolduran sayfalarda height ver. Güncellemek için dosyayı yeniden yazıp yeniden göster.',
-  'tool.pageNotHtml': 'Yalnızca .html dosyası gösterilebilir.',
+    "Yaptığın bir sayfayı (bir uygulama, bir pano, bir grafik, bir harita, küçük bir araç) sohbette çalışır hâlde göster. Kişi onu uygulama olarak kaydedip ayrı pencerede açabilir ve bilgisayarına kurabilir; bu yüzden onu bitmiş bir uygulama gibi yap. Uygulama için tek bir .jsx dosyası yaz: varsayılan dışa aktarımı sayfa olan bir React bileşeni. İçe aktarabileceklerin yalnızca şunlar: react, lucide-react (ikonlar), recharts (grafikler; ResponsiveContainer içinde) ve leafbot. Stil için Tailwind sınıflarını kullan. Hazır renkler açık ve koyu temada kendiliğinden uyar: bg-bg, bg-surface, bg-surface-2, text-fg, text-muted, border-line, bg-accent, text-accent-fg, text-danger. leafbot'tan şunlar gelir: useStored(anahtar, ilkDeğer) bir useState gibidir ama kişinin verisini saklar, sayfa ya da uygulama yeniden açılınca geri gelir. useRows('Tablo') senin tablolarının satırlarını getirir ({rows, loading, error, reload}). data.add/update/remove(tablo, …) satır yazar; bunun için kişinin botu düzenleme izni olmalı. connectors.call('mcp__uygulama__araç', argümanlar) kişinin bağlı uygulamalarındaki bir aracı çalıştırır ve {text, data, isError} döner. Kullanacağın araçları dosyanın başında tek satırla bildir: // leafbot:connectors mcp__uygulama__araç, …. Yalnızca okuyan araçlar hemen çalışır; bir şeyi değiştirenler önce kişiye sorulur. Sayfa ağdan veri çekemez; veriyi gömmek, saklamak ya da bu yollarla almak zorundasın. Tasarım: üstte başlık ve tek satır açıklama; içerik max-w-5xl mx-auto p-6 gibi ortalanmış ve ferah olsun; kartlarda rounded-2xl border border-line bg-surface p-5 kullan; ikonlar lucide'dan gelsin; sayıları Intl ile biçimlendir. Boş, yükleniyor ve hata durumlarını göster. Gerçek etkileşimler koy (ekle, düzenle, sil, filtrele). Dar ekranda da düzgün görünsün. Örnek veri ya da lorem ipsum koyma. Düz bir grafik ya da harita için .html de yazabilirsin: kitaplıklarını cdn.jsdelivr.net, unpkg.com ya da cdnjs.cloudflare.com'dan yükler. HTML sayfada da window.leafbot aynı işleri yapar (state.get/set, data, connectors) ve araçlar <meta name=\"leafbot:connectors\" content=\"…\"> ile bildirilir. Bir klasör de gösterebilirsin: index.jsx ya da index.html, yanındaki dosyalarla birlikte. Pencereyi dolduran harita, tuval ya da oyunlarda height ver. Güncellemek için dosyayı yeniden yazıp yeniden göster.",
+  'tool.pageNotHtml': 'Yalnızca .html ya da .jsx dosyası gösterilebilir.',
+  'tool.pageImageNotJsx': 'Resme yalnızca HTML sayfası çevrilir; bunun için sayfanın .html hâlini yaz.',
   'tool.pageTooLarge': 'Sayfa çok büyük (en çok 2 MB); verileri küçült.',
   'tool.pageLeftOut': 'Sayfanın taşıyamadığı dosyalar: {files}.',
   'tool.pageLeftOut.type': 'sayfalar bu türü taşıyamaz',
@@ -2514,6 +2524,15 @@ const en: Catalog<ServerKey> = {
     'No plugin found at this address: plugin.json or .claude-plugin/plugin.json is missing or has no name',
   'error.pluginFormat': 'The plugin’s {file} could not be read',
   'error.shareNotPage': 'Only an HTML page can be shared',
+  'error.appNotPage': 'Only an HTML page can be saved as an app',
+  'error.pageToolMissing':
+    'This page cannot use {tool}: the app is not connected, not open to the bot, or the tool is off',
+  'error.pageCallConfirm': 'This changes something; it needs your yes first',
+  'error.pageToolUndeclared': 'The page did not say it uses {tool}',
+  'error.pageStateFull': "The page's saved data has reached its limit",
+  'error.pageMethod': 'The page asked for something unknown',
+  'error.pageCallRate': 'The page is asking too often; try again in a moment',
+  'error.pageTableWrite': 'Only those who may change the bot can write in this table from a page',
   'share.gone.title': 'This page is no longer shared',
   'share.gone.body':
     'The link was turned off or the page was removed. You can ask whoever sent it for a new one.',
@@ -3489,8 +3508,9 @@ const en: Catalog<ServerKey> = {
   'tool.react':
     "React to the user's latest message with an emoji (e.g. 👍 ❤️ 🙏 😂 👏 🔥). Give a single emoji; calling it again replaces the earlier reaction.",
   'tool.show_page':
-    'Show an HTML page you made (a chart, a map, a small tool) running in the conversation. It runs in an isolated frame: it may load libraries from cdn.jsdelivr.net, unpkg.com or cdnjs.cloudflare.com, but cannot fetch data from the network. You may also show a folder: its index.html goes with the .js, .css, pictures and data files such as .json, .geojson or .csv beside it (read with fetch). Give height for pages that fill the window, such as maps, canvases or games. To update it, write the file again and show it again.',
-  'tool.pageNotHtml': 'Only an .html file can be shown.',
+    "Show a page you made (an app, a dashboard, a chart, a map, a small tool) running in the conversation. The person can save it as an app, open it in its own window and install it on their computer, so make it a finished app. For an app, write one .jsx file: a React component whose default export is the page. It may import only react, lucide-react (icons), recharts (charts, inside a ResponsiveContainer) and leafbot. Style it with Tailwind classes. The ready-made colours follow the light and dark theme by themselves: bg-bg, bg-surface, bg-surface-2, text-fg, text-muted, border-line, bg-accent, text-accent-fg, text-danger. leafbot gives: useStored(key, initial), like useState but it keeps the person's data, which comes back when the page or app opens again; useRows('Table'), the rows of your tables ({rows, loading, error, reload}); data.add/update/remove(table, …) to write rows, which takes the person's right to change the bot; and connectors.call('mcp__app__tool', args), which runs a tool of the person's connected apps and returns {text, data, isError}. Declare the tools it uses in one line at the top of the file: // leafbot:connectors mcp__app__tool, …. Tools that only read run at once; one that changes something asks the person first. The page fetches nothing from the network: embed data, keep it, or get it these ways. Design: a header with a title and a one-line description; centred, roomy content such as max-w-5xl mx-auto p-6; cards with rounded-2xl border border-line bg-surface p-5; icons from lucide; numbers formatted with Intl. Show empty, loading and error states. Give it real interactions (add, edit, delete, filter). Make it work on a narrow screen too. No sample data or lorem ipsum. For a plain chart or map you may write .html instead, loading libraries from cdn.jsdelivr.net, unpkg.com or cdnjs.cloudflare.com; there window.leafbot does the same (state.get/set, data, connectors) and tools are declared with <meta name=\"leafbot:connectors\" content=\"…\">. You may also show a folder: its index.jsx or index.html with the files beside it. Give height for pages that fill the window, such as maps, canvases or games. To update it, write the file again and show it again.",
+  'tool.pageNotHtml': 'Only an .html or .jsx file can be shown.',
+  'tool.pageImageNotJsx': 'Only an HTML page turns into a picture; write the page as .html for that.',
   'tool.pageTooLarge': 'The page is too large (2 MB at most); make the data smaller.',
   'tool.pageLeftOut': 'Files the page does not carry: {files}.',
   'tool.pageLeftOut.type': 'pages cannot carry this type',

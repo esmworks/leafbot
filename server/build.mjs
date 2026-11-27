@@ -1,6 +1,8 @@
 // Bundles the server into dist/ for the desktop app and the Docker image.
-import { cpSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { build } from 'esbuild';
+import { buildPageKit } from './page-kit.mjs';
 
 rmSync('dist', { recursive: true, force: true });
 await build({
@@ -37,3 +39,7 @@ await build({
   logLevel: 'info',
 });
 cpSync('drizzle', 'dist/drizzle', { recursive: true });
+// The libraries bot pages load, built once here so the running server needs no builder.
+mkdirSync('dist/page-kit');
+for (const [name, text] of Object.entries(await buildPageKit()))
+  writeFileSync(join('dist/page-kit', name), text);

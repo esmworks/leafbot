@@ -4,19 +4,20 @@
  * - `leafbot://thread/<id>`: one conversation (a bot's or a room's)
  * - `leafbot://bot/<id>`: a bot's chat, as clicking it in the sidebar opens it
  * - `leafbot://room/<id>`: a room
+ * - `leafbot://app/<id>`: a page saved as an app, in a window of its own (its launchers open this)
  *
- * Opening one only shows that chat: it never sends anything or starts a conversation.
+ * Opening one only shows that chat or page: it never sends anything or starts a conversation.
  */
 export const LINK_SCHEME = 'leafbot';
 /** Links made before the app was renamed (bookmarks, dashboards) keep opening it. */
 export const LINK_SCHEMES = [LINK_SCHEME, 'yumakbot'];
 
 export interface AppLink {
-  kind: 'thread' | 'bot' | 'room';
+  kind: 'thread' | 'bot' | 'room' | 'app';
   id: string;
 }
 
-const KINDS = new Set<AppLink['kind']>(['thread', 'bot', 'room']);
+const KINDS = new Set<AppLink['kind']>(['thread', 'bot', 'room', 'app']);
 
 /** The chat a link names, or null for anything else. */
 export function parseLink(raw: string): AppLink | null {

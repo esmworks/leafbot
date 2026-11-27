@@ -2316,6 +2316,23 @@ export const PageShareCreate = z.object({
   name: z.string().trim().min(1).max(200),
 });
 
+/** A page a person saved as an app: it opens on its own, outside the conversation it was shown in. */
+export const PageApp = z.object({
+  id: Id,
+  botId: Id,
+  path: z.string(),
+  name: z.string(),
+  threadId: z.string().nullable(),
+  createdAt: z.string(),
+});
+export type PageApp = z.infer<typeof PageApp>;
+export const PageAppCreate = z.object({
+  path: z.string().min(1).max(2000),
+  name: z.string().trim().min(1).max(120),
+  threadId: Id.optional(),
+});
+export const PageAppRename = z.object({ name: z.string().trim().min(1).max(120) });
+
 /**
  * How a saved API key goes with a request: as a bearer token, in a header of the service's own,
  * as a query parameter, or as the password of basic authentication.

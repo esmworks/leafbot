@@ -18,6 +18,7 @@ import { SlackChannel } from '../channels/slack';
 import { TelegramChannels } from '../channels/telegram';
 import { WhatsAppChannel } from '../channels/whatsapp';
 import { Inbox } from './inbox';
+import { PageAppService } from './page-apps';
 import { PageShareService } from './page-shares';
 import { ApiCredentialService } from './api-credentials';
 import { CanaryService } from './canary';
@@ -122,6 +123,7 @@ export class Services {
   readonly usage: UsageService;
   readonly botApi: BotApi;
   readonly inbox: Inbox;
+  readonly pageApps: PageAppService;
   readonly pageShares: PageShareService;
   readonly apiCredentials: ApiCredentialService;
   readonly canary: CanaryService;
@@ -198,6 +200,7 @@ export class Services {
     this.usage = new UsageService(ctx, this.settings, clock);
     this.botApi = new BotApi(ctx, this);
     this.inbox = new Inbox(ctx, this);
+    this.pageApps = new PageAppService(ctx);
     this.pageShares = new PageShareService(ctx);
     this.apiCredentials = new ApiCredentialService(ctx, this.vault);
     this.canary = new CanaryService(ctx, this);

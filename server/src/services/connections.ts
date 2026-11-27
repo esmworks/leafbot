@@ -1081,6 +1081,84 @@ export class ConnectionService {
   }
 
   /**
+   * A connected-app tool a bot's page names (`mcp__<app>__<tool>`, or the tool's name alone when
+   * only one app has it), for the person viewing the page: a connection theirs or the team's, open
+   * to the page's bot, the tool switched on. Null when there is no such tool.
+   */
+  async pageTool(botId: string, exposed: string, userId: string) {
+    const m = /^mcp__([a-z0-9_]+?)__(.+)$/.exec(exposed);
+    const rows = await this.ctx.db
+      .select()
+      .from(schema.connections)
+      .where(m ? and(eq(schema.connections.slug, m[1]!), usable(userId)) : usable(userId))
+      .orderBy(asc(schema.connections.createdAt));
+    const want = m ? m[2]! : exposed;
+    const found: { row: Row; tool: Row['tools'][number] }[] = [];
+    for (const row of rows) {
+      const names = exposedNames(
+        row.slug,
+        row.tools.map((x) => x.name),
+      );
+      const tool = row.tools.find(
+        (x) => (names.get(x.name) === want || x.name === want) && x.enabled && !x.appOnly && !x.local,
+      );
+      if (!tool) continue;
+      if (!row.allBots) {
+        const [open] = await this.ctx.db
+          .select()
+          .from(schema.botConnections)
+          .where(and(eq(schema.botConnections.botId, botId), eq(schema.botConnections.connectionId, row.id)));
+        if (!open) continue;
+      }
+      found.push({ row, tool });
+    }
+    return found.length === 1 ? found[0]! : null;
+  }
+
+  /** What a page sees of a tool it names: its app, what it does, and whether it only reads. */
+  async describePageTool(botId: string, exposed: string, userId: string) {
+    const found = await this.pageTool(botId, exposed, userId);
+    if (!found) return { name: exposed, available: false as const };
+    return {
+      name: exposed,
+      available: found.row.status === 'connected',
+      app: found.row.name,
+      tool: found.tool.name,
+      title: found.tool.title,
+      description: truncate(found.tool.description, 500),
+      read: (found.tool.kind ?? found.tool.hinted) === 'read',
+    };
+  }
+
+  /**
+   * Calls a tool for a bot's page, as the person viewing it. A tool that only reads runs; any other
+   * runs only once the person said yes to this call in the app (`confirmed`).
+   */
+  async callForPage(o: {
+    botId: string;
+    exposed: string;
+    userId: string;
+    args: Record<string, unknown>;
+    confirmed: boolean;
+  }): Promise<CallToolResult> {
+    const found = await this.pageTool(o.botId, o.exposed, o.userId);
+    if (!found) throw new HttpError(404, 'error.pageToolMissing', { tool: o.exposed });
+    if (found.row.status !== 'connected') throw new HttpError(409, 'error.appUnavailable');
+    if ((found.tool.kind ?? found.tool.hinted) !== 'read' && !o.confirmed) {
+      throw new HttpError(409, 'error.pageCallConfirm');
+    }
+    return serviceText(
+      found.row,
+      await callTool(
+        this.target(found.row),
+        found.tool.name,
+        o.args,
+        AbortSignal.timeout(this.ctx.config.mcpCallTimeoutMs),
+      ),
+    );
+  }
+
+  /**
    * The tool a routine's check may call for a bot: of a connected app open to the bot, switched on,
    * and one that only reads. Null when it is not such a tool.
    */
