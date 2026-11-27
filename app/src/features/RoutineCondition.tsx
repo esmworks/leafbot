@@ -16,7 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { useConnections } from '@/lib/queries';
-import { Field } from './RoutinePage';
+import { Field } from './Field';
 
 type Kind = RoutineConditionCheck['kind'];
 const KINDS: Kind[] = ['files', 'email', 'whatsapp', 'table', 'tool', 'page', 'number'];

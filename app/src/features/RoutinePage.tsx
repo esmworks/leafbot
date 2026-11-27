@@ -61,22 +61,8 @@ import { namesWanted, RoutineInputs, type InputRow } from './RoutineInputs';
 import { RunInputs } from './RunInputs';
 import { RoutineRehearsal } from './RoutineRehearsal';
 import { RunSteps, StepsEditor, TemplatePicker, type StepForm } from './RoutineSteps';
-
-/**
- * The routine the store has open, in place of its bot's chat: a saved one while it still exists,
- * or a new one. A routine deleted meanwhile closes.
- */
-export function useOpenedRoutine(): { botId: string; routine?: Routine; showRuns: boolean } | null {
-  const opened = useUi((s) => s.routine);
-  const { data: routines, isFetching } = useRoutines();
-  const routine = opened?.routineId ? routines?.find((r) => r.id === opened.routineId) : undefined;
-  const gone = !!opened?.routineId && !!routines && !isFetching && !routine;
-  useEffect(() => {
-    if (gone) useUi.getState().closePage();
-  }, [gone]);
-  if (!opened || (opened.routineId && !routine)) return null;
-  return { botId: opened.botId, routine, showRuns: !!opened.showRuns };
-}
+import { Field } from './Field';
+import { isLoopback } from '@/lib/loopback';
 
 /** Validation messages are message keys; `Field` shows them in the current language. */
 /** What must hold for a step to run; the window always fills every field, so none has a default here. */
@@ -1274,26 +1260,6 @@ function RoutineName({ form, name }: { form: UseFormReturn<Form>; name?: string 
   );
 }
 
-export function Field({
-  label,
-  error,
-  children,
-}: {
-  label: string;
-  /** A message key from the form schema, or text as it came. */
-  error?: string;
-  children: React.ReactNode;
-}) {
-  const t = useT();
-  return (
-    <div className="space-y-1.5">
-      <Label className="text-sm text-muted-foreground">{label}</Label>
-      {children}
-      {error && <p className="text-sm text-destructive">{t(error as MessageKey)}</p>}
-    </div>
-  );
-}
-
 /**
  * A command that runs the routine from a script or another service, with some text for the bot.
  * The access key is read from the environment, never written into the command.
@@ -1708,10 +1674,4 @@ export function AppEvents({
       )}
     </div>
   );
-}
-
-/** A name that only this computer answers to. */
-export function isLoopback(hostname: string): boolean {
-  const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
-  return h === 'localhost' || h.endsWith('.localhost') || h === '::1' || /^127\./.test(h);
 }

@@ -54,7 +54,7 @@ import { moveWarning } from '@/features/botDrag';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { ComputerCard, useBrowserAvailable } from './Computer';
-import { canPreview, usePreview } from './FilePreview';
+import { canPreview, usePreview } from './previewStore';
 import { BotSuggestions } from './BotSteps';
 import { BotTables } from './BotTables';
 import { InstructionsDocNotice } from './InstructionsDoc';

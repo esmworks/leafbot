@@ -55,7 +55,7 @@ import { MODE_LABEL } from './RightPanel';
 import { InstructionsDocStatus } from './InstructionsDoc';
 import { availableStarters, starterBot, type StarterId } from './onboarding/profile';
 import { MissingApps } from './MissingApps';
-import { Field } from './RoutinePage';
+import { Field } from './Field';
 import { connectionName, ModelSearch, providerName, type ModelOption } from './ProviderConnect';
 
 export const COLORS = [

@@ -20,7 +20,7 @@ import { leftoverBold } from '@leafbot/shared';
 import { useLocale, useT } from '@/i18n';
 import { highlight } from '@/lib/highlight';
 import { MermaidDiagram, textOf } from './Mermaid';
-import { usePreview } from '@/features/FilePreview';
+import { usePreview } from '@/features/previewStore';
 import { copyText } from '@/lib/clipboard';
 import { readTable, toCsv, toMarkdown } from '@/lib/tableCopy';
 import { api } from '@/lib/api';

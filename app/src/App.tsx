@@ -11,7 +11,6 @@ import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
 import { AppsPage } from '@/features/Connections';
 import { ComputerDialog } from '@/features/Computer';
-import { FilePreview } from '@/features/FilePreview';
 import { Chat } from '@/features/Chat';
 import { RoomDialog, RoomView } from '@/features/Rooms';
 import { Login } from '@/features/Login';
@@ -22,7 +21,8 @@ import { ActionCards } from '@/features/ActionCards';
 import { GrokMoveOffer } from '@/features/GrokMoveOffer';
 import { PageAppWindow } from '@/features/PageApps';
 import { PageCallQuestion } from '@/features/PageBridge';
-import { RoutinePage, useOpenedRoutine } from '@/features/RoutinePage';
+import { useOpenedRoutine } from '@/features/openedRoutine';
+import { usePreview } from '@/features/previewStore';
 import { Sidebar } from '@/features/Sidebar';
 import { useLocale, useT } from '@/i18n';
 import { api, setUnauthorizedHandler } from '@/lib/api';
@@ -49,6 +49,8 @@ const BotFormPage = lazyScreen(() => import('@/features/BotFormPage').then((m) =
 const Onboarding = lazyScreen(() => import('@/features/onboarding/Onboarding').then((m) => m.Onboarding));
 const PhoneScreen = lazyScreen(() => import('@/features/PhoneScreen').then((m) => m.PhoneScreen));
 const QuickPanel = lazyScreen(() => import('@/features/QuickPanel').then((m) => m.QuickPanel));
+const RoutinePage = lazyScreen(() => import('@/features/RoutinePage').then((m) => m.RoutinePage));
+const FilePreview = lazyScreen(() => import('@/features/FilePreview').then((m) => m.FilePreview));
 const SettingsPage = lazyScreen(() => import('@/features/SettingsPage').then((m) => m.SettingsPage));
 const TodayDialog = lazyScreen(() => import('@/features/TodayDialog').then((m) => m.TodayDialog));
 const BoardDialog = lazyScreen(() => import('@/features/board/BoardDialog').then((m) => m.BoardDialog));
@@ -281,6 +283,7 @@ function Workspace() {
   const todayMounted = useOpenedOnce(useUi((s) => s.todayOpen));
   const boardMounted = useOpenedOnce(useUi((s) => s.boardOpen));
   const dashboardsMounted = useOpenedOnce(useUi((s) => s.dashboardsOpen));
+  const previewMounted = useOpenedOnce(usePreview((s) => s.file !== null));
   // The desktop app's menu bar holds Settings (⌘,) too.
   useEffect(() => desktop?.onOpenSettings?.(() => useUi.getState().openSettings('general', true)), []);
 
@@ -401,7 +404,7 @@ function Workspace() {
         </main>
         <RoomDialog />
         <ComputerDialog />
-        <FilePreview />
+        {previewMounted && <FilePreview />}
         <SearchDialog />
         <ShortcutsDialog />
         {todayMounted && <TodayDialog />}

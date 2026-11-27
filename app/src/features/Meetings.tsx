@@ -47,7 +47,7 @@ import { fits, LINE_MAX, lines, localDay, oneLine } from '@/lib/minutes';
 import { useFormat } from '@/lib/format';
 import { useBots, useMeetings, useSession, useSettings } from '@/lib/queries';
 import { cn } from '@/lib/utils';
-import { Field } from './RoutinePage';
+import { Field } from './Field';
 
 /** The minutes window: a room's list of minutes, or one meeting's minutes. */
 const useMinutesDialog = create<{

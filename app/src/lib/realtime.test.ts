@@ -81,6 +81,14 @@ describe('realtime deltas', () => {
     expect(useUi.getState().streams.t1?.text).toBe('arka plan');
   });
 
+  it('applies the words even when the window is hidden after the frame was asked for', () => {
+    delta('gizlendi');
+    // The frame never comes (the window went to the background): the fallback timer applies them.
+    vi.advanceTimersByTime(120);
+    expect(frame).toBeNull();
+    expect(useUi.getState().streams.t1?.text).toBe('gizlendi');
+  });
+
   it('tells a connection that dropped from one still trying for the first time', () => {
     emit('disconnect', 'transport close');
     expect(useUi.getState().connection.kind).toBe('connecting');

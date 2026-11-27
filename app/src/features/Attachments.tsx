@@ -30,7 +30,7 @@ import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { useFormat } from '@/lib/format';
 import { fileFamily, previewKind, type FileFamily } from '@/lib/preview';
-import { usePreview } from './FilePreview';
+import { usePreview } from './previewStore';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { ImageMarkup } from './ImageMarkup';
