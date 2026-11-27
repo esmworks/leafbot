@@ -14,7 +14,3 @@ PRD.md
 TASKS.md
 docs/notes/
 .claude/launch.json
-
-# Wrangler's local state and secrets for running the names Worker locally
-.wrangler/
-.dev.vars

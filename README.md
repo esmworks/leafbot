@@ -217,12 +217,8 @@ curl -fsSL https://raw.githubusercontent.com/esmworks/leafbot/main/docker/instal
 
 The script installs Docker, fills in `docker/.env` with random secrets, sets up AppArmor and the egress firewall (kept
 across reboots), puts Caddy in front for HTTPS with a Let's Encrypt certificate, and prints the address and access key.
-Without a domain the server gets a free name under leafbot.cloud, such as `k3x9q2mf.leafbot.cloud`. For that the
-script sends one request to `names.leafbot.app`, which points the name at the address the request came from and keeps
-that address, the name and a hash of the server's token; the server renews its name once a day, and names not renewed
-for 30 days are removed (`leafbot update --new-name` gets another). When no name can be had, or with `--sslip`, it uses one made from the server's IP address
-(`1-2-3-4.sslip.io`) instead. An installed server keeps its name on updates. With your own domain, point its DNS record
-at the server first and pass it:
+Without a domain the server uses a name made from its IP address (`1-2-3-4.sslip.io`); an installed server keeps its
+name on updates. With your own domain, point its DNS record at the server first and pass it:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/esmworks/leafbot/main/docker/install.sh | sudo bash -s -- --domain bot.example.com
@@ -242,10 +238,7 @@ runcmd:
 ```
 
 The access key is chosen there because the script's output goes to a log file on the server; it needs at least 24
-letters, digits or `- _ . ~`. A few minutes later, `https://names.leafbot.app/<server IP>` takes you to the server's
-leafbot.cloud name (or, if it had to use one, open `https://<server IP with dashes>.sslip.io`).
-
-The names service itself is in `names/`, a Cloudflare Worker; its README has the steps that deploy a copy.
+letters, digits or `- _ . ~`. A few minutes later the server answers at `https://<server IP with dashes>.sslip.io`.
 
 ## Running on a server (Docker, by hand)
 

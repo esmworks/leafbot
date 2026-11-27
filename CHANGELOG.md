@@ -7,13 +7,6 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
-- Server names under leafbot.cloud: `docker/install.sh` without `--domain` now gets the server a free name such as
-  `k3x9q2mf.leafbot.cloud` from a small names service (`names/`, a Cloudflare Worker) instead of an sslip.io name.
-  Let's Encrypt allows 50 new certificates a week per registered domain, which under sslip.io every install shared
-  with everyone using it. The name points at the address the request came from; the server renews it daily with a
-  systemd timer (`leafbot refresh-name`), names not renewed for 30 days are removed, and
-  `https://names.leafbot.app/<IP>` leads to the name of a server set up from user data. When no name can be had, or
-  with `--sslip`, the installer uses an sslip.io name as before; installed servers keep their address.
 - A coding agent bot's effort is now set as the agent's own thinking level, or the nearest level it has, when
   the agent offers one. The effort field shows for these bots too; an agent without such a setting ignores it.
 - Routines can have no schedule ("No schedule" under When). Such a routine runs only when one of its events
