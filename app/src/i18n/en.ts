@@ -2365,6 +2365,10 @@ export const en: Catalog<MessageKey> = {
   'connection.thisComputer': 'This computer',
   'connection.connectOther': 'Connect to another server',
   'connection.useLocal': 'Back to this computer',
+  'connection.addServer': 'Add a server',
+  'connection.mainServer': 'Main server: it keeps running while this computer is off',
+  'connection.shownHere': 'Shown in this window',
+  'connection.showHere': 'Show here',
 
   'browserInfo.label': "Bots' browser",
   'browserInfo.ok': 'Available',
