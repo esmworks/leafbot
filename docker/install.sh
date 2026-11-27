@@ -9,6 +9,14 @@
 #
 # Without --domain the server gets an sslip.io name made from its public IPv4 address.
 #
+# The account's "Add a server" page gives the same command with an install code in a line before the
+# script, so the server joins the account at the end of the install and nobody types anything:
+#
+#   { echo LEAFBOT_INSTALL_CODE=ABCDE-FGHJK-LMNPQ-RSTUV; curl -fsSL .../install.sh; } | sudo bash -s
+#
+# The line sets a variable in the shell that runs the script. The code is not an argument or a sudo
+# variable because sudo's log and `ps` show both; it reaches the second stage in the environment.
+#
 # Afterwards the `leafbot` command runs the same script: leafbot update | status | logs | restart | access-key |
 # login.
 #
@@ -29,6 +37,9 @@ STAGE2=
 REF=
 LANG_GIVEN=
 REST=()
+# An install code from the account (see the top of the file); LINKED says whether it was redeemed.
+INSTALL_CODE=${LEAFBOT_INSTALL_CODE:-}
+LINKED=
 
 # Messages in Turkish or English: --lang, else the shell's language. A fresh server is usually C.UTF-8.
 case "${LC_ALL:-${LANG:-}}" in
@@ -71,6 +82,9 @@ Seçenekler:
   --dir KLASÖR       Kurulum klasörü (varsayılan: /opt/leafbot)
   --repo ADRES       Git deposu (varsayılan: esmworks/leafbot)
   --lang tr|en       İletilerin dili
+
+Hesabınızdaki "Sunucu ekle" sayfasının verdiği komut, betikten önce bir LEAFBOT_INSTALL_CODE
+satırı taşır; kurulum bitince sunucu o hesaba kendiliğinden bağlanır.
 EOF
   else
     cat <<'EOF'
@@ -97,6 +111,9 @@ Options:
   --dir FOLDER       Installation folder (default: /opt/leafbot)
   --repo URL         Git repository (default: esmworks/leafbot)
   --lang tr|en       Language of the messages
+
+The command from your account's "Add a server" page carries a LEAFBOT_INSTALL_CODE line before the
+script; the server then joins that account at the end of the install.
 EOF
   fi
 }
@@ -622,6 +639,29 @@ EOF
   [ ! -e /usr/local/bin/yumakbot ] || ln -sf leafbot /usr/local/bin/yumakbot
 }
 
+# Redeems the install code the command came with, on the running server. A code lasts 15 minutes and
+# the install may take longer, so a code that no longer works never fails the install: the summary
+# then points at `leafbot login`.
+link_account() {
+  [ -n "$INSTALL_CODE" ] || return 0
+  step "Sunucu Leaf Bot hesabınıza bağlanıyor" "Linking the server to your Leaf Bot account"
+  if ! [[ $INSTALL_CODE =~ ^[A-Za-z0-9]{5}(-?[A-Za-z0-9]{5}){3}$ ]]; then
+    warn "Komuttaki kurulum kodu geçersiz." "The install code in the command is not valid."
+    return 0
+  fi
+  local env=(-e LANG="$UI" -e LEAFBOT_SERVER_NAME="$(get_env LEAFBOT_DOMAIN)")
+  # Piped in, not passed as an argument, so `ps` does not show it.
+  if printf '%s\n' "$INSTALL_CODE" | compose exec -T "${env[@]}" leafbot node dist/index.mjs login --code; then
+    LINKED=1
+    # The running server reaches the account only after it starts again.
+    compose restart leafbot >/dev/null
+    ! systemctl is-enabled --quiet leafbot-firewall.service 2>/dev/null || systemctl restart leafbot-firewall.service
+  else
+    warn "Sunucu hesabınıza bağlanamadı. Kurulum tamam; bağlamak için: sudo leafbot login" \
+      "The server could not be linked to your account. The install is complete; to link it: sudo leafbot login"
+  fi
+}
+
 summary() {
   printf '\n'
   say "Leaf Bot hazır." "Leaf Bot is ready."
@@ -633,10 +673,15 @@ summary() {
     say "  Erişim anahtarı: sudo leafbot access-key ile görün" "  Access key:  see it with sudo leafbot access-key"
   fi
   printf '\n'
-  say "Adresi açıp erişim anahtarıyla girin; ardından bir kullanıcı adı ve şifre seçersiniz. Masaüstü ya da telefon uygulamasından bağlanmak için bağlantı ayarlarına bu adresi ve anahtarı yazın." \
-    "Open the address and sign in with the access key; you then choose a user name and password. To connect the desktop or phone app, enter this address and key in its connection settings."
-  say "Leaf Bot hesabınızla her yerden ulaşmak için girin: sudo leafbot login" \
-    "To reach it from anywhere through your Leaf Bot account, sign in: sudo leafbot login"
+  if [ -n "$LINKED" ]; then
+    say "Leaf Bot hesabınıza bağlandı. Botlarınıza www.leafbot.app/bots adresinden ya da hesabınızla girdiğiniz uygulamadan ulaşın." \
+      "Leaf Bot is connected to your account. Reach your bots at www.leafbot.app/bots, or in the app signed in with your account."
+  else
+    say "Adresi açıp erişim anahtarıyla girin; ardından bir kullanıcı adı ve şifre seçersiniz. Masaüstü ya da telefon uygulamasından bağlanmak için bağlantı ayarlarına bu adresi ve anahtarı yazın." \
+      "Open the address and sign in with the access key; you then choose a user name and password. To connect the desktop or phone app, enter this address and key in its connection settings."
+    say "Leaf Bot hesabınızla her yerden ulaşmak için girin: sudo leafbot login" \
+      "To reach it from anywhere through your Leaf Bot account, sign in: sudo leafbot login"
+  fi
   say "Komutlar: leafbot status | logs | update | restart | access-key | login" \
     "Commands: leafbot status | logs | update | restart | access-key | login"
   say "Yedek: uygulamadaki şifreli tam yedek ya da $DIR/docker/.env dosyası ile Docker birimleri." \
@@ -669,6 +714,8 @@ main() {
     check_os
     ensure_packages
     fetch_source
+    # The code goes on in the environment, not among the arguments (see the top of the file).
+    [ -z "$INSTALL_CODE" ] || export LEAFBOT_INSTALL_CODE="$INSTALL_CODE"
     exec bash "$DIR/docker/install.sh" --stage2 --ref "$REF" --dir "$DIR" "${args[@]}"
   fi
   [ -n "$REF" ] || die "--stage2 --ref ister" "--stage2 needs --ref"
@@ -684,6 +731,8 @@ main() {
   start_containers
   wait_healthy
   setup_host
+  # Before the certificate: the code's 15 minutes are not spent waiting for it.
+  link_account
   wait_https
   summary
 }

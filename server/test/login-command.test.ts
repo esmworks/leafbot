@@ -12,7 +12,7 @@ import { schema } from '../src/db';
 import { translator } from '../src/i18n';
 import { AccountLinks } from '../src/tunnel/links';
 import { OWNER_ID } from '../src/users';
-import { ISSUER, fakeAccount, ownerClaims } from './fake-account';
+import { CODE, ISSUER, fakeAccount, ownerClaims } from './fake-account';
 import { testServer } from './helpers';
 
 const en = translator('en');
@@ -248,6 +248,90 @@ describe('leafbot login', () => {
       locale: 'en',
       fetcher: account.fetcher,
       serverAnswers: stopped,
+    });
+    expect(code).toBe(1);
+    expect(account.calls).toEqual([]);
+  });
+});
+
+describe('leafbot login --code', () => {
+  it('links the server with the install code piped in, asking nothing else', async () => {
+    const config = dataFolder();
+    const account = fakeAccount();
+    const io = terminal([CODE]);
+    process.env.LEAFBOT_SERVER_NAME = 'bot.example.com';
+    try {
+      const code = await login({
+        config,
+        io,
+        locale: 'en',
+        fetcher: account.fetcher,
+        serverAnswers: stopped,
+        withInstallCode: true,
+      });
+      expect(code).toBe(0);
+    } finally {
+      delete process.env.LEAFBOT_SERVER_NAME;
+    }
+    expect(io.asked).toEqual([en('login.askInstallCode')]);
+    expect(io.said).toEqual([en('login.linkedWithCode')]);
+    // No email sign-in: the code was made by the account the owner is signed in to on the website.
+    expect(account.calls.map((c) => c.path)).toEqual(['/v1/host/claim']);
+    expect(account.calls[0]?.body).toMatchObject({ code: CODE, name: 'bot.example.com' });
+
+    const t = await testServer({ dataDir: config.dataDir, memoryDb: false, databaseUrl: null });
+    try {
+      const state = await t.api<{ linked: boolean }>('GET', '/api/account-host');
+      expect(state.body.linked).toBe(true);
+      // The account that made the code is the owner here from its first visit.
+      expect(await new AccountLinks(t.services.ctx.db).resolve(ownerClaims('acct_ada00001'))).toEqual({
+        userId: OWNER_ID,
+      });
+    } finally {
+      await t.dispose();
+    }
+  });
+
+  it('ends on a code that is not one, without asking the account', async () => {
+    const account = fakeAccount();
+    const io = terminal(['not-a-code']);
+    const code = await login({
+      config: dataFolder(true),
+      io,
+      locale: 'en',
+      fetcher: account.fetcher,
+      serverAnswers: stopped,
+      withInstallCode: true,
+    });
+    expect(code).toBe(1);
+    expect(io.said).toEqual([en('error.installCodeInvalid')]);
+    expect(account.calls).toEqual([]);
+  });
+
+  it('says why when the server belongs to another account', async () => {
+    const account = fakeAccount({ hostTaken: true });
+    const io = terminal([CODE]);
+    const code = await login({
+      config: dataFolder(true),
+      io,
+      locale: 'en',
+      fetcher: account.fetcher,
+      serverAnswers: stopped,
+      withInstallCode: true,
+    });
+    expect(code).toBe(1);
+    expect(io.said).toEqual([en('error.installCodeOtherAccount')]);
+  });
+
+  it('ends when no code comes in', async () => {
+    const account = fakeAccount();
+    const code = await login({
+      config: dataFolder(true),
+      io: terminal([]),
+      locale: 'en',
+      fetcher: account.fetcher,
+      serverAnswers: stopped,
+      withInstallCode: true,
     });
     expect(code).toBe(1);
     expect(account.calls).toEqual([]);

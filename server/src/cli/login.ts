@@ -9,7 +9,7 @@ import { translator, type T } from '../i18n';
 import { VaultService } from '../services/vault';
 import { AccountHost, accountHostConfig } from '../tunnel/host';
 import { AccountLinks } from '../tunnel/links';
-import { AccountSignIn } from '../tunnel/signin';
+import { AccountSignIn, serverName } from '../tunnel/signin';
 import { adoptLegacyAccount } from '../users';
 import { HttpError } from '../util';
 
@@ -29,6 +29,11 @@ export interface LoginOptions {
   fetcher?: typeof fetch;
   /** Whether a server answers on this configuration's address: asked only of a PostgreSQL setup. */
   serverAnswers?: (config: Config) => Promise<boolean>;
+  /**
+   * `leafbot login --code`: an install code made on the owner's account is read instead of an email
+   * and its code, so an installer can link the server with no one at the terminal.
+   */
+  withInstallCode?: boolean;
 }
 
 /**
@@ -76,7 +81,7 @@ export async function login(opts: LoginOptions): Promise<number> {
       ...(opts.fetcher ? { fetcher: opts.fetcher } : {}),
     });
     if ((await host.state()).linked) io.say(t('login.alreadyLinked'));
-    const done = await steps(signIn, io, t, opts.locale);
+    const done = opts.withInstallCode ? await withCode(host, io, t) : await steps(signIn, io, t, opts.locale);
     if (!done) return 1;
     // On PostgreSQL a server may run beside the command; it reads the link when it starts again.
     if (config.databaseUrl && (await (opts.serverAnswers ?? serverAnswers)(config)))
@@ -85,6 +90,28 @@ export async function login(opts: LoginOptions): Promise<number> {
   } finally {
     await db.close();
   }
+}
+
+/**
+ * One install code, read once: an installer pipes it in, and a wrong or expired code ends the
+ * command, since nobody is there to type another. The account lists the server by the name the code
+ * was made with, else by {@link serverName}.
+ */
+async function withCode(host: AccountHost, io: LoginIo, t: T): Promise<boolean> {
+  const typed = await io.ask(t('login.askInstallCode'));
+  if (typed === null || !typed.trim()) {
+    io.say(t('error.installCodeInvalid'));
+    return false;
+  }
+  try {
+    await host.link(typed.trim(), serverName());
+  } catch (e) {
+    if (!(e instanceof HttpError)) throw e;
+    io.say(t(e.key, e.params));
+    return false;
+  }
+  io.say(t('login.linkedWithCode'));
+  return true;
 }
 
 /** Email, code, then the name when the account has none; false when it stopped on the way. */
@@ -171,11 +198,15 @@ export async function serverAnswers(config: Config): Promise<boolean> {
   return !!res?.ok;
 }
 
-/** `leafbot login` on the terminal it was typed in. */
-export async function loginFromTerminal(config: Config, locale: Locale): Promise<number> {
+/** `leafbot login` on the terminal it was typed in, or with the install code piped to it. */
+export async function loginFromTerminal(
+  config: Config,
+  locale: Locale,
+  opts: { withInstallCode?: boolean } = {},
+): Promise<number> {
   const io = terminal(process.stdin, process.stdout);
   try {
-    return await login({ config, io, locale });
+    return await login({ config, io, locale, ...opts });
   } finally {
     io.close();
   }

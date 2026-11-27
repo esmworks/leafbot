@@ -16,7 +16,10 @@ const RESTART_CODE = 75;
 // With no command the server starts, as the desktop app and Docker run it; a command does one job
 // on the same data folder and ends.
 const command = process.argv[2];
-if (command === 'login') await exitAfterOutput(await loginFromTerminal(config, locale));
+if (command === 'login') {
+  const withInstallCode = process.argv.slice(3).includes('--code');
+  await exitAfterOutput(await loginFromTerminal(config, locale, { withInstallCode }));
+}
 if (command !== undefined) {
   console.error(t('cli.unknownCommand', { command }));
   await exitAfterOutput(2);

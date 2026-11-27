@@ -986,7 +986,7 @@ function openConnectWindow() {
   if (connectWin && !connectWin.isDestroyed()) return connectWin.focus();
   connectWin = new BrowserWindow({
     width: 460,
-    height: 420,
+    height: 470,
     resizable: false,
     title: t('connect.title'),
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1b1b1b' : '#fafafa',
