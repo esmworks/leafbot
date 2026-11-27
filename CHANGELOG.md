@@ -437,6 +437,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
   scripts there. To move over: link the server to your account (the `login` command, or Settings → Connection),
   invite each person from Settings → People (someone already on the server comes back as the same person), and sign
   the phone app and the Chrome extension in with the QR code. Passwords stay in the database, unused.
+- In the phone app (0.10.0, a new install from the store, not an update over the air): the list of signed-in
+  devices, the live picture of the computer's screen, copying a link to a conversation or the run command, and
+  sharing files over 64 MB, since these needed a cookie or a direct address the tunnel does not give. A link to a
+  connect code only fills the code in; the phone signs in when the person taps Connect.
 
 ### Fixed
 
