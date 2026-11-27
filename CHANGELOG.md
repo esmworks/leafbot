@@ -423,7 +423,8 @@ version is 0.x, a minor release may change the data format or the API; the serve
   opened to be saved. Pictures and players still sit side by side, and the download-all button comes after the list.
 - This computer's server starts faster: Node keeps the compiled code between starts (one cache per version, older
   ones removed a minute after start), and the browser automation libraries load the first time a bot uses a
-  browser, not at every start. On a development Mac a usual start went from about 0.8 s to about 0.5 s.
+  browser, not at every start. On a development Mac a usual start went from about 0.8 s to about 0.5 s. The desktop
+  app also starts it before setting up its window and menus, so the chat shows about 0.1 s sooner.
 - The app loads less before it shows: settings, the bot form, routines, the file preview, the first-run and account
   pages, the phone screen, the quick window, the Today, tasks and dashboards windows, and math typesetting load when
   first opened. The scripts loaded at start went from about 2.8 MB to 2.3 MB. A page that cannot be loaded says so

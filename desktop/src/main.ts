@@ -165,8 +165,8 @@ let accessKey: string | null = null;
 let offeredTo: string | null = null;
 /** Asks this computer's server now and then whether a bot works there, while the window shows another. */
 let workTimer: ReturnType<typeof setInterval> | null = null;
-/** Ends when this computer's server, told to stop, has stopped. */
-let localStopping: Promise<void> = Promise.resolve();
+/** Ends when this computer's server, told to stop, has stopped; null when none is stopping. */
+let localStopping: Promise<void> | null = null;
 const LOCAL_WORK_POLL_MS = 30_000;
 /** Tray status line, kept as a key so it follows a language change. */
 let status: { key: DesktopKey; params?: Record<string, string> } = { key: 'status.starting' };
@@ -324,7 +324,13 @@ async function boot() {
   // A packaged app takes its Dock icon from the bundle; one run from source would show Electron's.
   // icon.png is the tile of assets/icon.icon drawn flat, without the glass macOS adds to the real one.
   if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(join(assets(), 'icon.png'));
+  // The language first: a locked keychain is asked about while the settings are read.
   loadLocale(userData, app.getPreferredSystemLanguages());
+  config = await readConfigOnceUnlocked();
+  launchMark('config');
+  // This computer's server takes the longest to come up, so it starts before the rest is set up
+  // and before the window, which it does not need; the window is ready long before it is.
+  const local = config.local ? startLocal() : undefined;
   hardenSessions();
   setUpSpelling();
   registerIpc();
@@ -333,9 +339,7 @@ async function boot() {
   watchMacSignIn();
   registerQuickKey();
   watchForUpdates();
-  config = await readConfigOnceUnlocked();
-  launchMark('config');
-  await connect();
+  await connect(local);
   void offerMove();
 }
 
@@ -444,7 +448,8 @@ async function checkForUpdatesNow() {
   }
 }
 
-async function connect() {
+/** `started` is this computer's server already on its way up, when the app's start began it. */
+async function connect(started?: Promise<void>) {
   startOffers();
   pointAtShown();
   if (!config.local) {
@@ -458,7 +463,7 @@ async function connect() {
   if (config.shown !== 'local') showWindow();
   // This computer's own is shown: the window opens now and says the server is starting.
   else if (!pendingApp) showLoadingWindow();
-  await startLocal();
+  await (started ?? startLocal());
 }
 
 /** Points the window's origin and key at the server it shows; no origin while that one is not up. */
@@ -497,8 +502,9 @@ function startOffers() {
 }
 
 async function startLocal() {
-  // A server still stopping holds the port and the data folder.
-  await localStopping;
+  // A server still stopping holds the port and the data folder. With none stopping the server
+  // starts before this returns, not a turn later, so the app's start can go on meanwhile.
+  if (localStopping) await localStopping;
   if (server) return;
   setStatus('status.serverStarting');
   const proc = new ServerProcess({
@@ -604,7 +610,11 @@ async function stopLocal() {
   workTimer = null;
   setAwake(false);
   const stopping = proc?.stop() ?? Promise.resolve();
-  localStopping = stopping.catch(() => {});
+  const settled = stopping.catch(() => {});
+  localStopping = settled;
+  void settled.then(() => {
+    if (localStopping === settled) localStopping = null;
+  });
   await stopping;
   const remote = mainRemote();
   if (remote) setStatus('status.remote', { host: hostOf(remote.url) });
