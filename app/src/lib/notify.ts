@@ -225,7 +225,7 @@ export function wanted(
 const open = new Map<string, Notification>();
 
 function show(title: string, body: string, tag: string, onClick?: () => void) {
-  const n = new Notification(title, { body, tag, icon: '/logo.png' });
+  const n = new Notification(title, { body, tag, icon: `${import.meta.env.BASE_URL}logo.png` });
   open.get(tag)?.close();
   open.set(tag, n);
   n.onclose = () => {

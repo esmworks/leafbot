@@ -23,6 +23,8 @@ await build({
     'patchright-core',
     // A native image library, with a build for each platform beside it.
     'sharp',
+    // WebRTC for browsers reaching the server through its account: native, with a package per platform.
+    'node-datachannel',
     // Loaded only once WhatsApp is set up; it brings its own protocol files and native helpers.
     '@whiskeysockets/baileys',
     // Loaded only once 1Password is connected; its core is a WebAssembly file read from its package.

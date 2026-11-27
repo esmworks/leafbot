@@ -14,115 +14,22 @@ import {
   encodeFrame,
   FRAME,
   proofMessage,
+  SERVER_FEATURES,
   STREAM_WINDOW,
+  TUNNEL_VERSION,
   type CtlToClient,
 } from '@leafbot/shared/tunnel';
 import Fastify, { type FastifyInstance } from 'fastify';
 import { Server as IOServer } from 'socket.io';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { TunnelGateway, type TunnelChannel, type TunnelPeer } from '../src/tunnel/gateway';
+import { TunnelGateway } from '../src/tunnel/gateway';
 import { tunnelIdentity } from '../src/tunnel/identity';
 import { TicketChecker } from '../src/tunnel/ticket';
+import type { End } from './tunnel-fakes';
+import { CLIENT_FP, FakePeer, SERVER_FP } from './tunnel-fakes';
 
 const ISSUER = 'https://accounts.example';
 const HOST_ID = 'host_12345678';
-const CLIENT_FP = 'sha-256 AA:01:02';
-const SERVER_FP = 'sha-256 BB:03:04';
-
-// ---- A data channel pair, delivering asynchronously like a real one ---------------------------
-
-const size = (m: string | Uint8Array) => (typeof m === 'string' ? Buffer.byteLength(m) : m.byteLength);
-
-class End implements TunnelChannel {
-  other!: End;
-  bufferedAmount = 0;
-  /** The most that ever waited in this end's send buffer. */
-  maxBuffered = 0;
-  closed = false;
-  /** Bytes delivered per millisecond; 0 delivers each message on the next turn. */
-  slow = 0;
-  private queue: (string | Uint8Array)[] = [];
-  private pumping = false;
-  private message: ((d: string | Uint8Array) => void)[] = [];
-  private closeCbs: (() => void)[] = [];
-  private drainCbs: (() => void)[] = [];
-  constructor(readonly label: string) {}
-  private deliver(m: string | Uint8Array) {
-    if (!this.other.closed) for (const cb of this.other.message) cb(m);
-  }
-  send(d: string | Uint8Array) {
-    if (this.closed) throw new Error('closed');
-    const copy = typeof d === 'string' ? d : new Uint8Array(d);
-    if (!this.slow) return void setImmediate(() => this.deliver(copy));
-    this.queue.push(copy);
-    this.bufferedAmount += size(copy);
-    this.maxBuffered = Math.max(this.maxBuffered, this.bufferedAmount);
-    if (this.pumping) return;
-    this.pumping = true;
-    const tick = () => {
-      let budget = this.slow;
-      while (this.queue.length && budget > 0) {
-        const m = this.queue.shift()!;
-        budget -= size(m);
-        const was = this.bufferedAmount;
-        this.bufferedAmount -= size(m);
-        this.deliver(m);
-        if (was > BUFFER_LOW && this.bufferedAmount <= BUFFER_LOW) for (const cb of this.drainCbs) cb();
-      }
-      if (this.queue.length && !this.closed) setTimeout(tick, 1);
-      else this.pumping = false;
-    };
-    setTimeout(tick, 1);
-  }
-  close() {
-    if (this.closed) return;
-    this.closed = true;
-    setImmediate(() => {
-      for (const cb of this.closeCbs) cb();
-      this.other.close();
-    });
-  }
-  onMessage(cb: (d: string | Uint8Array) => void) {
-    this.message.push(cb);
-  }
-  onClose(cb: () => void) {
-    this.closeCbs.push(cb);
-  }
-  onDrain(cb: () => void) {
-    this.drainCbs.push(cb);
-  }
-}
-
-class FakePeer implements TunnelPeer {
-  localFingerprint = SERVER_FP;
-  remoteFingerprint = CLIENT_FP;
-  closed = false;
-  serverEnds: End[] = [];
-  private channelCb: ((ch: TunnelChannel) => void) | null = null;
-  private closeCbs: (() => void)[] = [];
-  onChannel(cb: (ch: TunnelChannel) => void) {
-    this.channelCb = cb;
-  }
-  onClose(cb: () => void) {
-    this.closeCbs.push(cb);
-  }
-  close() {
-    if (this.closed) return;
-    this.closed = true;
-    for (const cb of this.closeCbs) cb();
-  }
-  /** The browser opens a channel; returns its end. `slow` holds the server's sends back. */
-  open(label: string, slow = 0): End {
-    const browser = new End(label);
-    const server = new End(label);
-    server.slow = slow;
-    this.serverEnds.push(server);
-    browser.other = server;
-    server.other = browser;
-    setImmediate(() => this.channelCb?.(server));
-    return browser;
-  }
-}
 
 // ---- Tickets -------------------------------------------------------------------------------
 
@@ -266,7 +173,7 @@ async function connected() {
   const d = device();
   const ok = await prove(ctl, read, d);
   expect(ok).toMatchObject({ t: 'ok' });
-  return { peer, ctl, read, d };
+  return { peer, ctl, read, d, ok };
 }
 
 // ---- A minimal browser-side HTTP client over the channel -------------------------------------
@@ -329,6 +236,21 @@ function httpClient(ch: End, opts: { ackDelayMs?: number } = {}) {
 const tick = (ms = 20) => new Promise((r) => setTimeout(r, ms));
 
 describe('TunnelGateway', () => {
+  it('names its tunnel version and the parts of the app it offers once the proof is accepted', async () => {
+    const { ok } = await connected();
+    expect(ok).toMatchObject({ t: 'ok', v: TUNNEL_VERSION, features: [...SERVER_FEATURES] });
+    gateway.close();
+    gateway = new TunnelGateway({
+      server: app.server,
+      checker,
+      host: 'myserver.servers.example',
+      hostKey: hostKey.privateKey,
+      resolve: async (c) => (access.has(c.sub) ? { userId: access.get(c.sub)! } : null),
+      features: ['rooms'],
+    });
+    expect((await connected()).ok).toMatchObject({ features: ['rooms'] });
+  });
+
   it('serves requests as the person the ticket names, whatever headers the page sends', async () => {
     const { peer } = await connected();
     const http = peer.open(CHANNEL.http);

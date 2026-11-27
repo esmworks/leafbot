@@ -274,11 +274,36 @@ const Auth = z.object({
   lang: HeaderValue.max(256).optional(),
 });
 /**
+ * The tunnel's own version: what this file describes. A browser refuses a server below
+ * `TUNNEL_MIN_VERSION`, since it cannot talk to it at all, and asks for the server to be updated.
+ * Everything a server may or may not offer above that is a feature, not a version.
+ */
+export const TUNNEL_VERSION = 1;
+export const TUNNEL_MIN_VERSION = 1;
+
+/**
+ * Parts of the app a server can do without. One web build serves every server, so a server names
+ * what it offers and the web app hides or turns off the parts it lacks, instead of every server
+ * needing the web build of its own version. A name is never reused for something else.
+ */
+export const SERVER_FEATURES = ['computer', 'phone', 'rooms', 'routines', 'dashboards', 'mcp-apps'] as const;
+export type ServerFeature = (typeof SERVER_FEATURES)[number];
+
+const FeatureName = z.string().regex(/^[a-z][a-z0-9-]{0,39}$/);
+
+/**
  * The proof was accepted; the next one is due within `refreshIn` seconds. `sig` is the server's
  * own proof: its Ed25519 signature over `hostProofMessage(...)`, checked by the browser against the
- * key the ticket names (`hkey`). Until it checks out, the browser sends nothing else.
+ * key the ticket names (`hkey`). Until it checks out, the browser sends nothing else, and reads `v`
+ * and `features` only then. A server that sends no `v` predates versions and counts as 0.
  */
-const Ok = z.object({ t: z.literal('ok'), refreshIn: z.number().int().positive(), sig: B64Url(86, 86) });
+const Ok = z.object({
+  t: z.literal('ok'),
+  refreshIn: z.number().int().positive(),
+  sig: B64Url(86, 86),
+  v: z.number().int().nonnegative().optional(),
+  features: z.array(FeatureName).max(64).optional(),
+});
 /** The proof was refused, or the connection is being closed; the channel closes after it. */
 const Denied = z.object({ t: z.literal('denied'), code: TunnelDenial });
 

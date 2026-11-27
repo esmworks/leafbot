@@ -9,6 +9,7 @@ import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { copyText } from '@/lib/clipboard';
 import { useInfo } from '@/lib/queries';
+import { publicOrigin, useTransport } from '@/lib/transport';
 import { isLoopback } from './RoutinePage';
 
 /**
@@ -32,26 +33,40 @@ export function BotPage({
 }) {
   const t = useT();
   const url = api.fileUrl(botId, path);
+  // On the web app the page's scripts would run in the website's origin, so it is not shown there.
+  const tunnel = useTransport((s) => s.tunnel);
   const link = 'flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground';
   return (
     <div className="w-full max-w-(--bubble-width) space-y-2">
       <div className="flex items-center gap-3 px-1 text-sm">
         <span className="min-w-0 flex-1 truncate font-medium">{title || name}</span>
         <SharePage botId={botId} path={path} name={title || name} />
-        <a
-          href={api.pagePrintUrl(botId, path)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={link}
-          title={t('page.printHint')}
-        >
-          <Printer className="size-3.5" /> {t('page.pdf')}
-        </a>
+        {!tunnel && (
+          <a
+            href={api.pagePrintUrl(botId, path)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={link}
+            title={t('page.printHint')}
+          >
+            <Printer className="size-3.5" /> {t('page.pdf')}
+          </a>
+        )}
         <a href={url} target="_blank" rel="noopener noreferrer" className={link}>
           <Download className="size-3.5" /> {name}
         </a>
       </div>
-      <LiveFrame title={title || name} src={api.pageUrl(botId, path, height)} initialHeight={height ?? 360} />
+      {tunnel ? (
+        <p className="rounded-2xl border bg-card px-4 py-3 text-sm text-muted-foreground">
+          {t('bots.pageElsewhere')}
+        </p>
+      ) : (
+        <LiveFrame
+          title={title || name}
+          src={api.pageUrl(botId, path, height)}
+          initialHeight={height ?? 360}
+        />
+      )}
     </div>
   );
 }
@@ -64,8 +79,8 @@ function SharePage({ botId, path, name }: { botId: string; path: string; name: s
   const { data } = useQuery({ queryKey: key, queryFn: () => api.pageShare(botId, path) });
   const { data: info } = useInfo();
   const share = data?.share ?? null;
-  const base = info?.publicUrl ?? window.location.origin;
-  const url = share ? `${base}/p/${share.token}` : null;
+  const base = publicOrigin(info?.publicUrl);
+  const url = share && base ? `${base}/p/${share.token}` : null;
   const set = useMutation({
     mutationFn: async (on: boolean) => {
       if (on) return { share: await api.sharePage(botId, path, name) };
@@ -113,7 +128,7 @@ function SharePage({ botId, path, name }: { botId: string; path: string; name: s
             </Button>
           </div>
         )}
-        {url && isLoopback(new URL(base).hostname) && (
+        {url && base && isLoopback(new URL(base).hostname) && (
           <p className="text-xs text-muted-foreground">{t('page.shareLocalOnly')}</p>
         )}
       </PopoverContent>

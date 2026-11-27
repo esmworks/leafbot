@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { toast } from 'sonner';
 import { getT } from '@/i18n';
+import { viaTunnel } from './transport';
 
 /** Time to read the notice before the page reloads. */
 const RELOAD_DELAY_MS = 2500;
@@ -18,7 +19,9 @@ const holds = new Set<object>();
 
 /** Called with each build the server reports; a different one than before means a new deploy. */
 export function serverBuild(buildId: string | null | undefined) {
-  if (!buildId || updated) return;
+  // The web app on the website is one build for every server: another server build is no reason
+  // to reload it.
+  if (!buildId || updated || viaTunnel()) return;
   if (loadedBuild === null) {
     loadedBuild = buildId;
     return;

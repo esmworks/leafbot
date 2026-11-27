@@ -27,6 +27,8 @@ import {
   MAX_RT_CHANNELS,
   MAX_STREAMS,
   RequestHead,
+  SERVER_FEATURES,
+  TUNNEL_VERSION,
   STREAM_WINDOW,
   type CtlToClient,
   type ResponseHead,
@@ -76,6 +78,8 @@ export interface GatewayOptions {
   hostKey: KeyObject;
   /** How long a proof holds before a fresh ticket is due, in seconds. */
   refreshS?: number;
+  /** The parts of the app this server offers; all of `SERVER_FEATURES` unless told otherwise. */
+  features?: readonly string[];
 }
 
 /**
@@ -229,7 +233,13 @@ class TunnelSession {
         serverFingerprint: this.peer.localFingerprint,
         cnonce: msg.cnonce,
       });
-      send(this.ctl, { t: 'ok', refreshIn, sig: sign(null, proof, this.opts.hostKey).toString('base64url') });
+      send(this.ctl, {
+        t: 'ok',
+        refreshIn,
+        sig: sign(null, proof, this.opts.hostKey).toString('base64url'),
+        v: TUNNEL_VERSION,
+        features: [...(this.opts.features ?? SERVER_FEATURES)],
+      });
       send(this.ctl, { t: 'challenge', nonce: this.nonce });
     } catch (err) {
       this.end(err instanceof TunnelRefusal ? err.code : 'ticket');

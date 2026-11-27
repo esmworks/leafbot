@@ -1,3 +1,4 @@
+import { serverFetch } from './transport';
 /** How a file can be shown without downloading it, or null when it cannot. */
 export type PreviewKind =
   'image' | 'pdf' | 'audio' | 'video' | 'markdown' | 'table' | 'workbook' | 'html' | 'text';
@@ -88,7 +89,7 @@ export async function readBytes(
   max: number,
   signal?: AbortSignal,
 ): Promise<Uint8Array<ArrayBuffer>> {
-  const res = await fetch(url, { credentials: 'same-origin', signal });
+  const res = await serverFetch(url, signal ? { signal } : {});
   if (!res.ok || !res.body) throw new Error(String(res.status));
   if (Number(res.headers.get('content-length') ?? 0) > max) {
     await res.body.cancel();
@@ -125,7 +126,7 @@ export async function readTextStart(
   max = TEXT_PREVIEW_BYTES,
   signal?: AbortSignal,
 ): Promise<{ text: string; cut: boolean }> {
-  const res = await fetch(url, { credentials: 'same-origin', signal });
+  const res = await serverFetch(url, signal ? { signal } : {});
   if (!res.ok || !res.body) throw new Error(String(res.status));
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];

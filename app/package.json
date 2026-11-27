@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:bots": "vite build --mode bots",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

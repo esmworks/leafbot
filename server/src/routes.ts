@@ -156,6 +156,7 @@ import { attachedFiles, cancelStagedUpload, saveStagedUpload, stagingDir } from 
 import { storageReport } from './storage';
 import { OWNER_ID } from './users';
 import { HttpError, notFound, truncate } from './util';
+import type { AccountHost } from './tunnel/host';
 import { tunnelIdentity } from './tunnel/identity';
 import { atLeast, managesServer } from './services/access';
 import { findProjects, findSetup } from './services/setup-import';
@@ -190,6 +191,8 @@ import { eq } from 'drizzle-orm';
 
 interface Deps {
   services: Services;
+  /** This server's link to a Leaf Bot account, through which browsers reach it. */
+  accountHost: AccountHost;
   backup: BackupService;
   transcribe: TranscribeService;
   auth: Auth;
@@ -1463,6 +1466,18 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     };
   });
   // Sharing this server on the person's Tailscale network.
+  // Linking the server to a Leaf Bot account: the owner only (access-rules.ts), and never over the
+  // tunnel itself (TUNNEL_REFUSED), so a connection through one account cannot move the server to
+  // another.
+  app.get('/api/account-host', async () => d.accountHost.state());
+  app.post('/api/account-host', async (req) => {
+    const { code, name } = z
+      .object({ code: z.string().min(1).max(64), name: z.string().max(80).optional() })
+      .parse(req.body);
+    return d.accountHost.link(code, name ?? '');
+  });
+  app.delete('/api/account-host', async () => d.accountHost.unlink());
+
   app.get('/api/tailscale', async () => s.tailscale.state());
   app.post('/api/tailscale', async (req) => {
     const { on } = z.object({ on: z.boolean() }).parse(req.body);

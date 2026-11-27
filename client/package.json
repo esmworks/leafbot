@@ -4,7 +4,9 @@
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./tunnel": "./src/tunnel/index.ts",
+    "./webrtc": "./src/tunnel/webrtc.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json"

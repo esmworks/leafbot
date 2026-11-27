@@ -13,6 +13,7 @@ export default defineConfig({
       'names',
       'relay',
       'account',
+      'webapp',
     ],
   },
 });

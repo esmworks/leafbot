@@ -9,6 +9,7 @@ packages:
   - names
   - relay
   - account
+  - webapp
 allowBuilds:
   electron: true
   electron-winstaller: false

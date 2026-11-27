@@ -155,6 +155,15 @@ import type {
 } from '@leafbot/shared';
 import { httpOf, type Transport } from './http';
 
+/** Whether this server is linked to a Leaf Bot account and reachable from the web app. */
+export interface AccountHostState {
+  linked: boolean;
+  hostId: string | null;
+  name: string | null;
+  running: boolean;
+  noWebRtc: boolean;
+}
+
 /** How a file goes up: the same `uploadId` on a second try, its progress, calling it off. */
 export interface UploadOptions {
   uploadId?: string;
@@ -516,6 +525,11 @@ export function endpoints(send: Transport, base = '') {
     personComputer: () => http.get<PersonComputerState>('/api/person-computer'),
     requestPersonComputer: (pane?: ComputerPermission) =>
       http.post<PersonComputerState>('/api/person-computer/request', pane ? { pane } : {}),
+    /** This server's link to a Leaf Bot account, through which the web app reaches it. */
+    accountHost: () => http.get<AccountHostState>('/api/account-host'),
+    linkAccountHost: (code: string, name?: string) =>
+      http.post<AccountHostState>('/api/account-host', { code, ...(name ? { name } : {}) }),
+    unlinkAccountHost: () => http.del<AccountHostState>('/api/account-host'),
     tailscale: () => http.get<TailscaleState>('/api/tailscale'),
     setTailscale: (on: boolean) => http.post<TailscaleState>('/api/tailscale', { on }),
     linkPreview: (url: string) =>

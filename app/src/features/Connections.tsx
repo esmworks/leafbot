@@ -78,7 +78,7 @@ export function AppLogo({ id, name, size = 40 }: { id: string | null; name: stri
   }
   return (
     <img
-      src={catalogLogo(id)}
+      src={`${import.meta.env.BASE_URL}${catalogLogo(id).slice(1)}`}
       alt=""
       style={box}
       onError={() => setFailed(true)}
