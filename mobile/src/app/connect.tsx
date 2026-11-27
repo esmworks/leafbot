@@ -1,6 +1,6 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 import { Button, ErrorText, Field, FormScreen, Hint, Mark, Title } from '@/components/ui';
 import { t } from '@/i18n';
@@ -39,6 +39,14 @@ export default function Connect() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [denied, setDenied] = useState(false);
+  // A link opened while this screen is already up fills its code in too.
+  useEffect(() => {
+    if (!linkCode) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setValue(linkCode);
+    setTyping(true);
+    setError(null);
+  }, [linkCode]);
   const running = useRef(false);
   const tried = useRef(new Set<string>());
 
@@ -129,6 +137,9 @@ export default function Connect() {
           <Button label={t('connect.typeCode')} variant="ghost" onPress={() => setTyping(true)} />
         </>
       )}
+      {phase !== 'signedOut' ? (
+        <Button label={t('common.cancel')} variant="ghost" onPress={() => router.replace('/')} />
+      ) : null}
       {denied ? (
         <>
           <ErrorText>{t('connect.cameraDenied')}</ErrorText>

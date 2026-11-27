@@ -43,6 +43,7 @@ sudo leafbot status        # kapsayıcılar ve sunucunun yanıtı
 sudo leafbot logs [servis] # kayıtlar (leafbot, caddy, db, computer)
 sudo leafbot access-key    # erişim anahtarı
 sudo leafbot login         # Leaf Bot hesabınıza girip sunucuyu hesaba bağlar
+sudo leafbot phone         # telefon uygulamasını ya da Chrome eklentisini bağlayan QR kod
 sudo leafbot compose ...   # bu kurulumun dosyalarıyla docker compose
 ```
 
