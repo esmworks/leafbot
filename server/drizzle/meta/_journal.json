@@ -855,6 +855,13 @@
       "when": 1795808619821,
       "tag": "0121_team_spaces",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1795812205367,
+      "tag": "0122_newcomers",
+      "breakpoints": true
     }
   ]
 }

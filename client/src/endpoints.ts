@@ -475,6 +475,10 @@ export function endpoints(send: Transport, base = '') {
       http.post<Group>('/api/groups', { name, ...opts }),
     renameGroup: (id: string, name: string) => http.patch<Group>(`/api/groups/${id}`, { name }),
     updateGroup: (id: string, patch: GroupUpdate) => http.patch<Group>(`/api/groups/${id}`, patch),
+    /** Those who wait for their team spaces to be chosen; for those who look after the server. */
+    newcomers: () => http.get<PersonInfo[]>('/api/newcomers'),
+    placeNewcomer: (personId: string, spaceIds: string[]) =>
+      http.post<{ ok: true }>(`/api/newcomers/${personId}`, { spaceIds }),
     privateBots: (personId: string) => http.get<PrivateBots>(`/api/people/${personId}/private-bots`),
     pausePrivateBots: (personId: string, paused: boolean) =>
       http.post<PrivateBots>(`/api/people/${personId}/private-bots/pause`, { paused }),

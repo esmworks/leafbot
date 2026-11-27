@@ -604,7 +604,8 @@ export const en: Catalog<MessageKey> = {
     'embeddings, semantic search, meaning, whisper, speech to text, transcription, text to speech, voice, tts, stt, ollama, kokoro',
   'settings.keywords.routines': 'schedule, cron, webhook, reminders, runs',
   'settings.keywords.skills': 'skill, import, link, github',
-  'settings.keywords.groups': 'team spaces, members, folders, private, archive, archived bots, restore, delete',
+  'settings.keywords.groups':
+    'team spaces, members, folders, private, archive, archived bots, restore, delete',
   'settings.keywords.import': 'export, backup, bots file',
   'settings.keywords.usage': 'cost, spending, limit, budget, csv, tokens',
   'settings.keywords.about': 'version, license, logs, report a problem, source',
@@ -2633,6 +2634,13 @@ export const en: Catalog<MessageKey> = {
   'health.ask.idle':
     'My routine “{name}” has not run in 30 days. Read the routine, find out why its condition or what it watches never held, and suggest what to do. Ask me before you change the routine.',
 
+  'newcomer.joined': '{name} joined',
+  'newcomer.choose': 'Which team spaces do they go into? They can talk with the bots in the ones you pick.',
+  'newcomer.noSpaces':
+    'No team space yet. Open one under Settings → Spaces and folders to share bots with them.',
+  'newcomer.chooseShort': 'Choose their spaces',
+  'newcomer.done': 'Done',
+  'newcomer.later': 'Later',
   'spaces.hint':
     'The bots in a team space are open to the people in it: they can talk with them. Folders only tidy your Private and share nothing with anyone.',
   'spaces.placeholder': 'New folder or space name',

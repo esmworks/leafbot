@@ -358,6 +358,10 @@ export const GroupUpdate = z.object({
 });
 export type GroupUpdate = z.infer<typeof GroupUpdate>;
 /** How many bots someone keeps in their Private, as those who look after the server see it. */
+/** The team spaces those who look after the server put someone new in; none is a choice too. */
+export const NewcomerPlace = z.object({ spaceIds: z.array(z.string().min(1)).max(200) });
+export type NewcomerPlace = z.infer<typeof NewcomerPlace>;
+
 export interface PrivateBots {
   count: number;
   paused: number;

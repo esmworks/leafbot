@@ -2273,6 +2273,9 @@ const tr = {
   // Phone notifications
   'push.bot': 'Bot',
   'push.needsYou': '{name} seni bekliyor',
+  'push.newcomerTitle': 'Yeni kişi',
+  'push.newcomer': '{name} sunucuya katıldı. Hangi ekip alanlarına gireceğini seç.',
+  'push.newcomerNameless': 'Biri sunucuya katıldı. Hangi ekip alanlarına gireceğini seç.',
   'push.error': '{name} bir sorunla karşılaştı',
   'activity.working': 'Çalışıyor',
   'activity.waiting': 'Sizi bekliyor',
@@ -4799,6 +4802,9 @@ const en: Catalog<ServerKey> = {
   // Phone notifications
   'push.bot': 'Bot',
   'push.needsYou': '{name} needs you',
+  'push.newcomerTitle': 'Someone new',
+  'push.newcomer': '{name} joined the server. Choose the team spaces they go into.',
+  'push.newcomerNameless': 'Someone joined the server. Choose the team spaces they go into.',
   'push.error': '{name} ran into a problem',
   'activity.working': 'Working',
   'activity.waiting': 'Needs you',

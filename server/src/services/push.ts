@@ -12,7 +12,7 @@ import {
   type PushDeviceSet,
   type TurnEvent,
 } from '@leafbot/shared';
-import { and, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { hashSession } from '../auth';
 import type { Ctx } from '../context';
 import { schema } from '../db';
@@ -371,6 +371,42 @@ export class PushService {
       );
     } catch (err) {
       console.warn('push notice', err);
+    }
+  }
+
+  /**
+   * Tells the phones of those who look after the server (but `except`, who added the person
+   * themselves) that someone new came, so they choose the person's team spaces. A phone that wants
+   * no notifications gets none; failures are logged, never thrown.
+   */
+  async newcomer(userId: string, except?: string): Promise<void> {
+    try {
+      const [person] = await this.ctx.db
+        .select({ displayName: schema.users.displayName, username: schema.users.username })
+        .from(schema.users)
+        .where(eq(schema.users.id, userId))
+        .limit(1);
+      const managers = await this.ctx.db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(and(inArray(schema.users.role, ['owner', 'admin']), isNull(schema.users.disabledAt)));
+      const to = new Set(managers.map((m) => m.id).filter((id) => id !== except));
+      const devices = (await this.liveDevices()).filter((d) => to.has(d.userId) && d.level !== 'off');
+      const name = person?.displayName || person?.username;
+      await Promise.all(
+        devices.map((d) => {
+          const t = translator(isLocale(d.locale) ? d.locale : 'tr');
+          return this.send(d, {
+            title: t('push.newcomerTitle'),
+            body: name ? t('push.newcomer', { name }) : t('push.newcomerNameless'),
+            threadId: 'newcomer',
+            collapseId: `newcomer:${userId}`,
+            data: { kind: 'newcomer' },
+          });
+        }),
+      );
+    } catch (err) {
+      console.warn('push newcomer', err);
     }
   }
 

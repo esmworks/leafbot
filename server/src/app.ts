@@ -579,6 +579,12 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     config: accountHostConfig(config),
     rtc: opts.rtc ?? null,
     onNameChanged: () => bus.refresh({ scope: 'info' }),
+    // Someone new waits for their team spaces: the apps of those who look after the server show
+    // the card, and their phones are told.
+    onJoined: (userId) => {
+      bus.refresh({ scope: 'people' });
+      void services.push.newcomer(userId);
+    },
   });
   const accountSignIn = new AccountSignIn({
     issuer: accountHostConfig(config).issuer,

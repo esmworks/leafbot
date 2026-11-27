@@ -227,4 +227,24 @@ describe('ekip alanları', () => {
     // Someone who is not looking after the server may not.
     expect((await ayse.api('GET', '/api/people/mert/private-bots')).status).toBe(403);
   });
+  it('yeni gelen kişi yöneticiye listelenir; alanları seçilince alana girer ve listeden çıkar', async () => {
+    const yeni = await t.person('yeni');
+    const space = (await t.api<Group>('POST', '/api/groups', { name: 'Karşılama', space: true })).body;
+    const bot = await t.bot({ name: 'Karşılama botu' });
+    await t.api('POST', `/api/bots/${bot.id}/move`, { pinned: false, groupId: space.id, beforeId: null });
+    const waiting = async () =>
+      (await t.api<{ id: string }[]>('GET', '/api/newcomers')).body.map((p) => p.id);
+    expect(await waiting()).toContain('yeni');
+    expect((await yeni.api('GET', '/api/newcomers')).status).toBe(403);
+    expect(await levelOf(yeni, bot.id)).toBe('none');
+
+    expect((await t.api('POST', '/api/newcomers/yeni', { spaceIds: [space.id] })).status).toBe(200);
+    expect(await waiting()).not.toContain('yeni');
+    expect(await levelOf(yeni, bot.id)).toBe('chat');
+    // A folder is nobody's space to be put in.
+    const folder = (await t.api<Group>('POST', '/api/groups', { name: 'Sahibin klasörü 2' })).body;
+    await t.person('yeni2');
+    expect((await t.api('POST', '/api/newcomers/yeni2', { spaceIds: [folder.id] })).status).toBe(400);
+    expect(await waiting()).toContain('yeni2');
+  });
 });

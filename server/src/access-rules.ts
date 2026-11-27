@@ -262,6 +262,8 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'POST /api/groups': 'self',
   'PATCH /api/groups/:id': 'self',
   'PUT /api/groups/:id/members': 'admin',
+  'GET /api/newcomers': 'admin',
+  'POST /api/newcomers/:id': 'admin',
   'POST /api/groups/:id/move': 'self',
   'POST /api/groups/:id/pause': 'self',
   'DELETE /api/groups/:id': 'self',

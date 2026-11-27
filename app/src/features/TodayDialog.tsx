@@ -1,6 +1,17 @@
 import type { CanaryAlarm, TodayReport } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Brain, CircleAlert, CircleCheck, Clock, Loader2, ShieldAlert, Sparkles } from 'lucide-react';
+import {
+  Brain,
+  CircleAlert,
+  CircleCheck,
+  Clock,
+  Loader2,
+  ShieldAlert,
+  Sparkles,
+  UserPlus,
+} from 'lucide-react';
+import { useNewcomers } from '@/features/Newcomers';
+import { personName } from '@/features/PeopleTab';
 import { BotAvatar } from '@/components/BotAvatar';
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useT } from '@/i18n';
@@ -36,6 +47,7 @@ export function TodayDialog() {
   });
   const { data: summaries = [] } = useSummaries();
   const { data: bots = [] } = useBots();
+  const newcomers = useNewcomers();
   const byId = new Map(bots.map((b) => [b.id, b]));
   const waiting = summaries.filter((s) => s.waiting);
   const { data: health = [] } = useRoutineHealth(open);
@@ -107,6 +119,18 @@ export function TodayDialog() {
               items={waiting}
               extra={
                 <>
+                  {/* Someone new waits for their team spaces; their card is at the top of the sidebar. */}
+                  {newcomers.map((p) => (
+                    <Item key={p.id} onClick={() => setOpen(false)}>
+                      <UserPlus className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate">
+                        {t('newcomer.joined', { name: personName(p, t('people.owner')) })}
+                      </span>
+                      <span className="shrink-0 text-xs font-medium text-amber-600 dark:text-amber-400">
+                        {t('newcomer.chooseShort')}
+                      </span>
+                    </Item>
+                  ))}
                   {/* Memory changes asked for while nobody watched wait for the person's yes. */}
                   {data.pendingMemory ? (
                     <Item

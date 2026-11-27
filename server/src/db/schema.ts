@@ -977,6 +977,11 @@ export const users = pgTable(
     profile: jsonb('profile').$type<Record<string, unknown>>().notNull().default({}),
     /** Set when the person may no longer sign in; their sessions stop working. */
     disabledAt: ts('disabled_at'),
+    /**
+     * When those who look after the server chose the team spaces of someone new. Null while a
+     * newcomer waits for it, which shows them a card; everyone there before spaces counts as placed.
+     */
+    placedAt: ts('placed_at'),
   },
   (t) => [
     uniqueIndex('users_username_key_uq').on(t.usernameKey),

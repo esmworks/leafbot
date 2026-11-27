@@ -45,6 +45,7 @@ import {
   GroupMove,
   GroupUpdate,
   SpaceMembersChange,
+  NewcomerPlace,
   MAX_BOT_IMPORT_BYTES,
   MemoryCreate,
   MemoryUpdate,
@@ -369,7 +370,21 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const made = await d.auth.users.create(body);
     s.access.forget();
     s.ctx.bus.refresh({ scope: 'people' });
+    // The others who look after the server learn of them; the one who added them knows.
+    void s.push.newcomer(made.id, me(req).userId);
     return made;
+  });
+  // Someone new waits until those who look after the server choose their team spaces.
+  app.get('/api/newcomers', async () => d.auth.users.newcomers());
+  app.post('/api/newcomers/:id', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    const { spaceIds } = NewcomerPlace.parse(req.body);
+    if (!(await d.auth.users.person(id))) throw notFound('person');
+    for (const spaceId of spaceIds) await s.bots.setSpaceMembers(spaceId, { add: [id] });
+    await d.auth.users.place(id);
+    s.access.forget();
+    s.ctx.bus.refresh({ scope: 'people' });
+    return { ok: true };
   });
   app.patch('/api/people/:id', async (req) => {
     const { id } = IdParams.parse(req.params);

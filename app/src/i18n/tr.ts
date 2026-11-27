@@ -2584,6 +2584,13 @@ export const tr = {
   'health.ask.idle':
     '“{name}” rutinim 30 gündür hiç çalışmadı. Rutini oku, koşulunun ya da izlediği şeyin neden hiç tutmadığını bul ve ne yapalım öner. Rutini değiştirmeden önce bana sor.',
 
+  'newcomer.joined': '{name} katıldı',
+  'newcomer.choose': 'Hangi ekip alanlarına girsin? Seçtiğin alanlardaki botlarla konuşabilir.',
+  'newcomer.noSpaces':
+    'Henüz ekip alanı yok. Ayarlar → Alanlar ve klasörler’den açınca botlarını onunla paylaşabilirsin.',
+  'newcomer.chooseShort': 'Alanlarını seç',
+  'newcomer.done': 'Tamam',
+  'newcomer.later': 'Sonra',
   'spaces.hint':
     'Ekip alanındaki botlar alanın üyelerine açılır: onlarla konuşabilirler. Klasörler yalnızca senin Özel’ini düzenler, kimseyle bir şey paylaşmaz.',
   'spaces.placeholder': 'Yeni klasör ya da alan adı',

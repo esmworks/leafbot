@@ -245,6 +245,7 @@ function refresh(qc: QueryClient, e: RefreshScope) {
       break;
     case 'people':
       inv('people');
+      inv('newcomers');
       // A changed role changes what this device may do.
       inv('session');
       inv('bots');
