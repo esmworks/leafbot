@@ -29,6 +29,8 @@ export default defineConfig(({ mode }) => ({
     port: 5173,
     proxy: {
       '/api': { target: api },
+      // The libraries a bot's page loads from the server (see server/src/page-kit.ts).
+      '/page-kit': { target: api },
       '/socket.io': { target: api, ws: true },
     },
   },

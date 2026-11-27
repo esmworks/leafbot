@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { copyText } from '@/lib/clipboard';
 import { useInfo } from '@/lib/queries';
 import { publicOrigin, useTransport } from '@/lib/transport';
+import { usePageBridge, useAppTheme } from './PageBridge';
 import { SaveAsApp } from './PageApps';
 import { isLoopback } from './RoutinePage';
 
@@ -39,6 +40,9 @@ export function BotPage({
   const url = api.fileUrl(botId, path);
   // On the web app the page's scripts would run in the website's origin, so it is not shown there.
   const tunnel = useTransport((s) => s.tunnel);
+  const theme = useAppTheme();
+  // The page's own data, the bot's tables and connected apps, through `window.leafbot`.
+  const onRequest = usePageBridge({ kind: 'page', botId, path }, title || name);
   const link = 'flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground';
   return (
     <div className="w-full max-w-(--bubble-width) space-y-2">
@@ -68,8 +72,10 @@ export function BotPage({
       ) : (
         <LiveFrame
           title={title || name}
-          src={api.pageUrl(botId, path, height)}
+          src={api.pageUrl(botId, path, height, theme)}
           initialHeight={height ?? 360}
+          onRequest={onRequest}
+          className="w-full rounded-2xl border bg-card"
         />
       )}
     </div>

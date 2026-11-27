@@ -189,6 +189,9 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'PATCH /api/page-apps/:id': 'self',
   'DELETE /api/page-apps/:id': 'self',
   'GET /api/page-apps/:id/page': 'self',
+  // A page's own calls (its data, the bot's tables, connected apps), checked call by call.
+  'POST /api/bots/:id/library/page-call': chat(),
+  'POST /api/page-apps/:id/call': 'self',
   'GET /api/summaries': 'self',
   'GET /api/search': 'self',
   'GET /api/today': 'self',

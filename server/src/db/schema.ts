@@ -1712,6 +1712,30 @@ export const pageApps = pgTable(
 );
 
 /**
+ * What a bot's page keeps for itself (`leafbot.state`): each person's own, per page, so the same
+ * page shows the same data in its conversation and as a saved app.
+ */
+export const pageState = pgTable(
+  'page_state',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    botId: text('bot_id')
+      .notNull()
+      .references(() => bots.id, { onDelete: 'cascade' }),
+    /** The page's path in the bot's library. */
+    path: text('path').notNull(),
+    key: text('key').notNull(),
+    value: jsonb('value').notNull(),
+    /** The value's size as JSON, for the page's limit. */
+    size: integer('size').notNull(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.botId, t.path, t.key] })],
+);
+
+/**
  * API keys the person saved for bots to call a service with. The value is sealed with the vault
  * key; bots know a key only by its name, and the server adds it to requests for its origin alone.
  */

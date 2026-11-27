@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { FRAME_SANDBOX } from '@/components/LiveFrame';
+import { LiveFrame } from '@/components/LiveFrame';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -32,6 +32,7 @@ import { useBots } from '@/lib/queries';
 import { useUi } from '@/lib/store';
 import { useTransport } from '@/lib/transport';
 import { cn } from '@/lib/utils';
+import { PageCallQuestion, useAppTheme, usePageBridge } from './PageBridge';
 
 /*
  * Pages a bot made, saved as apps: they open on their own, from the apps page or, in the desktop
@@ -444,14 +445,7 @@ export function PageAppView({
         // On the web app the page's scripts would run in the website's origin, so it is not shown there.
         <Notice text={t('bots.pageElsewhere')} />
       ) : (
-        <iframe
-          key={app.id}
-          title={app.name}
-          src={api.pageAppUrl(app.id)}
-          sandbox={FRAME_SANDBOX}
-          referrerPolicy="no-referrer"
-          className="min-h-0 w-full flex-1 border-0 border-t bg-white"
-        />
+        <AppFrame id={app.id} name={app.name} />
       )}
       <RenameDialog
         app={renaming ? (app ?? null) : null}
@@ -459,6 +453,22 @@ export function PageAppView({
         onClose={() => setRenaming(false)}
       />
     </section>
+  );
+}
+
+/** The app's page filling the view, answering its `window.leafbot` calls. */
+function AppFrame({ id, name }: { id: string; name: string }) {
+  const theme = useAppTheme();
+  const onRequest = usePageBridge({ kind: 'app', id }, name);
+  return (
+    <LiveFrame
+      key={`${id}:${theme}`}
+      title={name}
+      src={api.pageAppUrl(id, theme)}
+      onRequest={onRequest}
+      fill
+      className="min-h-0 w-full flex-1 border-0 border-t bg-background"
+    />
   );
 }
 
@@ -475,6 +485,7 @@ export function PageAppWindow({ id }: { id: string }) {
   return (
     <div className="flex h-full bg-background">
       <PageAppView id={id} standalone />
+      <PageCallQuestion />
     </div>
   );
 }

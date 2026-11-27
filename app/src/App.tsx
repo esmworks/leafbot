@@ -27,6 +27,7 @@ import { TodayDialog } from '@/features/TodayDialog';
 import { BoardDialog } from '@/features/board/BoardDialog';
 import { DashboardsDialog } from '@/features/DashboardsDialog';
 import { PageAppWindow } from '@/features/PageApps';
+import { PageCallQuestion } from '@/features/PageBridge';
 import { RoutinePage, useOpenedRoutine } from '@/features/RoutinePage';
 import { QuickPanel } from '@/features/QuickPanel';
 import { Sidebar } from '@/features/Sidebar';
@@ -325,6 +326,7 @@ function Workspace() {
         <TodayDialog />
         <BoardDialog />
         <DashboardsDialog />
+        <PageCallQuestion />
       </div>
       <SettingsPage />
     </>

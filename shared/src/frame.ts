@@ -16,9 +16,15 @@ export const PAGE_LIBRARIES = [
 /** An https origin (a `*.` wildcard allowed); anything else could break out of the policy. */
 const ORIGIN = /^https:\/\/(\*\.)?[a-z0-9-]+(\.[a-z0-9-]+)+(:\d{1,5})?$/i;
 
-export function frameCsp(o: { resources?: string[]; connect?: string[]; images?: string[] }): string {
+export function frameCsp(o: {
+  resources?: string[];
+  connect?: string[];
+  images?: string[];
+  /** Scripts and styles from the server that serves the frame too: a bot page's kit. */
+  self?: boolean;
+}): string {
   const list = (v: string[] = []) => v.filter((x) => ORIGIN.test(x)).join(' ');
-  const res = list(o.resources);
+  const res = [o.self ? "'self'" : '', list(o.resources)].filter(Boolean).join(' ');
   const images = [...(o.images ?? []).filter((x) => x === 'https:'), res].filter(Boolean).join(' ');
   return [
     "default-src 'none'",

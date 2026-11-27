@@ -26,6 +26,8 @@ export function LiveFrame({
   onRequest,
   onNotify,
   postRef,
+  fill,
+  className,
 }: {
   /** The frame document's address on this server, which serves it sandboxed. */
   src: string;
@@ -36,6 +38,9 @@ export function LiveFrame({
   onNotify?(method: string, params: Record<string, unknown>): void;
   /** Filled with a function that sends a message to the frame. */
   postRef?: RefObject<((m: FrameMessage) => void) | null>;
+  /** Fills the space it is given instead of growing with the page (a saved app's view). */
+  fill?: boolean;
+  className?: string;
 }) {
   const ref = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(initialHeight);
@@ -83,8 +88,8 @@ export function LiveFrame({
       sandbox={FRAME_SANDBOX}
       referrerPolicy="no-referrer"
       src={src}
-      style={{ height }}
-      className="w-full rounded-2xl border bg-white"
+      style={fill ? undefined : { height }}
+      className={className ?? 'w-full rounded-2xl border bg-white'}
     />
   );
 }

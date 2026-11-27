@@ -164,6 +164,8 @@ import { atLeast, managesServer } from './services/access';
 import { findProjects, findSetup } from './services/setup-import';
 import { APP_DIR } from './runtime/turns';
 import { bundlePage } from './tools/page-bundle';
+import { isJsxPage, isPageFile, jsxPage, PAGE_KIT_PATH, pageHead, pageKit } from './page-kit';
+import { PageCall, pageCalls } from './page-calls';
 import { replaySteps } from './browser/replay';
 import { stepsText } from './browser/teach';
 import { findLinkedFile, workspacePaths } from './workspace';
@@ -175,6 +177,9 @@ import { TEAMS_PATH } from './channels/teams';
 export const WEBHOOK_PATH = '/api/hooks/routines';
 /** Where a mail relay hands over messages; it signs in with the mail secret, not the access key. */
 export const EMAIL_INBOUND_PATH = '/api/email/inbound';
+/** The theme a bot's page is asked to match. */
+const PageTheme = z.enum(['light', 'dark']).optional();
+
 /** Where a shared page opens, outside /api so it needs no sign-in. */
 export const SHARE_PATH = '/p';
 /** The largest request Teams may deliver; a message with a card is a few kilobytes. */
@@ -2804,15 +2809,22 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       title?: string;
       shared?: boolean;
       who?: Principal;
+      /** The theme the app shows, for the page to match. */
+      theme?: 'light' | 'dark';
     },
   ) => {
     const { full, st } = await libraryFile(botId, path, o.who);
-    if (!/\.html?$/i.test(full) || st.size > 2 * 1024 * 1024) throw new HttpError(404, 'error.notFound');
-    const csp = frameCsp({ resources: PAGE_LIBRARIES, images: ['https:'] });
+    if (!isPageFile(full) || st.size > 2 * 1024 * 1024) throw new HttpError(404, 'error.notFound');
+    // The kit's libraries come from this server; nothing else the page asks of it is answered.
+    const csp = frameCsp({ resources: PAGE_LIBRARIES, images: ['https:'], self: true });
     // Its own scripts, styles, pictures and data go inside it: the frame loads nothing from here.
     // A page opened by its share link carries only the data files it names: anyone with the link
     // gets the page, not every file that happens to sit in its folder.
-    const page = await bundlePage(full, { data: o.shared ? 'named' : 'all' });
+    const page = isJsxPage(full)
+      ? { html: await jsxPage(await readFile(full, 'utf8')) }
+      : await bundlePage(full, { data: o.shared ? 'named' : 'all' });
+    // The theme and `window.leafbot` go first, before the page's own markup.
+    const html = pageHead(o.theme ?? null) + page.html.replace(/^\s*<!doctype[^>]*>/i, '');
     return reply
       .header('content-security-policy', frameHeader(csp, { print: o.print }))
       .header('x-content-type-options', 'nosniff')
@@ -2820,7 +2832,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       .header('cache-control', 'no-cache')
       .type('text/html; charset=utf-8')
       .send(
-        frameDocument(page.html, csp, {
+        frameDocument(html, csp, {
           reportSize: o.framed,
           fallbackHeight: o.height,
           print: o.print,
@@ -2830,11 +2842,12 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   };
   // A page a bot made, served to run in the app's sandboxed frame, or opened on its own to print.
   app.get('/api/bots/:id/library/page', async (req, reply) => {
-    const { path, h, print } = z
+    const { path, h, print, theme } = z
       .object({
         path: z.string().min(1),
         h: z.coerce.number().int().min(200).max(1200).optional(),
         print: z.enum(['1']).optional(),
+        theme: PageTheme,
       })
       .parse(req.query);
     return sendPage(reply, IdParams.parse(req.params).id, path, {
@@ -2843,6 +2856,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       print: !!print,
       title: print ? basename(path) : undefined,
       who: me(req),
+      theme,
     });
   });
 
@@ -2908,7 +2922,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.get('/api/page-apps/:id', async (req) => {
     const found = await ownApp(req);
     const available = await libraryFile(found.botId, found.path, me(req)).then(
-      ({ full }) => /\.html?$/i.test(full),
+      ({ full }) => isPageFile(full),
       () => false,
     );
     return { ...found, available };
@@ -2922,7 +2936,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const body = PageAppCreate.parse(req.body);
     // Only a page the person may open now, and only an HTML page, becomes an app.
     const { full } = await libraryFile(botId, body.path, me(req));
-    if (!/\.html?$/i.test(full)) throw new HttpError(400, 'error.appNotPage');
+    if (!isPageFile(full)) throw new HttpError(400, 'error.appNotPage');
     if (body.threadId && !(await s.access.visibleThreads(me(req), [body.threadId])).has(body.threadId)) {
       throw new HttpError(404, 'error.notFound');
     }
@@ -2938,10 +2952,31 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     await s.pageApps.remove(me(req).userId, AppIdParams.parse(req.params).id);
     return { ok: true };
   });
+  // What a bot's page asks through `window.leafbot` (its own data, the bot's tables, connected
+  // apps), as the person viewing it: only for a page they may open, of a bot they may talk with.
+  const callPage = pageCalls(s, (line) => app.log.info(line));
+  const pageCall = async (req: FastifyRequest, botId: string, path: string, body: Omit<PageCall, 'path'>) => {
+    const { full } = await libraryFile(botId, path, me(req));
+    if (!isPageFile(full)) throw new HttpError(404, 'error.notFound');
+    const level = await s.access.level(me(req), botId);
+    if (!atLeast(level, 'chat')) throw new HttpError(404, 'error.notFound');
+    return {
+      result: (await callPage({ userId: me(req).userId, level }, { botId, path, full }, body)) ?? null,
+    };
+  };
+  app.post('/api/bots/:id/library/page-call', async (req) => {
+    const { path, ...body } = PageCall.parse(req.body);
+    return pageCall(req, IdParams.parse(req.params).id, path, body);
+  });
+  app.post('/api/page-apps/:id/call', async (req) => {
+    const found = await ownApp(req);
+    return pageCall(req, found.botId, found.path, PageCall.omit({ path: true }).parse(req.body));
+  });
   // The app's page, filling its view: sandboxed like the page in the conversation.
   app.get('/api/page-apps/:id/page', async (req, reply) => {
     const found = await ownApp(req);
-    return sendPage(reply, found.botId, found.path, { title: found.name, who: me(req) });
+    const { theme } = z.object({ theme: PageTheme }).parse(req.query);
+    return sendPage(reply, found.botId, found.path, { title: found.name, who: me(req), theme });
   });
 
   // Links that open a page for anyone who has them.
@@ -2957,7 +2992,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const body = PageShareCreate.parse(req.body);
     // Only a page in the bot's own folders, and only an HTML page, can be shared.
     const { full } = await libraryFile(botId, body.path);
-    if (!/\.html?$/i.test(full)) throw new HttpError(400, 'error.shareNotPage');
+    if (!isPageFile(full)) throw new HttpError(400, 'error.shareNotPage');
     return s.pageShares.share(botId, body.path, body.name);
   });
   app.delete('/api/page-shares/:token', async (req) => {
@@ -2966,6 +3001,26 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     if (botId) await s.access.requireBot(me(req), botId, 'edit');
     await s.pageShares.unshare(token);
     return { ok: true };
+  });
+  // The libraries a bot's page loads (React, icons, charts, Tailwind): outside /api, since a page
+  // opened by its share link loads them too, and the same for everyone. An address names its
+  // version, so a browser keeps a file for good.
+  app.get(`${PAGE_KIT_PATH}/:version/:file`, async (req, reply) => {
+    const { version, file } = z
+      .object({ version: z.string().max(40), file: z.string().max(40) })
+      .parse(req.params);
+    const kit = await pageKit();
+    const text = kit.files.get(file);
+    if (!text || version !== kit.version) throw new HttpError(404, 'error.notFound');
+    return (
+      reply
+        .header('cache-control', 'public, max-age=31536000, immutable')
+        .header('x-content-type-options', 'nosniff')
+        // The page that loads it is sandboxed, so it asks from an origin of its own.
+        .header('cross-origin-resource-policy', 'cross-origin')
+        .type('text/javascript; charset=utf-8')
+        .send(text)
+    );
   });
   // The shared page itself: outside /api, so it opens without signing in. It runs sandboxed like
   // in the app, so it cannot reach this server with the visitor's sign-in either.
