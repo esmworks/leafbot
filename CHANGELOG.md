@@ -7,6 +7,14 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Team spaces and a Private for everyone. Every new bot starts in its maker's Private, which nobody else sees; moved
+  into a team space, it is open to the people in that space, who can talk with it (and change it, when the space
+  lets its people change its bots). The sidebar lists the team spaces the person is in, then their Private with
+  their own folders under it, then "Shared with me" for a bot shared with them alone. Those who look after the server
+  open spaces under Settings → Spaces and folders, say who sees each one (open, closed or secret) and who is in it;
+  a bot's owner moves it only into a space they are in. Moving a bot says first who loses it and who gains it, and
+  that a bot in a space uses its notes and the space's shared folder with the people in it too. The groups a server
+  already has become secret spaces with nobody in them, so nothing anyone sees changes until someone is put in one.
 - A server can be opened from the web at www.leafbot.app/bots without opening a port or having an address of its
   own. Its owner signs in to a Leaf Bot account on the website, takes an install code there and pastes it under
   Settings → Connection → Leaf Bot account. The server then keeps a connection out to Leaf Bot's relay, and people
@@ -324,6 +332,13 @@ version is 0.x, a minor release may change the data format or the API; the serve
 - `tel:` and `sms:` links in a reply open the dialer or Messages on the phone.
 
 ### Changed
+
+- Those who look after the server no longer open or change the bots in someone else's Private; they change the bots
+  in team spaces. Settings → People shows how many bots each person keeps in their Private and pauses or archives
+  them all at once, to protect the server without reading them. A bot a person keeps outside any group is in their
+  Private from this version on.
+- Someone invited to a server skips the AI and model steps of the first run, which only those who look after the
+  server can answer, and is no longer stopped on the AI step it could not pass.
 
 - A long conversation opens faster: the app and the phone apps read its latest 50 messages instead of 500 and bring
   in older pages as you scroll up; the app draws the latest ones first and the earlier ones in the frames after.
