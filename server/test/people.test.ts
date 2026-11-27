@@ -2,6 +2,7 @@ import type { Bot, Memory, PersonInfo, Thread } from '@leafbot/shared';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
+import { translator } from '../src/i18n';
 import { OWNER_ID } from '../src/users';
 import { testServer, type Person, type TestServer } from './helpers';
 
@@ -66,7 +67,7 @@ describe('kişileri yönetmek', () => {
 
   it('hesapla davet: üye davet edemez, yöneticiyi yalnızca sahip getirir, sahip davet edilmez', async () => {
     const invite = (who: Person | TestServer, body: Record<string, unknown>) =>
-      who.api<{ message?: string }>('POST', '/api/people/invites', body);
+      who.api<{ error?: string }>('POST', '/api/people/invites', body);
     expect((await invite(member, { email: 'a@example.com' })).status).toBe(403);
     expect((await admin.api('GET', '/api/people/invites')).status).toBe(200);
     expect((await member.api('GET', '/api/people/invites')).status).toBe(403);
@@ -80,6 +81,18 @@ describe('kişileri yönetmek', () => {
     expect((await invite(admin, { email: 'a@example.com', personId: member.id })).status).toBe(409);
     const people = (await admin.api<PersonInfo[]>('GET', '/api/people')).body;
     expect(people.find((p) => p.id === member.id)?.linked).toBe(false);
+    // Someone who signs in with an account already gets no second invite: it would be refused at the door.
+    const withAccount = await t.person('hesapli');
+    await t.services.ctx.db
+      .insert(schema.accountLinks)
+      .values({ accountUserId: 'acct_people_01', userId: withAccount.id });
+    const refused = await invite(admin, { email: 'a@example.com', personId: withAccount.id });
+    expect(refused.status).toBe(409);
+    expect(['en', 'tr'].map((l) => translator(l as 'en')('error.personAlreadyLinked'))).toContain(
+      refused.body.error,
+    );
+    const after = (await admin.api<PersonInfo[]>('GET', '/api/people')).body;
+    expect(after.find((p) => p.id === withAccount.id)?.linked).toBe(true);
   });
 
   it('devre dışı kalan ya da şifresi değişen hemen çıkar; yeni rol hemen geçerli olur', async () => {

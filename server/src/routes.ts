@@ -416,6 +416,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       const person = await d.auth.users.person(body.personId);
       if (!person) throw notFound('person');
       if (person.role === 'owner') throw new HttpError(400, 'error.ownerNotInvited');
+      // An invite would be accepted and then refused here, leaving that account outside for good.
+      if (await d.auth.users.linked(person.id)) throw new HttpError(409, 'error.personAlreadyLinked');
       // They come in with the role they have here; only the owner brings in an admin.
       role = person.role;
     }

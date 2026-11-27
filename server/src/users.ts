@@ -149,6 +149,16 @@ export class Users {
     if (!row) throw notFound('person');
   }
 
+  /** Whether the person signs in with a Leaf Bot account already. */
+  async linked(id: string): Promise<boolean> {
+    const [row] = await this.db
+      .select({ userId: schema.accountLinks.userId })
+      .from(schema.accountLinks)
+      .where(eq(schema.accountLinks.userId, id))
+      .limit(1);
+    return !!row;
+  }
+
   async person(id: string): Promise<PersonInfo | null> {
     const [row] = await this.db.select().from(schema.users).where(eq(schema.users.id, id)).limit(1);
     return row ? personOf(row) : null;

@@ -218,7 +218,8 @@ export class AccountHost {
     const body = (await res.json().catch(() => null)) as { error?: string } | null;
     if (res.ok) return body;
     if (res.status === 429) throw new HttpError(429, 'error.accountTooManyTries');
-    if (res.status === 404) throw new HttpError(404, 'error.inviteGone');
+    // Only a withdrawal names one invite; a 404 elsewhere is a service without these routes.
+    if (res.status === 404 && init.method === 'DELETE') throw new HttpError(404, 'error.inviteGone');
     if (body?.error === 'already_member') throw new HttpError(409, 'error.personAlreadyLinked');
     if (body?.error === 'mail_unavailable' || body?.error === 'mail_failed')
       throw new HttpError(503, 'error.inviteMailUnavailable');

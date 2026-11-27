@@ -82,6 +82,12 @@ describe('TicketChecker', () => {
     expect(await refusal(c.check(t))).toBe('ticket');
   });
 
+  it('keeps the person an invite named, for the first visit to come in as them', async () => {
+    const iss = issuer();
+    const c = checker([iss]);
+    expect((await c.check(ticket(iss, { person: 'person_12345678' }))).person).toBe('person_12345678');
+  });
+
   it('refuses tickets for another server, issuer or kind', async () => {
     const iss = issuer();
     const c = checker([iss]);

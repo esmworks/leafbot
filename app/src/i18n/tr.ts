@@ -1440,6 +1440,7 @@ export const tr = {
     '{name} davetteki bağlantıyla Leaf Bot hesabına girdiğinde bu sunucuya aynı kişi olarak gelir; botları, sohbetleri ve notları yerinde kalır.',
   'people.linked': 'hesabıyla giriyor',
   'people.pending': 'Bekleyen davetler',
+  'people.linkInvite': 'Bağlantıyla davet',
   'people.pendingFor': '{name} için',
   'people.undelivered': 'e-posta ulaşmadı',
   'people.revokeInvite': 'Daveti geri al',

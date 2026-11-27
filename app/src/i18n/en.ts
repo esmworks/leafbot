@@ -1472,6 +1472,7 @@ export const en: Catalog<MessageKey> = {
     'When {name} signs in to their Leaf Bot account with the invite’s link, they come to this server as the same person; their bots, conversations and notes stay where they are.',
   'people.linked': 'signs in with an account',
   'people.pending': 'Pending invites',
+  'people.linkInvite': 'Invite by link',
   'people.pendingFor': 'for {name}',
   'people.undelivered': 'the email did not arrive',
   'people.revokeInvite': 'Take back the invite',
