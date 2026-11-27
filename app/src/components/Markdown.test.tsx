@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { render, waitFor } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import {
   cellNumber,
   compareCells,
@@ -9,11 +10,19 @@ import {
   repairTables,
   Markdown,
   mathDelimiters,
+  mayHaveMath,
   snippetName,
   webLink,
 } from './Markdown';
 import { textOf } from './Mermaid';
 import { FileLinks } from '@/lib/fileLink';
+
+// Counts how often the formula typesetter is brought in; the factory runs on its first import.
+const loads = vi.hoisted(() => ({ katex: 0 }));
+vi.mock('rehype-katex', async (original) => {
+  loads.katex++;
+  return await original();
+});
 
 describe('Markdown', () => {
   it('leaves a table inside a longer code fence alone', () => {
@@ -73,12 +82,23 @@ describe('Markdown', () => {
     expect(hardBreaks('```\nx\ny\n```\nson')).toBe('```\nx\ny\n```\nson');
   });
 
-  it('formülü dizer; tek dolar işaretini fiyat olarak bırakır', () => {
-    const html = renderToStaticMarkup(
+  it('formül olmayan metinde matematik kodunu yüklemez', async () => {
+    const { container } = render(<Markdown text={'Toplam $5 ve $10; **kalın** metin.'} />);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(loads.katex).toBe(0);
+    expect(container.textContent).toContain('Toplam $5 ve $10');
+    expect(mayHaveMath('düz metin')).toBe(false);
+    expect(mayHaveMath('Alan $$x$$')).toBe(true);
+    expect(mayHaveMath('```math\nx\n```')).toBe(true);
+  });
+
+  it('formülü yüklendikten sonra dizer; tek dolar işaretini fiyat olarak bırakır', async () => {
+    const { container } = render(
       <Markdown text={'Toplam $5 ve $10. Alan $$\\pi r^2$$ olur.\n\n```math\nE = mc^2\n```'} />,
     );
-    expect(html.match(/class="katex"/g)).toHaveLength(2);
-    expect(html).toContain('Toplam $5 ve $10.');
+    await waitFor(() => expect(container.querySelectorAll('.katex')).toHaveLength(2));
+    expect(loads.katex).toBe(1);
+    expect(container.textContent).toContain('Toplam $5 ve $10.');
     expect(mathDelimiters('a \\(x+1\\) b')).toBe('a $$x+1$$ b');
     expect(mathDelimiters('\\[y\\]')).toBe('\n$$\ny\n$$\n');
     expect(mathDelimiters('`\\(kod\\)`')).toBe('`\\(kod\\)`');

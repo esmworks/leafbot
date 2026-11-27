@@ -19,6 +19,7 @@ import {
   Folder,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { pageMark } from '@/lib/launchMarks';
 import { AppMascot } from '@/components/AppMascot';
 import { BotAvatar } from '@/components/BotAvatar';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ import { isRtl } from '@leafbot/shared';
 import { useLocale, useT, type MessageKey } from '@/i18n';
 import { botState, useBotActivity } from '@/lib/botActivity';
 import { PINNED, type SectionKey } from '@/lib/botLayout';
+import type { Connection } from '@/lib/connection';
 import { initials, useFormat } from '@/lib/format';
 import { isSpace, placeSections, SHARED, type PlaceSection } from '@/lib/places';
 import { useBots, useGroups, useRooms, useSession, useSettings, useSummaries } from '@/lib/queries';
@@ -114,7 +116,7 @@ function SidebarPanel({
   const [searching, setSearching] = useState(false);
   const openBotPage = useUi((s) => s.openBotPage);
   const openApps = useUi((s) => s.openApps);
-  const connected = useUi((s) => s.connected);
+  const connection = useUi((s) => s.connection);
   // While a bot is dragged, empty sections show up so it can be dropped into them.
   const dragging = !!useBotDrag().drag;
 
@@ -167,6 +169,10 @@ function SidebarPanel({
   useEffect(() => {
     orderRef.current = order;
   });
+  // The bots are listed: a stage of the start the desktop app times.
+  useEffect(() => {
+    if (bots.length) pageMark('sidebar');
+  }, [bots.length]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const list = orderRef.current;
@@ -261,7 +267,7 @@ function SidebarPanel({
           >
             <LayoutGrid />
           </RoundButton>
-          <AccountMenu connected={connected} userName={userName} compact />
+          <AccountMenu connection={connection} userName={userName} compact />
         </div>
         {resizable && <ResizeHandle width={width} />}
       </aside>
@@ -437,7 +443,7 @@ function SidebarPanel({
             <LayoutGrid />
           </NavTile>
         </div>
-        <AccountMenu connected={connected} userName={userName} />
+        <AccountMenu connection={connection} userName={userName} />
       </div>
       {resizable && <ResizeHandle width={width} />}
     </aside>
@@ -547,6 +553,12 @@ function ResizeHandle({ width }: { width: number }) {
   );
 }
 
+const STATUS: Record<Connection['kind'], MessageKey> = {
+  connecting: 'sidebar.connecting',
+  live: 'sidebar.connected',
+  reconnecting: 'sidebar.reconnecting',
+};
+
 const ROLE: Record<ServerRole, MessageKey> = {
   owner: 'bots.role.owner',
   admin: 'bots.role.admin',
@@ -559,11 +571,11 @@ const ROLE: Record<ServerRole, MessageKey> = {
  * own menu of them, and holds the profile and Settings.
  */
 function AccountMenu({
-  connected,
+  connection,
   userName,
   compact = false,
 }: {
-  connected: boolean;
+  connection: Connection;
   userName: string;
   compact?: boolean;
 }) {
@@ -571,7 +583,8 @@ function AccountMenu({
   const intl = useLocale((s) => s.intl);
   const openSettings = useUi((s) => s.openSettings);
   const sw = useServerSwitch();
-  const status = connected ? t('sidebar.connected') : t('sidebar.connecting');
+  const connected = connection.kind === 'live';
+  const status = t(STATUS[connection.kind]);
   const where = sw.role ? `${sw.name} · ${t(ROLE[sw.role])}` : sw.name;
   const avatar = (
     <span className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold">

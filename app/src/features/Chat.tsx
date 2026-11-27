@@ -135,6 +135,7 @@ import {
   Working,
 } from './MessageItem';
 import { foldRoutineRuns } from './routineRuns';
+import { pageMark } from '@/lib/launchMarks';
 
 export function Chat({ bot }: { bot: Bot }) {
   const selectedThread = useUi((s) => s.threadId);
@@ -989,6 +990,10 @@ function Conversation({
   const { rows: liveRows, parts } = useLiveCards(all, stream, !!streamDone);
   // Finished runs of a routine that follow each other fold into one line.
   const rows = useMemo(() => foldRoutineRuns(liveRows, firstNew), [liveRows, firstNew]);
+  // The conversation's messages are drawn: the last stage of the start the desktop app times.
+  useEffect(() => {
+    if (rows.length) pageMark('chat');
+  }, [rows.length]);
   const busy = state === 'running' || state === 'queued';
   const activity = useThreadActivity(bot.id, threadId, state);
 
@@ -1407,6 +1412,8 @@ function needsDivider(prev: Message | undefined, m: Message) {
 
 function Empty({ bot }: { bot: Bot }) {
   const t = useT();
+  // A conversation with nothing in it yet is drawn as well.
+  useEffect(() => pageMark('chat'), []);
   return (
     <div className="flex flex-col items-center gap-3 pt-[12vh] text-center">
       <BotAvatar

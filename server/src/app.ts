@@ -81,6 +81,7 @@ import { AccountLinks } from './tunnel/links';
 import { AccountSignIn } from './tunnel/signin';
 import { tunnelIdentity } from './tunnel/identity';
 import type { RtcFactory } from './tunnel/signal';
+import { launchMark, launchSpan } from './launch-timings';
 
 export interface ServerOptions {
   /** Replace every engine (tests). */
@@ -159,9 +160,11 @@ const openRoute = (route: string) =>
   route.startsWith(`${MOVE_HOOK_PATH}/`);
 
 export async function createServer(config: Config, opts: ServerOptions = {}): Promise<LeafBotServer> {
-  const db = await openDb({ url: config.databaseUrl, dataDir: config.dataDir, memory: config.memoryDb });
+  const db = await launchSpan('db', () =>
+    openDb({ url: config.databaseUrl, dataDir: config.dataDir, memory: config.memoryDb }),
+  );
   // The single account from before people came in becomes the owner's sign-in.
-  await adoptLegacyAccount(db.db);
+  await launchSpan('legacy account', () => adoptLegacyAccount(db.db));
   const bus = new Bus();
   // Each bot's desktop, when a computer service runs next to this server. Its folders are the
   // bot's workspace, which both containers see at the same path.
@@ -303,7 +306,8 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
   const services: Services = new Services(ctx, engineFor, opts.clock);
   // Content sealed at rest opens with a key from the vault key; the switch is the saved setting.
   setContentKey(services.vault.contentKey());
-  await services.contentSeal.start();
+  launchMark('services');
+  await launchSpan('content seal', () => services.contentSeal.start());
   if (egress) {
     const syncEgress = async () =>
       egress.setEnabled((await services.settings.get('browserViaComputer')) === true);
@@ -977,9 +981,10 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
   // A part that cannot start (a stored row it cannot read, a chat app whose service is down) is
   // written to the log and the rest still opens: one bad row would otherwise keep the whole app
   // from starting, and the desktop app would only say the server keeps stopping.
+  launchMark('routes');
   const begin = async (what: string, step: () => unknown) => {
     try {
-      await step();
+      await launchSpan(what, step);
     } catch (err) {
       console.warn(`Could not start ${what}: ${String(err)}`);
     }

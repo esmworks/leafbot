@@ -7,6 +7,7 @@ import {
   type TurnState,
 } from '@leafbot/shared';
 import { create } from 'zustand';
+import { type Connection } from './connection';
 import { offers } from './transport';
 
 export type SettingsTab =
@@ -76,9 +77,18 @@ export interface BotPreset {
   projectDir?: string;
 }
 
+/** One piece of a streaming reply, as the socket brings it. */
+export interface StreamPiece {
+  threadId: string;
+  turnId: string;
+  text: string;
+  restart?: boolean;
+  at?: number;
+}
+
 export interface UiState {
   authed: boolean | null;
-  connected: boolean;
+  connection: Connection;
   botId: string | null;
   threadId: string | null;
   /** The room open in place of a bot's chat, if any. */
@@ -161,7 +171,7 @@ export interface UiState {
   /** The tool each thread's running turn is using now, as the engine names it. */
   tools: Record<string, string>;
   setAuthed(v: boolean): void;
-  setConnected(v: boolean): void;
+  setConnection(c: Connection): void;
   selectBot(botId: string | null): void;
   /** Selects a bot and, on a phone, shows its chat. */
   openChat(botId: string): void;
@@ -204,6 +214,11 @@ export interface UiState {
    * start in the turn's text. True when words before them are missing and must be fetched.
    */
   appendStream(threadId: string, turnId: string, text: string, restart?: boolean, at?: number): boolean;
+  /**
+   * Adds a frame's worth of pieces in order with one update. Returns the conversations that now
+   * have words missing before their pieces.
+   */
+  appendStreams(pieces: StreamPiece[]): string[];
   /** Starts a conversation's stream from what the server has shown of the running turn. */
   seedStream(threadId: string, live: LiveText): boolean;
   dropStream(threadId: string, turnId?: string): void;
@@ -249,7 +264,7 @@ function stopWriting(threadId: string) {
 
 export const useUi = create<UiState>((set, get) => ({
   authed: null,
-  connected: false,
+  connection: { kind: 'connecting' },
   botId: saved.botId ?? null,
   // The conversation open when the app was last closed opens again.
   threadId: (saved.botId && saved.threadId) || null,
@@ -284,7 +299,7 @@ export const useUi = create<UiState>((set, get) => ({
   writing: {},
   tools: {},
   setAuthed: (authed) => set({ authed }),
-  setConnected: (connected) => set({ connected }),
+  setConnection: (connection) => set({ connection }),
   // Without a bot there is no chat to show, so a phone goes back to the list.
   selectBot: (botId) => {
     if (!get().leavePage()) return;
@@ -398,6 +413,19 @@ export const useUi = create<UiState>((set, get) => ({
     const next = addPiece(get().streams[threadId], turnId, { text, at, restart });
     set((s) => ({ streams: { ...s.streams, [threadId]: next } }));
     return hasGap(next);
+  },
+  appendStreams: (pieces) => {
+    if (!pieces.length) return [];
+    const streams = { ...get().streams };
+    for (const p of pieces) {
+      streams[p.threadId] = addPiece(streams[p.threadId], p.turnId, {
+        text: p.text,
+        at: p.at,
+        restart: p.restart,
+      });
+    }
+    set({ streams });
+    return [...new Set(pieces.map((p) => p.threadId))].filter((id) => hasGap(streams[id]));
   },
   seedStream: (threadId, live) => {
     const cur = get().streams[threadId];

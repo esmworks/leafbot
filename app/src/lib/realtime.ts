@@ -8,12 +8,14 @@ import type { QueryClient } from '@tanstack/react-query';
 import { io, type Socket, WebSocket as WebSocketTransport } from 'socket.io-client';
 import { toast } from 'sonner';
 import { getT } from '@/i18n';
+import { stepConnection } from './connection';
+import { createBatcher } from './deltaBatch';
 import { browserSocketClosed, onBrowserReconnect, useBrowsers } from './browser';
 import { computerSocketClosed, onComputerReconnect, useComputers } from './computer';
 import { catchUp, catchUpWatched } from './liveCatchUp';
 import { notice, watchAnswered } from './notify';
 import { watchOutbox } from './outbox';
-import { useUi } from './store';
+import { type StreamPiece, useUi } from './store';
 import { restartTyping } from './typewriter';
 import { currentTunnel } from './transport';
 import { serverBuild } from './update';
@@ -48,20 +50,35 @@ export function connectRealtime(qc: QueryClient, opts: { notices?: boolean } = {
   const ui = useUi.getState;
   const stopWatching = watchAnswered(qc);
   const outbox = watchOutbox(qc);
+  // Words arrive far faster than the screen can show them: they are applied once per frame.
+  const deltas = createBatcher<StreamPiece>((pieces) => {
+    // The earlier attempt's words go: the new ones are typed from their own start.
+    for (const p of pieces) if (p.restart) restartTyping(p.turnId);
+    // Words before these went missing: what the bot has written so far is fetched.
+    for (const threadId of ui().appendStreams(pieces)) catchUp(threadId);
+    for (const threadId of new Set(pieces.map((p) => p.threadId))) ui().markWriting(threadId);
+  });
 
   s.on('connect', () => {
-    ui().setConnected(true);
+    ui().setConnection(stepConnection(ui().connection, { type: 'connect' }).state);
     onBrowserReconnect(s);
     onComputerReconnect(s);
     outbox.flush();
   });
   s.on('disconnect', (reason) => {
-    ui().setConnected(false);
+    deltas.flush();
+    const next = stepConnection(ui().connection, {
+      type: 'disconnect',
+      at: Date.now(),
+      serverClosed: reason === 'io server disconnect',
+    });
+    ui().setConnection(next.state);
     // A server shutting down (a restart, a redeploy) drops every socket itself, and Socket.IO does
     // not retry that on its own; reconnecting here falls into the usual backoff until it is back.
-    if (reason === 'io server disconnect') s.connect();
+    if (next.effects.includes('reconnect')) s.connect();
   });
   s.on('hello', (e) => {
+    deltas.flush();
     // Reconnects can miss events; a new boot means every cached view is stale.
     if (bootId !== null) ui().resetLive();
     bootId = e.bootId;
@@ -71,15 +88,14 @@ export function connectRealtime(qc: QueryClient, opts: { notices?: boolean } = {
     catchUpWatched();
   });
   s.on('refresh', (e) => refresh(qc, e));
-  s.on('delta', (e) => {
-    // The earlier attempt's words go: the new ones are typed from their own start.
-    if (e.restart) restartTyping(e.turnId);
-    // Words before these went missing: what the bot has written so far is fetched.
-    if (ui().appendStream(e.threadId, e.turnId, e.text, e.restart, e.at)) catchUp(e.threadId);
-    ui().markWriting(e.threadId);
+  s.on('delta', (e) => deltas.push(e));
+  s.on('tool', (e) => {
+    deltas.flush();
+    ui().setTool(e.threadId, e.tool);
   });
-  s.on('tool', (e) => ui().setTool(e.threadId, e.tool));
   s.on('turn', (e) => {
+    // The turn's own words are shown before its end is.
+    deltas.flush();
     ui().setState(e.threadId, e.state);
     if (e.state !== 'running') ui().setTool(e.threadId, null);
     void qc.invalidateQueries({ queryKey: ['summaries'] });
@@ -115,6 +131,7 @@ export function connectRealtime(qc: QueryClient, opts: { notices?: boolean } = {
   return () => {
     stopWatching();
     outbox.stop();
+    deltas.cancel();
     s.removeAllListeners();
     s.close();
     browserSocketClosed(s);

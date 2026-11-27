@@ -39,6 +39,23 @@ await build({
   logLevel: 'info',
 });
 cpSync('drizzle', 'dist/drizzle', { recursive: true });
+// The desktop app starts the server through this file: Node keeps the compiled code in the folder
+// LEAFBOT_COMPILE_CACHE names, which must be set before index.mjs is compiled, so here and not in it.
+// A fifth of a start goes with it (scripts/bench-server-start.mjs). Docker starts index.mjs itself.
+writeFileSync(
+  'dist/start.mjs',
+  `import module from 'node:module';
+const dir = process.env.LEAFBOT_COMPILE_CACHE;
+if (dir && module.enableCompileCache) {
+  try {
+    module.enableCompileCache(dir);
+  } catch {
+    // Without the cache the server only starts a little slower.
+  }
+}
+await import('./index.mjs');
+`,
+);
 // The libraries bot pages load, built once here so the running server needs no builder.
 mkdirSync('dist/page-kit');
 for (const [name, text] of Object.entries(await buildPageKit()))

@@ -13,12 +13,15 @@ export interface Held {
   replyTo?: string;
   /** As the conversation shows it until the server's copy arrives. */
   message: Message;
+  /** Waiting for the connection (the default), or on its way now. */
+  phase?: 'held' | 'sending';
 }
 
 interface Outbox {
   items: Held[];
   hold(item: Held): void;
   drop(clientId: string): void;
+  setPhase(clientId: string, phase: 'held' | 'sending'): void;
 }
 
 /**
@@ -31,6 +34,8 @@ export const useOutbox = create<Outbox>((set) => ({
   items: [],
   hold: (item) => set((s) => ({ items: [...s.items.filter((x) => x.clientId !== item.clientId), item] })),
   drop: (clientId) => set((s) => ({ items: s.items.filter((x) => x.clientId !== clientId) })),
+  setPhase: (clientId, phase) =>
+    set((s) => ({ items: s.items.map((x) => (x.clientId === clientId ? { ...x, phase } : x)) })),
 }));
 
 /** What a proxy in front of the server answers while the server is away (a restart, a redeploy). */
@@ -44,7 +49,12 @@ const AWAY = [502, 503, 504];
 export const isOffline = (err: unknown): boolean =>
   err instanceof NoAnswerError || (err instanceof ApiError && AWAY.includes(err.status) && !err.fromServer);
 
-let flushing = false;
+/** The pass that is running, if any. */
+let running: Promise<void> | null = null;
+/** Another flush was asked for while a pass ran: one more pass follows it. */
+let again = false;
+let heard: ((threadId: string) => void) | undefined;
+
 /** Set while the app watches the connection: tries the held messages again now. */
 let wake: (() => void) | null = null;
 
@@ -60,24 +70,46 @@ export const holdsFor = (threadId: string): boolean =>
 /**
  * Tries the held messages again, oldest first; stops at the first that still cannot reach the
  * server. One the server refuses is dropped and its reason shown. `sent` hears each that went.
+ * Asked again while a pass runs, it makes one more pass after it: a message held meanwhile goes
+ * out at once, and requests do not pile up into parallel sends.
  */
-export async function flushOutbox(sent?: (threadId: string) => void): Promise<void> {
-  if (flushing) return;
-  flushing = true;
-  try {
-    for (const item of [...useOutbox.getState().items]) {
-      try {
-        await api.send(item.threadId, item.clientId, item.text, item.files, item.replyTo, true);
-        useOutbox.getState().drop(item.clientId);
-        sent?.(item.threadId);
-      } catch (err) {
-        if (isOffline(err)) return;
-        useOutbox.getState().drop(item.clientId);
-        toast.error((err as Error).message);
-      }
+export function flushOutbox(sent?: (threadId: string) => void): Promise<void> {
+  heard = sent ?? heard;
+  if (running) {
+    again = true;
+    return running;
+  }
+  running = (async () => {
+    try {
+      do {
+        again = false;
+        await pass();
+      } while (again);
+    } finally {
+      running = null;
+      heard = undefined;
     }
-  } finally {
-    flushing = false;
+  })();
+  return running;
+}
+
+async function pass(): Promise<void> {
+  for (const item of [...useOutbox.getState().items]) {
+    // Dropped or sent by another route while the pass was on an earlier one.
+    if (!useOutbox.getState().items.some((x) => x.clientId === item.clientId)) continue;
+    useOutbox.getState().setPhase(item.clientId, 'sending');
+    try {
+      await api.send(item.threadId, item.clientId, item.text, item.files, item.replyTo, true);
+      useOutbox.getState().drop(item.clientId);
+      heard?.(item.threadId);
+    } catch (err) {
+      if (isOffline(err)) {
+        useOutbox.getState().setPhase(item.clientId, 'held');
+        return;
+      }
+      useOutbox.getState().drop(item.clientId);
+      toast.error((err as Error).message);
+    }
   }
 }
 

@@ -1,4 +1,4 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -213,12 +213,16 @@ describe('oturum gerektiren yollar', () => {
 
 describe('uygulama dosyaları sunulurken', () => {
   let t: TestServer;
+  let appDir: string;
   beforeAll(async () => {
-    const appDir = mkdtempSync(join(tmpdir(), 'leafbot-app-'));
+    appDir = mkdtempSync(join(tmpdir(), 'leafbot-app-'));
     writeFileSync(join(appDir, 'index.html'), '<!doctype html><title>app</title><div id="root"></div>');
     t = await testServer({ appDir });
   });
-  afterAll(() => t.dispose());
+  afterAll(async () => {
+    await t.dispose();
+    rmSync(appDir, { recursive: true, force: true });
+  });
 
   const get = (url: string, headers: Record<string, string> = {}) =>
     t.app.inject({ method: 'GET', url, headers: { host: 'localhost', ...headers } });

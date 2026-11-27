@@ -63,7 +63,7 @@ import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { useFitHeight } from '@/lib/fitHeight';
 import { personName } from './PeopleTab';
-import { Field } from './RoutinePage';
+import { Field } from './Field';
 import { AssistantCard, CardDock, ExchangeCards, MessageItem, replyExcerpt, Working } from './MessageItem';
 import { MeetingBar, MeetingCard, MinutesDialog, showMinutes, useStartMeeting } from './Meetings';
 
