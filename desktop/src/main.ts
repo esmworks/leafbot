@@ -236,6 +236,9 @@ if (!app.requestSingleInstanceLock()) {
  * Run from source, Electron needs the app's path.
  */
 function registerLinks() {
+  // A copy run with a data folder of its own is a second copy beside the installed app, for
+  // trying a change: the links stay with the installed app.
+  if (process.env.LEAFBOT_DESKTOP_DATA) return;
   for (const scheme of LINK_SCHEMES) {
     if (process.defaultApp && process.argv[1]) {
       app.setAsDefaultProtocolClient(scheme, process.execPath, [join(process.cwd(), process.argv[1])]);
@@ -861,6 +864,11 @@ function openConnectWindow() {
       sandbox: true,
       nodeIntegration: false,
     },
+  });
+  // A closed window's objects throw when touched; the next question about it must find none.
+  const opened = connectWin;
+  opened.on('closed', () => {
+    if (connectWin === opened) connectWin = null;
   });
   void connectWin.loadFile(join(assets(), 'connect.html'), { query: { lang: locale() } });
 }
