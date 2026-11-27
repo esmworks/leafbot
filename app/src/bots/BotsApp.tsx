@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { useT, type MessageKey } from '@/i18n';
 import { useUi } from '@/lib/store';
 import { catchServerLinks, dropServerFiles } from '@/lib/server-files';
+import { useServerHost } from '@/lib/serverSwitch';
 import { setMissingFeatureHandler, setTunnel } from '@/lib/transport';
 import { account, AccountError, signInUrl, type ServerEntry } from './account';
 import { openServer } from './connect';
@@ -200,6 +201,28 @@ export function BotsApp() {
       setMissingFeatureHandler(null);
     };
   }, [isOpen, t]);
+
+  // The sidebar lists the account's servers while one is open and moves to another in place: the open
+  // one's tunnel closes once the next attempt has started, so its end is not taken for a drop.
+  const openNow = view.at === 'open' ? view : null;
+  useEffect(() => {
+    if (!openNow) return;
+    const { servers, server, tunnel } = openNow;
+    useServerHost.setState({
+      host: {
+        servers: servers.map((s) => ({ id: s.id, name: s.name, role: s.role, current: s.id === server.id })),
+        choose: (id) => {
+          const next = servers.find((s) => s.id === id);
+          if (!next || next.id === server.id) return;
+          leave();
+          open(servers, next);
+          tunnel.close();
+        },
+        add: () => location.assign('/setup'),
+      },
+    });
+    return () => useServerHost.setState({ host: null });
+  }, [openNow, open, leave]);
 
   const choose = (servers: ServerEntry[]) => {
     attempt.current++;

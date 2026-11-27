@@ -1133,6 +1133,14 @@ function registerIpc() {
   ipcMain.handle('leafbot:open-connect', (e) => {
     if (fromMainPage(e)) openConnectWindow();
   });
+  // The sidebar's server row opens a menu of the kept servers where the pointer is. The shell draws
+  // it, so any server's page may ask for it, a server elsewhere too, without learning the list. It
+  // only moves the window and offers to connect: stopping this computer's server or leaving one stays
+  // in the menu bar, out of reach of a page that may be someone else's.
+  ipcMain.handle('leafbot:server-menu', (e) => {
+    if (!win || e.sender !== win.webContents || !fromMainPage(e)) return;
+    Menu.buildFromTemplate(serverPickMenu()).popup({ window: win });
+  });
   ipcMain.handle('leafbot:connect-remote', async (e, rawUrl: string, key: string) => {
     if (!fromConnectPage(e)) return { ok: false, error: t('connect.noPermission') };
     try {
@@ -1507,20 +1515,34 @@ function macMenu(): Electron.MenuItemConstructorOptions[] {
   ];
 }
 
+/** The kept servers as a choice, the main one marked when there are several, the shown one checked. */
+function serverChoices(): Electron.MenuItemConstructorOptions[] {
+  const list = serverList();
+  const name = (id: ServerId) => (id === 'local' ? t('menu.thisComputer') : hostOf(id));
+  return list.map((s) => ({
+    label: list.length > 1 && s.main ? t('menu.mainServer', { name: name(s.id) }) : name(s.id),
+    type: 'radio' as const,
+    checked: s.shown,
+    click: () => void apply((c) => show(c, s.id)),
+  }));
+}
+
+/** The sidebar's menu of servers: moving the window to one, or connecting another. */
+function serverPickMenu(): Electron.MenuItemConstructorOptions[] {
+  return [
+    ...serverChoices(),
+    { type: 'separator' },
+    { label: t('menu.connectRemote'), click: () => openConnectWindow() },
+  ];
+}
+
 /**
  * The menu bar's part for the servers: the ones kept, the main one marked when there are several,
  * which the window shows, this computer's own server on or off, adding one and leaving one.
  */
 function serverMenu(): Electron.MenuItemConstructorOptions[] {
-  const list = serverList();
-  const name = (id: ServerId) => (id === 'local' ? t('menu.thisComputer') : hostOf(id));
   return [
-    ...list.map((s) => ({
-      label: list.length > 1 && s.main ? t('menu.mainServer', { name: name(s.id) }) : name(s.id),
-      type: 'radio' as const,
-      checked: s.shown,
-      click: () => void apply((c) => show(c, s.id)),
-    })),
+    ...serverChoices(),
     {
       label: t('menu.runLocal'),
       type: 'checkbox',

@@ -15,6 +15,8 @@ const bridge = {
     ipcRenderer.invoke('leafbot:servers'),
   /** Shows another kept server in the window; `local` is this computer's own. */
   showServer: (id: string): Promise<void> => ipcRenderer.invoke('leafbot:show-server', id),
+  /** Opens the app's menu of its servers at the pointer; the page is not told the list. */
+  serverMenu: (): Promise<void> => ipcRenderer.invoke('leafbot:server-menu'),
   openConnect: (): Promise<void> => ipcRenderer.invoke('leafbot:open-connect'),
   setLocale: (locale: string): Promise<void> => ipcRenderer.invoke('leafbot:set-locale', locale),
   setUnread: (count: number): Promise<void> => ipcRenderer.invoke('leafbot:set-unread', count),

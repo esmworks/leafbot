@@ -10,6 +10,11 @@ interface DesktopBridge {
   servers?(): Promise<DesktopServerEntry[] | null>;
   /** Shows another kept server in the window; `local` is this computer's own. Missing in older shells. */
   showServer?(id: string): Promise<void>;
+  /**
+   * Opens the shell's own menu of its servers beside the pointer; the page never sees the list.
+   * Missing in older shells.
+   */
+  serverMenu?(): Promise<void>;
   /** Opens the shell's window for connecting to another server. Missing in older shells. */
   openConnect?(): Promise<void>;
   /** Tells the shell the app's language, for its menu and windows. Missing in older shells. */

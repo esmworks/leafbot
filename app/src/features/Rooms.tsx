@@ -63,7 +63,7 @@ import { Field } from './RoutinePage';
 import { AssistantCard, CardDock, ExchangeCards, MessageItem, replyExcerpt, Working } from './MessageItem';
 import { MeetingBar, MeetingCard, MinutesDialog, showMinutes, useStartMeeting } from './Meetings';
 
-const heading = 'px-4 pt-3 pb-1 text-[13px] font-semibold tracking-wide text-muted-foreground uppercase';
+const heading = 'px-4 pt-3 pb-1 text-[13px] font-semibold text-muted-foreground';
 
 /** The bots of a room that still exist, in speaking order. */
 function useMembers(room: Room | undefined): Bot[] {
