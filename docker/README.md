@@ -466,6 +466,24 @@ sudo systemctl enable --now leafbot-firewall-<uygulama>.service
 Uygulamayı panelden silerseniz servisini de kaldırın (`systemctl disable --now …` ve dosyayı silin); yoksa
 açılışta betiği bulamaz ve başarısız görünür.
 
+Kurallar kapsayıcıların ana makineye yeni bağlantı açmasını da kapatır. Sunucuya verilen TURN sunucusu (coturn)
+aynı makinede çalışıyorsa bu, sunucunun TURN'e ulaşmasını da engeller ve tarayıcılar sunucuya web'den
+bağlanamaz. O zaman servise TURN'ün portlarını `HOST_PORTS` ile açın; ana makinenin kendi güvenlik duvarı
+(`ufw`) yine geçerlidir, bu portlar zaten herkese açık olduğundan botlara yeni bir şey açılmaz:
+
+```bash
+sudo systemctl edit leafbot-firewall-<uygulama>.service
+```
+
+```ini
+[Service]
+Environment="HOST_PORTS=udp/3478 tcp/3478 udp/49152:65535"
+```
+
+```bash
+sudo systemctl restart leafbot-firewall-<uygulama>.service
+```
+
 ## Botların bilgisayarı
 
 Her botun kendi Linux masaüstü oturumu vardır: panel, tarayıcı, terminal, dosya yöneticisi, LibreOffice ve

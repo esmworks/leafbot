@@ -5,6 +5,10 @@
 # replaces the rules instead of adding them twice.
 #   --wait  waits up to three minutes for the bridge first; the leafbot-firewall service that
 #           docker/install.sh sets up uses it at boot, when Docker brings the containers up after itself.
+#   HOST_PORTS (optional), such as "udp/3478 tcp/3478 udp/49152:65535": ports on the host the containers
+#           may open connections to, for a service the host runs for everyone anyway. A server on the same
+#           machine as the TURN server it is given needs it, or it cannot reach TURN and browsers cannot
+#           reach the server. The host's own firewall still decides after these rules.
 #
 # Two chains, because the kernel sends a container's packet down one of two paths:
 #   LEAFBOT-EGRESS (from DOCKER-USER, in FORWARD): packets routed on to another machine.
@@ -13,8 +17,16 @@
 #     as a local model server, a database or an admin panel. The containers need nothing from the host:
 #     names are resolved by Docker's resolver inside each container (127.0.0.11), which asks the
 #     upstream servers itself, so only answers to connections the host opened are let through.
-set -eu
+# No globbing: HOST_PORTS is split into words unquoted.
+set -euf
 BRIDGE=${BRIDGE:-leafbot0}
+HOST_PORTS=${HOST_PORTS:-}
+
+# Checked before any rule changes, so a typo cannot leave the bridge half set up.
+for entry in $HOST_PORTS; do
+  printf '%s\n' "$entry" | grep -Eq '^(tcp|udp)/[0-9]{1,5}(:[0-9]{1,5})?$' ||
+    { echo "HOST_PORTS: '$entry' tcp/PORT, udp/PORT ya da udp/İLK:SON olmalı" >&2; exit 1; }
+done
 
 if [ "${1:-}" = --wait ]; then
   i=0
@@ -60,6 +72,11 @@ done
 # reports (131, 143) keep the bridge delivering it; none of these leave the link.
 for type in neighbour-solicitation neighbour-advertisement router-solicitation 131 143; do
   ip6tables -A LEAFBOT-INPUT -p ipv6-icmp --icmpv6-type "$type" -j RETURN
+done
+for entry in $HOST_PORTS; do
+  for cmd in iptables ip6tables; do
+    $cmd -A LEAFBOT-INPUT -p "${entry%%/*}" --dport "${entry#*/}" -j RETURN
+  done
 done
 iptables -A LEAFBOT-INPUT -j REJECT
 ip6tables -A LEAFBOT-INPUT -j REJECT

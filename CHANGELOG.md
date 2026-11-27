@@ -19,6 +19,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
   the web, pages bots make and connected apps' views are not shown and PDFs are downloaded, since their scripts
   would run on the website's address. The direct address keeps working as before for the phone apps, webhooks and
   shared pages. `LEAFBOT_ACCOUNT_URL`, `LEAFBOT_RELAY_URL` and `LEAFBOT_WEB_HOST` point a server at other hosts.
+- `docker/firewall.sh` takes `HOST_PORTS` (such as `udp/3478 tcp/3478 udp/49152:65535`), ports on the host the
+  containers may open connections to. A server on the same machine as its TURN server needs it: the firewall shuts
+  the containers out of the host, so the server could not reach TURN and browsers could not reach the server.
 - A coding agent bot's effort is now set as the agent's own thinking level, or the nearest level it has, when
   the agent offers one. The effort field shows for these bots too; an agent without such a setting ignores it.
 - Routines can have no schedule ("No schedule" under When). Such a routine runs only when one of its events
