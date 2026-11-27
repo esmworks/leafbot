@@ -7,6 +7,18 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- A server can be opened from the web at www.leafbot.app/bots without opening a port or having an address of its
+  own. Its owner signs in to a Leaf Bot account on the website, takes an install code there and pastes it under
+  Settings → Connection → Leaf Bot account. The server then keeps a connection out to Leaf Bot's relay, and people
+  in the account sign in at /bots, pick the server and use the same app as on the server itself; requests, live
+  updates and files go over an encrypted WebRTC channel straight to the server (through a TURN relay when the two
+  cannot reach each other), so the website never sees what passes. Before, reaching a server from elsewhere needed
+  a public address with HTTPS, which a server behind a home router or a company firewall could not have. Each
+  browser proves itself with a key of its own and a short-lived ticket from the account, and the server checks both;
+  linking and unlinking are refused over the tunnel, so a connection cannot move the server to another account. On
+  the web, pages bots make and connected apps' views are not shown and PDFs are downloaded, since their scripts
+  would run on the website's address. The direct address keeps working as before for the phone apps, webhooks and
+  shared pages. `LEAFBOT_ACCOUNT_URL`, `LEAFBOT_RELAY_URL` and `LEAFBOT_WEB_HOST` point a server at other hosts.
 - A coding agent bot's effort is now set as the agent's own thinking level, or the nearest level it has, when
   the agent offers one. The effort field shows for these bots too; an agent without such a setting ignores it.
 - Routines can have no schedule ("No schedule" under When). Such a routine runs only when one of its events
