@@ -1,6 +1,6 @@
 import type { Approval, BotAction, Thread } from '@leafbot/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { testServer, waitFor, type TestServer } from './helpers';
+import { AUTH, testServer, waitFor, type TestServer } from './helpers';
 
 const ROUTINE = { name: 'Morning', prompt: 'Say good morning.', schedule: { type: 'daily', time: '08:00' } };
 const create = (name = 'Morning') => `[araç:routine_create ${JSON.stringify({ ...ROUTINE, name })}]`;
@@ -33,6 +33,19 @@ describe("a bot's list of what it changed", () => {
       }),
     ]);
     expect(list[0]!.summary).not.toBe('');
+  });
+
+  it('lists its steps as CSV marked as UTF-8, so a spreadsheet reads İ, ğ and ş as they are', async () => {
+    const bot = await t.bot({ permissionMode: 'auto' });
+    await t.send((await main(bot.id)).id, create('Günaydın'));
+    await t.services.turns.idle();
+    const res = await t.app.inject({ method: 'GET', url: `/api/bots/${bot.id}/actions.csv`, headers: AUTH });
+    expect(res.headers['content-type']).toContain('text/csv');
+    expect(res.body.startsWith('\uFEFF')).toBe(true);
+    expect(res.body.slice(1).split('\n')[0]).toBe(
+      'at,step,tool,let_through_by,rule,outside_text,approved_by',
+    );
+    expect(res.body).toContain('mcp__leafbot__routine_create');
   });
 
   it('keeps a step the person allowed on a card, and leaves out one they refused', async () => {

@@ -124,7 +124,9 @@ export class ActionService {
           .join(','),
       );
     }
-    return `${lines.join('\n')}\n`;
+    // The byte order mark tells a spreadsheet the file is UTF-8; without it Excel reads names with
+    // letters such as İ or ğ in an older encoding and garbles them.
+    return `\uFEFF${lines.join('\n')}\n`;
   }
 
   /** Lets go of steps older than `ACTION_KEEP_DAYS`. */

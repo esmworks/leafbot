@@ -408,7 +408,9 @@ describe('kullanım raporu', () => {
     await turn(a.id, '2026-11-15T09:00:00.000Z', 0.25, { engine: 'claude', model: 'opus' });
     const res = await t.app.inject({ method: 'GET', url: '/api/usage/turns.csv?days=7', headers: AUTH });
     expect(res.headers['content-type']).toContain('text/csv');
-    const [head, row] = res.body.trim().split('\n');
+    // Marked as UTF-8, so a spreadsheet reads İ, ğ and ş as they are.
+    expect(res.body.startsWith('\uFEFF')).toBe(true);
+    const [head, row] = res.body.slice(1).trim().split('\n');
     expect(head).toBe('finished_at,bot,source,status,engine,model,cost_usd');
     expect(row).toBe('2026-11-15T09:00:00.000Z,"\'=HYPERLINK(""x"")",user,done,claude,opus,0.25');
   });

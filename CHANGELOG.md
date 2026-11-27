@@ -338,6 +338,8 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- The usage export (Settings → Usage) and a bot's list of steps as CSV start with a UTF-8 byte order mark, as
+  a table's export already did, so Excel no longer garbles bot names with letters such as İ, ğ or ş.
 - A browser that reaches the relay while its server is restarting connects as soon as the server is back,
   instead of after about 20 seconds. The relay drops what the browser sends while the server is away; the
   offer was sent again once the server returned, but its network addresses were not, so the server could not
