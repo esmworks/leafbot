@@ -1503,7 +1503,7 @@ function MemoryTab() {
   const botName = (id: string | null) =>
     [...bots, ...archived].find((b) => b.id === id)?.name ?? t('common.bot');
   const name = (g: BotNoteGroup) => g.name ?? t('common.bot');
-  // Each bot's notes stay folded until opened, so a long list reads as one line per bot.
+  // Every list of notes stays folded until opened, so a long memory reads as one line per list.
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   const toggle = (id: string) =>
     setOpen((prev) => {
@@ -1511,6 +1511,14 @@ function MemoryTab() {
       if (!next.delete(id)) next.add(id);
       return next;
     });
+  // A search opens the lists with hits, so the notes found are in sight.
+  const isOpen = (id: string, hits: number) => (searching && hits > 0) || open.has(id);
+  const noteOwner = (m: Memory) =>
+    m.scope === 'user'
+      ? t('memory.staleShared')
+      : m.scope === 'room'
+        ? placeLabel(m.place, t, rooms)
+        : botName(m.botId);
   return (
     <>
       <p className="mb-4 text-sm leading-relaxed text-muted-foreground">{t('memory.pinHint')}</p>
@@ -1534,74 +1542,6 @@ function MemoryTab() {
       </div>
       <PendingMemory bots={[...bots, ...archived]} />
       <MemoryFlags bots={[...bots, ...archived]} />
-      {expiredHits.length > 0 && (
-        <Card title={t('memory.expired')} hint={t('memory.expiredHint')}>
-          {expiredHits.map((m) => (
-            <NoteRow
-              key={m.id}
-              m={m}
-              hint={
-                m.scope === 'user'
-                  ? t('memory.staleShared')
-                  : m.scope === 'room'
-                    ? placeLabel(m.place, t, rooms)
-                    : botName(m.botId)
-              }
-              {...noteProps}
-            />
-          ))}
-        </Card>
-      )}
-      {staleHits.length > 0 && (
-        <Card title={t('memory.stale')}>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
-            <p className="min-w-40 flex-1 text-xs text-muted-foreground">
-              {t('memory.staleHint', { days: STALE_MEMORY_DAYS })}
-            </p>
-            {stale.length > 1 && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="rounded-full"
-                disabled={clearStale.isPending}
-                onClick={() =>
-                  confirm(t('memory.staleDeleteAllConfirm', { count: stale.length })) && clearStale.mutate()
-                }
-              >
-                {t('memory.deleteAll')}
-              </Button>
-            )}
-          </div>
-          {staleHits.map((m) => (
-            <Row
-              key={m.id}
-              label={m.site ? `${m.site} · ${m.content}` : m.content}
-              hint={`${
-                m.scope === 'user'
-                  ? t('memory.staleShared')
-                  : m.scope === 'room'
-                    ? placeLabel(m.place, t, rooms)
-                    : botName(m.botId)
-              } · ${
-                m.lastUsedAt
-                  ? t('memory.lastUsed', { when: dayLabel(m.lastUsedAt) })
-                  : t('memory.neverUsed', { when: dayLabel(m.updatedAt) })
-              }`}
-            >
-              <NoteSource m={m} />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8 rounded-full"
-                onClick={() => forget.mutate(m)}
-                aria-label={t('common.delete')}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </Row>
-          ))}
-        </Card>
-      )}
       {view === 'map' ? (
         <MemoryMap
           notes={current.filter(hit)}
@@ -1611,70 +1551,77 @@ function MemoryTab() {
         />
       ) : (
         <>
-          {(manages || common.length > 0) && (
-            <Card
-              title={t('memory.common')}
-              hint={t(manages ? 'memory.commonHint' : 'memory.commonHintMember')}
-            >
-              {manages && (
-                <form
-                  className="flex gap-2 px-4 py-3"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    if (commonText.trim()) addCommon.mutate();
-                  }}
-                >
-                  <Input
-                    value={commonText}
-                    maxLength={2000}
-                    onChange={(e) => setCommonText(e.target.value)}
-                    placeholder={t('memory.commonPlaceholder')}
-                    aria-label={t('memory.commonPlaceholder')}
-                    className="flex-1 rounded-full"
-                  />
-                  <Button className="rounded-full" disabled={!commonText.trim() || addCommon.isPending}>
-                    {t('common.add')}
-                  </Button>
-                </form>
-              )}
-              {common.map((m) =>
-                manages ? (
-                  <NoteRow key={m.id} m={m} {...noteProps} />
-                ) : (
-                  <div key={m.id} className="px-4 py-3 text-sm break-words">
-                    {m.content}
-                  </div>
-                ),
-              )}
-            </Card>
-          )}
-          <Card title={t('memory.user')}>
-            <form
-              className="flex gap-2 px-4 py-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (text.trim()) add.mutate();
-              }}
-            >
-              <Input
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder={t('memory.userPlaceholder')}
-                aria-label={t('memory.userPlaceholder')}
-                className="flex-1 rounded-full"
-              />
-              <Button className="rounded-full" disabled={!text.trim() || add.isPending}>
-                {t('common.add')}
-              </Button>
-            </form>
-            {user.length === 0 && (
-              <div className="px-4 py-3 text-sm text-muted-foreground">
-                {t(searching ? 'memory.searchEmpty' : 'memory.empty')}
-              </div>
+          <Card title={t('memory.everyBot')}>
+            {(manages || common.length > 0) && (
+              <NoteGroup
+                title={t('memory.commonGroup')}
+                count={common.length}
+                open={isOpen('#common', common.length)}
+                onToggle={() => toggle('#common')}
+              >
+                <div className="space-y-3 px-4 py-3">
+                  <p className={GROUP_HINT}>{t(manages ? 'memory.commonHint' : 'memory.commonHintMember')}</p>
+                  {manages && (
+                    <form
+                      className="flex gap-2"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (commonText.trim()) addCommon.mutate();
+                      }}
+                    >
+                      <Input
+                        value={commonText}
+                        maxLength={2000}
+                        onChange={(e) => setCommonText(e.target.value)}
+                        placeholder={t('memory.commonPlaceholder')}
+                        aria-label={t('memory.commonPlaceholder')}
+                        className="flex-1 rounded-full"
+                      />
+                      <Button className="rounded-full" disabled={!commonText.trim() || addCommon.isPending}>
+                        {t('common.add')}
+                      </Button>
+                    </form>
+                  )}
+                </div>
+                {common.map((m) =>
+                  manages ? (
+                    <NoteRow key={m.id} m={m} {...noteProps} />
+                  ) : (
+                    <div key={m.id} className="px-4 py-3 text-sm break-words">
+                      {m.content}
+                    </div>
+                  ),
+                )}
+              </NoteGroup>
             )}
-            {user.map((m) => (
-              <NoteRow key={m.id} m={m} {...noteProps} />
-            ))}
+            <NoteGroup
+              title={t('memory.userGroup')}
+              count={user.length}
+              open={isOpen('#user', user.length)}
+              onToggle={() => toggle('#user')}
+            >
+              <form
+                className="flex gap-2 px-4 py-3"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (text.trim()) add.mutate();
+                }}
+              >
+                <Input
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder={t('memory.userPlaceholder')}
+                  aria-label={t('memory.userPlaceholder')}
+                  className="flex-1 rounded-full"
+                />
+                <Button className="rounded-full" disabled={!text.trim() || add.isPending}>
+                  {t('common.add')}
+                </Button>
+              </form>
+              {user.map((m) => (
+                <NoteRow key={m.id} m={m} {...noteProps} />
+              ))}
+            </NoteGroup>
           </Card>
           <Card title={t('memory.bots')}>
             {groups.length === 0 && (
@@ -1682,101 +1629,172 @@ function MemoryTab() {
                 {t(searching ? 'memory.searchEmpty' : 'memory.empty')}
               </div>
             )}
-            {groups.map((g) => {
-              // A search opens the bots with hits, so the notes found are in sight.
-              const isOpen = searching || open.has(g.botId);
-              return (
-                <div key={g.botId}>
-                  <div className="flex min-h-14 items-center gap-2 px-4 py-2">
-                    <button
-                      type="button"
-                      aria-expanded={isOpen}
-                      onClick={() => toggle(g.botId)}
-                      className="flex min-w-0 flex-1 items-center gap-3 text-start"
+            {groups.map((g) => (
+              <NoteGroup
+                key={g.botId}
+                title={g.archived ? t('memory.archivedBot', { name: name(g) }) : name(g)}
+                count={g.notes.length}
+                open={isOpen(g.botId, g.notes.length)}
+                onToggle={() => toggle(g.botId)}
+                action={
+                  !searching &&
+                  g.notes.length > 1 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="rounded-full"
+                      disabled={clearBot.isPending}
+                      onClick={() =>
+                        confirm(t('memory.deleteAllConfirm', { name: name(g), count: g.notes.length })) &&
+                        clearBot.mutate(g.botId)
+                      }
                     >
-                      <ChevronRight
-                        className={cn(
-                          'size-4 shrink-0 text-muted-foreground transition-transform',
-                          isOpen && 'rotate-90',
-                        )}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">
-                          {g.archived ? t('memory.archivedBot', { name: name(g) }) : name(g)}
-                        </span>
-                        <span className="block text-xs text-muted-foreground">
-                          {t('memory.noteCount', { count: g.notes.length })}
-                        </span>
-                      </span>
-                    </button>
-                    {isOpen && !searching && g.notes.length > 1 && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="rounded-full"
-                        disabled={clearBot.isPending}
-                        onClick={() =>
-                          confirm(t('memory.deleteAllConfirm', { name: name(g), count: g.notes.length })) &&
-                          clearBot.mutate(g.botId)
-                        }
-                      >
-                        {t('memory.deleteAll')}
-                      </Button>
-                    )}
-                  </div>
-                  {isOpen && (
-                    <div className="divide-y border-t">
-                      {g.notes.map((m) => (
-                        <NoteRow key={m.id} m={m} {...noteProps} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                      {t('memory.deleteAll')}
+                    </Button>
+                  )
+                }
+              >
+                {g.notes.map((m) => (
+                  <NoteRow key={m.id} m={m} {...noteProps} />
+                ))}
+              </NoteGroup>
+            ))}
           </Card>
           {roomGroups.length > 0 && (
             <Card title={t('memory.rooms')} hint={!searching && t('memory.roomsHint')}>
-              {roomGroups.map((g) => {
-                const isOpen = searching || open.has(g.place);
-                return (
-                  <div key={g.place}>
-                    <button
-                      type="button"
-                      aria-expanded={isOpen}
-                      onClick={() => toggle(g.place)}
-                      className="flex min-h-14 w-full items-center gap-3 px-4 py-2 text-start"
-                    >
-                      <ChevronRight
-                        className={cn(
-                          'size-4 shrink-0 text-muted-foreground transition-transform',
-                          isOpen && 'rotate-90',
-                        )}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium">{g.label}</span>
-                        <span className="block text-xs text-muted-foreground">
-                          {t('memory.noteCount', { count: g.notes.length })}
-                        </span>
-                      </span>
-                    </button>
-                    {isOpen && (
-                      <div className="divide-y border-t">
-                        {g.notes.map((m) => (
-                          <NoteRow key={m.id} m={m} {...noteProps} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+              {roomGroups.map((g) => (
+                <NoteGroup
+                  key={g.place}
+                  title={g.label}
+                  count={g.notes.length}
+                  open={isOpen(g.place, g.notes.length)}
+                  onToggle={() => toggle(g.place)}
+                >
+                  {g.notes.map((m) => (
+                    <NoteRow key={m.id} m={m} {...noteProps} />
+                  ))}
+                </NoteGroup>
+              ))}
             </Card>
           )}
         </>
       )}
+      {/* Notes no bot reads any more wait at the end, folded: they are kept only to be renewed or
+          deleted, so they do not stand above the notes in use. */}
+      {(expiredHits.length > 0 || staleHits.length > 0) && (
+        <Card title={t('memory.review')}>
+          {expiredHits.length > 0 && (
+            <NoteGroup
+              title={t('memory.expired')}
+              count={expiredHits.length}
+              open={isOpen('#expired', expiredHits.length)}
+              onToggle={() => toggle('#expired')}
+            >
+              <p className={cn(GROUP_HINT, 'px-4 py-3')}>{t('memory.expiredHint')}</p>
+              {expiredHits.map((m) => (
+                <NoteRow key={m.id} m={m} hint={noteOwner(m)} {...noteProps} />
+              ))}
+            </NoteGroup>
+          )}
+          {staleHits.length > 0 && (
+            <NoteGroup
+              title={t('memory.stale')}
+              count={staleHits.length}
+              open={isOpen('#stale', staleHits.length)}
+              onToggle={() => toggle('#stale')}
+              action={
+                stale.length > 1 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="rounded-full"
+                    disabled={clearStale.isPending}
+                    onClick={() =>
+                      confirm(t('memory.staleDeleteAllConfirm', { count: stale.length })) &&
+                      clearStale.mutate()
+                    }
+                  >
+                    {t('memory.deleteAll')}
+                  </Button>
+                )
+              }
+            >
+              <p className={cn(GROUP_HINT, 'px-4 py-3')}>
+                {t('memory.staleHint', { days: STALE_MEMORY_DAYS })}
+              </p>
+              {staleHits.map((m) => (
+                <Row
+                  key={m.id}
+                  label={m.site ? `${m.site} · ${m.content}` : m.content}
+                  hint={`${noteOwner(m)} · ${
+                    m.lastUsedAt
+                      ? t('memory.lastUsed', { when: dayLabel(m.lastUsedAt) })
+                      : t('memory.neverUsed', { when: dayLabel(m.updatedAt) })
+                  }`}
+                >
+                  <NoteSource m={m} />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-8 rounded-full"
+                    onClick={() => forget.mutate(m)}
+                    aria-label={t('common.delete')}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </Row>
+              ))}
+            </NoteGroup>
+          )}
+        </Card>
+      )}
       <LearnSetting />
       <MemoryHistory />
     </>
+  );
+}
+
+const GROUP_HINT = 'text-xs leading-relaxed text-muted-foreground';
+
+/** One folded list of notes: a line with its name and count, the notes under it once opened. */
+function NoteGroup({
+  title,
+  count,
+  open,
+  onToggle,
+  action,
+  children,
+}: {
+  title: string;
+  count: number;
+  open: boolean;
+  onToggle(): void;
+  /** Shown beside the name while the list is open. */
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  const t = useT();
+  return (
+    <div>
+      <div className="flex min-h-14 items-center gap-2 px-4 py-2">
+        <button
+          type="button"
+          aria-expanded={open}
+          onClick={onToggle}
+          className="flex min-w-0 flex-1 items-center gap-3 text-start"
+        >
+          <ChevronRight
+            className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-90')}
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-medium">{title}</span>
+            <span className="block text-xs text-muted-foreground">{t('memory.noteCount', { count })}</span>
+          </span>
+        </button>
+        {open && action}
+      </div>
+      {open && <div className="divide-y border-t">{children}</div>}
+    </div>
   );
 }
 
