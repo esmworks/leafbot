@@ -49,7 +49,7 @@ export interface AccountHostState {
 
 const KV_KEY = 'account-host';
 
-/** The message a server signs to redeem an install code (see `account/src/servers.ts`). */
+/** The message a server signs to redeem an install code; the account service checks these exact bytes. */
 export function claimMessage(hostId: string, code: string): Buffer {
   return Buffer.from(`leafbot-claim:${hostId}:${code.toUpperCase().replace(/[\s-]/g, '')}`, 'utf8');
 }

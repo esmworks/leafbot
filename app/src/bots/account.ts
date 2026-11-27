@@ -1,6 +1,6 @@
 /**
  * The account service as the web app on the website reaches it: on this origin under /api/v1, with
- * the session cookie the website's sign-in set (`account/README.md`). Writes carry the session's
+ * the session cookie the website's sign-in set. Writes carry the session's
  * CSRF token, handed out by `GET /session`.
  */
 const BASE = '/api/v1';
