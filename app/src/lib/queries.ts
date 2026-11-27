@@ -1,6 +1,7 @@
-import type { ModelInfo, UsageRange } from '@leafbot/shared';
-import { useQuery } from '@tanstack/react-query';
+import type { Message, ModelInfo, UsageRange } from '@leafbot/shared';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from './api';
+import { keepEarlier, refreshLimit } from './messagePages';
 import { useServerFeature } from './transport';
 
 export const useBots = () => useQuery({ queryKey: ['bots'], queryFn: api.bots });
@@ -141,6 +142,24 @@ export const useMainThread = (botId: string | null) =>
   useQuery({ queryKey: ['main-thread', botId], queryFn: () => api.mainThread(botId!), enabled: !!botId });
 export const useMessages = (threadId: string | null) =>
   useQuery({ queryKey: ['messages', threadId], queryFn: () => api.messages(threadId!), enabled: !!threadId });
+
+/**
+ * A conversation's messages on screen: its latest page at first, with the older pages the person
+ * scrolled to kept above. Reading it again reads all of them that the server sends in one page.
+ */
+export const useChatMessages = (threadId: string) => {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: ['messages', threadId],
+    queryFn: async () => {
+      const key = ['messages', threadId];
+      const limit = refreshLimit(qc.getQueryData<Message[]>(key)?.length ?? 0);
+      const latest = await api.messages(threadId, undefined, limit);
+      // Read after the answer: an older page may have come in while it was on its way.
+      return keepEarlier(qc.getQueryData<Message[]>(key) ?? [], latest);
+    },
+  });
+};
 export const useJob = (jobId: string | null) =>
   useQuery({ queryKey: ['job', jobId], queryFn: () => api.job(jobId!), enabled: !!jobId });
 export const useLibrary = (botId: string | null) =>

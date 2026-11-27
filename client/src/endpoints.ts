@@ -492,10 +492,17 @@ export function endpoints(send: Transport, base = '') {
     resetThread: (id: string) => http.post<{ ok: true }>(`/api/threads/${id}/reset`),
     /** What the bot has written so far of the reply it is writing; null when nothing runs. */
     live: (threadId: string) => http.get<{ live: LiveText | null }>(`/api/threads/${threadId}/live`),
-    messages: (threadId: string, before?: string) =>
-      http.get<Message[]>(
-        `/api/threads/${threadId}/messages${before ? `?before=${encodeURIComponent(before)}` : ''}`,
-      ),
+    /**
+     * The latest messages, or with `before` the ones just older than that message. With no
+     * `limit` the server sends its full page; a server from before `limit` sends that page anyway.
+     */
+    messages: (threadId: string, before?: string, limit?: number) => {
+      const query = new URLSearchParams();
+      if (before) query.set('before', before);
+      if (limit) query.set('limit', String(limit));
+      const qs = query.toString();
+      return http.get<Message[]>(`/api/threads/${threadId}/messages${qs ? `?${qs}` : ''}`);
+    },
     send: (
       threadId: string,
       clientId: string,

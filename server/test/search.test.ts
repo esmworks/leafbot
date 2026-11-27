@@ -89,6 +89,14 @@ describe('arama', () => {
     expect(page.map((m) => m.text)).toEqual(['m2', 'm3']);
     const r = await t.api<Message[]>('GET', `/api/threads/${thread.id}/messages?before=${all[2]!.id}`);
     expect(r.body.map((m) => m.text)).toEqual(['m0', 'm1']);
+    const latest = await t.api<Message[]>('GET', `/api/threads/${thread.id}/messages?limit=2`);
+    expect(latest.body.map((m) => m.text)).toEqual(['m4', 'm5']);
+    const older = await t.api<Message[]>(
+      'GET',
+      `/api/threads/${thread.id}/messages?limit=2&before=${all[4]!.id}`,
+    );
+    expect(older.body.map((m) => m.text)).toEqual(['m2', 'm3']);
+    expect((await t.api('GET', `/api/threads/${thread.id}/messages?limit=0`)).status).toBe(400);
     const other = (await t.api<Thread>('POST', `/api/bots/${bot.id}/threads`, {})).body;
     expect((await t.api('GET', `/api/threads/${other.id}/messages?before=${all[2]!.id}`)).status).toBe(404);
   });
