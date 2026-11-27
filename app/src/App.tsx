@@ -132,7 +132,9 @@ function Authed() {
     retry: false,
     staleTime: 30_000,
   });
-  const [linkedNow, setLinkedNow] = useState(false);
+  // Decided once, like the first-run questions: unlinking in Settings does not swap the open app
+  // for the sign-in; the next start asks again.
+  const [askAccount, setAskAccount] = useState<boolean | null>(null);
   // The answer the sign-in page got before signing in says no one; it is asked again here.
   const sessionStale = session.data?.authenticated === false;
   const refetchSession = session.refetch;
@@ -149,11 +151,17 @@ function Authed() {
   const appWindow = pageAppWindowOf();
   if (appWindow) return <PageAppWindow id={appWindow} />;
   if (session.isPending || sessionStale) return <Loading />;
-  if (mayLink && !linkedNow) {
-    if (accountHost.isPending) return <Loading />;
-    if (accountHost.data?.linked === false) return <AccountGate onDone={() => setLinkedNow(true)} />;
+  if (askAccount === null) {
+    const first =
+      !mayLink || accountHost.isError ? false : accountHost.data ? !accountHost.data.linked : null;
+    // Adjusting state while rendering: the choice is kept from the first answer on.
+    if (first !== null) setAskAccount(first);
+    return <Loading />;
   }
-  if (local && !accountDone) {
+  if (askAccount) return <AccountGate onDone={() => setAskAccount(false)} />;
+  // Signed in through the account, the owner needs no username and password of the server's own.
+  const viaAccount = accountHost.data?.linked === true;
+  if (local && !accountDone && !viaAccount) {
     if (account.isPending) return <Loading />;
     if (account.data?.username === null) return <CreateAccount onDone={() => setAccountDone(true)} />;
   }

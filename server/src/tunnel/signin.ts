@@ -29,7 +29,8 @@ export function cleanName(raw: string): string | null {
   const name = raw
     .normalize('NFC')
     .replace(/\s+/g, ' ')
-    .replace(/[\p{Cc}\p{Cf}]/gu, '')
+    // Formatting characters go, but the joiners some scripts (Persian, Hindi) need in names stay.
+    .replace(/(?![\u200c\u200d])[\p{Cc}\p{Cf}]/gu, '')
     .trim();
   return name && name.length <= MAX_ACCOUNT_NAME ? name : null;
 }

@@ -1,4 +1,6 @@
+import { request } from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { connectInProcess } from '../src/tunnel/identity';
 import { AccountHost } from '../src/tunnel/host';
 import { AccountLinks } from '../src/tunnel/links';
 import { AccountSignIn, cleanName } from '../src/tunnel/signin';
@@ -134,12 +136,42 @@ describe('signing the owner in to their account from the app', () => {
     await expect(s.signIn.setName('   ')).rejects.toMatchObject({ status: 400 });
     expect(cleanName('A​da\n Lovelace')).toBe('Ada Lovelace');
     expect(cleanName('x'.repeat(81))).toBeNull();
+    // The joiners Persian and Hindi names need stay.
+    expect(cleanName('می\u200cخواهم')).toBe('می\u200cخواهم');
   });
 
   it('lets only the owner sign the server in', async () => {
     const member = await t.person('mira2', 'member');
     for (const path of ['/api/account-host/email', '/api/account-host/verify', '/api/account-host/name'])
       expect((await member.api('POST', path, {})).status).toBe(403);
+  });
+
+  it('refuses the sign-in over the tunnel, even to the owner', async () => {
+    for (const path of ['/api/account-host/email', '/api/account-host/verify', '/api/account-host/name']) {
+      const status = await new Promise<number>((resolve, reject) => {
+        const req = request(
+          {
+            method: 'POST',
+            path,
+            headers: { host: 'www.leafbot.app', 'content-type': 'application/json' },
+            createConnection: () =>
+              connectInProcess(t.app.server, {
+                userId: 'owner',
+                accountUserId: 'acct_owner',
+                sessionId: 'sess_owner',
+                connection: 'conn_owner',
+              }),
+          },
+          (r) => {
+            r.resume();
+            resolve(r.statusCode ?? 0);
+          },
+        );
+        req.on('error', reject);
+        req.end('{}');
+      });
+      expect(status).toBe(403);
+    }
   });
 });
 

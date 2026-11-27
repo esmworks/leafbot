@@ -25,7 +25,8 @@ const tr = {
   'error.originRequired': 'Origin başlığı gerekli',
   'error.notOverTunnel': 'Hesabınızla bağlıyken bu giriş yolu kullanılmaz',
   'error.installCodeInvalid': 'Kurulum kodu geçersiz ya da süresi dolmuş. Hesabınızdan yeni bir kod alın.',
-  'error.installCodeOtherAccount': 'Bu sunucu başka bir hesaba bağlı',
+  'error.installCodeOtherAccount':
+    'Bu sunucu başka bir hesaba bağlı. Başka bir hesapla bağlamak için önce o hesabın Sunucular sayfasından kaldırın.',
   'error.accountUnreachable': 'Leaf Bot hesap servisine şu an ulaşılamıyor. Biraz sonra yeniden deneyin.',
   'error.accountTooManyTries': 'Çok fazla deneme yapıldı. Biraz bekleyip yeniden deneyin.',
   'error.accountEmailInvalid': 'Bu e-posta adresi geçerli görünmüyor.',
@@ -2501,7 +2502,8 @@ const en: Catalog<ServerKey> = {
   'error.originRequired': 'Origin header required',
   'error.notOverTunnel': 'This way of signing in is not used while connected through your account',
   'error.installCodeInvalid': 'The install code is wrong or has expired. Get a new one from your account.',
-  'error.installCodeOtherAccount': 'This server is linked to another account',
+  'error.installCodeOtherAccount':
+    'This server is linked to another account. To link it to another one, first remove it on that account’s Servers page.',
   'error.accountUnreachable':
     "The Leaf Bot account service can't be reached right now. Try again in a little while.",
   'error.accountTooManyTries': 'Too many tries. Wait a little, then try again.',
