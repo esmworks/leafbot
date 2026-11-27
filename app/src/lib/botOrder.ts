@@ -1,20 +1,25 @@
 import type { Bot, Group } from '@leafbot/shared';
+import { placeSections } from './places';
 
 /**
  * The bots in the order the sidebar lists them: those waiting on the person, the pinned ones, then
- * each group's in turn, then the ones in no group.
+ * each section's in turn (the team spaces, Private and its folders, those shared with the person).
  */
 export function sidebarOrder(
   bots: readonly Bot[],
   groups: readonly Group[],
   waiting: ReadonlySet<string>,
+  me: string | undefined,
 ): Bot[] {
   const rest = bots.filter((b) => !waiting.has(b.id));
   return [
     ...bots.filter((b) => waiting.has(b.id)),
     ...rest.filter((b) => b.pinned),
-    ...groups.flatMap((g) => rest.filter((b) => !b.pinned && b.groupId === g.id)),
-    ...rest.filter((b) => !b.pinned && !b.groupId),
+    ...placeSections(
+      rest.filter((b) => !b.pinned),
+      groups,
+      me,
+    ).flatMap((s) => s.bots),
   ];
 }
 

@@ -32,12 +32,14 @@ export const SETTINGS_TABS: readonly SettingsTab[] = [
   'about',
 ];
 
-/** Sections only those who look after the server use: what they change is the server's. */
+/**
+ * Sections only those who look after the server use: what they change is the server's. Spaces
+ * and folders are not among them: everyone keeps their own folders and archived bots there.
+ */
 export const SERVER_TABS: ReadonlySet<SettingsTab> = new Set([
   'providers',
   'channels',
   'services',
-  'groups',
   'import',
   'usage',
 ]);

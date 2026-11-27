@@ -39,8 +39,8 @@ describe('kim neyi görür', () => {
     expect(list.some((b) => b.id === bot.id)).toBe(false);
     expect((await ayse.api('GET', `/api/bots/${bot.id}`)).status).toBe(404);
     expect((await ayse.api('GET', `/api/bots/${bot.id}/main-thread`)).status).toBe(404);
-    // Those who look after the server may change every bot.
-    expect((await admin.api<Bot>('GET', `/api/bots/${bot.id}`)).body.yourLevel).toBe('edit');
+    // A bot in someone's Private is theirs alone, even to those who look after the server.
+    expect((await admin.api('GET', `/api/bots/${bot.id}`)).status).toBe(404);
   });
 
   it('paylaşılan botla herkes kendi sohbetini yapar; kimse başkasınınkini okuyamaz', async () => {
@@ -166,12 +166,13 @@ describe('kim neyi görür', () => {
     // A routine's runs are its person's alone.
     const routine = await t.services.threads.routineThread(bot.id, 'Rutin', null, 'ayse');
     expect(await t.services.access.threadAudience(routine.id)).toEqual(['ayse']);
-    // The bot's own work, which is no one person's, goes to those who may change it.
+    // The bot's own work, which is no one person's, goes to those who may change it: in its
+    // owner's Private, only its owner.
     const [work] = await t.services.ctx.db
       .insert(schema.threads)
       .values({ id: newId(), botId: bot.id, kind: 'routine', title: 'Eski iş' })
       .returning();
-    expect((await t.services.access.threadAudience(work!.id)).sort()).toEqual([OWNER_ID, 'yonetici'].sort());
+    expect(await t.services.access.threadAudience(work!.id)).toEqual([OWNER_ID]);
   });
 
   it('yalnızca konuşabilen kişi kendi sohbetinin dosyalarını açar, başkasınınkini açamaz', async () => {
@@ -317,6 +318,10 @@ describe('kim neyi görür', () => {
     const asker = await t.bot({ name: 'Soran' });
     const helper = await t.bot({ name: 'Yardımcı' });
     await t.api('PUT', `/api/bots/${asker.id}/access`, { everyone: 'none', people: { ayse: 'edit' } });
+    // In a team space, so those who look after the server may change it too.
+    const space = (await t.api<{ id: string }>('POST', '/api/groups', { name: 'Ortak işler', space: true }))
+      .body;
+    await t.api('POST', `/api/bots/${asker.id}/move`, { pinned: false, groupId: space.id, beforeId: null });
     const forAyse = await t.services.threads.peerThread(helper.id, asker.id, 'ayse');
     const forMert = await t.services.threads.peerThread(helper.id, asker.id, 'mert');
     const forOwner = await t.services.threads.peerThread(helper.id, asker.id, OWNER_ID);
@@ -325,7 +330,7 @@ describe('kim neyi görür', () => {
         (r) => r.threadId,
       );
     expect(await ids(ayse)).toEqual([forAyse.id]);
-    // Those who look after the server change every bot, and still open nobody else's exchanges.
+    // Those who look after the server change a team space's bots, and still open nobody else's exchanges.
     expect(await ids(t)).toEqual([forOwner.id]);
     expect(await ids(admin)).toEqual([]);
     expect(forMert.userId).toBe('mert');

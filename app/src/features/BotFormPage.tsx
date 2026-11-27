@@ -10,6 +10,7 @@ import {
   selectorLines,
   ToolSelection,
   type Bot,
+  type Group,
   type Effort,
   type ObjectAvatar,
 } from '@leafbot/shared';
@@ -40,10 +41,14 @@ import {
   useGroups,
   useImageModels,
   useInfo,
+  useManagesServer,
   useProviderModelInfo,
   useProviders,
+  useSession,
   useSettings,
 } from '@/lib/queries';
+import { isMine, isSpace, placesFor } from '@/lib/places';
+import { moveWarning } from '@/features/botDrag';
 import { askBeforeLeavingPage, useUi, type BotPreset, type UiState } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { MODE_LABEL } from './RightPanel';
@@ -68,6 +73,22 @@ export const COLORS = [
 ];
 
 const NO_GROUP = '__none__';
+
+/**
+ * The folders and spaces to offer, with the bot's own place kept so the field still names it when
+ * the person may not move it. A place the person does not see shows nothing.
+ */
+function placeOptions(
+  places: (Group | null)[] | null,
+  groups: readonly Group[],
+  current: string | null | undefined,
+) {
+  const list = (places ?? []).filter((g): g is Group => !!g);
+  const here = groups.find((g) => g.id === current);
+  const shown = here && !list.some((g) => g.id === here.id) ? [here, ...list] : list;
+  // Spaces after the person's own folders, as in the sidebar.
+  return [...shown.filter((g) => !isSpace(g)), ...shown.filter(isSpace)];
+}
 
 /** Tool names as cards name them; examples, the same in every language. */
 const TOOLS_EXAMPLE = 'Read\nmcp__leafbot__memory_*\nmcp__gmail__search_threads';
@@ -247,6 +268,11 @@ function BotForm({
   const readOnly = bot?.yourLevel === 'chat';
   const qc = useQueryClient();
   const { data: groups = [] } = useGroups();
+  const me = useSession().data?.user?.id;
+  const manages = useManagesServer();
+  // A new bot starts in Private or a folder of the person's; a bot moves only where they may put it.
+  const places = placesFor(bot, groups, me, manages);
+  const mine = !bot || isMine(bot, me);
   const selectBot = useUi((s) => s.selectBot);
   const openChat = useUi((s) => s.openChat);
   const { data: settings } = useSettings();
@@ -363,7 +389,12 @@ function BotForm({
   return (
     // The bar with the title and buttons stays put; only the form under it scrolls.
     <form
-      onSubmit={form.handleSubmit((f) => save.mutate(f))}
+      onSubmit={form.handleSubmit((f) => {
+        const to = f.newGroup.trim() ? undefined : f.groupId === NO_GROUP ? null : f.groupId;
+        const warning = bot && to !== undefined && moveWarning(bot, to, groups, t);
+        if (warning && !confirm(warning)) return;
+        save.mutate(f);
+      })}
       className="flex min-h-0 min-w-0 flex-1 flex-col"
       aria-label={bot ? t('bot.settingsTitle', { name: bot.name }) : t('bot.new')}
     >
@@ -449,24 +480,26 @@ function BotForm({
               />
             </Field>
             <Field label={t('bot.group')}>
-              <Select value={v.groupId} onValueChange={(g) => form.setValue('groupId', g)}>
+              <Select value={v.groupId} onValueChange={(g) => form.setValue('groupId', g)} disabled={!places}>
                 <SelectTrigger className="w-full rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_GROUP}>{t('bot.noGroup')}</SelectItem>
-                  {groups.map((g) => (
+                  {mine && <SelectItem value={NO_GROUP}>{t('bot.private')}</SelectItem>}
+                  {placeOptions(places, groups, bot?.groupId).map((g) => (
                     <SelectItem key={g.id} value={g.id}>
                       {g.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <Input
-                {...form.register('newGroup')}
-                className="mt-2 rounded-xl"
-                placeholder={t('bot.newGroup')}
-              />
+              {mine && (
+                <Input
+                  {...form.register('newGroup')}
+                  className="mt-2 rounded-xl"
+                  placeholder={t('bot.newFolder')}
+                />
+              )}
             </Field>
           </div>
           <Field label={t('bot.description')}>

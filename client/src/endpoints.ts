@@ -73,6 +73,8 @@ import type {
   PermissionRule,
   Approver,
   SecondYes,
+  SpaceJoin,
+  SpaceRequest,
   ProviderInfo,
   ModelInfo,
   CustomEndpointCreate,
@@ -112,6 +114,10 @@ import type {
   VaultLoginUpdate,
   BotMove,
   GroupMove,
+  GroupCreate,
+  GroupUpdate,
+  SpaceMembersChange,
+  PrivateBots,
   ProfileFocus,
   ProfileHelp,
   ClaudeAuthSet,
@@ -472,8 +478,27 @@ export function endpoints(send: Transport, base = '') {
     closeBrowserWindow: (botId: string) => http.del<{ ok: true }>(`/api/bots/${botId}/browser/window`),
 
     groups: () => http.get<Group[]>('/api/groups'),
-    createGroup: (name: string) => http.post<Group>('/api/groups', { name }),
+    createGroup: (name: string, opts: Omit<GroupCreate, 'name'> = {}) =>
+      http.post<Group>('/api/groups', { name, ...opts }),
     renameGroup: (id: string, name: string) => http.patch<Group>(`/api/groups/${id}`, { name }),
+    updateGroup: (id: string, patch: GroupUpdate) => http.patch<Group>(`/api/groups/${id}`, patch),
+    /** Those who wait for their team spaces to be chosen; for those who look after the server. */
+    newcomers: () => http.get<PersonInfo[]>('/api/newcomers'),
+    placeNewcomer: (personId: string, spaceIds: string[]) =>
+      http.post<{ ok: true }>(`/api/newcomers/${personId}`, { spaceIds }),
+    privateBots: (personId: string) => http.get<PrivateBots>(`/api/people/${personId}/private-bots`),
+    pausePrivateBots: (personId: string, paused: boolean) =>
+      http.post<PrivateBots>(`/api/people/${personId}/private-bots/pause`, { paused }),
+    archivePrivateBots: (personId: string) =>
+      http.post<PrivateBots>(`/api/people/${personId}/private-bots/archive`, {}),
+    joinSpace: (id: string) => http.post<SpaceJoin>(`/api/groups/${id}/join`, {}),
+    /** Leaves the space, or takes back the request to join it. */
+    leaveSpace: (id: string) => http.post<{ ok: true }>(`/api/groups/${id}/leave`, {}),
+    spaceRequests: () => http.get<SpaceRequest[]>('/api/space-requests'),
+    answerSpaceRequest: (id: string, decision: 'allow' | 'deny') =>
+      http.post<{ ok: true }>(`/api/space-requests/${id}`, { decision }),
+    setSpaceMembers: (id: string, change: SpaceMembersChange) =>
+      http.put<Group>(`/api/groups/${id}/members`, change),
     moveGroup: (id: string, to: GroupMove) => http.post<Group>(`/api/groups/${id}/move`, to),
     deleteGroup: (id: string) => http.del<{ ok: true }>(`/api/groups/${id}`),
     pauseGroup: (id: string, paused: boolean) => http.post<Group>(`/api/groups/${id}/pause`, { paused }),
@@ -485,6 +510,10 @@ export function endpoints(send: Transport, base = '') {
     createRoom: (input: RoomCreate) => http.post<Room>('/api/rooms', input),
     updateRoom: (id: string, patch: RoomUpdate) => http.patch<Room>(`/api/rooms/${id}`, patch),
     deleteRoom: (id: string) => http.del<{ ok: true }>(`/api/rooms/${id}`),
+    setRoomPeople: (id: string, change: { add?: string[]; remove?: string[] }) =>
+      http.put<Room>(`/api/rooms/${id}/people`, change),
+    leaveRoom: (id: string) => http.post<{ ok: true }>(`/api/rooms/${id}/leave`),
+    roomUnshared: (id: string) => http.get<Record<string, string[]>>(`/api/rooms/${id}/unshared`),
     sendToRoom: (id: string, clientId: string, text: string, replyTo?: string) =>
       http.post<Message>(`/api/rooms/${id}/messages`, { clientId, text, replyTo }),
     stopRoom: (id: string) => http.post<{ stopped: boolean }>(`/api/rooms/${id}/stop`),

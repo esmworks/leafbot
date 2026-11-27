@@ -90,6 +90,8 @@ export class AccountHost {
       fetcher?: typeof fetch;
       /** Told when a ticket changed a person's name here. */
       onNameChanged?: () => void;
+      /** Someone came over the account for the first time. */
+      onJoined?: (userId: string) => void;
     },
   ) {
     this.fetcher = deps.fetcher ?? ((i, init) => fetch(i, init));
@@ -222,7 +224,7 @@ export class AccountHost {
         return res.json();
       },
     });
-    const links = new AccountLinks(this.deps.db, this.deps.onNameChanged);
+    const links = new AccountLinks(this.deps.db, this.deps.onNameChanged, this.deps.onJoined);
     this.gateway = new TunnelGateway({
       server: this.deps.server,
       checker,

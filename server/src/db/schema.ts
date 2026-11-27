@@ -24,6 +24,13 @@ const OUTSIDE_TRIGGERS = ['watch', 'webhook', 'email', 'whatsapp', 'web', 'forwa
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 const created = () => ts('created_at').notNull().defaultNow();
 
+/**
+ * A team space, whose bots are open to its members, or with an owner, a folder in that person's
+ * Private, which opens nothing to anyone. A bot in neither is its owner's alone. A space is `open`
+ * (everyone sees it and may join), `closed` (everyone sees it and asks to join) or `secret` (only
+ * its members know of it). Groups made before spaces are secret spaces with nobody in them, so
+ * nobody reaches a bot through one until someone is put in it.
+ */
 export const groups = pgTable('groups', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -31,8 +38,46 @@ export const groups = pgTable('groups', {
   position: integer('position').notNull().default(0),
   /** Set while every bot of the group is paused: none of them starts work until it is cleared. */
   pausedAt: ts('paused_at'),
+  /** Whose Private folder this is; null for a team space. */
+  ownerUserId: text('owner_user_id').references(() => users.id, { onDelete: 'cascade' }),
+  kind: text('kind', { enum: ['open', 'closed', 'secret'] })
+    .notNull()
+    .default('secret'),
+  /** Whether its members may also change its bots; otherwise they talk with them. */
+  membersEdit: boolean('members_edit').notNull().default(false),
   createdAt: created(),
 });
+
+/** Who is in a team space. Those who look after the server reach every bot without being in one. */
+export const groupMembers = pgTable(
+  'group_members',
+  {
+    groupId: text('group_id')
+      .notNull()
+      .references(() => groups.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.userId] }), index('group_members_user_idx').on(t.userId)],
+);
+
+/** Someone asking to join a closed team space, until one of those who look after the server answers. */
+export const spaceRequests = pgTable(
+  'space_requests',
+  {
+    id: text('id').primaryKey(),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => groups.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex('space_requests_group_user_idx').on(t.groupId, t.userId)],
+);
 
 export const bots = pgTable('bots', {
   id: text('id').primaryKey(),
@@ -280,6 +325,27 @@ export const roomMembers = pgTable(
     createdAt: created(),
   },
   (t) => [uniqueIndex('room_members_uq').on(t.roomId, t.botId)],
+);
+
+/**
+ * The people in a room besides the one who opened it (`threads.userId`), who manages it with the
+ * admins among them. Once a room has anyone here, its bots use only what the team shares, never
+ * one person's own apps, notes or sign-ins, since everyone in the room reads their answers.
+ */
+export const roomPeople = pgTable(
+  'room_people',
+  {
+    roomId: text('room_id')
+      .notNull()
+      .references(() => rooms.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    /** Who put them in; null when they came with the room as it passed to them. */
+    addedBy: text('added_by'),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.roomId, t.userId] }), index('room_people_user_idx').on(t.userId)],
 );
 
 /** One step of a turn as it is kept: the tool's short name, what it did, and what it was given. */
@@ -948,6 +1014,11 @@ export const users = pgTable(
     profile: jsonb('profile').$type<Record<string, unknown>>().notNull().default({}),
     /** Set when the person may no longer sign in; their sessions stop working. */
     disabledAt: ts('disabled_at'),
+    /**
+     * When those who look after the server chose the team spaces of someone new. Null while a
+     * newcomer waits for it, which shows them a card; everyone there before spaces counts as placed.
+     */
+    placedAt: ts('placed_at'),
   },
   (t) => [
     uniqueIndex('users_username_key_uq').on(t.usernameKey),

@@ -28,6 +28,8 @@ export class AccountLinks {
     private db: Db,
     /** Told when a person's name changed here, so open apps show the new one. */
     private onNameChanged: () => void = () => {},
+    /** Told when someone comes for the first time, so those who look after the server place them. */
+    private onJoined: (userId: string) => void = () => {},
   ) {}
 
   /**
@@ -39,7 +41,8 @@ export class AccountLinks {
   async resolve(claims: TicketClaims): Promise<{ userId: string } | null> {
     const found = await this.find(claims);
     if (found && claims.name) await this.useName(found.userId, claims.name);
-    return found;
+    if (found?.joined) this.onJoined(found.userId);
+    return found && { userId: found.userId };
   }
 
   /**
@@ -91,7 +94,7 @@ export class AccountLinks {
     this.onNameChanged();
   }
 
-  private async find(claims: TicketClaims): Promise<{ userId: string } | null> {
+  private async find(claims: TicketClaims): Promise<{ userId: string; joined?: true } | null> {
     const role = claims.role;
     if (!role) return null;
     const [link] = await this.db
@@ -139,7 +142,7 @@ export class AccountLinks {
           .values({ accountUserId: claims.sub, userId })
           .onConflictDoNothing()
           .returning();
-        if (linked.length) return { userId };
+        if (linked.length) return { userId, joined: true as const };
         // Two first visits at once: the other one made the person; this one's is not needed.
         tx.rollback();
         return null;

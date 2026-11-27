@@ -44,6 +44,10 @@ import {
   LoginRequest,
   GroupCreate,
   GroupMove,
+  GroupUpdate,
+  SpaceMembersChange,
+  NewcomerPlace,
+  SpaceRequestAnswer,
   MAX_BOT_IMPORT_BYTES,
   BOT_IMPORT_LIMITS,
   botImportFromText,
@@ -68,6 +72,7 @@ import {
   RehearsalStart,
   RoutineHealthDismiss,
   RoomCreate,
+  RoomPeopleChange,
   RoomSend,
   MeetingAnswer,
   MeetingSave,
@@ -175,7 +180,7 @@ import { HttpError, notFound, truncate } from './util';
 import type { AccountHost } from './tunnel/host';
 import type { AccountSignIn } from './tunnel/signin';
 import { tunnelIdentity } from './tunnel/identity';
-import { atLeast, managesServer } from './services/access';
+import { atLeast, managesServer, seesGroup } from './services/access';
 import { findProjects, findSetup } from './services/setup-import';
 import { APP_DIR } from './runtime/turns';
 import { bundlePage } from './tools/page-bundle';
@@ -395,7 +400,21 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const made = await d.auth.users.create(body);
     s.access.forget();
     s.ctx.bus.refresh({ scope: 'people' });
+    // The others who look after the server learn of them; the one who added them knows.
+    void s.push.newcomer(made.id, me(req).userId);
     return made;
+  });
+  // Someone new waits until those who look after the server choose their team spaces.
+  app.get('/api/newcomers', async () => d.auth.users.newcomers());
+  app.post('/api/newcomers/:id', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    const { spaceIds } = NewcomerPlace.parse(req.body);
+    if (!(await d.auth.users.person(id))) throw notFound('person');
+    for (const spaceId of spaceIds) await s.bots.setSpaceMembers(spaceId, { add: [id] });
+    await d.auth.users.place(id);
+    s.access.forget();
+    s.ctx.bus.refresh({ scope: 'people' });
+    return { ok: true };
   });
   app.patch('/api/people/:id', async (req) => {
     const { id } = IdParams.parse(req.params);
@@ -420,6 +439,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     // Signed out first, so nothing new of theirs starts while they are removed.
     await d.auth.users.change(id, { disabled: true });
     await peopleChanged(id, true);
+    // A room they opened that others are in stays for them, managed by the next in line.
+    await s.rooms.passOn(id);
     const threads = await s.ctx.db
       .select({ id: schema.threads.id, botId: schema.threads.botId })
       .from(schema.threads)
@@ -437,6 +458,34 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     await d.auth.users.remove(id);
     await peopleChanged(id, true);
     return { ok: true };
+  });
+
+  // Someone's Private is theirs alone; to keep the server well those who look after it see only how
+  // many bots are there and may pause or archive them all, never open one.
+  app.get('/api/people/:id/private-bots', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    await changeable(req, id);
+    const ids = await s.bots.privateBotIds(id);
+    const paused = await s.bots.pausedIds();
+    return { count: ids.length, paused: ids.filter((b) => paused.has(b)).length };
+  });
+  app.post('/api/people/:id/private-bots/pause', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    await changeable(req, id);
+    const { paused } = PauseBody.parse(req.body);
+    const ids = await s.bots.privateBotIds(id);
+    for (const botId of ids) await s.bots.setPaused(botId, paused);
+    if (paused) await s.turns.stopBots(ids);
+    else s.turns.schedule();
+    return { count: ids.length, paused: paused ? ids.length : 0 };
+  });
+  app.post('/api/people/:id/private-bots/archive', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    await changeable(req, id);
+    const ids = await s.bots.privateBotIds(id);
+    for (const botId of ids) await s.bots.archive(botId);
+    await s.turns.stopBots(ids, 'archived');
+    return { count: 0, paused: 0 };
   });
 
   app.get('/api/sessions', async (req) => d.auth.listSessions(req.cookies[SESSION_COOKIE], me(req).userId));
@@ -711,14 +760,12 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     if ((await s.access.botOwner(botId)) !== p.userId) throw new HttpError(403, 'error.botOwnerOnly');
   };
   /**
-   * A group's bots share its files folder, so a bot joins one only for someone who may change
-   * every bot already in it.
+   * A bot moved into or out of a team space is opened to or closed from its people: who hears
+   * about the bot changes, and someone who lost it can no longer give a second yes on its steps.
    */
-  const checkGroup = async (req: FastifyRequest, groupId: string | null | undefined) => {
-    if (!groupId || canAdminister(me(req).role)) return;
-    const editable = new Set(await s.access.botIds(me(req), 'edit'));
-    const members = (await s.bots.list({ includeArchived: true })).filter((b) => b.groupId === groupId);
-    if (!members.every((b) => editable.has(b.id))) throw new HttpError(403, 'error.groupNotYours');
+  const placeChanged = async () => {
+    s.access.forget();
+    await s.approvals.refuseUnanswerable();
   };
   /** A bot with what the asking person may do with it. */
   const leveled = async (req: FastifyRequest, bot: Bot): Promise<Bot> => ({
@@ -762,7 +809,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     if (body.personComputer) checkPersonComputer(req);
     checkAgent(req, body.engine, body.model);
     checkProjectDir(req, body.projectDir);
-    await checkGroup(req, body.groupId);
+    await s.access.checkPlace(me(req), body.groupId, me(req).userId, true);
     const bot = await s.bots.create(body, me(req).userId);
     return leveled(req, bot.instructionsUrl ? await s.instructionDocs.check(bot.id) : bot);
   });
@@ -784,7 +831,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     if (patch.projectDir !== undefined && patch.projectDir !== before.projectDir) {
       checkProjectDir(req, patch.projectDir);
     }
-    if (patch.groupId !== undefined && patch.groupId !== before.groupId) await checkGroup(req, patch.groupId);
+    const moved = patch.groupId !== undefined && patch.groupId !== before.groupId;
+    if (moved) await s.access.checkPlace(me(req), patch.groupId, before.ownerUserId);
     if (patch.personComputer && !before.personComputer) checkPersonComputer(req);
     if (patch.engine !== undefined || patch.model !== undefined) {
       const engine = patch.engine ?? before.engine;
@@ -792,6 +840,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
         checkAgent(req, engine, patch.model ?? before.model);
     }
     const bot = await s.bots.update(id, patch);
+    if (moved) await placeChanged();
     const relinked = !!bot.instructionsUrl && bot.instructionsUrl !== before.instructionsUrl;
     return leveled(req, relinked ? await s.instructionDocs.check(id) : bot);
   });
@@ -819,8 +868,14 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.post('/api/bots/:id/move', async (req) => {
     const id = IdParams.parse(req.params).id;
     const body = BotMove.parse(req.body);
-    if (body.groupId !== (await s.bots.get(id)).groupId) await checkGroup(req, body.groupId);
-    return s.bots.move(id, body);
+    const before = await s.bots.get(id);
+    // Pinning keeps the bot in its place.
+    const groupId = body.pinned ? before.groupId : body.groupId;
+    if (groupId === before.groupId) return s.bots.move(id, body);
+    await s.access.checkPlace(me(req), groupId, before.ownerUserId);
+    const bot = await s.bots.move(id, body);
+    await placeChanged();
+    return bot;
   });
   app.post('/api/bots/:id/archive', async (req) => {
     const { id } = IdParams.parse(req.params);
@@ -1292,24 +1347,102 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     return s.skills.get(p.id);
   });
 
-  app.get('/api/groups', async () => s.bots.listGroups());
-  app.post('/api/groups', async (req) => s.bots.createGroup(GroupCreate.parse(req.body).name));
-  app.patch('/api/groups/:id', async (req) =>
-    s.bots.renameGroup(IdParams.parse(req.params).id, GroupCreate.parse(req.body).name),
-  );
+  // Each person sees the team spaces open to them and their own Private folders, and which closed
+  // spaces they asked to join.
+  app.get('/api/groups', async (req) => {
+    const viewer = me(req);
+    const asked = new Set(await s.bots.requestedSpaces(viewer.userId));
+    return (await s.bots.listGroups())
+      .filter((g) => seesGroup(viewer, g))
+      .map((g) => (asked.has(g.id) ? { ...g, requested: true } : g));
+  });
+  /** A group the person may change: a folder of their own, or a team space when they look after the server. */
+  const ownGroup = async (req: FastifyRequest) => {
+    const group = await s.bots.getGroup(IdParams.parse(req.params).id);
+    if (!seesGroup(me(req), group)) throw notFound('group');
+    if (group.ownerUserId ? group.ownerUserId !== me(req).userId : !canAdminister(me(req).role)) {
+      throw new HttpError(403, group.ownerUserId ? 'error.folderNotYours' : 'error.adminOnly');
+    }
+    return group;
+  };
+  app.post('/api/groups', async (req) => {
+    const body = GroupCreate.parse(req.body);
+    if (!body.space) return s.bots.createGroup(body.name, { ownerUserId: me(req).userId });
+    requireAdmin(me(req));
+    return s.bots.createGroup(body.name, { kind: body.kind });
+  });
+  app.patch('/api/groups/:id', async (req) => {
+    const group = await ownGroup(req);
+    const patch = GroupUpdate.parse(req.body);
+    if (patch.kind !== undefined || patch.membersEdit !== undefined) {
+      await s.bots.setSpace(group.id, patch);
+      await placeChanged();
+    }
+    return patch.name ? s.bots.renameGroup(group.id, patch.name) : s.bots.getGroup(group.id);
+  });
+  app.put('/api/groups/:id/members', async (req) => {
+    const group = await s.bots.setSpaceMembers(
+      IdParams.parse(req.params).id,
+      SpaceMembersChange.parse(req.body),
+    );
+    await placeChanged();
+    return group;
+  });
+  /** A team space the asking person knows of; a secret one stays unknown to those outside it. */
+  const knownSpace = async (req: FastifyRequest) => {
+    const group = await s.bots.getGroup(IdParams.parse(req.params).id);
+    if (group.ownerUserId || !seesGroup(me(req), group)) throw notFound('group');
+    return group;
+  };
+  // An open space is joined at once; a closed one is asked for, and those who look after the server
+  // are told. They themselves join any space at once.
+  app.post('/api/groups/:id/join', async (req) => {
+    const viewer = me(req);
+    const group = await knownSpace(req);
+    if (group.memberIds?.includes(viewer.userId)) return { state: 'joined' as const };
+    if (group.kind === 'open' || canAdminister(viewer.role)) {
+      await s.bots.setSpaceMembers(group.id, { add: [viewer.userId] });
+      await placeChanged();
+      return { state: 'joined' as const };
+    }
+    if (await s.bots.requestSpace(group.id, viewer.userId)) {
+      void s.push.spaceRequest(viewer.userId, group.name);
+    }
+    return { state: 'requested' as const };
+  });
+  // Leaving takes back a request to join too.
+  app.post('/api/groups/:id/leave', async (req) => {
+    const viewer = me(req);
+    const group = await knownSpace(req);
+    await s.bots.dropSpaceRequest(group.id, viewer.userId);
+    if (group.memberIds?.includes(viewer.userId)) {
+      await s.bots.setSpaceMembers(group.id, { remove: [viewer.userId] });
+      await placeChanged();
+    }
+    return { ok: true };
+  });
+  app.get('/api/space-requests', async () => s.bots.spaceRequests());
+  app.post('/api/space-requests/:id', async (req) => {
+    const { decision } = SpaceRequestAnswer.parse(req.body);
+    await s.bots.answerSpaceRequest(IdParams.parse(req.params).id, decision === 'allow');
+    if (decision === 'allow') await placeChanged();
+    return { ok: true };
+  });
   app.post('/api/groups/:id/move', async (req) =>
-    s.bots.moveGroup(IdParams.parse(req.params).id, GroupMove.parse(req.body)),
+    s.bots.moveGroup((await ownGroup(req)).id, GroupMove.parse(req.body)),
   );
   app.post('/api/groups/:id/pause', async (req) => {
-    const id = IdParams.parse(req.params).id;
+    const id = (await ownGroup(req)).id;
     const { paused } = PauseBody.parse(req.body);
     const group = await s.bots.setGroupPaused(id, paused);
     if (paused) await s.turns.stopBots(await s.bots.groupBotIds(id));
     else s.turns.schedule();
     return group;
   });
+  // Its bots go back to their owners' Private: a team space's people no longer reach them.
   app.delete('/api/groups/:id', async (req) => {
-    await s.bots.deleteGroup(IdParams.parse(req.params).id);
+    await s.bots.deleteGroup((await ownGroup(req)).id);
+    await placeChanged();
     return { ok: true };
   });
 
@@ -1612,6 +1745,9 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const id = IdParams.parse(req.params).id;
     const m = await s.threads.message(id);
     const source = await s.threads.get(m.threadId);
+    // A branch is a talk with the bot outside the room: someone put in a room talks there with a
+    // bot not shared with them, nowhere else.
+    if (source.kind === 'room') await s.access.requireBot(me(req), source.botId, 'chat');
     const t = await s.settings.translator();
     const title = t('thread.forkTitle', { title: source.title || t('thread.untitled') });
     return s.threads.fork(id, truncate(title, 120), me(req).userId);
@@ -1718,13 +1854,52 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     return s.rooms.create(body, me(req).userId);
   });
   app.get('/api/rooms/:id', async (req) => s.rooms.get(IdParams.parse(req.params).id));
+  /**
+   * Refuses anyone but whoever opened the room: an admin put in it only puts people in or takes
+   * them out, and may not see all of its bots to choose them again.
+   */
+  const ownRoom = async (req: FastifyRequest, id: string) => {
+    if ((await s.threads.row(id)).userId !== me(req).userId) throw new HttpError(403, 'error.roomOwnerOnly');
+  };
   app.patch('/api/rooms/:id', async (req) => {
+    await ownRoom(req, IdParams.parse(req.params).id);
     const body = RoomUpdate.parse(req.body);
     for (const botId of body.botIds ?? []) await s.access.requireBot(me(req), botId, 'chat');
     return s.rooms.update(IdParams.parse(req.params).id, body);
   });
   app.delete('/api/rooms/:id', async (req) => {
+    await ownRoom(req, IdParams.parse(req.params).id);
     await s.rooms.remove(IdParams.parse(req.params).id);
+    return { ok: true };
+  });
+  // People put in a room, or taken out. Those put in are told; each may talk there with the room's
+  // bots, even ones not shared with them.
+  app.put('/api/rooms/:id/people', async (req) => {
+    const id = IdParams.parse(req.params).id;
+    const added = await s.rooms.setPeople(id, RoomPeopleChange.parse(req.body), me(req).userId);
+    for (const userId of added) void s.push.roomAdded(userId, me(req).userId, id);
+    return s.rooms.get(id);
+  });
+  // For each person who may sign in, the room's bots not shared with them: whoever puts them in
+  // is told they will talk with these there all the same.
+  app.get('/api/rooms/:id/unshared', async (req) => {
+    const id = IdParams.parse(req.params).id;
+    const room = await s.rooms.get(id);
+    const bots = (await s.bots.list({ includeArchived: true })).filter((b) => room.members.includes(b.id));
+    const people = (await d.auth.users.list()).filter((p) => !p.disabled);
+    const out: Record<string, string[]> = {};
+    for (const p of people) {
+      const levels = await s.access.levels(await s.access.viewerOf(p.id));
+      const missing = bots.filter((b) => !atLeast(levels.get(b.id) ?? 'none', 'chat')).map((b) => b.name);
+      if (missing.length) out[p.id] = missing;
+    }
+    return out;
+  });
+  app.post('/api/rooms/:id/leave', async (req) => {
+    const id = IdParams.parse(req.params).id;
+    if ((await s.threads.row(id)).userId === me(req).userId)
+      throw new HttpError(400, 'error.roomOwnerLeaves');
+    await s.rooms.setPeople(id, { remove: [me(req).userId] }, me(req).userId);
     return { ok: true };
   });
   app.post('/api/rooms/:id/messages', async (req, reply) => {
@@ -1740,6 +1915,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   }));
   // The room starts afresh for its bots; refused while one of them speaks or waits.
   app.post('/api/rooms/:id/reset', async (req) => {
+    await ownRoom(req, IdParams.parse(req.params).id);
     await s.rooms.reset(IdParams.parse(req.params).id, await s.settings.translator());
     return { ok: true };
   });
@@ -1756,7 +1932,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.post('/api/rooms/:id/meetings', async (req) => s.meetings.begin(await meetingRoom(req)));
   app.post('/api/rooms/:id/meetings/:meetingId/answer', async (req) => {
     const { id, meetingId } = MeetingParams.parse(req.params);
-    return s.meetings.answer(id, meetingId, MeetingAnswer.parse(req.body));
+    const answer = MeetingAnswer.parse(req.body);
+    // "Always" and "never" change how the room is set, which is its opener's to choose.
+    if (answer.answer === 'always' || answer.answer === 'never') await ownRoom(req, id);
+    return s.meetings.answer(id, meetingId, answer);
   });
   app.post('/api/rooms/:id/meetings/:meetingId/end', async (req) => {
     const { id, meetingId } = MeetingParams.parse(req.params);

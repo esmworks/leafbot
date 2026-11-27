@@ -21,6 +21,9 @@ describe('steps that need a second person', () => {
     ada = await t.person('ada', 'admin');
     mel = await t.person('mel');
     bot = await t.bot();
+    // In a team space, where those who look after the server may change it.
+    const space = (await t.api<{ id: string }>('POST', '/api/groups', { name: 'Ekip', space: true })).body;
+    await t.api('POST', `/api/bots/${bot.id}/move`, { pinned: false, groupId: space.id, beforeId: null });
     await t.api('PUT', `/api/bots/${bot.id}/access`, { everyone: 'none', people: { mel: 'chat' } });
     thread = (await t.api<Thread>('GET', `/api/bots/${bot.id}/main-thread`)).body;
   });

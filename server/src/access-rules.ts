@@ -53,6 +53,9 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'POST /api/people': 'admin',
   'PATCH /api/people/:id': 'admin',
   'DELETE /api/people/:id': 'admin',
+  'GET /api/people/:id/private-bots': 'admin',
+  'POST /api/people/:id/private-bots/pause': 'admin',
+  'POST /api/people/:id/private-bots/archive': 'admin',
   'POST /api/info/claude-check': 'admin',
   'PUT /api/push/device': 'signedIn',
   'DELETE /api/push/device/:token': 'signedIn',
@@ -263,11 +266,21 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'POST /api/skill-changes/:id/reject': 'self',
   'PUT /api/skills/:id/bots/:botId': edit('botParam'),
   'GET /api/groups': 'signedIn',
-  'POST /api/groups': 'admin',
-  'PATCH /api/groups/:id': 'admin',
-  'POST /api/groups/:id/move': 'admin',
-  'POST /api/groups/:id/pause': 'admin',
-  'DELETE /api/groups/:id': 'admin',
+  // Each person keeps folders in their own Private; team spaces are for those who look after the
+  // server. The handlers tell the two apart.
+  'POST /api/groups': 'self',
+  'PATCH /api/groups/:id': 'self',
+  'PUT /api/groups/:id/members': 'admin',
+  // Anyone joins an open space or asks to join a closed one; the route keeps secret ones unknown.
+  'POST /api/groups/:id/join': 'signedIn',
+  'POST /api/groups/:id/leave': 'signedIn',
+  'GET /api/space-requests': 'admin',
+  'POST /api/space-requests/:id': 'admin',
+  'GET /api/newcomers': 'admin',
+  'POST /api/newcomers/:id': 'admin',
+  'POST /api/groups/:id/move': 'self',
+  'POST /api/groups/:id/pause': 'self',
+  'DELETE /api/groups/:id': 'self',
 
   // Conversations.
   'GET /api/bots/:id/threads': chat(),
@@ -303,11 +316,16 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'GET /api/rooms': 'self',
   'POST /api/rooms': 'self',
   'GET /api/rooms/:id': read(),
-  'PATCH /api/rooms/:id': read(),
-  'DELETE /api/rooms/:id': read(),
+  // Whoever opened a room and the admins put in it choose its people; only the opener renames, resets
+  // or deletes it (routes.ts checks that). Its other people talk and leave.
+  'PATCH /api/rooms/:id': manage(),
+  'DELETE /api/rooms/:id': manage(),
+  'PUT /api/rooms/:id/people': manage(),
+  'GET /api/rooms/:id/unshared': manage(),
+  'POST /api/rooms/:id/leave': read(),
   'POST /api/rooms/:id/messages': write(),
   'POST /api/rooms/:id/stop': read(),
-  'POST /api/rooms/:id/reset': read(),
+  'POST /api/rooms/:id/reset': manage(),
   // A room's meetings and minutes are the room's: its person reads, starts, ends and approves them.
   'GET /api/rooms/:id/meetings': read(),
   'POST /api/rooms/:id/meetings': write(),

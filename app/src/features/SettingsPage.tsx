@@ -63,7 +63,6 @@ import { PHONE, useMedia } from '@/lib/media';
 import {
   useBots,
   useConnections,
-  useGroups,
   useInfo,
   useMemory,
   useRooms,
@@ -129,6 +128,7 @@ import { SkillsTab } from './SkillsTab';
 import { UsageTab } from './UsageTab';
 import { VaultTab } from './VaultTab';
 import { PeopleTab, personName, personNameOf } from './PeopleTab';
+import { SpacesTab } from './SpacesTab';
 import { AccountForm } from './AccountSetup';
 import { ApnsCard } from './PhoneSettings';
 import { TailscaleCard } from './TailscaleSettings';
@@ -1864,72 +1864,9 @@ function RoutinesTab() {
 }
 
 function GroupsTab() {
-  const t = useT();
-  const { data: groups = [] } = useGroups();
-  const { data: bots = [] } = useBots();
-  const qc = useQueryClient();
-  const [name, setName] = useState('');
-  const refresh = () => qc.invalidateQueries({ queryKey: ['groups'] });
-  const add = useMutation({
-    mutationFn: () => api.createGroup(name),
-    onSuccess: () => {
-      setName('');
-      void refresh();
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
-  const remove = useMutation({
-    mutationFn: api.deleteGroup,
-    onSuccess: () => {
-      void refresh();
-      void qc.invalidateQueries({ queryKey: ['bots'] });
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
   return (
     <>
-      <Card hint={t('groups.hint')}>
-        <form
-          className="flex gap-2 px-4 py-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (name.trim()) add.mutate();
-          }}
-        >
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={t('groups.placeholder')}
-            aria-label={t('groups.placeholder')}
-            className="flex-1 rounded-full"
-          />
-          <Button className="rounded-full" disabled={!name.trim() || add.isPending}>
-            {t('common.add')}
-          </Button>
-        </form>
-        {groups.length === 0 && (
-          <div className="px-4 py-3 text-sm text-muted-foreground">{t('groups.empty')}</div>
-        )}
-        {groups.map((g) => {
-          const count = bots.filter((b) => b.groupId === g.id).length;
-          return (
-            <Row key={g.id} label={g.name} hint={t('groups.count', { count })}>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-8 rounded-full"
-                onClick={() =>
-                  (count === 0 || confirm(t('sidebarMenu.deleteGroupConfirm', { name: g.name }))) &&
-                  remove.mutate(g.id)
-                }
-                aria-label={t('common.delete')}
-              >
-                <Trash2 className="size-4" />
-              </Button>
-            </Row>
-          );
-        })}
-      </Card>
+      <SpacesTab />
       <ArchivedBots />
     </>
   );

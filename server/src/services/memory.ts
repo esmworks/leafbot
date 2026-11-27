@@ -643,7 +643,7 @@ export class MemoryService {
   }
 
   /**
-   * The places whose notes a person reaches: the rooms that are theirs and, for those who manage
+   * The places whose notes a person reaches: the rooms that are theirs or that they were put in and, for those who manage
    * the server, every chat app channel that has notes or changes waiting. (The history of a channel
    * whose notes are all gone is reached through `MemoryReach.managesServer`, not looked up here:
    * this runs on every request, and the history is far longer than the notes.)
@@ -653,7 +653,12 @@ export class MemoryService {
       .select({ id: schema.threads.id })
       .from(schema.threads)
       .where(and(eq(schema.threads.kind, 'room'), eq(schema.threads.userId, userId)));
-    const places = new Set(rooms.map((r) => `room:${r.id}`));
+    // A room someone put them in is theirs to look after too: its notes are the room's.
+    const joined = await this.ctx.db
+      .select({ id: schema.roomPeople.roomId })
+      .from(schema.roomPeople)
+      .where(eq(schema.roomPeople.userId, userId));
+    const places = new Set([...rooms, ...joined].map((r) => `room:${r.id}`));
     if (managesServer) {
       const apps = (col: typeof schema.memories.place | typeof schema.memoryChanges.place) =>
         or(like(col, 'slack:%'), like(col, 'discord:%'))!;

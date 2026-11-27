@@ -7,6 +7,39 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- Team spaces and a Private for everyone. Every new bot starts in its maker's Private, which nobody else sees; moved
+  into a team space, it is open to the people in that space, who can talk with it (and change it, when the space
+  lets its people change its bots). The sidebar lists the team spaces the person is in, then their Private with
+  their own folders under it, then "Shared with me" for a bot shared with them alone. Those who look after the server
+  open spaces under Settings → Spaces and folders, say who sees each one (open, closed or secret) and who is in it;
+  a bot's owner moves it only into a space they are in. Moving a bot says first who loses it and who gains it, and
+  that a bot in a space uses its notes and the space's shared folder with the people in it too. The groups a server
+  already has become secret spaces with nobody in them, so nothing anyone sees changes until someone is put in one.
+- When someone comes to the server for the first time, those who look after it get a box at the bottom right (and a
+  line in Today) to choose the team spaces the person goes into, and a notification on their phones. The box stays
+  until one of them chooses, which takes it away for everyone, or closes it, which puts it away on that device only;
+  the person stays listed in Today. Those already on the server are not asked about.
+- Anyone can join an open team space, or ask to join a closed one, under Settings → Spaces and folders, and leave a
+  space there or take back a request. Those who look after the server get the request as a box at the bottom right
+  (and a line in Today) to let the person in or decline, and a notification on their phones; they themselves join
+  any space at once. A secret space stays unknown to those outside it. A box closed on one device opens again from
+  Today.
+- A step that waits for someone's second yes is asked of them in a box at the bottom right too, with the bot, the
+  step, who asked and who said yes first, and buttons to say yes or deny. Before, it was listed only in Today, and
+  waited unseen until that was opened. Closing the box puts it away on that device; Today still lists it.
+- Rooms with more than one person. Whoever opens a room puts people in it, or takes them out, under the room's
+  People; an admin put in it may too, while renaming, changing its bots, starting it afresh, deleting it and
+  setting its minutes stay with whoever opened it. The others there talk with the room's bots (even ones not shared
+  with them, in that room only, which the one adding them is told of), see the whole conversation with each line
+  under its writer's name, and can leave. Someone put in a room is told in a box at the bottom right and on their
+  phone. While a room has more than one person, its bots use nobody's own profile, notes, connections or sign-ins
+  (they start afresh when the first person comes in, the room's lines kept), and a card is answered only by who
+  asked or by someone who may change its bot. Admins do not see rooms they are not in. When the person who opened a
+  room is removed, it passes to the earliest admin in it, else to the earliest person put in it.
+- Someone invited to a server, the first time they come, sees a welcome with the server's name, the team spaces
+  they are in and the bots there (or that their bots show once they are put in a space), then a short question
+  about themselves they can skip. No starter bots are made for them; the first run that sets up bots and the AI is
+  for those who look after the server.
 - A server can be opened from the web at www.leafbot.app/bots without opening a port or having an address of its
   own. Its owner signs in to a Leaf Bot account on the website, takes an install code there and pastes it under
   Settings → Connection → Leaf Bot account. The server then keeps a connection out to Leaf Bot's relay, and people
@@ -338,6 +371,12 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Changed
 
+- Those who look after the server no longer open or change the bots in someone else's Private; they change the bots
+  in team spaces. Settings → People shows how many bots each person keeps in their Private and pauses or archives
+  them all at once, to protect the server without reading them. A bot a person keeps outside any group is in their
+  Private from this version on.
+- Someone invited to a server skips the AI and model steps of the first run, which only those who look after the
+  server can answer, and is no longer stopped on the AI step it could not pass.
 - A long conversation opens faster: the app and the phone apps read its latest 50 messages instead of 500 and bring
   in older pages as you scroll up; the app draws the latest ones first and the earlier ones in the frames after.
   Opening a conversation of 500 messages or more held the page for about half a second. A message row draws again

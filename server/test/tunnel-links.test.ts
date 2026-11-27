@@ -51,6 +51,17 @@ describe('AccountLinks', () => {
     expect(await links.resolve(claims('acct_owner001', 'admin'))).toBeNull();
   });
 
+  it('says once that someone joined, on their first visit only', async () => {
+    const joined: string[] = [];
+    const told = new AccountLinks(t.services.ctx.db, undefined, (id) => joined.push(id));
+    const first = await told.resolve(claims('acct_member04', 'member'));
+    await told.resolve(claims('acct_member04', 'member'));
+    await told.resolve(claims('acct_owner001', 'owner'));
+    expect(joined).toEqual([first!.userId]);
+    // Someone new waits for their team spaces.
+    expect((await t.auth.users.newcomers()).map((p) => p.id)).toContain(first!.userId);
+  });
+
   it('makes one person when the first two visits come at once', async () => {
     const [a, b] = await Promise.all([
       links.resolve(claims('acct_member03', 'member')),

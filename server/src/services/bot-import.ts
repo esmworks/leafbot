@@ -23,6 +23,7 @@ import type { Ctx } from '../context';
 import { schema } from '../db';
 import { HttpError, newId } from '../util';
 import { readGrokChat } from './grok-chat';
+import { OWNER_ID } from '../users';
 import { snapshotSteps } from './routine-steps';
 import type { SettingsService } from './settings';
 
@@ -221,7 +222,13 @@ export class BotImportService {
       const groupIds = new Map<string, string>();
       for (const group of plan.groups) {
         const id = newId();
-        await tx.insert(schema.groups).values({ id, name: group.name, position: groupPosition++ });
+        // A new bot goes to its owner's Private: the plan's groups are their folders there.
+        await tx.insert(schema.groups).values({
+          id,
+          name: group.name,
+          position: groupPosition++,
+          ownerUserId: o.owner ?? OWNER_ID,
+        });
         groupIds.set(group.name, id);
       }
       const skillIds = new Map(

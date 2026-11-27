@@ -187,7 +187,6 @@ export const fr: Partial<Catalog<MessageKey>> = {
     'Nommez le bot que vous voulez faire répondre en écrivant @name, ou @everyone pour les appeler tous.',
   'room.unknownBot': 'Bot supprimé',
   'room.mention': 'Mentionner {name}',
-  'sidebar.ungrouped': 'Sans groupe',
   'sidebar.noBots': 'Aucun bot pour l’instant.',
   'sidebar.createFirst': 'Créer le premier bot',
   'sidebar.defaultUser': 'Utilisateur',
@@ -208,8 +207,6 @@ export const fr: Partial<Catalog<MessageKey>> = {
   'sidebarMenu.pin': 'Épingler',
   'sidebarMenu.unpin': 'Désépingler',
   'sidebarMenu.moveTo': 'Déplacer vers',
-  'sidebarMenu.newGroupItem': 'Nouveau groupe…',
-  'sidebarMenu.newGroup': 'Nouveau groupe',
   'sidebarMenu.mute': 'Mettre en sourdine sur cet appareil',
   'slash.title': 'Commandes',
   'slash.new': 'Nouvelle conversation',
@@ -899,8 +896,6 @@ export const fr: Partial<Catalog<MessageKey>> = {
   'sidebarMenu.renameGroup': 'Renommer le groupe',
   'sidebarMenu.moveUp': 'Monter',
   'sidebarMenu.moveDown': 'Descendre',
-  'sidebarMenu.deleteGroupConfirm':
-    'Supprimer le groupe « {name} » ? Ses bots passent dans Sans groupe et perdent l’accès au dossier partagé du groupe.',
   'update.title': 'Leaf Bot a été mis à jour',
   'update.reloading': 'Chargement de la nouvelle version…',
   'update.waiting':
@@ -1766,8 +1761,6 @@ export const fr: Partial<Catalog<MessageKey>> = {
   'bot.nameRequired': 'Le nom est obligatoire',
   'bot.namePlaceholder': 'ex. Assistant',
   'bot.group': 'Groupe',
-  'bot.noGroup': 'Aucun groupe',
-  'bot.newGroup': 'ou un nouveau nom de groupe',
   'bot.description': 'Description courte',
   'bot.descriptionPlaceholder': 'Que fait-il ?',
   'bot.instructions': 'Instructions',
@@ -2100,10 +2093,6 @@ export const fr: Partial<Catalog<MessageKey>> = {
     'Supprimer les {count} notes qu’aucun bot n’utilise ? Cette action est irréversible.',
   'routines.empty': 'Aucune routine. Vous pouvez en ajouter une depuis le panneau de droite d’un bot.',
   'routines.lastRun': 'dernière fois {when}',
-  'groups.hint':
-    'Les groupes organisent la barre latérale et donnent à leurs bots un dossier partagé. Tous les bots peuvent s’écrire entre eux.',
-  'groups.placeholder': 'Nom du nouveau groupe',
-  'groups.empty': 'Aucun groupe.',
   'groups.count': { one: '{count} bot', other: '{count} bots' },
   'settings.tab.import': 'Importer et sauvegarder',
   'import.hint':

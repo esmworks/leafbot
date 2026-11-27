@@ -1,4 +1,4 @@
-import type { Bot, BotSummary, Group } from '@leafbot/shared';
+import type { Bot, BotSummary } from '@leafbot/shared';
 import {
   LayoutGrid,
   Sun,
@@ -16,6 +16,7 @@ import {
   ChevronsUpDown,
   UserRound,
   Server,
+  Folder,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { AppMascot } from '@/components/AppMascot';
@@ -36,9 +37,10 @@ import { BotMenu, GroupMenu, SidebarMenu } from '@/features/SidebarMenus';
 import { isRtl } from '@leafbot/shared';
 import { useLocale, useT, type MessageKey } from '@/i18n';
 import { botState, useBotActivity } from '@/lib/botActivity';
-import { PINNED, UNGROUPED, type SectionKey } from '@/lib/botLayout';
+import { PINNED, type SectionKey } from '@/lib/botLayout';
 import { initials, useFormat } from '@/lib/format';
-import { useBots, useGroups, useRooms, useSettings, useSummaries } from '@/lib/queries';
+import { isSpace, placeSections, SHARED, type PlaceSection } from '@/lib/places';
+import { useBots, useGroups, useRooms, useSession, useSettings, useSummaries } from '@/lib/queries';
 import { useLayout } from '@/lib/layout';
 import { isMuted, useNotify } from '@/lib/notify';
 import { botShortcut, botStep, sidebarOrder } from '@/lib/botOrder';
@@ -108,6 +110,7 @@ function SidebarPanel({
   const { data: groups = [] } = useGroups();
   const { data: summaries = [] } = useSummaries();
   const { data: settings } = useSettings();
+  const me = useSession().data?.user?.id;
   const [searching, setSearching] = useState(false);
   const openBotPage = useUi((s) => s.openBotPage);
   const openApps = useUi((s) => s.openApps);
@@ -130,25 +133,35 @@ function SidebarPanel({
   const needsYou = visible.filter((b) => byBot.get(b.id)?.waiting);
   const waitingIds = new Set(needsYou.map((b) => b.id));
   const pinned = visible.filter((b) => b.pinned && !waitingIds.has(b.id));
-  const sections: { key: SectionKey; group: Group | null; bots: Bot[] }[] = [
-    ...groups.map((g) => ({
-      key: g.id,
-      group: g,
-      bots: visible.filter((b) => !b.pinned && b.groupId === g.id && !waitingIds.has(b.id)),
-    })),
-    {
-      key: UNGROUPED,
-      group: null,
-      bots: visible.filter((b) => !b.pinned && !b.groupId && !waitingIds.has(b.id)),
-    },
-    // A group stays in view while empty, so it can be found to drag bots into; not while searching.
-  ].filter((s) => s.bots.length || dragging || (s.group && !query && !onlyUnread));
+  const hasFolders = groups.some((g) => !isSpace(g));
+  const sections = placeSections(
+    visible.filter((b) => !b.pinned && !waitingIds.has(b.id)),
+    groups,
+    me,
+  ).filter((s) => {
+    if (s.bots.length) return true;
+    // Nothing is dropped among the bots shared with the person.
+    if (s.kind === 'shared') return false;
+    // Private heads its folders, so it stays while they are there.
+    if (s.kind === 'private') return dragging || (hasFolders && !query && !onlyUnread);
+    // A space or folder stays in view while empty, so it can be found to drag bots into; not while searching.
+    return dragging || (!query && !onlyUnread);
+  });
+  /** The space or folder shown above or below, of the same kind; groups move among their own. */
+  const neighbour = (i: number, step: 1 | -1) => {
+    const kind = sections[i]!.kind;
+    for (let j = i + step; j >= 0 && j < sections.length; j += step) {
+      if (sections[j]!.kind === kind) return sections[j]!.group?.id ?? null;
+    }
+    return null;
+  };
   const userName = settings?.userName || t('sidebar.defaultUser');
   // ⌘1…⌘9 / Ctrl+1…Ctrl+9 opens the bot at that place in the list.
   const order = sidebarOrder(
     bots,
     groups,
     new Set(bots.filter((b) => byBot.get(b.id)?.waiting).map((b) => b.id)),
+    me,
   );
   const orderRef = useRef(order);
   useEffect(() => {
@@ -191,14 +204,14 @@ function SidebarPanel({
               {!pinned.length && <RailHint label={t('sidebar.dropToPin')} />}
             </SectionBox>
           )}
-          {sections.map(({ key, group, bots: list }, i) => (
-            <div key={key} className="flex flex-col items-center">
+          {sections.map((section, i) => (
+            <div key={section.key} className="flex flex-col items-center">
               {(i > 0 || pinned.length > 0 || dragging) && <div className="my-2 h-px w-10 bg-border" />}
-              <SectionBox section={key} className="flex flex-col items-center gap-1 p-0.5">
-                {list.map((b) => (
-                  <RailItem key={b.id} bot={b} summary={byBot.get(b.id)} />
+              <SectionBox section={section.key} className="flex flex-col items-center gap-1 p-0.5">
+                {section.bots.map((b) => (
+                  <RailItem key={b.id} bot={b} summary={byBot.get(b.id)} section={section.key} />
                 ))}
-                {!list.length && <RailHint label={group?.name ?? t('sidebar.ungrouped')} />}
+                {!section.bots.length && <RailHint label={sectionName(section, t)} />}
               </SectionBox>
             </div>
           ))}
@@ -360,23 +373,31 @@ function SidebarPanel({
               )}
             </SectionBox>
           )}
-          {sections.map(({ key, group, bots: list }, i) => (
-            <SectionBox key={key} section={key} className="mt-1">
-              {group ? (
-                <GroupMenu
-                  group={group}
-                  prevId={sections[i - 1]?.group?.id ?? null}
-                  nextId={sections[i + 1]?.group?.id ?? null}
-                >
-                  <h3 className={heading}>{group.name}</h3>
+          {sections.map((section, i) => (
+            <SectionBox key={section.key} section={section.key} className="mt-1">
+              {section.group ? (
+                <GroupMenu group={section.group} prevId={neighbour(i, -1)} nextId={neighbour(i, 1)}>
+                  {section.kind === 'folder' ? (
+                    <h3 className={cn(heading, 'flex items-center gap-1.5 ps-6')}>
+                      <Folder className="size-3.5 shrink-0" />
+                      <span className="min-w-0 truncate">{section.group.name}</span>
+                    </h3>
+                  ) : (
+                    <h3 className={heading}>{section.group.name}</h3>
+                  )}
                 </GroupMenu>
               ) : (
-                groups.length > 0 && <h3 className={heading}>{t('sidebar.ungrouped')}</h3>
+                // With nothing but Private, it needs no heading.
+                sections.some((s) => s.kind !== 'private') && (
+                  <h3 className={heading}>{sectionName(section, t)}</h3>
+                )
               )}
-              {list.map((b) => (
-                <BotRow key={b.id} bot={b} summary={byBot.get(b.id)} />
+              {section.bots.map((b) => (
+                <BotRow key={b.id} bot={b} summary={byBot.get(b.id)} section={section.key} />
               ))}
-              {!list.length && <DropHint>{t(dragging ? 'sidebar.dropHere' : 'sidebar.emptyGroup')}</DropHint>}
+              {!section.bots.length && (section.kind !== 'private' || dragging) && (
+                <DropHint>{t(dragging ? 'sidebar.dropHere' : 'sidebar.emptyGroup')}</DropHint>
+              )}
             </SectionBox>
           ))}
           {onlyUnread && !visible.length && (
@@ -425,6 +446,10 @@ function SidebarPanel({
 
 /** The search's shortcut as this computer's keyboard writes it. */
 const SEARCH_KEYS = /mac|iphone|ipad/i.test(navigator.userAgent) ? '⌘K' : 'Ctrl K';
+
+/** A section's name: its group's, or Private's or Shared with me's. */
+const sectionName = (s: PlaceSection, t: ReturnType<typeof useT>) =>
+  s.group?.name ?? t(s.key === SHARED ? 'sidebar.shared' : 'sidebar.private');
 
 const heading = 'px-4 pt-3 pb-1 text-[13px] font-semibold text-muted-foreground';
 
@@ -819,11 +844,11 @@ function PausedBadge({ bot, small = false }: { bot: Bot; small?: boolean }) {
 }
 
 /** A bot in the folded sidebar: the avatar alone, the name in a tooltip. */
-function RailItem({ bot, summary }: { bot: Bot; summary?: BotSummary }) {
+function RailItem({ bot, summary, section }: { bot: Bot; summary?: BotSummary; section?: SectionKey }) {
   const activity = useBotActivity(bot.id, summary);
   const selected = useUi((s) => s.botId === bot.id && !s.roomId);
   const select = useUi((s) => s.openChat);
-  const d = useDragItem(bot, 'y');
+  const d = useDragItem(bot, 'y', section);
   return (
     <BotMenu bot={bot}>
       <div {...d.item} className={cn('relative', menuOpen, d.dragging && 'opacity-40')}>
@@ -894,7 +919,7 @@ function PinnedTile({ bot, summary }: { bot: Bot; summary?: BotSummary }) {
   );
 }
 
-function BotRow({ bot, summary }: { bot: Bot; summary?: BotSummary }) {
+function BotRow({ bot, summary, section }: { bot: Bot; summary?: BotSummary; section?: SectionKey }) {
   const activity = useBotActivity(bot.id, summary);
   const { data: rooms } = useRooms();
   const t = useT();
@@ -905,7 +930,7 @@ function BotRow({ bot, summary }: { bot: Bot; summary?: BotSummary }) {
   const muted = useNotify((s) => isMuted(s.mutes, bot.id));
   const unread = useSeen((s) => !!summary && isUnread(summary, s.seen));
   const compact = useDensity((s) => s.density === 'compact');
-  const d = useDragItem(bot, 'y');
+  const d = useDragItem(bot, 'y', section);
   return (
     <BotMenu bot={bot}>
       <div {...d.item} className={cn('relative', menuOpen, d.dragging && 'opacity-40')}>

@@ -652,8 +652,7 @@ export class SlackChannel {
       bot = await this.usable(person.userId, botId);
       if (!bot) return note('slack.notShared');
       // What a bot shared with nobody does is its owner's alone; a channel is not that place.
-      const access = bot.access ?? { everyone: 'none', people: {} };
-      if (access.everyone === 'none' && !Object.keys(access.people).length) {
+      if (!(await this.services.access.sharedWithAnyone(bot))) {
         return note('slack.botPrivate', { bot: bot.name });
       }
       if (named) words = named.rest;

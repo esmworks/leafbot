@@ -74,11 +74,26 @@ export type ShownMode = (typeof PERMISSION_MODES)[number];
 export const shownMode = (mode: PermissionMode): ShownMode => (mode === 'review' ? 'auto' : mode);
 export type PermissionMode = z.infer<typeof PermissionMode>;
 
+/** Who sees a team space: everyone, who may join (`open`) or ask to (`closed`), or only its members (`secret`). */
+export const SpaceKind = z.enum(['open', 'closed', 'secret']);
+export type SpaceKind = z.infer<typeof SpaceKind>;
 export const Group = z.object({
   id: Id,
   name: z.string(),
   /** Set while every bot of the group is paused. Missing from older servers. */
   pausedAt: z.string().nullable().optional(),
+  /**
+   * Whose Private folder it is; null for a team space, whose bots are open to its members.
+   * Missing from older servers, whose groups opened nothing.
+   */
+  ownerUserId: z.string().nullable().optional(),
+  kind: SpaceKind.optional(),
+  /** Whether a space's members may also change its bots. */
+  membersEdit: z.boolean().optional(),
+  /** The people in a team space; empty for a folder. */
+  memberIds: z.array(z.string()).optional(),
+  /** Whether the asking person asked to join this closed space and waits for an answer. */
+  requested: z.boolean().optional(),
   createdAt: z.string(),
 });
 export type Group = z.infer<typeof Group>;
@@ -330,7 +345,44 @@ export function leavesForEngine(bot: BotEngineChoice, target: BotEngineChoice): 
   return bot.engine !== target.engine || (target.engine === 'pi' && bot.model !== target.model);
 }
 
-export const GroupCreate = z.object({ name: z.string().trim().min(1).max(60) });
+/** A folder in the person's own Private, or with `space` a team space (those who look after the server). */
+export const GroupCreate = z.object({
+  name: z.string().trim().min(1).max(60),
+  space: z.boolean().default(false),
+  kind: z.enum(['open', 'closed', 'secret']).optional(),
+});
+export type GroupCreate = z.input<typeof GroupCreate>;
+/** Renames a group; a team space also takes who sees it and what its members may do. */
+export const GroupUpdate = z.object({
+  name: z.string().trim().min(1).max(60).optional(),
+  kind: z.enum(['open', 'closed', 'secret']).optional(),
+  membersEdit: z.boolean().optional(),
+});
+export type GroupUpdate = z.infer<typeof GroupUpdate>;
+/** How many bots someone keeps in their Private, as those who look after the server see it. */
+/** The team spaces those who look after the server put someone new in; none is a choice too. */
+export const NewcomerPlace = z.object({ spaceIds: z.array(z.string().min(1)).max(200) });
+export type NewcomerPlace = z.infer<typeof NewcomerPlace>;
+
+/** Someone asking to join a closed team space, for those who look after the server to answer. */
+export const SpaceRequest = z.object({ id: Id, groupId: Id, userId: Id, createdAt: z.string() });
+export type SpaceRequest = z.infer<typeof SpaceRequest>;
+export const SpaceRequestAnswer = z.object({ decision: z.enum(['allow', 'deny']) });
+export type SpaceRequestAnswer = z.infer<typeof SpaceRequestAnswer>;
+/** What joining a space came to: in at once (an open space), or asked and waiting (a closed one). */
+export const SpaceJoin = z.object({ state: z.enum(['joined', 'requested']) });
+export type SpaceJoin = z.infer<typeof SpaceJoin>;
+
+export interface PrivateBots {
+  count: number;
+  paused: number;
+}
+/** People put in a team space or taken out of it. */
+export const SpaceMembersChange = z.object({
+  add: z.array(z.string().min(1).max(100)).max(500).optional(),
+  remove: z.array(z.string().min(1).max(100)).max(500).optional(),
+});
+export type SpaceMembersChange = z.infer<typeof SpaceMembersChange>;
 
 /** Moves a group in the sidebar, before `beforeId` or to the end. */
 export const GroupMove = z.object({ beforeId: Id.nullable() });
@@ -407,6 +459,8 @@ export const Message = z.object({
   clientId: z.string().nullable(),
   /** Turn that produced the message; lets the client drop its streaming buffer. */
   turnId: Id.nullable(),
+  /** The person who wrote a `user` message, so a room with several people shows who said what. */
+  userId: z.string().nullable().optional(),
   createdAt: z.string(),
 });
 export type Message = z.infer<typeof Message>;
@@ -594,6 +648,16 @@ export const MeetingSave = z.object({
 export type MeetingSave = z.infer<typeof MeetingSave>;
 
 /** A conversation of the person with several bots. Its id is also its thread's id. */
+/** A member bot of a room as everyone in it sees it: its name and look, nothing more. */
+export const RoomFace = z.object({
+  id: Id,
+  name: z.string(),
+  color: z.string(),
+  avatar: z.string(),
+  material: BotMaterial,
+});
+export type RoomFace = z.infer<typeof RoomFace>;
+
 export const Room = z.object({
   id: Id,
   title: z.string(),
@@ -611,6 +675,15 @@ export const Room = z.object({
   /** The bot speaking now, if any. */
   speakerId: Id.nullable(),
   preview: z.string().nullable(),
+  /** Who opened the room and manages it. Missing from older servers. */
+  ownerId: z.string().optional(),
+  /** The people put in the room besides its owner, earliest first. Missing from older servers. */
+  people: z.array(z.string()).optional(),
+  /**
+   * How the member bots look, for someone in the room whom a bot is not shared with: they still
+   * see who speaks. Missing from older servers.
+   */
+  faces: z.array(RoomFace).optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -628,6 +701,13 @@ export type RoomCreate = z.infer<typeof RoomCreate>;
 
 export const RoomUpdate = RoomCreate.partial();
 export type RoomUpdate = z.infer<typeof RoomUpdate>;
+
+/** People put in a room, or taken out of it, by whoever manages it. */
+export const RoomPeopleChange = z.object({
+  add: z.array(z.string().min(1)).max(100).optional(),
+  remove: z.array(z.string().min(1)).max(100).optional(),
+});
+export type RoomPeopleChange = z.infer<typeof RoomPeopleChange>;
 
 export const RoomSend = z.object({
   clientId: z.string().min(8).max(64),

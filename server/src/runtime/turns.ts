@@ -1472,7 +1472,10 @@ export class TurnManager {
     // one's own data, and the front door has no tool but suggesting a bot for the chat.
     const contact = thread.kind === 'user' ? await this.services.whatsapp.contactOf(thread.id) : null;
     const door = contact?.role === 'door';
-    const own = thread.kind === 'team' || contact ? null : person;
+    // A room someone else was put in is shared like a team conversation: what one person keeps
+    // for themselves never goes in front of the others there.
+    const shared = thread.kind === 'room' && (await this.services.access.sharedRoom(thread.id));
+    const own = thread.kind === 'team' || contact || shared ? null : person;
     // Only the person whose WhatsApp is linked gets its tools; nobody else's turn looks further.
     const whatsappOwner = await this.services.whatsapp.ownerId();
     // Nothing works for someone who may no longer sign in: not their routines, their chat apps,
@@ -1659,6 +1662,7 @@ export class TurnManager {
         whatsappOwner,
         whatsappReader: whatsappOwner === person && (await this.services.routines.whatsappBots()).has(bot.id),
         contact: contact?.role,
+        shared,
       }),
       ...(await this.services.connections.toolsFor(
         bot.id,

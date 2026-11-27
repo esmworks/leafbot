@@ -1272,7 +1272,7 @@ export function Working({
   activity,
   threadId,
 }: {
-  bot: Bot;
+  bot: Pick<Bot, 'id' | 'avatar' | 'material' | 'color'>;
   activity: Exclude<BotActivity, 'idle'>;
   threadId?: string;
 }) {

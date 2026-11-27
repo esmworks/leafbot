@@ -45,7 +45,7 @@ import { copyText } from '@/lib/clipboard';
 import { exportFileName } from '@/lib/exportChat';
 import { fits, LINE_MAX, lines, localDay, oneLine } from '@/lib/minutes';
 import { useFormat } from '@/lib/format';
-import { useBots, useMeetings, useSettings } from '@/lib/queries';
+import { useBots, useMeetings, useSession, useSettings } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 import { Field } from './RoutinePage';
 
@@ -108,6 +108,8 @@ export function MeetingCard({ room, m }: { room: Room; m: Message }) {
   const id = typeof ref?.id === 'string' ? ref.id : '';
   const stage = ref?.stage === 'end' ? 'end' : 'start';
   const meeting = meetings?.find((x) => x.id === id);
+  const me = useSession().data?.user?.id;
+  const owner = !room.ownerId || room.ownerId === me;
   if (isLoading) return null;
 
   if (!meeting)
@@ -130,18 +132,21 @@ export function MeetingCard({ room, m }: { room: Room; m: Message }) {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            {(['yes', 'always', 'no', 'never'] as const).map((answer) => (
-              <Button
-                key={answer}
-                size="sm"
-                variant={answer === 'yes' ? 'default' : answer === 'always' ? 'secondary' : 'ghost'}
-                className="rounded-full"
-                disabled={actions.answer.isPending}
-                onClick={() => actions.answer.mutate({ id: meeting.id, answer })}
-              >
-                {t(`meeting.${answer}`)}
-              </Button>
-            ))}
+            {/* "Always" and "never" set the room, which is its opener's to choose. */}
+            {(owner ? (['yes', 'always', 'no', 'never'] as const) : (['yes', 'no'] as const)).map(
+              (answer) => (
+                <Button
+                  key={answer}
+                  size="sm"
+                  variant={answer === 'yes' ? 'default' : answer === 'always' ? 'secondary' : 'ghost'}
+                  className="rounded-full"
+                  disabled={actions.answer.isPending}
+                  onClick={() => actions.answer.mutate({ id: meeting.id, answer })}
+                >
+                  {t(`meeting.${answer}`)}
+                </Button>
+              ),
+            )}
           </div>
         </div>
       );

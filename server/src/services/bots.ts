@@ -9,8 +9,10 @@ import {
   type BotUpdate,
   type Group,
   type GroupMove,
+  type SpaceKind,
+  type SpaceRequest,
 } from '@leafbot/shared';
-import { and, asc, eq, isNotNull, isNull, max, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, isNull, max, or, sql } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import { HttpError, newId, notFound } from '../util';
@@ -345,33 +347,176 @@ export class BotService {
     return rows.map((r) => r.id);
   }
 
+  /** A person's active bots in their Private: owned by them and in no team space. */
+  async privateBotIds(userId: string): Promise<string[]> {
+    const rows = await this.ctx.db
+      .select({ id: schema.bots.id, groupId: schema.bots.groupId, folderOwner: schema.groups.ownerUserId })
+      .from(schema.bots)
+      .leftJoin(schema.groups, eq(schema.groups.id, schema.bots.groupId))
+      .where(and(eq(schema.bots.ownerUserId, userId), isNull(schema.bots.archivedAt)));
+    return rows.filter((r) => !r.groupId || r.folderOwner).map((r) => r.id);
+  }
+
   /** Who may message whom: any bot any other active bot. Groups only share a folder. */
   canMessage(from: Bot, to: Bot): boolean {
     return from.id !== to.id && !to.archivedAt;
   }
 
+  /** Every group with the people in it: team spaces and everyone's Private folders. */
   async listGroups(): Promise<Group[]> {
-    const rows = await this.ctx.db
-      .select()
-      .from(schema.groups)
-      .orderBy(asc(schema.groups.position), asc(schema.groups.createdAt));
-    return rows.map(toGroup);
+    const [rows, members] = await Promise.all([
+      this.ctx.db
+        .select()
+        .from(schema.groups)
+        .orderBy(asc(schema.groups.position), asc(schema.groups.createdAt)),
+      this.ctx.db
+        .select({ groupId: schema.groupMembers.groupId, userId: schema.groupMembers.userId })
+        .from(schema.groupMembers)
+        .orderBy(asc(schema.groupMembers.createdAt)),
+    ]);
+    const of = new Map<string, string[]>();
+    for (const m of members) of.set(m.groupId, [...(of.get(m.groupId) ?? []), m.userId]);
+    return rows.map((r) => toGroup(r, of.get(r.id)));
   }
 
   async getGroup(id: string): Promise<Group> {
     const [row] = await this.ctx.db.select().from(schema.groups).where(eq(schema.groups.id, id)).limit(1);
     if (!row) throw notFound('group');
-    return toGroup(row);
+    const members = await this.ctx.db
+      .select({ userId: schema.groupMembers.userId })
+      .from(schema.groupMembers)
+      .where(eq(schema.groupMembers.groupId, id))
+      .orderBy(asc(schema.groupMembers.createdAt));
+    return toGroup(
+      row,
+      members.map((m) => m.userId),
+    );
   }
 
-  async createGroup(name: string): Promise<Group> {
+  /** A team space, or with `ownerUserId` a folder in that person's Private. */
+  async createGroup(
+    name: string,
+    opts: { ownerUserId?: string | null; kind?: SpaceKind; membersEdit?: boolean } = {},
+  ): Promise<Group> {
     const [last] = await this.ctx.db.select({ n: max(schema.groups.position) }).from(schema.groups);
     const [row] = await this.ctx.db
       .insert(schema.groups)
-      .values({ id: newId(), name, position: (last?.n ?? -1) + 1 })
+      .values({
+        id: newId(),
+        name,
+        position: (last?.n ?? -1) + 1,
+        ownerUserId: opts.ownerUserId ?? null,
+        ...(opts.kind && { kind: opts.kind }),
+        ...(opts.membersEdit !== undefined && { membersEdit: opts.membersEdit }),
+      })
       .returning();
     this.ctx.bus.refresh({ scope: 'groups' });
     return toGroup(row!);
+  }
+
+  /** Changes who sees a team space and what its members may do with its bots. */
+  async setSpace(id: string, patch: { kind?: SpaceKind; membersEdit?: boolean }): Promise<Group> {
+    const group = await this.getGroup(id);
+    if (group.ownerUserId) throw new HttpError(400, 'error.notASpace');
+    if (patch.kind !== undefined || patch.membersEdit !== undefined) {
+      await this.ctx.db
+        .update(schema.groups)
+        .set({
+          ...(patch.kind !== undefined && { kind: patch.kind }),
+          ...(patch.membersEdit !== undefined && { membersEdit: patch.membersEdit }),
+        })
+        .where(eq(schema.groups.id, id));
+      this.ctx.bus.refresh({ scope: 'groups' });
+      this.ctx.bus.refresh({ scope: 'bots' });
+    }
+    return this.getGroup(id);
+  }
+
+  /** Puts people in a team space or takes them out; a Private folder has no members. */
+  async setSpaceMembers(id: string, change: { add?: string[]; remove?: string[] }): Promise<Group> {
+    const group = await this.getGroup(id);
+    if (group.ownerUserId) throw new HttpError(400, 'error.notASpace');
+    await this.ctx.db.transaction(async (tx) => {
+      for (const userId of change.add ?? []) {
+        await tx.insert(schema.groupMembers).values({ groupId: id, userId }).onConflictDoNothing();
+      }
+      // Someone put in the space no longer waits to join it.
+      if (change.add?.length) {
+        await tx
+          .delete(schema.spaceRequests)
+          .where(and(eq(schema.spaceRequests.groupId, id), inArray(schema.spaceRequests.userId, change.add)));
+      }
+      if (change.remove?.length) {
+        await tx
+          .delete(schema.groupMembers)
+          .where(
+            and(eq(schema.groupMembers.groupId, id), inArray(schema.groupMembers.userId, change.remove)),
+          );
+      }
+    });
+    this.ctx.bus.refresh({ scope: 'groups' });
+    this.ctx.bus.refresh({ scope: 'bots' });
+    return this.getGroup(id);
+  }
+
+  /**
+   * Asks to join a closed space for `userId`; true when the request is new, false when they had
+   * already asked.
+   */
+  async requestSpace(groupId: string, userId: string): Promise<boolean> {
+    const made = await this.ctx.db
+      .insert(schema.spaceRequests)
+      .values({ id: newId(), groupId, userId })
+      .onConflictDoNothing()
+      .returning({ id: schema.spaceRequests.id });
+    if (made.length) this.ctx.bus.refresh({ scope: 'groups' });
+    return made.length > 0;
+  }
+
+  /** Takes back the person's request to join a space, if they had one. */
+  async dropSpaceRequest(groupId: string, userId: string): Promise<void> {
+    const gone = await this.ctx.db
+      .delete(schema.spaceRequests)
+      .where(and(eq(schema.spaceRequests.groupId, groupId), eq(schema.spaceRequests.userId, userId)))
+      .returning({ id: schema.spaceRequests.id });
+    if (gone.length) this.ctx.bus.refresh({ scope: 'groups' });
+  }
+
+  /** The spaces the person asked to join and waits for. */
+  async requestedSpaces(userId: string): Promise<string[]> {
+    const rows = await this.ctx.db
+      .select({ groupId: schema.spaceRequests.groupId })
+      .from(schema.spaceRequests)
+      .where(eq(schema.spaceRequests.userId, userId));
+    return rows.map((r) => r.groupId);
+  }
+
+  /** Every request waiting to be answered, oldest first; a disabled person's wait unseen. */
+  async spaceRequests(): Promise<SpaceRequest[]> {
+    const rows = await this.ctx.db
+      .select({
+        id: schema.spaceRequests.id,
+        groupId: schema.spaceRequests.groupId,
+        userId: schema.spaceRequests.userId,
+        createdAt: schema.spaceRequests.createdAt,
+      })
+      .from(schema.spaceRequests)
+      .innerJoin(schema.users, eq(schema.users.id, schema.spaceRequests.userId))
+      .where(isNull(schema.users.disabledAt))
+      .orderBy(asc(schema.spaceRequests.createdAt));
+    return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+  }
+
+  /** Lets the person in (`allow`) or not; either way the request is answered and goes. */
+  async answerSpaceRequest(id: string, allow: boolean): Promise<void> {
+    const [row] = await this.ctx.db
+      .select()
+      .from(schema.spaceRequests)
+      .where(eq(schema.spaceRequests.id, id))
+      .limit(1);
+    if (!row) throw notFound('spaceRequest');
+    if (allow) await this.setSpaceMembers(row.groupId, { add: [row.userId] });
+    else await this.dropSpaceRequest(row.groupId, row.userId);
   }
 
   async renameGroup(id: string, name: string): Promise<Group> {

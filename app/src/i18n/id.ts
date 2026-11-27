@@ -185,7 +185,6 @@ export const id: Partial<Catalog<MessageKey>> = {
     'Sebut bot yang Anda ingin menjawab sebagai @name, atau @everyone untuk memanggil semuanya.',
   'room.unknownBot': 'Bot yang dihapus',
   'room.mention': 'Sebut {name}',
-  'sidebar.ungrouped': 'Tanpa grup',
   'sidebar.noBots': 'Belum ada bot.',
   'sidebar.createFirst': 'Buat bot pertama',
   'sidebar.defaultUser': 'Pengguna',
@@ -206,8 +205,6 @@ export const id: Partial<Catalog<MessageKey>> = {
   'sidebarMenu.pin': 'Sematkan',
   'sidebarMenu.unpin': 'Lepas sematan',
   'sidebarMenu.moveTo': 'Pindahkan ke',
-  'sidebarMenu.newGroupItem': 'Grup baru…',
-  'sidebarMenu.newGroup': 'Grup baru',
   'sidebarMenu.mute': 'Bisukan di perangkat ini',
   'slash.title': 'Perintah',
   'slash.new': 'Obrolan baru',
@@ -861,8 +858,6 @@ export const id: Partial<Catalog<MessageKey>> = {
   'sidebarMenu.renameGroup': 'Ganti nama grup',
   'sidebarMenu.moveUp': 'Naikkan',
   'sidebarMenu.moveDown': 'Turunkan',
-  'sidebarMenu.deleteGroupConfirm':
-    'Hapus grup «{name}»? Bot di dalamnya pindah ke Tanpa grup dan kehilangan akses ke folder bersama grup.',
   'update.title': 'Leaf Bot telah diperbarui',
   'update.reloading': 'Memuat versi baru…',
   'update.waiting':
@@ -1694,8 +1689,6 @@ export const id: Partial<Catalog<MessageKey>> = {
   'bot.nameRequired': 'Nama wajib diisi',
   'bot.namePlaceholder': 'mis. Sekretaris',
   'bot.group': 'Grup',
-  'bot.noGroup': 'Tanpa grup',
-  'bot.newGroup': 'atau nama grup baru',
   'bot.description': 'Deskripsi singkat',
   'bot.descriptionPlaceholder': 'Apa yang dilakukannya?',
   'bot.instructions': 'Instruksi',
@@ -2024,10 +2017,6 @@ export const id: Partial<Catalog<MessageKey>> = {
     'Hapus semua {count} catatan yang tidak dipakai bot? Tidak bisa dibatalkan.',
   'routines.empty': 'Belum ada rutin. Anda bisa menambahkannya dari panel kanan bot.',
   'routines.lastRun': 'terakhir {when}',
-  'groups.hint':
-    'Grup mengatur bilah samping dan memberi botnya folder bersama. Semua bot bisa menulis satu sama lain.',
-  'groups.placeholder': 'Nama grup baru',
-  'groups.empty': 'Belum ada grup.',
   'groups.count': { other: '{count} bot' },
   'settings.tab.import': 'Impor dan cadangan',
   'import.hint':

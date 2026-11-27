@@ -12,7 +12,7 @@ import {
   type PushDeviceSet,
   type TurnEvent,
 } from '@leafbot/shared';
-import { and, desc, eq, inArray, isNotNull, ne, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import { hashSession } from '../auth';
 import type { Ctx } from '../context';
 import { schema } from '../db';
@@ -371,6 +371,98 @@ export class PushService {
       );
     } catch (err) {
       console.warn('push notice', err);
+    }
+  }
+
+  /**
+   * Tells the phones of those who look after the server (but `except`, who added the person
+   * themselves) that someone new came, so they choose the person's team spaces. A phone that wants
+   * no notifications gets none; failures are logged, never thrown.
+   */
+  async newcomer(userId: string, except?: string): Promise<void> {
+    await this.toManagers('newcomer', userId, except, (t, name) => ({
+      title: t('push.newcomerTitle'),
+      body: name ? t('push.newcomer', { name }) : t('push.newcomerNameless'),
+      threadId: 'newcomer',
+      collapseId: `newcomer:${userId}`,
+      data: { kind: 'newcomer' },
+    }));
+  }
+
+  /** Tells those who look after the server that someone asks to join the closed space `space`. */
+  async spaceRequest(userId: string, space: string): Promise<void> {
+    await this.toManagers('space request', userId, undefined, (t, name) => ({
+      title: t('push.spaceRequestTitle'),
+      body: name ? t('push.spaceRequest', { name, space }) : t('push.spaceRequestNameless', { space }),
+      threadId: 'space-request',
+      collapseId: `space-request:${userId}:${space}`,
+      data: { kind: 'space-request' },
+    }));
+  }
+
+  /** Tells someone put in a room who put them there; the room shows in their list as it is. */
+  async roomAdded(userId: string, by: string, roomId: string): Promise<void> {
+    try {
+      const [room] = await this.ctx.db
+        .select({ title: schema.threads.title })
+        .from(schema.threads)
+        .where(eq(schema.threads.id, roomId))
+        .limit(1);
+      const [adder] = await this.ctx.db
+        .select({ displayName: schema.users.displayName, username: schema.users.username })
+        .from(schema.users)
+        .where(eq(schema.users.id, by))
+        .limit(1);
+      const name = adder?.displayName || adder?.username;
+      const devices = (await this.liveDevices()).filter((d) => d.userId === userId && d.level !== 'off');
+      await Promise.all(
+        devices.map((d) => {
+          const t = translator(isLocale(d.locale) ? d.locale : 'tr');
+          const title = room?.title ?? '';
+          return this.send(d, {
+            title: t('push.roomAddedTitle'),
+            body: name
+              ? t('push.roomAdded', { name, room: title })
+              : t('push.roomAddedNameless', { room: title }),
+            threadId: 'room-added',
+            collapseId: `room-added:${roomId}`,
+            data: { kind: 'room-added' },
+          });
+        }),
+      );
+    } catch (err) {
+      console.warn('push room added', err);
+    }
+  }
+
+  /** A message about the person `userId` to the phones of those who look after the server. */
+  private async toManagers(
+    what: string,
+    userId: string,
+    except: string | undefined,
+    make: (
+      t: ReturnType<typeof translator>,
+      name: string | null | undefined,
+    ) => Parameters<PushService['send']>[1],
+  ): Promise<void> {
+    try {
+      const [person] = await this.ctx.db
+        .select({ displayName: schema.users.displayName, username: schema.users.username })
+        .from(schema.users)
+        .where(eq(schema.users.id, userId))
+        .limit(1);
+      const managers = await this.ctx.db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(and(inArray(schema.users.role, ['owner', 'admin']), isNull(schema.users.disabledAt)));
+      const to = new Set(managers.map((m) => m.id).filter((id) => id !== except));
+      const devices = (await this.liveDevices()).filter((d) => to.has(d.userId) && d.level !== 'off');
+      const name = person?.displayName || person?.username;
+      await Promise.all(
+        devices.map((d) => this.send(d, make(translator(isLocale(d.locale) ? d.locale : 'tr'), name))),
+      );
+    } catch (err) {
+      console.warn(`push ${what}`, err);
     }
   }
 

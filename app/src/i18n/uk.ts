@@ -184,7 +184,6 @@ export const uk: Partial<Catalog<MessageKey>> = {
   'room.emptyHintMentions': 'Назвіть бота, який має відповісти, як @name, або @everyone, щоб покликати всіх.',
   'room.unknownBot': 'Видалений бот',
   'room.mention': 'Згадати {name}',
-  'sidebar.ungrouped': 'Без групи',
   'sidebar.noBots': 'Ботів поки немає.',
   'sidebar.createFirst': 'Створити першого бота',
   'sidebar.defaultUser': 'Користувач',
@@ -205,8 +204,6 @@ export const uk: Partial<Catalog<MessageKey>> = {
   'sidebarMenu.pin': 'Закріпити',
   'sidebarMenu.unpin': 'Відкріпити',
   'sidebarMenu.moveTo': 'Перемістити до',
-  'sidebarMenu.newGroupItem': 'Нова група…',
-  'sidebarMenu.newGroup': 'Нова група',
   'sidebarMenu.mute': 'Вимкнути звук на цьому пристрої',
   'slash.title': 'Команди',
   'slash.new': 'Новий чат',
@@ -938,8 +935,6 @@ export const uk: Partial<Catalog<MessageKey>> = {
   'sidebarMenu.renameGroup': 'Перейменувати групу',
   'sidebarMenu.moveUp': 'Вгору',
   'sidebarMenu.moveDown': 'Вниз',
-  'sidebarMenu.deleteGroupConfirm':
-    'Видалити групу «{name}»? Її боти перейдуть до «Без групи» й втратять доступ до спільної теки групи.',
   'update.title': 'Leaf Bot оновлено',
   'update.reloading': 'Завантаження нової версії…',
   'update.waiting':
@@ -1826,8 +1821,6 @@ export const uk: Partial<Catalog<MessageKey>> = {
   'bot.nameRequired': 'Дайте назву боту',
   'bot.namePlaceholder': 'напр. Діловод',
   'bot.group': 'Група',
-  'bot.noGroup': 'Без групи',
-  'bot.newGroup': 'або назва нової групи',
   'bot.description': 'Короткий опис',
   'bot.descriptionPlaceholder': 'Що він робить?',
   'bot.instructions': 'Інструкції',
@@ -2162,10 +2155,6 @@ export const uk: Partial<Catalog<MessageKey>> = {
     'Видалити всі нотатки ({count}), якими не користується жоден бот? Це не можна скасувати.',
   'routines.empty': 'Рутин немає. Додати можна з правої панелі бота.',
   'routines.lastRun': 'востаннє {when}',
-  'groups.hint':
-    'Групи впорядковують бічну панель і дають своїм ботам спільну теку. Усі боти можуть писати одне одному.',
-  'groups.placeholder': 'Назва нової групи',
-  'groups.empty': 'Груп немає.',
   'groups.count': { one: '{count} бот', few: '{count} боти', many: '{count} ботів', other: '{count} боти' },
   'settings.tab.import': 'Імпорт і резервна копія',
   'import.hint':

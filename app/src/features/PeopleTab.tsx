@@ -1,6 +1,6 @@
 import type { PersonInfo } from '@leafbot/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { KeyRound, Plus, Trash2, UserRound } from 'lucide-react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Archive, KeyRound, Pause, Play, Plus, Trash2, UserRound } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -150,6 +150,7 @@ function PersonRow({ person }: { person: PersonInfo }) {
           </>
         )}
       </div>
+      {mayChange && <PrivateBots person={person} name={name} />}
       {resetting && (
         <NewPassword
           onSave={(password) => change.mutate({ password }, { onSuccess: () => setResetting(false) })}
@@ -157,6 +158,64 @@ function PersonRow({ person }: { person: PersonInfo }) {
           pending={change.isPending}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * How many bots the person keeps in their Private. Those who look after the server do not open
+ * them; to protect the server they pause or put them all away at once.
+ */
+function PrivateBots({ person, name }: { person: PersonInfo; name: string }) {
+  const t = useT();
+  const qc = useQueryClient();
+  const key = ['private-bots', person.id];
+  const { data } = useQuery({ queryKey: key, queryFn: () => api.privateBots(person.id) });
+  const done = () => {
+    void qc.invalidateQueries({ queryKey: key });
+    void qc.invalidateQueries({ queryKey: ['bots'] });
+  };
+  const fail = (e: Error) => toast.error(e.message);
+  const pause = useMutation({
+    mutationFn: (paused: boolean) => api.pausePrivateBots(person.id, paused),
+    onSuccess: done,
+    onError: fail,
+  });
+  const archive = useMutation({
+    mutationFn: () => api.archivePrivateBots(person.id),
+    onSuccess: done,
+    onError: fail,
+  });
+  if (!data?.count) return null;
+  const allPaused = data.paused === data.count;
+  const busy = pause.isPending || archive.isPending;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 ps-12 text-xs text-muted-foreground">
+      <span className="me-auto">{t('people.privateBots', { count: data.count, paused: data.paused })}</span>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="rounded-full"
+        disabled={busy}
+        onClick={() => {
+          if (allPaused || confirm(t('people.pausePrivateConfirm', { name, count: data.count })))
+            pause.mutate(!allPaused);
+        }}
+      >
+        {allPaused ? <Play /> : <Pause />}
+        {allPaused ? t('people.resumePrivate') : t('people.pausePrivate')}
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="rounded-full"
+        disabled={busy}
+        onClick={() =>
+          confirm(t('people.archivePrivateConfirm', { name, count: data.count })) && archive.mutate()
+        }
+      >
+        <Archive /> {t('people.archivePrivate')}
+      </Button>
     </div>
   );
 }

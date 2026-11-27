@@ -1,9 +1,9 @@
 import type { PersonInfo, Role } from '@leafbot/shared';
-import { and, asc, eq, inArray, ne } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { hashPassword, verifyPassword } from './account';
 import { schema, type Db } from './db';
 import type { PasswordHash } from './db/schema';
-import { HttpError, isUniqueViolation, newId } from './util';
+import { HttpError, isUniqueViolation, newId, notFound } from './util';
 
 /** The owner's fixed id: whoever installed this server, and whom the access key signs in as. */
 export const OWNER_ID = 'owner';
@@ -114,6 +114,31 @@ export class Users {
   async list(): Promise<PersonInfo[]> {
     const rows = await this.db.select().from(schema.users).orderBy(asc(schema.users.createdAt));
     return rows.map(personOf).sort((a, b) => Number(b.role === 'owner') - Number(a.role === 'owner'));
+  }
+
+  /**
+   * Members who came since team spaces and wait for theirs to be chosen, the earliest first. Those
+   * who look after the server reach every space's bots already, so none of them waits.
+   */
+  async newcomers(): Promise<PersonInfo[]> {
+    const rows = await this.db
+      .select()
+      .from(schema.users)
+      .where(
+        and(isNull(schema.users.placedAt), eq(schema.users.role, 'member'), isNull(schema.users.disabledAt)),
+      )
+      .orderBy(asc(schema.users.createdAt));
+    return rows.map(personOf);
+  }
+
+  /** The person's team spaces are chosen: they wait no longer. */
+  async place(id: string): Promise<void> {
+    const [row] = await this.db
+      .update(schema.users)
+      .set({ placedAt: new Date() })
+      .where(eq(schema.users.id, id))
+      .returning({ id: schema.users.id });
+    if (!row) throw notFound('person');
   }
 
   async person(id: string): Promise<PersonInfo | null> {

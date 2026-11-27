@@ -131,6 +131,7 @@ function refresh(qc: QueryClient, e: RefreshScope) {
       break;
     case 'groups':
       inv('groups');
+      inv('space-requests');
       break;
     case 'rooms':
       inv('rooms');
@@ -245,6 +246,7 @@ function refresh(qc: QueryClient, e: RefreshScope) {
       break;
     case 'people':
       inv('people');
+      inv('newcomers');
       // A changed role changes what this device may do.
       inv('session');
       inv('bots');

@@ -40,7 +40,7 @@ import { serverTranslator } from './settings';
 import type { ThreadService } from './threads';
 import type { VaultService } from './vault';
 import { OWNER_ID } from '../users';
-import { botLevel, managesServer } from './access';
+import { botLevel, managesServer, spaceOf } from './access';
 import { commandParts, freePart } from './shell-parts';
 import { redactSecrets } from './secrets';
 
@@ -705,18 +705,32 @@ export class ApprovalService {
   }
 
   /**
-   * Whether `by` may answer a card. In a team conversation a card is the one who asked: only they,
-   * or someone who may change the bot, answer it; anyone else in the team only sees it.
+   * Whether `by` may answer a card. In a team conversation, or a room more than one person is in,
+   * a card is the one who asked: only they, or someone who may change the bot, answer it; anyone
+   * else there only sees it.
    */
   async mayAnswer(card: { id: string }, by: string | null): Promise<boolean> {
     if (!by) return true;
     const [row] = await this.ctx.db
-      .select({ kind: schema.threads.kind, turnId: schema.approvals.turnId, botId: schema.approvals.botId })
+      .select({
+        kind: schema.threads.kind,
+        threadId: schema.threads.id,
+        turnId: schema.approvals.turnId,
+        botId: schema.approvals.botId,
+      })
       .from(schema.approvals)
       .innerJoin(schema.threads, eq(schema.threads.id, schema.approvals.threadId))
       .where(eq(schema.approvals.id, card.id))
       .limit(1);
-    if (row?.kind !== 'team') return true;
+    if (!row) return true;
+    if (row.kind === 'room') {
+      const [other] = await this.ctx.db
+        .select({ userId: schema.roomPeople.userId })
+        .from(schema.roomPeople)
+        .where(eq(schema.roomPeople.roomId, row.threadId))
+        .limit(1);
+      if (!other) return true;
+    } else if (row.kind !== 'team') return true;
     if (row.turnId) {
       const [turn] = await this.ctx.db
         .select({ userId: schema.turns.userId })
@@ -740,11 +754,20 @@ export class ApprovalService {
       .where(eq(schema.users.id, by))
       .limit(1);
     const [bot] = await this.ctx.db
-      .select({ ownerUserId: schema.bots.ownerUserId, access: schema.bots.access })
+      .select({
+        ownerUserId: schema.bots.ownerUserId,
+        access: schema.bots.access,
+        groupId: schema.bots.groupId,
+      })
       .from(schema.bots)
       .where(eq(schema.bots.id, botId))
       .limit(1);
-    return !!user && !user.disabledAt && !!bot && botLevel({ userId: by, role: user.role }, bot) === 'edit';
+    if (!user || user.disabledAt || !bot) return false;
+    const place = await spaceOf(this.ctx, bot.groupId);
+    return (
+      botLevel({ userId: by, role: user.role }, { ...bot, inSpace: place.inSpace }, place.members.get(by)) ===
+      'edit'
+    );
   }
 
   private async row(id: string) {
@@ -982,14 +1005,26 @@ export class ApprovalService {
     people ??= await this.signedIn();
     const [bot] = botId
       ? await this.ctx.db
-          .select({ ownerUserId: schema.bots.ownerUserId, access: schema.bots.access })
+          .select({
+            ownerUserId: schema.bots.ownerUserId,
+            access: schema.bots.access,
+            groupId: schema.bots.groupId,
+          })
           .from(schema.bots)
           .where(eq(schema.bots.id, botId))
           .limit(1)
       : [];
+    const place = await spaceOf(this.ctx, bot?.groupId ?? null);
     return people
       .filter((u) =>
-        botId ? !!bot && botLevel({ userId: u.id, role: u.role }, bot) === 'edit' : managesServer(u.role),
+        botId
+          ? !!bot &&
+            botLevel(
+              { userId: u.id, role: u.role },
+              { ...bot, inSpace: place.inSpace },
+              place.members.get(u.id),
+            ) === 'edit'
+          : managesServer(u.role),
       )
       .map((u) => ({ id: u.id, name: u.displayName || u.username || '' }));
   }

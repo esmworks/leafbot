@@ -1,5 +1,5 @@
-import type { Bot, BotAccess, BotLevel, Role } from '@leafbot/shared';
-import { and, desc, eq, exists, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
+import type { Bot, BotAccess, BotLevel, Group, Role } from '@leafbot/shared';
+import { and, asc, desc, eq, exists, inArray, isNull, ne, not, or, sql, type SQL } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import { OWNER_ID } from '../users';
@@ -46,14 +46,80 @@ export async function refusePrivate(ctx: Ctx, url: string, owner: string | null)
 }
 
 /**
- * What a person may do with a bot: the server's owner and admins and the bot's own owner may
- * change it; anyone else gets the higher of what everyone gets and what they were given.
+ * What a person may do with a bot. Its owner may change it, and so may those who look after the
+ * server while it is in a team space (`inSpace`); a bot in someone's Private is theirs alone, the
+ * server's owner and admins included. Anyone else gets the highest of what everyone gets, what
+ * they were given and what the bot's team space gives its members (`space`, none when not in it).
  */
-export function botLevel(viewer: Viewer, bot: { ownerUserId: string; access: BotAccess }): BotLevel {
-  if (managesServer(viewer.role) || bot.ownerUserId === viewer.userId) return 'edit';
-  const given = bot.access.people[viewer.userId];
-  return given && RANK[given] > RANK[bot.access.everyone] ? given : bot.access.everyone;
+export function botLevel(
+  viewer: Viewer,
+  bot: { ownerUserId: string; access: BotAccess; inSpace?: boolean },
+  space: BotLevel = 'none',
+): BotLevel {
+  if (bot.ownerUserId === viewer.userId) return 'edit';
+  if (bot.inSpace && managesServer(viewer.role)) return 'edit';
+  let level = bot.access.everyone;
+  for (const l of [bot.access.people[viewer.userId], space]) if (l && RANK[l] > RANK[level]) level = l;
+  return level;
 }
+
+/** What being in a team space gives: talking with its bots, or changing them too when it says so. */
+const spaceLevel = (membersEdit: boolean): BotLevel => (membersEdit ? 'edit' : 'chat');
+
+/**
+ * The place a bot is in: whether it is a team space, and its members with what it gives each of
+ * them. A Private folder, or none, is no space and has no members.
+ */
+export async function spaceOf(
+  ctx: Ctx,
+  groupId: string | null,
+): Promise<{ inSpace: boolean; members: Map<string, BotLevel> }> {
+  if (!groupId) return { inSpace: false, members: new Map() };
+  const [group] = await ctx.db
+    .select({ ownerUserId: schema.groups.ownerUserId, membersEdit: schema.groups.membersEdit })
+    .from(schema.groups)
+    .where(eq(schema.groups.id, groupId))
+    .limit(1);
+  if (!group || group.ownerUserId) return { inSpace: false, members: new Map() };
+  const rows = await ctx.db
+    .select({ userId: schema.groupMembers.userId })
+    .from(schema.groupMembers)
+    .where(eq(schema.groupMembers.groupId, groupId));
+  const level = spaceLevel(group.membersEdit);
+  return { inSpace: true, members: new Map(rows.map((r) => [r.userId, level])) };
+}
+
+/** The team spaces one person is in, with what each gives them. */
+async function spacesOf(ctx: Ctx, userId: string): Promise<Map<string, BotLevel>> {
+  const rows = await ctx.db
+    .select({ groupId: schema.groupMembers.groupId, membersEdit: schema.groups.membersEdit })
+    .from(schema.groupMembers)
+    .innerJoin(schema.groups, eq(schema.groups.id, schema.groupMembers.groupId))
+    .where(eq(schema.groupMembers.userId, userId));
+  return new Map(rows.map((r) => [r.groupId, spaceLevel(r.membersEdit)]));
+}
+
+/**
+ * Whether a person sees a group: their own Private folder, a team space everyone sees, or a secret
+ * one they are in. Those who look after the server see every space, never another's folder.
+ */
+export function seesGroup(viewer: Viewer, group: Group): boolean {
+  if (group.ownerUserId) return group.ownerUserId === viewer.userId;
+  if (group.kind !== 'secret') return true;
+  return managesServer(viewer.role) || !!group.memberIds?.includes(viewer.userId);
+}
+
+/** The columns of a bot its level is worked out from, with its group's owner (a folder's). */
+const LEVEL_COLUMNS = {
+  id: schema.bots.id,
+  ownerUserId: schema.bots.ownerUserId,
+  access: schema.bots.access,
+  groupId: schema.bots.groupId,
+  folderOwner: schema.groups.ownerUserId,
+};
+type LevelRow = { groupId: string | null; folderOwner: string | null };
+/** Whether a bot is in a team space: in a group that is nobody's folder. */
+const inSpace = (b: LevelRow) => !!b.groupId && !b.folderOwner;
 
 type ThreadRow = typeof schema.threads.$inferSelect;
 
@@ -69,31 +135,43 @@ export class AccessService {
 
   constructor(private ctx: Ctx) {}
 
-  /** Forgets who the live events go to; whenever a bot's sharing or the people change. */
+  /** Forgets who the live events go to; whenever a bot's sharing, a team space's members or the people change. */
   forget() {
     this.audiences.clear();
   }
 
   private async bot(botId: string) {
     const [row] = await this.ctx.db
-      .select({ id: schema.bots.id, ownerUserId: schema.bots.ownerUserId, access: schema.bots.access })
+      .select(LEVEL_COLUMNS)
       .from(schema.bots)
+      .leftJoin(schema.groups, eq(schema.groups.id, schema.bots.groupId))
       .where(eq(schema.bots.id, botId))
       .limit(1);
-    return row ?? null;
+    return row ? { ...row, inSpace: inSpace(row) } : null;
   }
 
   async level(viewer: Viewer, botId: string): Promise<BotLevel> {
     const bot = await this.bot(botId);
-    return bot ? botLevel(viewer, bot) : 'none';
+    if (!bot) return 'none';
+    const space = (await spaceOf(this.ctx, bot.groupId)).members.get(viewer.userId);
+    return botLevel(viewer, bot, space);
   }
 
   /** Every bot's level for one person, in one read. */
   async levels(viewer: Viewer): Promise<Map<string, BotLevel>> {
-    const rows = await this.ctx.db
-      .select({ id: schema.bots.id, ownerUserId: schema.bots.ownerUserId, access: schema.bots.access })
-      .from(schema.bots);
-    return new Map(rows.map((b) => [b.id, botLevel(viewer, b)]));
+    const [rows, spaces] = await Promise.all([
+      this.ctx.db
+        .select(LEVEL_COLUMNS)
+        .from(schema.bots)
+        .leftJoin(schema.groups, eq(schema.groups.id, schema.bots.groupId)),
+      spacesOf(this.ctx, viewer.userId),
+    ]);
+    return new Map(
+      rows.map((b) => [
+        b.id,
+        botLevel(viewer, { ...b, inSpace: inSpace(b) }, b.groupId ? spaces.get(b.groupId) : undefined),
+      ]),
+    );
   }
 
   /** The bots a person reaches at least at `wanted`. */
@@ -110,13 +188,66 @@ export class AccessService {
   }
 
   /**
-   * Whether a person sees a conversation: their own, a team conversation of a bot they may talk
-   * with, or the bot's own work when they may change the bot. Nobody sees another person's
-   * conversations, the server's owner and admins included.
+   * Whether a person sees a conversation: their own, a room they were put in, a team conversation
+   * of a bot they may talk with, or the bot's own work when they may change the bot. Nobody sees
+   * another person's conversations, the server's owner and admins included.
    */
-  async seesThread(viewer: Viewer, row: Pick<ThreadRow, 'userId' | 'botId' | 'kind'>): Promise<boolean> {
-    if (row.userId) return row.userId === viewer.userId;
+  async seesThread(
+    viewer: Viewer,
+    row: Pick<ThreadRow, 'id' | 'userId' | 'botId' | 'kind'>,
+  ): Promise<boolean> {
+    if (row.userId) {
+      if (row.userId === viewer.userId) return true;
+      return row.kind === 'room' && (await this.roomPeople(row.id)).includes(viewer.userId);
+    }
     return atLeast(await this.level(viewer, row.botId), row.kind === 'team' ? 'chat' : 'edit');
+  }
+
+  /** The people put in a room besides its owner, earliest first. */
+  async roomPeople(roomId: string): Promise<string[]> {
+    const rows = await this.ctx.db
+      .select({ userId: schema.roomPeople.userId })
+      .from(schema.roomPeople)
+      .where(eq(schema.roomPeople.roomId, roomId))
+      .orderBy(asc(schema.roomPeople.createdAt));
+    return rows.map((r) => r.userId);
+  }
+
+  /**
+   * Whether a conversation is a room with people besides its owner. Everyone in it reads its bots'
+   * answers, so like a team conversation they use only what the team shares.
+   */
+  async sharedRoom(threadId: string): Promise<boolean> {
+    const [row] = await this.ctx.db
+      .select({ userId: schema.roomPeople.userId })
+      .from(schema.roomPeople)
+      .where(eq(schema.roomPeople.roomId, threadId))
+      .limit(1);
+    return !!row;
+  }
+
+  /** The SQL condition for the rooms a person was put in. */
+  private roomsWith(userId: string): SQL {
+    return inArray(
+      schema.threads.id,
+      this.ctx.db
+        .select({ id: schema.roomPeople.roomId })
+        .from(schema.roomPeople)
+        .where(eq(schema.roomPeople.userId, userId)),
+    );
+  }
+
+  /** The SQL condition for a room with people besides its owner, on a query joined with threads. */
+  private sharedRoomHere(): SQL {
+    return and(
+      eq(schema.threads.kind, 'room'),
+      exists(
+        this.ctx.db
+          .select({ id: schema.roomPeople.roomId })
+          .from(schema.roomPeople)
+          .where(eq(schema.roomPeople.roomId, schema.threads.id)),
+      ),
+    )!;
   }
 
   /**
@@ -135,6 +266,14 @@ export class AccessService {
     if (manage && row.kind === 'team' && !atLeast(await this.level(viewer, row.botId), 'edit')) {
       throw new HttpError(403, 'error.teamThreadManage');
     }
+    // A room is managed by whoever opened it and the admins put in it; the others talk and leave.
+    const owner = row.userId === viewer.userId;
+    if (manage && row.kind === 'room' && !owner && !managesServer(viewer.role)) {
+      throw new HttpError(403, 'error.roomManage');
+    }
+    // Someone put in a room talks there with its bots even if they are not shared with them: in
+    // that room only, where the one who put them in chose to bring them.
+    if (write && row.kind === 'room' && !owner) return row;
     if (write) {
       const botIds =
         row.kind === 'room'
@@ -171,6 +310,55 @@ export class AccessService {
     if (target.id === from.id && wanted === 'chat') return target;
     if (!atLeast(await this.level(await this.viewerOf(person), target.id), wanted)) throw notFound('bot');
     return target;
+  }
+
+  /**
+   * Whether anyone besides its owner reaches a bot: shared with everyone or with someone, or in a
+   * team space with people in it. What a bot nobody else reaches does is its owner's alone.
+   */
+  async sharedWithAnyone(bot: { access?: BotAccess; groupId: string | null }): Promise<boolean> {
+    const access = bot.access ?? { everyone: 'none', people: {} };
+    if (access.everyone !== 'none' || Object.keys(access.people).length) return true;
+    return (await spaceOf(this.ctx, bot.groupId)).members.size > 0;
+  }
+
+  /**
+   * Refuses a place a person may not put a bot in. A new bot goes only to its owner's Private:
+   * none, or a folder of theirs. A folder holds only its owner's bots, put there by them. A bot
+   * goes into a team space, or back out of one, by its owner (who must be in the space) or by
+   * those who look after the server; its notes and the space's shared folder then reach the
+   * space's people.
+   */
+  async checkPlace(
+    viewer: Viewer,
+    groupId: string | null | undefined,
+    ownerUserId: string | undefined,
+    creating = false,
+  ) {
+    const owner = ownerUserId ?? OWNER_ID;
+    // Out of a space, back to Private: by its owner or those who look after the server.
+    if (!groupId) {
+      if (owner !== viewer.userId && !managesServer(viewer.role))
+        throw new HttpError(403, 'error.privateNotYours');
+      return;
+    }
+    const [group] = await this.ctx.db
+      .select({ ownerUserId: schema.groups.ownerUserId })
+      .from(schema.groups)
+      .where(eq(schema.groups.id, groupId))
+      .limit(1);
+    if (!group) throw notFound('group');
+    if (group.ownerUserId) {
+      if (group.ownerUserId !== viewer.userId || owner !== viewer.userId) {
+        throw new HttpError(403, 'error.folderNotYours');
+      }
+      return;
+    }
+    if (creating) throw new HttpError(400, 'error.newBotPrivate');
+    if (managesServer(viewer.role)) return;
+    if (owner !== viewer.userId || !(await spaceOf(this.ctx, groupId)).members.has(viewer.userId)) {
+      throw new HttpError(403, 'error.spaceNotYours');
+    }
   }
 
   /** The person who owns a bot; the server's owner when the bot is gone. */
@@ -223,13 +411,14 @@ export class AccessService {
 
   /**
    * The cards a person may answer, as a condition on approvals joined with their conversation: in a
-   * team conversation only the one whose request asked and those who may change the bot answer, so
-   * the others are not listed a card they would be refused.
+   * team conversation (or a room more than one person is in) only the one whose request asked and
+   * those who may change the card's bot answer, so the others are not listed a card they would be
+   * refused.
    */
   private cardsAnswerableBy(viewer: Viewer, editable: string[]): SQL {
     return or(
-      ne(schema.threads.kind, 'team'),
-      editable.length ? inArray(schema.threads.botId, editable) : undefined,
+      and(ne(schema.threads.kind, 'team'), not(this.sharedRoomHere())),
+      editable.length ? inArray(schema.approvals.botId, editable) : undefined,
       exists(
         this.ctx.db
           .select({ id: schema.turns.id })
@@ -246,15 +435,18 @@ export class AccessService {
     const kept = this.audiences.get(key);
     if (kept && now - kept.at < AUDIENCE_MS) return kept.users;
     const bot = await this.bot(botId);
+    const { members } = await spaceOf(this.ctx, bot?.groupId ?? null);
     const users = bot
-      ? (await this.people()).filter((p) => atLeast(botLevel(p, bot), wanted)).map((p) => p.userId)
+      ? (await this.people())
+          .filter((p) => atLeast(botLevel(p, bot, members.get(p.userId)), wanted))
+          .map((p) => p.userId)
       : [];
     this.audiences.set(key, { users, at: now });
     return users;
   }
 
   /**
-   * The people a conversation's live events go to: its person; for a team conversation, everyone
+   * The people a conversation's live events go to: its person (and a room's people); for a team conversation, everyone
    * who may talk with its bot; otherwise those who may change its bot.
    */
   async threadAudience(threadId: string): Promise<string[]> {
@@ -269,16 +461,17 @@ export class AccessService {
     const users = !row
       ? []
       : row.userId
-        ? [row.userId]
+        ? [row.userId, ...(row.kind === 'room' ? await this.roomPeople(threadId) : [])]
         : await this.botPeople(row.botId, row.kind === 'team' ? 'chat' : 'edit');
     this.audiences.set(`thread:${threadId}`, { users, at: now });
     return users;
   }
 
   /**
-   * Who is told a conversation needs them or answered: its people, but in a team conversation only
-   * the one whose request runs there and those who may change the bot. The others still see it,
-   * yet only these may answer its cards, so a notice would call them to something they cannot do.
+   * Who is told a conversation needs them or answered: its people, but in a team conversation (or
+   * a room more than one person is in) only the one whose request runs there and those who may
+   * change the bot. The others still see it, yet only these may answer its cards, so a notice would
+   * call them to something they cannot do.
    */
   async noticeAudience(threadId: string): Promise<string[]> {
     const [row] = await this.ctx.db
@@ -286,16 +479,23 @@ export class AccessService {
       .from(schema.threads)
       .where(eq(schema.threads.id, threadId))
       .limit(1);
-    if (row?.kind !== 'team') return this.threadAudience(threadId);
+    const shared = row?.kind === 'room' && (await this.sharedRoom(threadId));
+    if (row?.kind !== 'team' && !shared) return this.threadAudience(threadId);
     // The running turn is the one a card waits on; a line someone else wrote meanwhile only queues
     // one. With none running, the last that ran is the one a reply or error is about.
     const [last] = await this.ctx.db
-      .select({ userId: schema.turns.userId })
+      .select({ userId: schema.turns.userId, botId: schema.turns.botId })
       .from(schema.turns)
       .where(and(eq(schema.turns.threadId, threadId), ne(schema.turns.status, 'queued')))
       .orderBy(sql`(${schema.turns.status} = 'running') desc`, desc(schema.turns.createdAt))
       .limit(1);
-    const editors = await this.botPeople(row.botId, 'edit');
+    if (shared) {
+      // Only those in the room: one who may change the bot but is not there cannot see the card.
+      const there = await this.threadAudience(threadId);
+      const editors = last ? await this.botPeople(last.botId, 'edit') : [];
+      return there.filter((u) => u === last?.userId || editors.includes(u));
+    }
+    const editors = await this.botPeople(row!.botId, 'edit');
     return last?.userId && !editors.includes(last.userId) ? [...editors, last.userId] : editors;
   }
 
@@ -312,11 +512,24 @@ export class AccessService {
       .from(schema.threads)
       .where(inArray(schema.threads.id, threadIds));
     const levels = await this.levels(viewer);
+    const rooms = rows.filter((r) => r.kind === 'room' && r.userId !== viewer.userId).map((r) => r.id);
+    const putIn = new Set(
+      rooms.length
+        ? (
+            await this.ctx.db
+              .select({ roomId: schema.roomPeople.roomId })
+              .from(schema.roomPeople)
+              .where(
+                and(eq(schema.roomPeople.userId, viewer.userId), inArray(schema.roomPeople.roomId, rooms)),
+              )
+          ).map((r) => r.roomId)
+        : [],
+    );
     return new Set(
       rows
         .filter((r) =>
           r.userId
-            ? r.userId === viewer.userId
+            ? r.userId === viewer.userId || putIn.has(r.id)
             : atLeast(levels.get(r.botId) ?? 'none', r.kind === 'team' ? 'chat' : 'edit'),
         )
         .map((r) => r.id),
@@ -328,7 +541,10 @@ export class AccessService {
    * those they may talk with (whose team conversations they see).
    */
   threadsSeenBy(viewer: Viewer, editableBotIds: string[], chatBotIds: string[] = editableBotIds): SQL {
-    const own = eq(schema.threads.userId, viewer.userId);
+    const own = or(
+      eq(schema.threads.userId, viewer.userId),
+      and(eq(schema.threads.kind, 'room'), this.roomsWith(viewer.userId)),
+    );
     const work = editableBotIds.length
       ? and(isNull(schema.threads.userId), inArray(schema.threads.botId, editableBotIds))
       : undefined;

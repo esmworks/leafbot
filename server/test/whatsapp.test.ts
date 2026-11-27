@@ -2097,6 +2097,9 @@ describe('WhatsApp: rutinlerin okuduğu sohbetler', () => {
 
   it('WhatsApp okuyan rutini yalnızca WhatsApp’ı bağlayan kişi kurar', async () => {
     const { asistan } = await setUp();
+    // In a team space, where those who look after the server may change it.
+    const space = (await t.api<{ id: string }>('POST', '/api/groups', { name: 'Ekip', space: true })).body;
+    await t.api('POST', `/api/bots/${asistan.id}/move`, { pinned: false, groupId: space.id, beforeId: null });
     const other = await t.person('ayse', 'admin');
     const r = await other.api('POST', '/api/routines', {
       botId: asistan.id,
