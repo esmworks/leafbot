@@ -1,6 +1,6 @@
 import type { PersonInfo } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { personName } from '@/features/PeopleTab';
@@ -8,6 +8,7 @@ import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { isSpace } from '@/lib/places';
 import { useGroups, useManagesServer } from '@/lib/queries';
+import './newcomer-card.css';
 
 /** Those who wait for their team spaces to be chosen; only those who look after the server ask. */
 export function useNewcomers() {
@@ -29,8 +30,8 @@ function readClosed(): string[] {
 }
 
 /**
- * A box at the bottom right, in the app's own green so it does not pass for part of the page, for each person who came and waits for their team spaces, over the app
- * of those who look after the server. It stays until one of them chooses the spaces (even none),
+ * A card at the bottom right for each person who came and waits for their team spaces, over the
+ * app of those who look after the server; its own dark colours keep it apart from the page. It stays until one of them chooses the spaces (even none),
  * which places the person for everyone, or closes it, which puts it away on this device only; the
  * person is still listed in Today.
  */
@@ -51,7 +52,7 @@ export function NewcomerBoxes() {
   if (!shown.length) return null;
   return (
     // On a phone it sits above the bar at the bottom of the list.
-    <div className="pointer-events-none fixed end-4 bottom-24 z-40 flex max-h-[calc(100%-7rem)] w-80 max-w-[calc(100vw-2rem)] flex-col-reverse gap-3 overflow-y-auto md:bottom-4 md:max-h-[calc(100%-2rem)]">
+    <div className="pointer-events-none fixed end-4 bottom-24 z-40 flex max-h-[calc(100%-7rem)] max-w-[calc(100vw-2rem)] flex-col-reverse gap-3 overflow-y-auto p-0.5 md:bottom-4 md:max-h-[calc(100%-2rem)]">
       {shown.map((p) => (
         <NewcomerCard key={p.id} person={p} onClose={() => close(p.id)} />
       ))}
@@ -76,24 +77,25 @@ function NewcomerCard({ person, onClose }: { person: PersonInfo; onClose: () => 
   const name = personName(person, t('people.owner'));
   const toggle = (id: string, on: boolean) => setChosen((c) => (on ? [...c, id] : c.filter((x) => x !== id)));
   return (
+    // The look of this card is adapted from Uiverse.io by iconicchandu
+    // (https://uiverse.io/iconicchandu/slimy-pug-17, MIT License, Copyright (c) iconicchandu);
+    // its styles and the notice are in newcomer-card.css.
     <section
       role="dialog"
       aria-label={t('newcomer.joined', { name })}
-      className="pointer-events-auto rounded-2xl bg-[var(--brand)] p-4 text-sm text-white shadow-xl ring-1 ring-black/10"
+      className="newcomer-card pointer-events-auto"
     >
-      <div className="flex items-start gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-white/15">
-          <UserPlus className="size-5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold">{t('newcomer.joined', { name })}</div>
-          <p className="mt-0.5 text-xs text-white/80">
+      <div className="newcomer-card__border" aria-hidden />
+      <div className="newcomer-card__head">
+        <div className="min-w-0">
+          <span className="newcomer-card__title">{t('newcomer.joined', { name })}</span>
+          <p className="newcomer-card__paragraph">
             {spaces.length ? t('newcomer.choose') : t('newcomer.noSpaces')}
           </p>
         </div>
         <button
           type="button"
-          className="-me-1 -mt-1 flex size-7 shrink-0 items-center justify-center rounded-lg text-white/80 hover:bg-white/15 hover:text-white focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none"
+          className="newcomer-card__close"
           onClick={onClose}
           aria-label={t('newcomer.close')}
           title={t('newcomer.close')}
@@ -101,34 +103,41 @@ function NewcomerCard({ person, onClose }: { person: PersonInfo; onClose: () => 
           <X className="size-4" />
         </button>
       </div>
+      <hr className="newcomer-card__line" />
       {spaces.length > 0 && (
-        <div className="mt-3 space-y-1">
+        <ul className="newcomer-card__list">
           {spaces.map((g) => (
-            <label
-              key={g.id}
-              className="flex cursor-pointer items-center gap-2.5 rounded-md bg-white/10 px-2.5 py-1.5 hover:bg-white/15"
-            >
-              <input
-                type="checkbox"
-                className="size-4 accent-white"
-                checked={chosen.includes(g.id)}
-                onChange={(e) => toggle(g.id, e.target.checked)}
-              />
-              <span className="min-w-0 truncate">{g.name}</span>
-            </label>
+            <li key={g.id}>
+              <label className="newcomer-card__item">
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={chosen.includes(g.id)}
+                  onChange={(e) => toggle(g.id, e.target.checked)}
+                />
+                <span className="newcomer-card__check" aria-hidden>
+                  <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                    <path
+                      clipRule="evenodd"
+                      d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z"
+                      fillRule="evenodd"
+                    />
+                  </svg>
+                </span>
+                <span className="newcomer-card__text min-w-0 truncate">{g.name}</span>
+              </label>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
-      <div className="mt-3 flex justify-end">
-        <button
-          type="button"
-          className="h-8 rounded-sm bg-white px-4 text-sm font-medium text-[var(--brand)] hover:bg-white/90 focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:outline-none disabled:opacity-60"
-          disabled={place.isPending}
-          onClick={() => place.mutate()}
-        >
-          {t('newcomer.done')}
-        </button>
-      </div>
+      <button
+        type="button"
+        className="newcomer-card__button"
+        disabled={place.isPending}
+        onClick={() => place.mutate()}
+      >
+        {t('newcomer.done')}
+      </button>
     </section>
   );
 }
