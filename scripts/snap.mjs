@@ -6,7 +6,7 @@
 // Nothing here is a test: it shows what a screen looks like now.
 //
 //   pnpm --filter @leafbot/server build && pnpm --filter @leafbot/app build
-//   node scripts/snap.mjs [chat] [settings] [today] [tasks] [dashboards] [new-bot] [--tree] [--dark] [--out data/snaps] [--width 1280 --height 800]
+//   node scripts/snap.mjs [chat] [settings] [today] [tasks] [dashboards] [new-bot] [routine] [--tree] [--dark] [--out data/snaps] [--width 1280 --height 800]
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -28,6 +28,7 @@ const SCREENS = {
   tasks: (page) => page.getByRole('button', { name: 'Tasks', exact: true }).click(),
   dashboards: (page) => page.getByRole('button', { name: 'Dashboards', exact: true }).click(),
   'new-bot': (page) => page.getByRole('button', { name: 'New bot', exact: true }).click(),
+  routine: (page) => page.getByRole('button', { name: 'Routine', exact: true }).click(),
 };
 const wanted = args.filter((a) => a in SCREENS);
 const screens = wanted.length ? wanted : Object.keys(SCREENS);
@@ -99,7 +100,7 @@ const server = spawn(process.execPath, [entry], {
 });
 let stderr = '';
 server.stderr.on('data', (d) => (stderr = (stderr + d).slice(-2000)));
-const base = await new Promise((resolve, reject) => {
+const ready = new Promise((resolve, reject) => {
   const timer = setTimeout(() => reject(new Error('the server did not start within 60 s')), 60_000);
   createInterface({ input: server.stdout }).on('line', (line) => {
     const m = /^LEAFBOT_READY (\S+)/.exec(line);
@@ -111,6 +112,8 @@ const base = await new Promise((resolve, reject) => {
   server.once('exit', (code) => reject(new Error(`the server stopped (${code}):\n${stderr}`)));
 });
 
+// Set once the server has said where it listens.
+let base;
 const call = async (method, path, body) => {
   const res = await fetch(`${base}${path}`, {
     method,
@@ -130,6 +133,7 @@ const SAMPLES = [
 
 let browser;
 try {
+  base = await ready;
   // The owner gets a username and password, has been welcomed, and has one bot with a conversation.
   const password = 'snap-password-0123';
   await call('PUT', '/api/account', { username: 'snap', password });
@@ -187,7 +191,9 @@ try {
   }
 } finally {
   await browser?.close();
-  server.kill('SIGTERM');
-  await new Promise((r) => server.once('exit', r));
+  if (server.exitCode === null && server.signalCode === null) {
+    server.kill('SIGTERM');
+    await new Promise((r) => server.once('exit', r));
+  }
   rmSync(dir, { recursive: true, force: true });
 }

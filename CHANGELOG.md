@@ -377,8 +377,8 @@ version is 0.x, a minor release may change the data format or the API; the serve
   so under it.
 - The server writes a line to its log, at most once a minute, when something held it up for a quarter of a second or
   more, since nothing moves for anyone while it is held.
-- For people working on Leaf Bot: `node scripts/snap.mjs` draws the chat, settings, Today, tasks, dashboards and
-  new-bot screens without a window, from a throwaway server with a sample conversation, and
+- For people working on Leaf Bot: `node scripts/snap.mjs` draws the chat, settings, Today, tasks, dashboards,
+  new-bot and routine screens without a window, from a throwaway server with a sample conversation, and
   `node scripts/bench-server-start.mjs` times the server's start.
 
 ### Changed
@@ -424,11 +424,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
 - This computer's server starts faster: Node keeps the compiled code between starts (one cache per version, older
   ones removed a minute after start), and the browser automation libraries load the first time a bot uses a
   browser, not at every start. On a development Mac a usual start went from about 0.8 s to about 0.5 s.
-- The app loads less before it shows: settings, the bot form, the first-run and account pages, the phone screen,
-  the quick window, the Today, tasks and dashboards windows, and math typesetting load when first opened. The script
-  loaded first went from 2.8 MB to 0.35 MB. A page that cannot be loaded says so and offers to try again.
-- Streamed replies are drawn once per screen refresh instead of once per word, so a long, fast reply no longer
-  makes the window stutter.
+- The app loads less before it shows: settings, the bot form, routines, the file preview, the first-run and account
+  pages, the phone screen, the quick window, the Today, tasks and dashboards windows, and math typesetting load when
+  first opened. The scripts loaded at start went from about 2.8 MB to 2.3 MB. A page that cannot be loaded says so
+  and offers to try again.
+- Streamed replies are drawn once per screen refresh instead of once per word.
 - Messages held while the connection was away are sent again as soon as it is back, instead of after a wait.
 
 ### Fixed
