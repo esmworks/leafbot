@@ -570,7 +570,7 @@ export const tr = {
     'embedding, anlamsal arama, anlam, whisper, yazıya çevirme, ses, seslendirme, sesli okuma, tts, stt, ollama, kokoro',
   'settings.keywords.routines': 'zamanlama, cron, webhook, hatırlatma, çalışmalar',
   'settings.keywords.skills': 'beceri, içe aktar, bağlantı, github',
-  'settings.keywords.groups': 'klasör, arşiv, arşivlenen botlar, geri getir, sil',
+  'settings.keywords.groups': 'ekip alanı, üyeler, klasör, özel, arşiv, arşivlenen botlar, geri getir, sil',
   'settings.keywords.import': 'dışa aktar, yedek, bot dosyası',
   'settings.keywords.usage': 'maliyet, harcama, sınır, bütçe, csv, token',
   'settings.keywords.about': 'sürüm, lisans, günlükler, sorun bildir, kaynak',
@@ -1388,6 +1388,21 @@ export const tr = {
   'settings.appsResult': 'Uygulamalar ve bağlantılar',
   'settings.appsResultFor': 'Uygulamalar ve bağlantılar: {name}',
   'settings.keywords.people': 'kişiler, kullanıcılar, ekip, takım, yönetici, üye, şifre, davet',
+  'people.privateBots': {
+    one: 'Özel’inde 1 bot (duraklatılan: {paused})',
+    other: 'Özel’inde {count} bot (duraklatılan: {paused})',
+  },
+  'people.pausePrivate': 'Hepsini duraklat',
+  'people.resumePrivate': 'Hepsini sürdür',
+  'people.archivePrivate': 'Hepsini arşivle',
+  'people.pausePrivateConfirm': {
+    one: '{name} kişisinin Özel’indeki bot duraklatılsın mı? Botu açmadan yalnızca durdurulur.',
+    other: '{name} kişisinin Özel’indeki {count} bot duraklatılsın mı? Botlar açılmadan yalnızca durdurulur.',
+  },
+  'people.archivePrivateConfirm': {
+    one: '{name} kişisinin Özel’indeki bot arşivlensin mi? Kişi onu arşivden geri alabilir.',
+    other: '{name} kişisinin Özel’indeki {count} bot arşivlensin mi? Kişi onları arşivden geri alabilir.',
+  },
   'people.intro':
     'Bu sunucuyu kullanan kişiler. Herkes kendi sohbetlerini, notlarını, bağlantılarını ve kasa kayıtlarını görür; başkasınınkini kimse göremez, yöneticiler de.',
   'people.add': 'Kişi ekle',
@@ -2334,7 +2349,7 @@ export const tr = {
   'panel.skillsSearch': 'Beceri ara',
   'panel.skillsNoMatch': 'Bu adla bir beceri yok.',
   'panel.skillsNew': 'Yeni beceri ekle',
-  'settings.tab.groups': 'Gruplar',
+  'settings.tab.groups': 'Alanlar ve klasörler',
 
   'general.appearance': 'Görünüm',
   'general.theme': 'Tema',
@@ -2569,10 +2584,34 @@ export const tr = {
   'health.ask.idle':
     '“{name}” rutinim 30 gündür hiç çalışmadı. Rutini oku, koşulunun ya da izlediği şeyin neden hiç tutmadığını bul ve ne yapalım öner. Rutini değiştirmeden önce bana sor.',
 
-  'groups.hint':
-    'Gruplar kenar çubuğunu düzenler ve gruptaki botlara ortak bir klasör verir. Bütün botlar birbirine yazabilir.',
-  'groups.placeholder': 'Yeni grup adı',
-  'groups.empty': 'Grup yok.',
+  'spaces.hint':
+    'Ekip alanındaki botlar alanın üyelerine açılır: onlarla konuşabilirler. Klasörler yalnızca senin Özel’ini düzenler, kimseyle bir şey paylaşmaz.',
+  'spaces.placeholder': 'Yeni klasör ya da alan adı',
+  'spaces.addFolder': 'Klasör ekle',
+  'spaces.addSpace': 'Ekip alanı ekle',
+  'spaces.spaces': 'Ekip alanları',
+  'spaces.noSpaces': 'Gördüğün bir ekip alanı yok.',
+  'spaces.folders': 'Klasörlerin',
+  'spaces.noFolders': 'Klasörün yok.',
+  'spaces.memberCount': { one: '1 kişi', other: '{count} kişi' },
+  'spaces.settingsItem': 'Alan ayarları',
+  'spaces.settings': 'Ayarlar',
+  'spaces.kind': 'Kimler görür',
+  'spaces.kind.open': 'Açık',
+  'spaces.kind.closed': 'Kapalı',
+  'spaces.kind.secret': 'Gizli',
+  'spaces.kindHint.open': 'Herkes alanı görür ve katılabilir.',
+  'spaces.kindHint.closed': 'Herkes alanı görür; katılmak için istek gönderir.',
+  'spaces.kindHint.secret': 'Alanı yalnızca üyeleri görür.',
+  'spaces.membersEdit': 'Üyeler botları değiştirebilir',
+  'spaces.membersEditHint':
+    'Kapalıyken alandaki botları yalnızca sahipleri ve sunucuyu yönetenler değiştirir.',
+  'spaces.members': 'Üyeler',
+  'spaces.noMembers': 'Henüz kimse yok.',
+  'spaces.addMember': 'Kişi ekle',
+  'spaces.removeMember': '{name} alandan çıkar',
+  'spaces.sharedNote':
+    'Alandaki bir bot, notlarını ve alanın ortak klasörünü üyelerle konuşurken de kullanır; içlerindekini onlara söyleyebilir.',
   'groups.count': '{count} bot',
 
   'settings.tab.import': 'İçe aktarma ve yedek',

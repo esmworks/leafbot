@@ -604,7 +604,7 @@ export const en: Catalog<MessageKey> = {
     'embeddings, semantic search, meaning, whisper, speech to text, transcription, text to speech, voice, tts, stt, ollama, kokoro',
   'settings.keywords.routines': 'schedule, cron, webhook, reminders, runs',
   'settings.keywords.skills': 'skill, import, link, github',
-  'settings.keywords.groups': 'folders, archive, archived bots, restore, delete',
+  'settings.keywords.groups': 'team spaces, members, folders, private, archive, archived bots, restore, delete',
   'settings.keywords.import': 'export, backup, bots file',
   'settings.keywords.usage': 'cost, spending, limit, budget, csv, tokens',
   'settings.keywords.about': 'version, license, logs, report a problem, source',
@@ -1420,6 +1420,21 @@ export const en: Catalog<MessageKey> = {
   'vault.allBots': 'Every bot may use it',
   'settings.tab.people': 'People',
   'settings.keywords.people': 'people, users, team, admin, member, password, invite',
+  'people.privateBots': {
+    one: '1 bot in their Private ({paused} paused)',
+    other: '{count} bots in their Private ({paused} paused)',
+  },
+  'people.pausePrivate': 'Pause all',
+  'people.resumePrivate': 'Resume all',
+  'people.archivePrivate': 'Archive all',
+  'people.pausePrivateConfirm': {
+    one: 'Pause the bot in {name}’s Private? It is only stopped, not opened.',
+    other: 'Pause the {count} bots in {name}’s Private? They are only stopped, not opened.',
+  },
+  'people.archivePrivateConfirm': {
+    one: 'Archive the bot in {name}’s Private? They can bring it back from their archived bots.',
+    other: 'Archive the {count} bots in {name}’s Private? They can bring them back from their archived bots.',
+  },
   'people.intro':
     'The people who use this server. Each sees their own conversations, notes, connections and vault entries; nobody sees anyone else’s, admins included.',
   'people.add': 'Add person',
@@ -2365,7 +2380,7 @@ export const en: Catalog<MessageKey> = {
   'panel.skillsSearch': 'Search skills',
   'panel.skillsNoMatch': 'No skill by that name.',
   'panel.skillsNew': 'Add a new skill',
-  'settings.tab.groups': 'Groups',
+  'settings.tab.groups': 'Spaces and folders',
 
   'general.appearance': 'Appearance',
   'general.theme': 'Theme',
@@ -2618,10 +2633,34 @@ export const en: Catalog<MessageKey> = {
   'health.ask.idle':
     'My routine “{name}” has not run in 30 days. Read the routine, find out why its condition or what it watches never held, and suggest what to do. Ask me before you change the routine.',
 
-  'groups.hint':
-    'Groups arrange the sidebar and give their bots a shared folder. All bots can write to each other.',
-  'groups.placeholder': 'New group name',
-  'groups.empty': 'No groups.',
+  'spaces.hint':
+    'The bots in a team space are open to the people in it: they can talk with them. Folders only tidy your Private and share nothing with anyone.',
+  'spaces.placeholder': 'New folder or space name',
+  'spaces.addFolder': 'Add folder',
+  'spaces.addSpace': 'Add team space',
+  'spaces.spaces': 'Team spaces',
+  'spaces.noSpaces': 'No team space you can see.',
+  'spaces.folders': 'Your folders',
+  'spaces.noFolders': 'You have no folders.',
+  'spaces.memberCount': { one: '1 person', other: '{count} people' },
+  'spaces.settingsItem': 'Space settings',
+  'spaces.settings': 'Settings',
+  'spaces.kind': 'Who sees it',
+  'spaces.kind.open': 'Open',
+  'spaces.kind.closed': 'Closed',
+  'spaces.kind.secret': 'Secret',
+  'spaces.kindHint.open': 'Everyone sees the space and can join it.',
+  'spaces.kindHint.closed': 'Everyone sees the space; joining takes a request.',
+  'spaces.kindHint.secret': 'Only the people in it see the space.',
+  'spaces.membersEdit': 'Members can change the bots',
+  'spaces.membersEditHint':
+    'When off, only their owners and those who look after the server change the bots in it.',
+  'spaces.members': 'Members',
+  'spaces.noMembers': 'Nobody yet.',
+  'spaces.addMember': 'Add someone',
+  'spaces.removeMember': 'Take {name} out of the space',
+  'spaces.sharedNote':
+    'A bot in the space uses its notes and the space’s shared folder when it talks with the people in it too, and may tell them what is in them.',
   'groups.count': { one: '{count} bot', other: '{count} bots' },
 
   'settings.tab.import': 'Import and backup',

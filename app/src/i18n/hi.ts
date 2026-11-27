@@ -2005,10 +2005,6 @@ export const hi: Partial<Catalog<MessageKey>> = {
     'किसी बॉट द्वारा इस्तेमाल न किए गए सभी {count} नोट हटाएँ? इसे पूर्ववत नहीं किया जा सकता।',
   'routines.empty': 'कोई रूटीन नहीं। आप बॉट के दाएँ पैनल से एक जोड़ सकते हैं।',
   'routines.lastRun': 'आख़िरी बार {when}',
-  'groups.hint':
-    'समूह साइडबार को व्यवस्थित करते हैं और अपने बॉट को एक साझा फ़ोल्डर देते हैं। सभी बॉट एक-दूसरे को लिख सकते हैं।',
-  'groups.placeholder': 'नए समूह का नाम',
-  'groups.empty': 'कोई समूह नहीं।',
   'groups.count': { one: '{count} बॉट', other: '{count} बॉट' },
   'settings.tab.import': 'आयात और बैकअप',
   'import.hint':

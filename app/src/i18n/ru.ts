@@ -2141,10 +2141,6 @@ export const ru: Partial<Catalog<MessageKey>> = {
     'Удалить все {count} заметок, которые не нужны ни одному боту? Это нельзя отменить.',
   'routines.empty': 'Рутин нет. Добавить рутину можно в правой панели бота.',
   'routines.lastRun': 'последний {when}',
-  'groups.hint':
-    'Группы упорядочивают боковую панель и дают своим ботам общую папку. Все боты могут писать друг другу.',
-  'groups.placeholder': 'Название новой группы',
-  'groups.empty': 'Групп нет.',
   'groups.count': { one: '{count} бот', few: '{count} бота', many: '{count} ботов', other: '{count} бота' },
   'settings.tab.import': 'Импорт и резервная копия',
   'import.hint':

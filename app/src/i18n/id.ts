@@ -2017,10 +2017,6 @@ export const id: Partial<Catalog<MessageKey>> = {
     'Hapus semua {count} catatan yang tidak dipakai bot? Tidak bisa dibatalkan.',
   'routines.empty': 'Belum ada rutin. Anda bisa menambahkannya dari panel kanan bot.',
   'routines.lastRun': 'terakhir {when}',
-  'groups.hint':
-    'Grup mengatur bilah samping dan memberi botnya folder bersama. Semua bot bisa menulis satu sama lain.',
-  'groups.placeholder': 'Nama grup baru',
-  'groups.empty': 'Belum ada grup.',
   'groups.count': { other: '{count} bot' },
   'settings.tab.import': 'Impor dan cadangan',
   'import.hint':

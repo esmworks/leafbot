@@ -2088,10 +2088,6 @@ export const de: Partial<Catalog<MessageKey>> = {
     'Alle {count} Notizen löschen, die kein Bot nutzt? Das lässt sich nicht rückgängig machen.',
   'routines.empty': 'Keine Routinen. Du kannst im rechten Bereich eines Bots eine hinzufügen.',
   'routines.lastRun': 'zuletzt {when}',
-  'groups.hint':
-    'Gruppen ordnen die Seitenleiste und geben ihren Bots einen gemeinsamen Ordner. Alle Bots können sich gegenseitig schreiben.',
-  'groups.placeholder': 'Name der neuen Gruppe',
-  'groups.empty': 'Keine Gruppen.',
   'groups.count': { one: '{count} Bot', other: '{count} Bots' },
   'settings.tab.import': 'Import und Backup',
   'import.hint':

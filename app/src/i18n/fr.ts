@@ -2093,10 +2093,6 @@ export const fr: Partial<Catalog<MessageKey>> = {
     'Supprimer les {count} notes qu’aucun bot n’utilise ? Cette action est irréversible.',
   'routines.empty': 'Aucune routine. Vous pouvez en ajouter une depuis le panneau de droite d’un bot.',
   'routines.lastRun': 'dernière fois {when}',
-  'groups.hint':
-    'Les groupes organisent la barre latérale et donnent à leurs bots un dossier partagé. Tous les bots peuvent s’écrire entre eux.',
-  'groups.placeholder': 'Nom du nouveau groupe',
-  'groups.empty': 'Aucun groupe.',
   'groups.count': { one: '{count} bot', other: '{count} bots' },
   'settings.tab.import': 'Importer et sauvegarder',
   'import.hint':

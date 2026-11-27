@@ -2052,10 +2052,6 @@ export const pt: Partial<Catalog<MessageKey>> = {
   'memory.staleDeleteAllConfirm': 'Excluir todas as {count} notas que nenhum bot usa? Não dá para desfazer.',
   'routines.empty': 'Nenhuma rotina. Você pode adicionar uma no painel direito de um bot.',
   'routines.lastRun': 'última vez {when}',
-  'groups.hint':
-    'Os grupos organizam a barra lateral e dão aos bots deles uma pasta compartilhada. Todos os bots podem escrever uns para os outros.',
-  'groups.placeholder': 'Nome do novo grupo',
-  'groups.empty': 'Nenhum grupo.',
   'groups.count': { one: '{count} bot', other: '{count} bots' },
   'settings.tab.import': 'Importar e backup',
   'import.hint':

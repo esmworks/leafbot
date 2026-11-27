@@ -2155,10 +2155,6 @@ export const uk: Partial<Catalog<MessageKey>> = {
     'Видалити всі нотатки ({count}), якими не користується жоден бот? Це не можна скасувати.',
   'routines.empty': 'Рутин немає. Додати можна з правої панелі бота.',
   'routines.lastRun': 'востаннє {when}',
-  'groups.hint':
-    'Групи впорядковують бічну панель і дають своїм ботам спільну теку. Усі боти можуть писати одне одному.',
-  'groups.placeholder': 'Назва нової групи',
-  'groups.empty': 'Груп немає.',
   'groups.count': { one: '{count} бот', few: '{count} боти', many: '{count} ботів', other: '{count} боти' },
   'settings.tab.import': 'Імпорт і резервна копія',
   'import.hint':

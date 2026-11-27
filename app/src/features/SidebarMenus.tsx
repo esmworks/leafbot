@@ -295,6 +295,7 @@ export function GroupMenu({
   };
 
   const manages = useManagesServer();
+  const openSettings = useUi((s) => s.openSettings);
   const pause = usePauseActions();
   const togglePause = () => {
     const paused = !group.pausedAt;
@@ -368,6 +369,16 @@ export function GroupMenu({
                 <ArrowDown /> {t('sidebarMenu.moveDown')}
               </ContextMenuItem>
             </>
+          )}
+          {space && manages && (
+            <ContextMenuItem
+              onSelect={() => {
+                dialogNext.current = true;
+                openSettings('groups');
+              }}
+            >
+              <Settings2 /> {t('spaces.settingsItem')}
+            </ContextMenuItem>
           )}
           {manages && (
             <ContextMenuItem onSelect={togglePause}>

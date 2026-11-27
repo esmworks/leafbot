@@ -2013,10 +2013,6 @@ export const vi: Partial<Catalog<MessageKey>> = {
   'memory.staleDeleteAllConfirm': 'Xóa tất cả {count} ghi chú không bot nào dùng? Không thể hoàn tác.',
   'routines.empty': 'Chưa có quy trình nào. Bạn có thể thêm một quy trình từ bảng bên phải của một bot.',
   'routines.lastRun': 'gần nhất {when}',
-  'groups.hint':
-    'Nhóm sắp xếp thanh bên và cho các bot của nhóm một thư mục chung. Mọi bot đều ghi được cho nhau.',
-  'groups.placeholder': 'Tên nhóm mới',
-  'groups.empty': 'Chưa có nhóm nào.',
   'groups.count': { other: '{count} bot' },
   'settings.tab.import': 'Nhập và sao lưu',
   'import.hint':

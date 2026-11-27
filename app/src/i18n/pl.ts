@@ -2150,10 +2150,6 @@ export const pl: Partial<Catalog<MessageKey>> = {
     'Skasować wszystkie notatki ({count}), których nie używa żaden bot? Tego nie da się cofnąć.',
   'routines.empty': 'Brak rutyn. Możesz dodać rutynę z prawego panelu bota.',
   'routines.lastRun': 'ostatnio {when}',
-  'groups.hint':
-    'Grupy porządkują panel boczny i dają swoim botom wspólny folder. Wszystkie boty mogą do siebie pisać.',
-  'groups.placeholder': 'Nazwa nowej grupy',
-  'groups.empty': 'Brak grup.',
   'groups.count': { one: '{count} bot', few: '{count} boty', many: '{count} botów', other: '{count} bota' },
   'settings.tab.import': 'Import i kopia zapasowa',
   'import.hint':

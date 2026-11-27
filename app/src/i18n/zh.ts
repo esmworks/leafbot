@@ -1922,9 +1922,6 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'memory.staleDeleteAllConfirm': '删除全部 {count} 条没有机器人使用的笔记？此操作无法撤销。',
   'routines.empty': '没有例程。可以从机器人的右侧面板添加。',
   'routines.lastRun': '上次 {when}',
-  'groups.hint': '分组用于整理侧边栏，并为其机器人提供共享文件夹。所有机器人之间都可以互相写入。',
-  'groups.placeholder': '新分组名称',
-  'groups.empty': '没有分组。',
   'groups.count': { other: '{count} 个机器人' },
   'settings.tab.import': '导入与备份',
   'import.hint':
