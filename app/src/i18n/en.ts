@@ -3090,6 +3090,8 @@ export const en: Catalog<MessageKey> = {
     'When the usage limit is used up, the model cannot answer or it is no longer offered, the work goes on with this model instead of waiting; it gets the recent conversation. While this is off no other model is used: the work waits and is sent again by itself once the limit resets.',
   'onboarding.noAi':
     'No AI is connected yet. The bots are created but cannot answer until you connect one under Settings → Connection.',
+  'onboarding.noAiMember':
+    'No AI is connected to this server yet. The bots are created but cannot answer until whoever looks after the server connects one.',
   'apps.open': 'Apps',
   'apps.title': 'Connect apps',
   'apps.subtitle': 'Connect services and MCP servers your bots can use.',

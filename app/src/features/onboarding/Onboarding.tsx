@@ -21,7 +21,7 @@ import { useLocale, useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { desktop, useDesktopServer } from '@/lib/desktop';
 import { newBotEngine } from '@/lib/new-bot';
-import { useProviders, useSettings } from '@/lib/queries';
+import { useManagesServer, useProviders, useSettings } from '@/lib/queries';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { ClaudeConnect, useClaudeState } from '../ClaudeConnect';
@@ -51,10 +51,13 @@ type EngineKind = 'claude' | 'pi';
 /**
  * First run on an empty server: a full-window page without the sidebar. It picks the language,
  * where the server runs (desktop app), how Claude signs in, the default model and effort, asks who
- * the person is, saves the answers to the profile and sets up starter bots from them.
+ * the person is, saves the answers to the profile and sets up starter bots from them. Someone
+ * invited to the server skips the AI and model steps: those set up the server for everyone, so
+ * only those who look after it may change them.
  */
 export function Onboarding({ onDone }: { onDone(): void }) {
   const t = useT();
+  const manages = useManagesServer();
   const [step, setStep] = useState<Step>('language');
   // The AI connected on the AI step; the model step asks for a model of that one.
   const [engine, setEngine] = useState<EngineKind>('claude');
@@ -84,8 +87,12 @@ export function Onboarding({ onDone }: { onDone(): void }) {
           {t('onboarding.skip')}
         </Button>
       </header>
-      {step === 'language' && <LanguageStep onNext={() => setStep(desktop?.openConnect ? 'server' : 'ai')} />}
-      {step === 'server' && <ServerStep onBack={() => setStep('language')} onNext={() => setStep('ai')} />}
+      {step === 'language' && (
+        <LanguageStep onNext={() => setStep(desktop?.openConnect ? 'server' : manages ? 'ai' : 'about')} />
+      )}
+      {step === 'server' && (
+        <ServerStep onBack={() => setStep('language')} onNext={() => setStep(manages ? 'ai' : 'about')} />
+      )}
       {step === 'ai' && (
         <AiStep
           onBack={() => setStep(desktop?.openConnect ? 'server' : 'language')}
@@ -758,9 +765,12 @@ function BotsStep({
   const t = useT();
   const selectBot = useUi((s) => s.selectBot);
   const { data: settings } = useSettings();
-  const { connected: claudeOk } = useClaudeState();
+  const manages = useManagesServer();
+  const { connected: claudeOk, unknown: claudeUnknown } = useClaudeState();
   const engine = newBotEngine(settings);
-  const ready = engine.engine === 'pi' || claudeOk;
+  // Only those who look after the server may check Claude, so for anyone else a status not yet
+  // checked is no sign that it does not work.
+  const ready = engine.engine === 'pi' || claudeOk || (!manages && claudeUnknown);
   const offered = suggestedStarters(answers.helpWith);
   const [chosen, setChosen] = useState<StarterId[]>(offered);
   const finish = useMutation({
@@ -797,7 +807,7 @@ function BotsStep({
           <p className="mt-2 text-sm text-muted-foreground">{t('onboarding.botsBody')}</p>
           {!ready && (
             <p className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
-              {t('onboarding.noAi')}
+              {t(manages ? 'onboarding.noAi' : 'onboarding.noAiMember')}
             </p>
           )}
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
