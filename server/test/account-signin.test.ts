@@ -14,6 +14,7 @@ const CODE = 'ABCDE-FGHJK-LMNPQ-RSTUV';
 function fakeAccount(opts: { name?: string; mailDown?: boolean; down?: boolean } = {}) {
   const calls: { path: string; body: Record<string, unknown> | null; auth: string | null }[] = [];
   let name = opts.name ?? '';
+  let signIns = 0;
   const fetcher = (async (input: string | URL | Request, init?: RequestInit) => {
     if (opts.down) throw new TypeError('fetch failed');
     const path = String(input).slice(ISSUER.length);
@@ -30,7 +31,11 @@ function fakeAccount(opts: { name?: string; mailDown?: boolean; down?: boolean }
       return opts.mailDown ? json(503, { error: 'mail_unavailable' }) : json(204, null);
     if (path === '/v1/auth/email/verify')
       return body?.code === '123456' && body.client === 'desktop'
-        ? json(200, { user: user(), sessionId: 'sess_00000001', token: 'desk-token-0000000000000000' })
+        ? json(200, {
+            user: user(),
+            sessionId: 'sess_00000001',
+            token: `desk-token-${String(signIns++).padStart(16, '0')}`,
+          })
         : json(400, { error: 'invalid_code' });
     if (path === '/v1/servers/install-codes') return json(201, { code: CODE, expiresAt: 0 });
     if (path === '/v1/host/claim')
@@ -55,7 +60,7 @@ describe('signing the owner in to their account from the app', () => {
     await t.dispose();
   });
 
-  const signIn = (account: ReturnType<typeof fakeAccount>) => {
+  const signIn = (account: ReturnType<typeof fakeAccount>, now?: () => number) => {
     const host = new AccountHost({
       db: t.services.ctx.db,
       vault: t.services.vault,
@@ -68,7 +73,7 @@ describe('signing the owner in to their account from the app', () => {
     return {
       host,
       links,
-      signIn: new AccountSignIn({ issuer: ISSUER, host, links, fetcher: account.fetcher }),
+      signIn: new AccountSignIn({ issuer: ISSUER, host, links, fetcher: account.fetcher, now }),
     };
   };
 
@@ -135,9 +140,36 @@ describe('signing the owner in to their account from the app', () => {
     expect(await s.signIn.setName('Ada')).toEqual({ name: 'Ada', savedToAccount: false });
     await expect(s.signIn.setName('   ')).rejects.toMatchObject({ status: 400 });
     expect(cleanName('A​da\n Lovelace')).toBe('Ada Lovelace');
+    // A space on each side of a removed character leaves one, not two.
+    expect(cleanName('Ada \u200b Lovelace')).toBe('Ada Lovelace');
     expect(cleanName('x'.repeat(81))).toBeNull();
     // The joiners Persian and Hindi names need stay.
     expect(cleanName('می\u200cخواهم')).toBe('می\u200cخواهم');
+  });
+
+  it('ends a sign-in that waited too long for the name, or that a newer one replaced', async () => {
+    let now = 1_000_000;
+    const account = fakeAccount();
+    const s = signIn(account, () => now);
+    await s.signIn.verify('ada@example.com', '123456');
+    await s.signIn.verify('ada@example.com', '123456');
+    const signouts = () => account.calls.filter((c) => c.path === '/v1/auth/signout').map((c) => c.auth);
+    expect(signouts()).toEqual(['Bearer desk-token-0000000000000000']);
+    now += 31 * 60_000;
+    expect(await s.signIn.setName('Ada')).toEqual({ name: 'Ada', savedToAccount: false });
+    expect(account.calls.some((c) => c.path === '/v1/me')).toBe(false);
+    expect(signouts()).toEqual(['Bearer desk-token-0000000000000000', 'Bearer desk-token-0000000000000001']);
+  });
+
+  it('lets the server go again and ends the sign-in when the owner cannot be linked here', async () => {
+    const account = fakeAccount({ name: 'Ada Lovelace' });
+    const s = signIn(account);
+    s.links.linkOwner = async () => {
+      throw new Error('disk full');
+    };
+    await expect(s.signIn.verify('ada@example.com', '123456')).rejects.toThrow('disk full');
+    expect(account.calls.at(-1)).toMatchObject({ path: '/v1/auth/signout' });
+    expect((await s.host.state()).linked).toBe(false);
   });
 
   it('lets only the owner sign the server in', async () => {

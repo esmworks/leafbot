@@ -28,9 +28,11 @@ export interface SignedIn {
 export function cleanName(raw: string): string | null {
   const name = raw
     .normalize('NFC')
-    .replace(/\s+/g, ' ')
-    // Formatting characters go, but the joiners some scripts (Persian, Hindi) need in names stay.
+    .replace(/\s/g, ' ')
+    // Formatting characters go, but the joiners some scripts (Persian, Hindi) need in names stay;
+    // spaces are folded after, so one that stood around a removed character is not left double.
     .replace(/(?![\u200c\u200d])[\p{Cc}\p{Cf}]/gu, '')
+    .replace(/ +/g, ' ')
     .trim();
   return name && name.length <= MAX_ACCOUNT_NAME ? name : null;
 }
@@ -43,7 +45,7 @@ export function cleanName(raw: string): string | null {
  * the server keeps only its own machine token, as when it is linked by hand.
  */
 export class AccountSignIn {
-  private pending: { token: string; until: number } | null = null;
+  private pending: { token: string; until: number; timer: ReturnType<typeof setTimeout> } | null = null;
   private fetcher: typeof fetch;
 
   constructor(
@@ -124,16 +126,25 @@ export class AccountSignIn {
       await this.end(token);
       throw e;
     }
-    await this.deps.links.linkOwner(user.id);
+    try {
+      await this.deps.links.linkOwner(user.id);
+    } catch (e) {
+      // Linked with no owner here, the account would reach the server as nobody: let it go again,
+      // so the app asks for the sign-in once more.
+      await this.end(token);
+      host = await this.deps.host.unlink().catch(() => host);
+      throw e;
+    }
+    // A sign-in still waiting for a name is replaced by this one.
+    await this.drop();
     const accountName = typeof user.name === 'string' ? user.name.trim() : '';
     if (accountName) {
-      await this.deps.links.useName(OWNER_ID, accountName);
-      await this.end(token);
-    } else {
-      // Kept for the name the app asks next; a newer sign-in takes its place.
-      if (this.pending) await this.end(this.pending.token);
-      this.pending = { token, until: this.now() + PENDING_MS };
-    }
+      try {
+        await this.deps.links.useName(OWNER_ID, accountName);
+      } finally {
+        await this.end(token);
+      }
+    } else this.hold(token);
     return { email: user.email, name: accountName, needsName: !accountName, host };
   }
 
@@ -145,18 +156,50 @@ export class AccountSignIn {
   async setName(raw: string): Promise<{ name: string; savedToAccount: boolean }> {
     const name = cleanName(raw);
     if (!name) throw new HttpError(400, 'error.accountNameInvalid');
-    const pending = this.pending && this.pending.until > this.now() ? this.pending : null;
-    this.pending = null;
+    const token = await this.take();
     let saved = false;
-    if (pending) {
-      const r = await this.call('/v1/me', { method: 'PATCH', body: { name }, token: pending.token }).catch(
-        () => null,
-      );
+    if (token) {
+      const r = await this.call('/v1/me', { method: 'PATCH', body: { name }, token }).catch(() => null);
       saved = r?.status === 200;
-      await this.end(pending.token);
+      await this.end(token);
     }
     await this.deps.links.useName(OWNER_ID, name, { always: true });
     return { name, savedToAccount: saved };
+  }
+
+  /**
+   * Keeps the account's sign-in for the name the app asks next, and ends it when no name comes in
+   * time, so it does not stay among the account's sign-ins. A restart forgets it; it then runs out
+   * on the account's side.
+   */
+  private hold(token: string) {
+    const timer = setTimeout(() => {
+      if (this.pending?.token !== token) return;
+      this.pending = null;
+      void this.end(token);
+    }, PENDING_MS);
+    timer.unref?.();
+    this.pending = { token, until: this.now() + PENDING_MS, timer };
+  }
+
+  /** The sign-in waiting for the name, while it is still good; an expired one is ended. */
+  private async take(): Promise<string | null> {
+    const p = this.pending;
+    if (!p) return null;
+    this.pending = null;
+    clearTimeout(p.timer);
+    if (p.until > this.now()) return p.token;
+    await this.end(p.token);
+    return null;
+  }
+
+  /** Ends the sign-in waiting for the name, if there is one. */
+  private async drop() {
+    const p = this.pending;
+    if (!p) return;
+    this.pending = null;
+    clearTimeout(p.timer);
+    await this.end(p.token);
   }
 
   /** Ends the account sign-in the server held; a failure only leaves it to run out by itself. */

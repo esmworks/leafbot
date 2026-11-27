@@ -108,6 +108,18 @@ describe('AccountLinks', () => {
     expect((await settingsOf(OWNER_ID)).userName).toBe('Ada K.');
   });
 
+  it('tells open apps when a name changed, and cuts a long one without splitting a character', async () => {
+    let told = 0;
+    const watched = new AccountLinks(t.services.ctx.db, () => told++);
+    const m = await watched.resolve(named('acct_member08', 'member', 'Ece'));
+    expect(told).toBe(1);
+    await watched.resolve(named('acct_member08', 'member', 'Ece'));
+    expect(told).toBe(1);
+    await watched.useName(m!.userId, `${'x'.repeat(79)}😀`);
+    expect((await t.auth.users.person(m!.userId))?.displayName).toBe('x'.repeat(79));
+    expect(told).toBe(2);
+  });
+
   it('moves the owner to the account that linked the server from here', async () => {
     await links.linkOwner('acct_owner009');
     expect(await links.resolve(claims('acct_owner009', 'owner'))).toEqual({ userId: OWNER_ID });

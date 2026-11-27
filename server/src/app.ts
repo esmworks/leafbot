@@ -579,11 +579,12 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
       webHost: 'www.leafbot.app',
     },
     rtc: opts.rtc ?? null,
+    onNameChanged: () => bus.refresh({ scope: 'info' }),
   });
   const accountSignIn = new AccountSignIn({
     issuer: config.account?.issuer ?? 'https://api.leafbot.app',
     host: accountHost,
-    links: new AccountLinks(db.db),
+    links: new AccountLinks(db.db, () => bus.refresh({ scope: 'info' })),
   });
 
   registerMcpServer(app, services);
