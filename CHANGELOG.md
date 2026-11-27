@@ -338,6 +338,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- A browser that reaches the relay while its server is restarting connects as soon as the server is back,
+  instead of after about 20 seconds. The relay drops what the browser sends while the server is away; the
+  offer was sent again once the server returned, but its network addresses were not, so the server could not
+  reach the browser and the attempt failed only when ICE gave up.
 - `docker/firewall.sh` removes the YUMAKBOT-EGRESS and YUMAKBOT-INPUT chains an install from before 0.7.0
   left on a host that has not restarted since. They held the same rules as the new chains, but undid the ports
   `HOST_PORTS` opens. They go only after the new chains are in place.

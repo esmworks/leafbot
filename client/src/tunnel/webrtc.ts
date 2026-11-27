@@ -105,6 +105,8 @@ export async function connectPeer(opts: ConnectOptions): Promise<Peer> {
       let ctl: RTCDataChannel | null = null;
       let offerSdp: string | null = null;
       const pendingCandidates: RTCIceCandidateInit[] = [];
+      // Everything this side found, sent again with the offer when the server comes back.
+      const ownCandidates: SignalInbound[] = [];
 
       const start = async (iceServers: IceServer[]) => {
         pc = new RTCPeerConnection({ iceServers });
@@ -113,7 +115,7 @@ export async function connectPeer(opts: ConnectOptions): Promise<Peer> {
         ctl = conn.createDataChannel(CHANNEL.ctl, { ordered: true });
         conn.addEventListener('icecandidate', (e) => {
           const c = e.candidate;
-          send({
+          const msg: SignalInbound = {
             type: 'ice-candidate',
             candidate: c
               ? {
@@ -123,7 +125,9 @@ export async function connectPeer(opts: ConnectOptions): Promise<Peer> {
                   usernameFragment: c.usernameFragment,
                 }
               : null,
-          });
+          };
+          ownCandidates.push(msg);
+          send(msg);
         });
         conn.addEventListener('connectionstatechange', () => {
           if (conn.connectionState === 'failed') fail('failed');
@@ -163,8 +167,13 @@ export async function connectPeer(opts: ConnectOptions): Promise<Peer> {
             if (!pc) void start(msg.iceServers).catch(() => fail('failed'));
             return;
           case 'host-online':
-            // The relay held the offer back while the server was away; send it again.
-            if (offerSdp) send({ type: 'offer', sdp: offerSdp });
+            // The relay dropped the offer and the candidates while the server was away (restarting, or
+            // gone without the relay noticing yet); both go again. Without the candidates the server
+            // knows no address of this browser, cannot let it through its TURN allocation, and the
+            // connection fails only when ICE gives up.
+            if (!offerSdp) return;
+            send({ type: 'offer', sdp: offerSdp });
+            for (const c of ownCandidates) send(c);
             return;
           case 'error':
             if (msg.code === 'host-offline') return; // The relay waits for it, up to its own limit.
