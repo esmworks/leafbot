@@ -240,7 +240,7 @@ function DesktopServerChoice() {
 }
 
 /** Before signing in the settings screen is out of reach, so the language is picked here. */
-function LanguageSwitch() {
+export function LanguageSwitch() {
   const t = useT();
   const locale = useLocale((s) => s.locale);
   const setLocale = useLocale((s) => s.setLocale);
