@@ -1,6 +1,6 @@
 import { lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { maskSecretShapes } from '@leafbot/shared';
+import { maskSecretShapes, type GrokChatReason } from '@leafbot/shared';
 
 /**
  * What the Grok Bot desktop app keeps on this computer that a move may use: the names of the bots
@@ -23,10 +23,6 @@ const ROSTER = 'roster.last-roster';
 const CHAT = 'transcript.replicas.';
 const MAX_SLICE_BYTES = 32 * 1024 * 1024;
 const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-
-/** Why a bot's chat did not come over. */
-export const GROK_CHAT_REASONS = ['noApp', 'noMatch', 'ambiguous', 'empty'] as const;
-export type GrokChatReason = (typeof GROK_CHAT_REASONS)[number];
 
 /** One line of a moved chat, in the app's order and time. */
 export interface GrokChatLine {

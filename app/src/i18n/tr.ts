@@ -2563,16 +2563,16 @@ export const tr = {
 
   'settings.tab.import': 'İçe aktarma ve yedek',
   'import.hint':
-    "Grok Bot'taki botlarınızı talimatları, rutinleri, hafızaları, becerileri ve gruplarıyla buraya taşıyın. Dosyadaki her şeyi kaydetmeden önce görürsünüz.",
+    "Grok Bot'taki botlarınızı talimatları, rutinleri, hafızaları, becerileri, grupları ve sohbetleriyle buraya taşıyın. Gelen her şeyi kaydetmeden önce görürsünüz.",
   'import.step1': "1. Grok Bot'ta dışa aktarın",
   'import.instructions': 'Dışa aktarma talimatı',
   'import.instructionsHint':
-    "Talimatı kopyalayıp Grok Bot'ta bir sohbete yapıştırın ya da skill olarak ekleyin; Grok Bot sizin için leafbot-bots.json dosyasını yazar.",
+    "Talimatı kopyalayıp Grok Bot'ta bir sohbete yapıştırın ya da skill olarak ekleyin; Grok Bot leafbot-bots.json dosyasını yazar ya da cevabına koyar.",
   'import.copy': 'Kopyala',
   'import.download': 'Talimatı indir',
   'import.copied': 'Talimat kopyalandı',
   'import.copyFailed': 'Talimat kopyalanamadı; indirip açın',
-  'import.step2': '2. Dosyayı seçin',
+  'import.step2': '2. Yazdığını geri getirin',
   'import.file': 'leafbot-bots.json',
   'import.fileHint': 'Önce neyin ekleneceğini gösteririz; onaylamadan hiçbir şey kaydedilmez.',
   'import.choose': 'Dosya seç',
@@ -2627,6 +2627,58 @@ export const tr = {
     'Bot yukarıdaki adı alır, açıklaması başlangıç talimatı olur. Asıl talimatlar, beceriler ve rutinler gelmez; kaydetmeden önce talimatı tamamlayın.',
   'import.link.startButton': 'Yeni bot',
   'import.warn.skill': '{bot}: "{skill}" becerisi alınmadı (adı ya da açıklaması geçersiz)',
+  'import.found': 'İndirilenler klasöründe bulundu: {names}',
+  'import.useFound': 'Bunları kullan',
+  'import.replyLabel': "Ya da Grok Bot'un cevabını yapıştırın",
+  'import.replyHint':
+    'Cevabın tamamını kopyalayıp buraya yapıştırın ya da yazdığı dosyayı buraya bırakın. Birkaç mesaja böldüyse hepsini art arda yapıştırın.',
+  'import.replyPlaceholder': 'Botun cevabının tamamı',
+  'import.readReply': 'Cevabı oku',
+  'import.from': 'Kaynak: {source}',
+  'import.fromLink': 'Grok Bot bağlantısı',
+  'import.chatsToo':
+    'Her botun son sohbeti de bu bilgisayardaki Grok Bot uygulamasından gelir ve ayrı bir sohbet olarak eklenir.',
+  'import.movedTitle': 'Taşınanlar',
+  'import.movedRoutines':
+    "Rutinler kapalı geldi. Her birini önce Grok Bot'ta kapatın, sonra burada açın; böylece iki kez çalışmazlar.",
+  'import.chat.loading': 'Sohbeti getiriliyor…',
+  'import.chat.came': { one: 'Sohbetinden {count} mesaj geldi', other: 'Sohbetinden {count} mesaj geldi' },
+  'import.chat.noApp': 'Sohbet gelmedi: Grok Bot uygulaması bu bilgisayarda yok.',
+  'import.chat.noMatch': 'Sohbet gelmedi: Grok Bot uygulamasında bu adla bir bot yok.',
+  'import.chat.ambiguous': 'Sohbet gelmedi: Grok Bot uygulamasında bu adla birden fazla bot var.',
+  'import.chat.empty': 'Sohbet gelmedi: Grok Bot uygulamasında bu bot için kayıtlı sohbet yok.',
+  'grokMove.offer.title': "Grok Bot'tan taşının",
+  'grokMove.offer.body': 'Botlarınızı becerileri, rutinleri, hafızaları ve sohbetleriyle buraya getirin.',
+  'grokMove.offer.start': 'Başlayalım',
+  'grokMove.offer.notNow': 'Şimdi değil',
+  'grokMove.copied': 'Kopyalandı',
+  'grokMove.copyFailed': 'Kopyalanamadı',
+  'grokMove.connect.title': "Grok Bot'u bağlayın",
+  'grokMove.connect.hint':
+    'Botlarınız kurulumlarını buraya kendileri gönderir, tek seferde. Ya da aşağıdaki iki adımı kullanın.',
+  'grokMove.connect.start': "Grok Bot'a yapıştıracağınız bağlantıyı alın",
+  'grokMove.connect.stopped':
+    "Bağlantı çalışmayı bıraktı. Yenisini alıp Grok Bot'ta eskisinin yerine yapıştırın.",
+  'grokMove.connect.private':
+    'Bağlantı bir saat ve Leaf Bot açık kaldığı sürece çalışır; ona sahip olan buraya bot gönderebilir, kimseyle paylaşmayın. Gelenler onaylayana kadar yalnızca bu sunucunun belleğinde durur.',
+  'grokMove.connect.get': 'Bağlantıyı al',
+  'grokMove.connect.unavailable': "Bu sunucu Grok Bot'a bağlantı açamıyor",
+  'grokMove.connect.unavailableHint':
+    "Bağlantı için ya sunucunun herkese açık bir adresi ya da bu bilgisayarda cloudflared programı gerekir (macOS'ta: brew install cloudflared). O zamana kadar aşağıdaki iki adım çalışır.",
+  'grokMove.connect.linkLabel': 'Grok Bot için bağlantı',
+  'grokMove.connect.copy': 'Kopyala',
+  'grokMove.connect.until': 'Şu saate kadar çalışır: {time}',
+  'grokMove.connect.where': "Grok Bot'ta ekleyin",
+  'grokMove.connect.whereHint':
+    "Grok Bot'ta uygulama bağlama ekranını açın, özel bağlayıcı ekleyin, adına Leaf Bot yazın ve bu bağlantıyı sunucu adresi olarak yapıştırın.",
+  'grokMove.connect.ask': 'Sonra botunuza şunu gönderin',
+  'grokMove.connect.askMessage':
+    "Leaf Bot bağlayıcısını kullanarak beni ve diğer botlarımı Leaf Bot'a taşı: önce get_export_instructions'ı oku, sonra her botu send_export ile gönder. Grok Bot'ta hiçbir şeyi değiştirme.",
+  'grokMove.connect.waiting': "Grok Bot'tan gelecekler bekleniyor…",
+  'grokMove.connect.arrived': "Grok Bot'tan geldi: {names}",
+  'grokMove.connect.use': 'Gözden geçir',
+  'grokMove.connect.endHint': 'İşiniz bitince bağlantıyı kapatın; gelenler de onunla gider.',
+  'grokMove.connect.end': 'Bağlantıyı kapat',
   'backup.title': 'Tam yedek',
   'backup.hint':
     'Bu sunucudaki her şey tek dosyada: botlar, sohbetler, hafıza, rutinler, beceriler, bağlantılar, botların dosyaları, kayıtlı girişler ve anahtarlar. Dosya burada seçtiğiniz şifreyle kilitlenir; şifre olmadan kimse açamaz, siz de; şifreyi güvenli bir yerde saklayın.',

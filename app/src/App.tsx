@@ -25,6 +25,7 @@ import { SearchDialog } from '@/features/SearchDialog';
 import { SettingsPage } from '@/features/SettingsPage';
 import { ShortcutsDialog } from '@/features/ShortcutsDialog';
 import { TodayDialog } from '@/features/TodayDialog';
+import { GrokMoveOffer } from '@/features/GrokMoveOffer';
 import { BoardDialog } from '@/features/board/BoardDialog';
 import { DashboardsDialog } from '@/features/DashboardsDialog';
 import { PageAppWindow } from '@/features/PageApps';
@@ -366,6 +367,7 @@ function Workspace() {
         <BoardDialog />
         <DashboardsDialog />
         <PageCallQuestion />
+        <GrokMoveOffer />
       </div>
       <SettingsPage />
     </>

@@ -243,3 +243,28 @@ export function botImportFromText(text: string): Record<string, unknown> {
 export function botImportNames(doc: Record<string, unknown>): string[] {
   return list(doc.bots).flatMap((b) => (isRecord(b) && typeof b.name === 'string' ? [b.name.trim()] : []));
 }
+
+/** What the server found of Grok Bot on the person's computer. */
+export interface GrokLook {
+  /** False when the server runs elsewhere, where neither can be looked for. */
+  onComputer: boolean;
+  /** Export files in Downloads, newest first. */
+  files: { name: string; modifiedAt: string; bots: string[] }[];
+  /** The bots the Grok Bot app lists here; null when the app is not on this computer. */
+  appBots: string[] | null;
+}
+
+/** The link Grok Bot sends bots over, and what has arrived on it. */
+export interface GrokMoveLink {
+  /** False where no link can be made: no public address and no `cloudflared` on this computer. */
+  available: boolean;
+  url: string | null;
+  expiresAt: string | null;
+  /** The link stopped working before the person ended it: its hour ran out, or the tunnel closed. */
+  stopped: boolean;
+  arrived: { seq: number; at: string; names: string[]; text: string }[];
+}
+
+/** Why a moved bot's chat did not come over from the Grok Bot app. */
+export type GrokChatReason = 'noApp' | 'noMatch' | 'ambiguous' | 'empty';
+export type GrokChatResult = { id: string } & ({ messages: number } | { reason: GrokChatReason });

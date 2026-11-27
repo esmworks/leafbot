@@ -16,12 +16,13 @@ import {
   type BotImportPlan,
   type BotImportResult,
   type BotImportWarning,
+  type GrokChatReason,
 } from '@leafbot/shared';
 import { and, asc, eq, inArray, isNull, max } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import { HttpError, newId } from '../util';
-import { readGrokChat, type GrokChatReason } from './grok-chat';
+import { readGrokChat } from './grok-chat';
 import { snapshotSteps } from './routine-steps';
 import type { SettingsService } from './settings';
 
