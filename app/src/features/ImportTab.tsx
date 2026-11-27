@@ -6,7 +6,7 @@ import {
   type BotImportResult,
   type GrokChatResult,
 } from '@leafbot/shared';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   ArchiveRestore,
   ClipboardPaste,
@@ -54,15 +54,19 @@ export function ImportTab() {
   /** The export being previewed, and where it came from (a file's name), if anywhere. */
   const [text, setText] = useState<string | null>(null);
   const [source, setSource] = useState<string | null>(null);
+  /** The last link arrival in the text being previewed, marked imported on the server after commit. */
+  const [linkUpTo, setLinkUpTo] = useState<number | null>(null);
   const [reply, setReply] = useState('');
   const [plan, setPlan] = useState<BotImportPlan | null>(null);
   const [moved, setMoved] = useState<{ names: string[]; chats: GrokChatResult[] } | null>(null);
+  const qc = useQueryClient();
   const look = useQuery({ queryKey: ['grok-look'], queryFn: api.grokLook, retry: false });
   const appBots = look.data?.appBots ?? null;
 
   const reset = () => {
     setText(null);
     setSource(null);
+    setLinkUpTo(null);
     setPlan(null);
     if (input.current) input.current.value = '';
   };
@@ -74,9 +78,10 @@ export function ImportTab() {
       toast.error((e as Error).message);
     },
   });
-  const read = (body: string, from: string | null) => {
+  const read = (body: string, from: string | null, upTo: number | null = null) => {
     setText(body);
     setSource(from);
+    setLinkUpTo(upTo);
     setPlan(null);
     setMoved(null);
     preview.mutate(body);
@@ -87,6 +92,12 @@ export function ImportTab() {
     onSuccess: async (result: BotImportResult) => {
       toast.success(t('import.done', { count: result.botIds.length }));
       const names = result.plan.bots.map((b) => b.name);
+      if (linkUpTo !== null) {
+        void api
+          .grokLinkImported(linkUpTo)
+          .then((state) => qc.setQueryData(['grok-link'], state))
+          .catch(() => {});
+      }
       reset();
       setReply('');
       setMoved({ names, chats: [] });
@@ -135,7 +146,11 @@ export function ImportTab() {
   return (
     <>
       <p className="mb-4 text-sm text-muted-foreground">{t('import.hint')}</p>
-      <GrokConnectCard disabled={busy} onArrived={(body) => read(body, t('import.fromLink'))} />
+      <GrokConnectCard
+        disabled={busy}
+        hosted={look.data?.onComputer === false}
+        onArrived={(body, upTo) => read(body, t('import.fromLink'), upTo)}
+      />
       <GrokLinkCard onCopy={(scope, intro) => void copyInstructions(scope, intro)} />
       <Card title={t('import.step1')}>
         <Row label={t('import.instructions')} hint={t('import.instructionsHint')}>

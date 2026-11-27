@@ -2570,14 +2570,16 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     }
   });
   app.delete('/api/import/grok/link', async () => moveLink.end());
-  // The arrivals up to `upTo` as one text for the preview; read once, so reopening the tab does
-  // not offer the same bots again.
-  app.post('/api/import/grok/link/take', async (req) => {
-    const { upTo } = z.object({ upTo: z.number().int().min(1) }).parse(req.body);
-    const text = moveLink.take(upTo);
+  // The arrivals up to `upTo` as one text for the preview; they stay offered until imported.
+  app.get('/api/import/grok/link/texts', async (req) => {
+    const { upTo } = z.object({ upTo: z.coerce.number().int().min(1) }).parse(req.query);
+    const text = moveLink.texts(upTo);
     if (text === null) throw new HttpError(404, 'error.moveUnavailable');
     return { text };
   });
+  app.post('/api/import/grok/link/imported', async (req) =>
+    moveLink.imported(z.object({ upTo: z.number().int().min(1) }).parse(req.body).upTo),
+  );
   // The link itself, where the server has a public address: its key is the only way in. A wrong
   // key is turned away before the body is read; on the right one only POST carries a message.
   const moveKey = async (req: FastifyRequest, reply: FastifyReply) => {

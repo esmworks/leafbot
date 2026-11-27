@@ -2716,6 +2716,8 @@ export const en: Catalog<MessageKey> = {
   'grokMove.connect.unavailable': 'This server cannot open a link for Grok Bot',
   'grokMove.connect.unavailableHint':
     'The link needs a public address for the server, or the cloudflared program on this computer (on macOS: brew install cloudflared). Until then the two steps below work.',
+  'grokMove.connect.unavailableHostedHint':
+    'The link needs a public address for this server (LEAFBOT_PUBLIC_URL), which whoever runs it can set. Until then the two steps below work.',
   'grokMove.connect.linkLabel': 'Link for Grok Bot',
   'grokMove.connect.copy': 'Copy',
   'grokMove.connect.until': 'Works until {time}',

@@ -64,7 +64,7 @@ export interface MoveLinkState {
   expiresAt: string | null;
   /** The link was made and stopped working before the person ended it. */
   stopped: boolean;
-  /** What arrived since the person last read it into the import, oldest first; texts are read apart. */
+  /** What arrived and was not imported yet, oldest first; texts are read apart. */
   arrived: Omit<MoveArrival, 'text'>[];
 }
 
@@ -130,7 +130,9 @@ export interface MoveLinkOptions {
 export class MoveLink {
   private link: Link | null = null;
   private stopped = false;
-  private starting: Promise<Link> | null = null;
+  private starting: Promise<void> | null = null;
+  /** Counts endings, so a start the person ended while it waited is not put in place after. */
+  private ended = 0;
   private seq = 0;
 
   constructor(private readonly o: MoveLinkOptions) {}
@@ -156,15 +158,23 @@ export class MoveLink {
   }
 
   /**
-   * What arrived up to `upTo` and was not read yet, as one text for the import's preview; marked
-   * read, so it is not offered again. Null when there is no link.
+   * What arrived up to `upTo` and was not imported yet, as one text for the import's preview. It
+   * stays offered until `imported` is told, so a preview left unconfirmed loses nothing. Null when
+   * there is no link.
    */
-  take(upTo: number): string | null {
+  texts(upTo: number): string | null {
     const link = this.link;
     if (!link) return null;
-    const fresh = link.arrivals.filter((a) => a.seq > link.read && a.seq <= upTo);
-    if (fresh.length) link.read = fresh.at(-1)!.seq;
-    return fresh.map((a) => a.text).join('\n\n');
+    return link.arrivals
+      .filter((a) => a.seq > link.read && a.seq <= upTo)
+      .map((a) => a.text)
+      .join('\n\n');
+  }
+
+  /** The arrivals up to `upTo` were imported: they are not offered again. */
+  imported(upTo: number): MoveLinkState {
+    if (this.link) this.link.read = Math.max(this.link.read, Math.min(upTo, this.seq));
+    return this.state();
   }
 
   /** The link to paste into Grok Bot: the one already made while it works, so pasting once is enough. */
@@ -173,15 +183,16 @@ export class MoveLink {
       if (!this.available()) return this.state();
       // Two asks at once share one start; the timer is armed only once the link works, so a failed
       // start leaves nothing behind to close a later link.
+      const ended = this.ended;
       this.starting ??= this.open()
         .then((link) => {
+          if (ended !== this.ended) return this.dispose(link);
           link.timer = setTimeout(() => {
             if (this.link === link) this.close(true);
           }, link.expiresAt - this.now);
           link.timer.unref?.();
           this.link = link;
           this.stopped = false;
-          return link;
         })
         .finally(() => (this.starting = null));
       await this.starting;
@@ -275,6 +286,7 @@ export class MoveLink {
   }
 
   private close(stopped: boolean) {
+    if (!stopped) this.ended++;
     const link = this.link;
     if (!link) return;
     this.link = null;

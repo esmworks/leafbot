@@ -178,10 +178,14 @@ describe('moving from Grok Bot', () => {
     );
     expect(state.body.arrived).toEqual([expect.objectContaining({ names: ['Trip Planner'] })]);
     expect(state.body.arrived[0]).not.toHaveProperty('text');
-    const taken = await t.api<{ text: string }>('POST', '/api/import/grok/link/take', {
-      upTo: state.body.arrived[0]!.seq,
-    });
-    expect(JSON.parse(taken.body.text)).toMatchObject({ bots: [{ ref: 'trip-planner' }] });
-    expect((await t.api<{ arrived: unknown[] }>('GET', '/api/import/grok/link')).body.arrived).toEqual([]);
+    const upTo = state.body.arrived[0]!.seq;
+    const texts = await t.api<{ text: string }>('GET', `/api/import/grok/link/texts?upTo=${upTo}`);
+    expect(JSON.parse(texts.body.text)).toMatchObject({ bots: [{ ref: 'trip-planner' }] });
+    // Read but not imported: still offered, so a preview left unconfirmed loses nothing.
+    expect((await t.api<{ arrived: unknown[] }>('GET', '/api/import/grok/link')).body.arrived).toHaveLength(
+      1,
+    );
+    const done = await t.api<{ arrived: unknown[] }>('POST', '/api/import/grok/link/imported', { upTo });
+    expect(done.body.arrived).toEqual([]);
   });
 });

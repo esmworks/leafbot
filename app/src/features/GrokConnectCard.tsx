@@ -20,11 +20,17 @@ const KEY = ['grok-link'];
  */
 export function GrokConnectCard({
   disabled,
+  hosted,
   onArrived,
 }: {
   disabled: boolean;
-  /** The arrived documents as one text, to preview as a pasted reply would be. */
-  onArrived: (text: string) => void;
+  /** The server is not on the person's computer, so only a public address can make the link. */
+  hosted: boolean;
+  /**
+   * The arrived documents as one text, to preview as a pasted reply would be, and the last one's
+   * number, to tell the server once they are imported.
+   */
+  onArrived: (text: string, upTo: number) => void;
 }) {
   const t = useT();
   const fmt = useFormat();
@@ -43,13 +49,11 @@ export function GrokConnectCard({
     onError: (e) => toast.error((e as Error).message),
   });
   const end = useMutation({ mutationFn: api.endGrokLink, onSuccess: set });
-  // The server marks what is read, so the same bots are not offered again, here or after a reload.
+  // Only read here; the import tells the server once the bots are in, so a preview left
+  // unconfirmed is offered again.
   const take = useMutation({
-    mutationFn: api.takeGrokLink,
-    onSuccess: ({ text }) => {
-      if (text) onArrived(text);
-      void qc.invalidateQueries({ queryKey: KEY });
-    },
+    mutationFn: api.grokLinkTexts,
+    onSuccess: ({ text }, upTo) => text && onArrived(text, upTo),
     onError: (e) => toast.error((e as Error).message),
   });
   const link = state.data;
@@ -64,7 +68,10 @@ export function GrokConnectCard({
     <Card title={t('grokMove.connect.title')}>
       <p className="px-4 pt-3 text-xs text-muted-foreground">{t('grokMove.connect.hint')}</p>
       {!link.available ? (
-        <Row label={t('grokMove.connect.unavailable')} hint={t('grokMove.connect.unavailableHint')} />
+        <Row
+          label={t('grokMove.connect.unavailable')}
+          hint={t(hosted ? 'grokMove.connect.unavailableHostedHint' : 'grokMove.connect.unavailableHint')}
+        />
       ) : !link.url ? (
         <Row
           label={t(link.stopped ? 'grokMove.connect.stopped' : 'grokMove.connect.start')}

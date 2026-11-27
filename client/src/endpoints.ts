@@ -912,8 +912,10 @@ export function endpoints(send: Transport, base = '') {
       http.post<GrokChatResult[]>('/api/import/grok/chats', { bots }),
     /** The link Grok Bot sends bots over, with what arrived after `after`. */
     grokLink: () => http.get<GrokMoveLink>('/api/import/grok/link'),
-    /** What arrived on the link up to `upTo`, as one text; read once. */
-    takeGrokLink: (upTo: number) => http.post<{ text: string }>('/api/import/grok/link/take', { upTo }),
+    /** What arrived on the link up to `upTo` and is not imported yet, as one text. */
+    grokLinkTexts: (upTo: number) => http.get<{ text: string }>(`/api/import/grok/link/texts?upTo=${upTo}`),
+    /** What arrived up to `upTo` was imported, so it is not offered again. */
+    grokLinkImported: (upTo: number) => http.post<GrokMoveLink>('/api/import/grok/link/imported', { upTo }),
     openGrokLink: () => http.post<GrokMoveLink>('/api/import/grok/link'),
     endGrokLink: () => http.del<GrokMoveLink>('/api/import/grok/link'),
     /** Whether the server can turn speech into text (an OpenAI or Groq key is saved). */

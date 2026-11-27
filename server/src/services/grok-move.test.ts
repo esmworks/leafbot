@@ -1,6 +1,7 @@
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -74,12 +75,15 @@ describe('MoveLink', () => {
     const seen = link!.state();
     expect(seen.arrived.map((a) => a.names)).toEqual([['A'], ['B']]);
     expect(seen.arrived[0]).not.toHaveProperty('text');
-    // Read up to the first: only that one's text, and afterwards only the second is offered.
-    expect(JSON.parse(link!.take(seen.arrived[0]!.seq)!)).toMatchObject({ bots: [{ ref: 'a' }] });
-    expect(link!.state().arrived.map((a) => a.names)).toEqual([['B']]);
-    expect(link!.take(seen.arrived[1]!.seq)).toContain('"ref":"b"');
-    expect(link!.state().arrived).toEqual([]);
-    expect(link!.take(seen.arrived[1]!.seq)).toBe('');
+    // Read up to the first: only its text, and reading again gives it again until it is imported.
+    const first = link!.texts(seen.arrived[0]!.seq)!;
+    expect(JSON.parse(first)).toMatchObject({ bots: [{ ref: 'a' }] });
+    expect(link!.texts(seen.arrived[0]!.seq)).toBe(first);
+    expect(link!.state().arrived).toHaveLength(2);
+    expect(link!.imported(seen.arrived[0]!.seq).arrived.map((a) => a.names)).toEqual([['B']]);
+    expect(link!.texts(seen.arrived[1]!.seq)).toContain('"ref":"b"');
+    expect(link!.imported(99).arrived).toEqual([]);
+    expect(link!.texts(seen.arrived[1]!.seq)).toBe('');
     await client.close();
   });
 
@@ -171,6 +175,17 @@ describe('MoveLink', () => {
       link.end();
       await expect.poll(() => alive(pid), { timeout: 5000 }).toBe(false);
       await expect(fetch(local)).rejects.toThrow();
+    });
+
+    it('does not put in place a link ended while its tunnel was starting', async () => {
+      const bin = stub('sleep 1\necho "https://late-start.trycloudflare.com" >&2\nexec sleep 30');
+      link = tunnelLink(() => bin);
+      const starting = link.connect();
+      await expect.poll(() => existsSync(join(dir, 'pid'))).toBe(true);
+      link.end();
+      expect((await starting).url).toBeNull();
+      const pid = Number(readFileSync(join(dir, 'pid'), 'utf8'));
+      await expect.poll(() => alive(pid), { timeout: 5000 }).toBe(false);
     });
 
     it('fails a start whose tunnel stops, and opens the next one', async () => {

@@ -262,7 +262,7 @@ export interface GrokMoveLink {
   expiresAt: string | null;
   /** The link stopped working before the person ended it: its hour ran out, or the tunnel closed. */
   stopped: boolean;
-  /** What arrived and was not read into the import yet, oldest first; its text is read apart. */
+  /** What arrived and was not imported yet, oldest first; its text is read apart. */
   arrived: { seq: number; at: string; names: string[] }[];
 }
 

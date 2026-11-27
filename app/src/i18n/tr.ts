@@ -2665,6 +2665,8 @@ export const tr = {
   'grokMove.connect.unavailable': "Bu sunucu Grok Bot'a bağlantı açamıyor",
   'grokMove.connect.unavailableHint':
     "Bağlantı için ya sunucunun herkese açık bir adresi ya da bu bilgisayarda cloudflared programı gerekir (macOS'ta: brew install cloudflared). O zamana kadar aşağıdaki iki adım çalışır.",
+  'grokMove.connect.unavailableHostedHint':
+    'Bağlantı için bu sunucunun herkese açık bir adresi (LEAFBOT_PUBLIC_URL) gerekir; sunucuyu çalıştıran kişi bunu ayarlayabilir. O zamana kadar aşağıdaki iki adım çalışır.',
   'grokMove.connect.linkLabel': 'Grok Bot için bağlantı',
   'grokMove.connect.copy': 'Kopyala',
   'grokMove.connect.until': 'Şu saate kadar çalışır: {time}',
