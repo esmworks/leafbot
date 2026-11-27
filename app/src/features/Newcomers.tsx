@@ -1,14 +1,13 @@
 import type { PersonInfo } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { X } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { ActionCard, ActionCardCheck, ActionCardList } from '@/components/ui/action-card';
 import { personName } from '@/features/PeopleTab';
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { isSpace } from '@/lib/places';
 import { useGroups, useManagesServer } from '@/lib/queries';
-import './newcomer-card.css';
 
 /** Those who wait for their team spaces to be chosen; only those who look after the server ask. */
 export function useNewcomers() {
@@ -31,7 +30,7 @@ function readClosed(): string[] {
 
 /**
  * A card at the bottom right for each person who came and waits for their team spaces, over the
- * app of those who look after the server; its own dark colours keep it apart from the page. It stays until one of them chooses the spaces (even none),
+ * app of those who look after the server. It stays until one of them chooses the spaces (even none),
  * which places the person for everyone, or closes it, which puts it away on this device only; the
  * person is still listed in Today.
  */
@@ -77,67 +76,31 @@ function NewcomerCard({ person, onClose }: { person: PersonInfo; onClose: () => 
   const name = personName(person, t('people.owner'));
   const toggle = (id: string, on: boolean) => setChosen((c) => (on ? [...c, id] : c.filter((x) => x !== id)));
   return (
-    // The look of this card is adapted from Uiverse.io by iconicchandu
-    // (https://uiverse.io/iconicchandu/slimy-pug-17, MIT License, Copyright (c) iconicchandu);
-    // its styles and the notice are in newcomer-card.css.
-    <section
+    <ActionCard
       role="dialog"
       aria-label={t('newcomer.joined', { name })}
-      className="newcomer-card pointer-events-auto"
+      className="pointer-events-auto"
+      title={t('newcomer.joined', { name })}
+      description={spaces.length ? t('newcomer.choose') : t('newcomer.noSpaces')}
+      closeLabel={t('newcomer.close')}
+      onClose={onClose}
+      actionLabel={t('newcomer.done')}
+      onAction={() => place.mutate()}
+      busy={place.isPending}
     >
-      <div className="newcomer-card__border" aria-hidden />
-      <div className="newcomer-card__head">
-        <div className="min-w-0">
-          <span className="newcomer-card__title">{t('newcomer.joined', { name })}</span>
-          <p className="newcomer-card__paragraph">
-            {spaces.length ? t('newcomer.choose') : t('newcomer.noSpaces')}
-          </p>
-        </div>
-        <button
-          type="button"
-          className="newcomer-card__close"
-          onClick={onClose}
-          aria-label={t('newcomer.close')}
-          title={t('newcomer.close')}
-        >
-          <X className="size-4" />
-        </button>
-      </div>
-      <hr className="newcomer-card__line" />
       {spaces.length > 0 && (
-        <ul className="newcomer-card__list">
+        <ActionCardList>
           {spaces.map((g) => (
-            <li key={g.id}>
-              <label className="newcomer-card__item">
-                <input
-                  type="checkbox"
-                  className="sr-only"
-                  checked={chosen.includes(g.id)}
-                  onChange={(e) => toggle(g.id, e.target.checked)}
-                />
-                <span className="newcomer-card__check" aria-hidden>
-                  <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                      clipRule="evenodd"
-                      d="M12.416 3.376a.75.75 0 0 1 .208 1.04l-5 7.5a.75.75 0 0 1-1.154.114l-3-3a.75.75 0 0 1 1.06-1.06l2.353 2.353 4.493-6.74a.75.75 0 0 1 1.04-.207Z"
-                      fillRule="evenodd"
-                    />
-                  </svg>
-                </span>
-                <span className="newcomer-card__text min-w-0 truncate">{g.name}</span>
-              </label>
-            </li>
+            <ActionCardCheck
+              key={g.id}
+              checked={chosen.includes(g.id)}
+              onCheckedChange={(on) => toggle(g.id, on)}
+            >
+              {g.name}
+            </ActionCardCheck>
           ))}
-        </ul>
+        </ActionCardList>
       )}
-      <button
-        type="button"
-        className="newcomer-card__button"
-        disabled={place.isPending}
-        onClick={() => place.mutate()}
-      >
-        {t('newcomer.done')}
-      </button>
-    </section>
+    </ActionCard>
   );
 }

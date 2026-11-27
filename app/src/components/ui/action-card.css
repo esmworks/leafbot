@@ -17,16 +17,17 @@
  * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
- * The box that asks which team spaces someone new goes into (Newcomers.tsx). Its own dark
- * colours in both themes, so it stands apart from the page under it. The class names carry the
- * newcomer-card prefix so they cannot meet the app's own.
+ * The card for a question that waits on the person (action-card.tsx), turned to the app's green
+ * (#2b8152); the original's colours were blue (hue 189). Its own dark colours in both themes, so
+ * it stands apart from the page under it. The class names carry the action-card prefix so they
+ * cannot meet the app's own.
  */
-.newcomer-card {
-  --nc-white: hsl(0, 0%, 100%);
-  --nc-black: hsl(240, 15%, 9%);
-  --nc-paragraph: hsl(0, 0%, 83%);
-  --nc-line: hsl(240, 9%, 17%);
-  --nc-primary: hsl(189, 92%, 58%);
+.action-card {
+  --ac-white: hsl(0, 0%, 100%);
+  --ac-black: hsl(155, 25%, 7%);
+  --ac-paragraph: hsl(0, 0%, 83%);
+  --ac-line: hsl(150, 12%, 18%);
+  --ac-primary: hsl(145, 55%, 55%);
 
   position: relative;
 
@@ -37,21 +38,21 @@
   padding: 1rem;
   width: 19rem;
   max-width: 100%;
-  background-color: hsla(240, 15%, 9%, 1);
+  background-color: hsla(155, 25%, 7%, 1);
   background-image:
-    radial-gradient(at 88% 40%, hsla(240, 15%, 9%, 1) 0px, transparent 85%),
-    radial-gradient(at 49% 30%, hsla(240, 15%, 9%, 1) 0px, transparent 85%),
-    radial-gradient(at 14% 26%, hsla(240, 15%, 9%, 1) 0px, transparent 85%),
-    radial-gradient(at 0% 64%, hsl(189, 99%, 26%) 0px, transparent 85%),
-    radial-gradient(at 41% 94%, hsl(189, 97%, 36%) 0px, transparent 85%),
-    radial-gradient(at 100% 99%, hsl(188, 94%, 13%) 0px, transparent 85%);
+    radial-gradient(at 88% 40%, hsla(155, 25%, 7%, 1) 0px, transparent 85%),
+    radial-gradient(at 49% 30%, hsla(155, 25%, 7%, 1) 0px, transparent 85%),
+    radial-gradient(at 14% 26%, hsla(155, 25%, 7%, 1) 0px, transparent 85%),
+    radial-gradient(at 0% 64%, hsl(147, 60%, 24%) 0px, transparent 85%),
+    radial-gradient(at 41% 94%, hsl(147, 50%, 34%) 0px, transparent 85%),
+    radial-gradient(at 100% 99%, hsl(150, 70%, 11%) 0px, transparent 85%);
 
   border-radius: 1rem;
   box-shadow: 0px -16px 24px 0px rgba(255, 255, 255, 0.25) inset;
 }
 
 /* The light running round the edge: a band turning behind the card, seen only on its rim. */
-.newcomer-card__border {
+.action-card__border {
   overflow: hidden;
   pointer-events: none;
 
@@ -68,7 +69,7 @@
   border-radius: 1rem;
 }
 
-.newcomer-card__border::before {
+.action-card__border::before {
   content: '';
   pointer-events: none;
 
@@ -83,46 +84,46 @@
   background-image: linear-gradient(
     0deg,
     hsla(0, 0%, 100%, 0) 0%,
-    hsl(189, 100%, 50%) 40%,
-    hsl(189, 100%, 50%) 60%,
+    hsl(145, 70%, 50%) 40%,
+    hsl(145, 70%, 50%) 60%,
     hsla(0, 0%, 40%, 0) 100%
   );
 
-  animation: newcomer-card-rotate 8s linear infinite;
+  animation: action-card-rotate 8s linear infinite;
 }
 
-@keyframes newcomer-card-rotate {
+@keyframes action-card-rotate {
   to {
     transform: rotate(360deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .newcomer-card__border::before {
+  .action-card__border::before {
     animation: none;
   }
 }
 
-.newcomer-card__head {
+.action-card__head {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
 }
 
-.newcomer-card__title {
+.action-card__title {
   font-size: 1rem;
-  color: var(--nc-white);
+  color: var(--ac-white);
 }
 
 /* Larger than the original's 0.5rem: here it is the question the person answers, so it must read. */
-.newcomer-card__paragraph {
+.action-card__paragraph {
   margin-top: 0.25rem;
 
   font-size: 0.75rem;
-  color: var(--nc-paragraph);
+  color: var(--ac-paragraph);
 }
 
-.newcomer-card__close {
+.action-card__close {
   display: flex;
   flex-shrink: 0;
   justify-content: center;
@@ -132,31 +133,31 @@
   width: 1.75rem;
   height: 1.75rem;
 
-  color: var(--nc-paragraph);
+  color: var(--ac-paragraph);
   border-radius: 0.5rem;
   cursor: pointer;
 }
 
-.newcomer-card__close:hover {
-  color: var(--nc-white);
-  background-color: var(--nc-line);
+.action-card__close:hover {
+  color: var(--ac-white);
+  background-color: var(--ac-line);
 }
 
-.newcomer-card__line {
+.action-card__line {
   width: 100%;
   height: 0.1rem;
-  background-color: var(--nc-line);
+  background-color: var(--ac-line);
 
   border: none;
 }
 
-.newcomer-card__list {
+.action-card__list {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
 }
 
-.newcomer-card__item {
+.action-card__item {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -165,7 +166,7 @@
 }
 
 /* A space not chosen yet shows the ring of the check; choosing it fills the ring. */
-.newcomer-card__check {
+.action-card__check {
   display: flex;
   flex-shrink: 0;
   justify-content: center;
@@ -175,54 +176,54 @@
   height: 1rem;
   background-color: transparent;
 
-  border: 1px solid var(--nc-primary);
+  border: 1px solid var(--ac-primary);
   border-radius: 50%;
 }
 
-.newcomer-card__check svg {
+.action-card__check svg {
   width: 0.75rem;
   height: 0.75rem;
 
-  fill: var(--nc-black);
+  fill: var(--ac-black);
   visibility: hidden;
 }
 
-.newcomer-card__item input:checked + .newcomer-card__check {
-  background-color: var(--nc-primary);
+.action-card__item input:checked + .action-card__check {
+  background-color: var(--ac-primary);
 }
 
-.newcomer-card__item input:checked + .newcomer-card__check svg {
+.action-card__item input:checked + .action-card__check svg {
   visibility: visible;
 }
 
-.newcomer-card__item:has(input:focus-visible) .newcomer-card__check,
-.newcomer-card__close:focus-visible,
-.newcomer-card__button:focus-visible {
-  outline: 2px solid var(--nc-primary);
+.action-card__item:has(input:focus-visible) .action-card__check,
+.action-card__close:focus-visible,
+.action-card__button:focus-visible {
+  outline: 2px solid var(--ac-primary);
   outline-offset: 2px;
 }
 
-.newcomer-card__text {
+.action-card__text {
   font-size: 0.75rem;
-  color: var(--nc-white);
+  color: var(--ac-white);
 }
 
-.newcomer-card__button {
+.action-card__button {
   cursor: pointer;
 
   padding: 0.5rem;
   width: 100%;
-  background-image: linear-gradient(0deg, hsl(189, 92%, 58%), hsl(189, 99%, 26%) 100%);
+  background-image: linear-gradient(0deg, hsl(145, 55%, 55%), hsl(147, 60%, 24%) 100%);
 
   font-size: 0.75rem;
-  color: var(--nc-white);
+  color: var(--ac-white);
 
   border: 0;
   border-radius: 9999px;
-  box-shadow: inset 0 -2px 25px -4px var(--nc-white);
+  box-shadow: inset 0 -2px 25px -4px var(--ac-white);
 }
 
-.newcomer-card__button:disabled {
+.action-card__button:disabled {
   cursor: default;
   opacity: 0.6;
 }
