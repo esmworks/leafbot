@@ -148,12 +148,12 @@ describe('signing the owner in to their account from the app', () => {
 
   it('refuses the sign-in over the tunnel, even to the owner', async () => {
     for (const path of ['/api/account-host/email', '/api/account-host/verify', '/api/account-host/name']) {
-      const status = await new Promise<number>((resolve, reject) => {
+      const res = await new Promise<{ status: number; body: string }>((resolve, reject) => {
         const req = request(
           {
             method: 'POST',
             path,
-            headers: { host: 'www.leafbot.app', 'content-type': 'application/json' },
+            headers: { host: 'www.leafbot.app', 'content-type': 'application/json', 'accept-language': 'en' },
             createConnection: () =>
               connectInProcess(t.app.server, {
                 userId: 'owner',
@@ -163,14 +163,20 @@ describe('signing the owner in to their account from the app', () => {
               }),
           },
           (r) => {
-            r.resume();
-            resolve(r.statusCode ?? 0);
+            let body = '';
+            r.setEncoding('utf8');
+            r.on('data', (c: string) => (body += c));
+            r.on('end', () => resolve({ status: r.statusCode ?? 0, body }));
           },
         );
         req.on('error', reject);
         req.end('{}');
       });
-      expect(status).toBe(403);
+      // Refused as a sign-in that has no place over the tunnel, not for a missing header.
+      expect(res.status).toBe(403);
+      expect(JSON.parse(res.body)).toEqual({
+        error: 'This way of signing in is not used while connected through your account',
+      });
     }
   });
 });

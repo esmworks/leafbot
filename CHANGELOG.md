@@ -27,7 +27,8 @@ version is 0.x, a minor release may change the data format or the API; the serve
   It is asked once: whether to ask is read from the server's own state, so a linked app opens while the account
   service cannot be reached. The account's name is kept with the account and carried in its tickets; the server
   calls the person by it, a person reaching a server through their account is no longer nameless there, and the
-  first-run questions start after the name when it is already known.
+  first-run questions start after the name when it is already known. An owner signed in this way is not asked to
+  make a username and password for the server.
 - `docker/firewall.sh` takes `HOST_PORTS` (such as `udp/3478 tcp/3478 udp/49152:65535`), ports on the host the
   containers may open connections to. A server on the same machine as its TURN server needs it: the firewall shuts
   the containers out of the host, so the server could not reach TURN and browsers could not reach the server.
