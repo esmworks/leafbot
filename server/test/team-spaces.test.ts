@@ -248,4 +248,80 @@ describe('ekip alanları', () => {
     expect((await t.api('POST', '/api/newcomers/yeni2', { spaceIds: [folder.id] })).status).toBe(400);
     expect(await waiting()).toContain('yeni2');
   });
+
+  it('açık alana kişi kendisi katılır ve ayrılır; gizli alanı dışarıdan bilemez', async () => {
+    const kisi = await t.person('katilan');
+    const open = (await t.api<Group>('POST', '/api/groups', { name: 'Açık alan', space: true, kind: 'open' }))
+      .body;
+    const secret = (await t.api<Group>('POST', '/api/groups', { name: 'Gizli alan', space: true })).body;
+    const bot = await t.bot({ name: 'Açık alanın botu' });
+    await t.api('POST', `/api/bots/${bot.id}/move`, { pinned: false, groupId: open.id, beforeId: null });
+    expect(await levelOf(kisi, bot.id)).toBe('none');
+
+    const joined = await kisi.api<{ state: string }>('POST', `/api/groups/${open.id}/join`, {});
+    expect(joined.body.state).toBe('joined');
+    expect(await levelOf(kisi, bot.id)).toBe('chat');
+    expect((await kisi.api('POST', `/api/groups/${open.id}/leave`, {})).status).toBe(200);
+    expect(await levelOf(kisi, bot.id)).toBe('none');
+    // A secret space answers as if it were not there; a folder is not a space to join.
+    expect((await kisi.api('POST', `/api/groups/${secret.id}/join`, {})).status).toBe(404);
+    const folder = (await kisi.api<Group>('POST', '/api/groups', { name: 'Kendi klasörüm' })).body;
+    expect((await kisi.api('POST', `/api/groups/${folder.id}/join`, {})).status).toBe(404);
+  });
+
+  it('kapalı alana katılma isteği yöneticiye gider; kabul edilince girer, reddedilince gider', async () => {
+    const kisi = await t.person('isteyen');
+    const closed = (
+      await t.api<Group>('POST', '/api/groups', { name: 'Kapalı alan', space: true, kind: 'closed' })
+    ).body;
+    const bot = await t.bot({ name: 'Kapalı alanın botu' });
+    await t.api('POST', `/api/bots/${bot.id}/move`, { pinned: false, groupId: closed.id, beforeId: null });
+    type Req = { id: string; groupId: string; userId: string };
+    const requests = async () => (await t.api<Req[]>('GET', '/api/space-requests')).body;
+    const mine = async () =>
+      (await kisi.api<Group[]>('GET', '/api/groups')).body.find((g) => g.id === closed.id);
+
+    const asked = await kisi.api<{ state: string }>('POST', `/api/groups/${closed.id}/join`, {});
+    expect(asked.body.state).toBe('requested');
+    expect(await levelOf(kisi, bot.id)).toBe('none');
+    expect((await mine())?.requested).toBe(true);
+    // Asking twice keeps one request; only those who look after the server see them.
+    await kisi.api('POST', `/api/groups/${closed.id}/join`, {});
+    expect((await requests()).filter((r) => r.userId === 'isteyen')).toHaveLength(1);
+    expect((await kisi.api('GET', '/api/space-requests')).status).toBe(403);
+
+    // Denied: the request goes and nothing opens.
+    const first = (await requests()).find((r) => r.userId === 'isteyen')!;
+    expect((await t.api('POST', `/api/space-requests/${first.id}`, { decision: 'deny' })).status).toBe(200);
+    expect((await requests()).some((r) => r.userId === 'isteyen')).toBe(false);
+    expect((await mine())?.requested).toBeFalsy();
+    expect(await levelOf(kisi, bot.id)).toBe('none');
+
+    // Taken back by leaving, then asked again and let in.
+    await kisi.api('POST', `/api/groups/${closed.id}/join`, {});
+    await kisi.api('POST', `/api/groups/${closed.id}/leave`, {});
+    expect((await requests()).some((r) => r.userId === 'isteyen')).toBe(false);
+    await kisi.api('POST', `/api/groups/${closed.id}/join`, {});
+    const again = (await requests()).find((r) => r.userId === 'isteyen')!;
+    expect((await t.api('POST', `/api/space-requests/${again.id}`, { decision: 'allow' })).status).toBe(200);
+    expect(await levelOf(kisi, bot.id)).toBe('chat');
+    expect((await mine())?.memberIds).toContain('isteyen');
+    expect((await t.api('POST', `/api/space-requests/${again.id}`, { decision: 'allow' })).status).toBe(404);
+
+    // Someone who looks after the server joins a closed space at once.
+    const admin = await t.person('yonetici4', 'admin');
+    const direct = await admin.api<{ state: string }>('POST', `/api/groups/${closed.id}/join`, {});
+    expect(direct.body.state).toBe('joined');
+  });
+
+  it('yönetici kişiyi alana doğrudan eklerse bekleyen isteği kalkar', async () => {
+    const kisi = await t.person('bekleyen');
+    const closed = (
+      await t.api<Group>('POST', '/api/groups', { name: 'Kapalı alan 2', space: true, kind: 'closed' })
+    ).body;
+    await kisi.api('POST', `/api/groups/${closed.id}/join`, {});
+    await t.api('PUT', `/api/groups/${closed.id}/members`, { add: ['bekleyen'] });
+    const left = (await t.api<{ userId: string }[]>('GET', '/api/space-requests')).body;
+    expect(left.some((r) => r.userId === 'bekleyen')).toBe(false);
+  });
 });

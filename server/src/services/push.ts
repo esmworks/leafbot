@@ -380,6 +380,36 @@ export class PushService {
    * no notifications gets none; failures are logged, never thrown.
    */
   async newcomer(userId: string, except?: string): Promise<void> {
+    await this.toManagers('newcomer', userId, except, (t, name) => ({
+      title: t('push.newcomerTitle'),
+      body: name ? t('push.newcomer', { name }) : t('push.newcomerNameless'),
+      threadId: 'newcomer',
+      collapseId: `newcomer:${userId}`,
+      data: { kind: 'newcomer' },
+    }));
+  }
+
+  /** Tells those who look after the server that someone asks to join the closed space `space`. */
+  async spaceRequest(userId: string, space: string): Promise<void> {
+    await this.toManagers('space request', userId, undefined, (t, name) => ({
+      title: t('push.spaceRequestTitle'),
+      body: name ? t('push.spaceRequest', { name, space }) : t('push.spaceRequestNameless', { space }),
+      threadId: 'space-request',
+      collapseId: `space-request:${userId}:${space}`,
+      data: { kind: 'space-request' },
+    }));
+  }
+
+  /** A message about the person `userId` to the phones of those who look after the server. */
+  private async toManagers(
+    what: string,
+    userId: string,
+    except: string | undefined,
+    make: (
+      t: ReturnType<typeof translator>,
+      name: string | null | undefined,
+    ) => Parameters<PushService['send']>[1],
+  ): Promise<void> {
     try {
       const [person] = await this.ctx.db
         .select({ displayName: schema.users.displayName, username: schema.users.username })
@@ -394,19 +424,10 @@ export class PushService {
       const devices = (await this.liveDevices()).filter((d) => to.has(d.userId) && d.level !== 'off');
       const name = person?.displayName || person?.username;
       await Promise.all(
-        devices.map((d) => {
-          const t = translator(isLocale(d.locale) ? d.locale : 'tr');
-          return this.send(d, {
-            title: t('push.newcomerTitle'),
-            body: name ? t('push.newcomer', { name }) : t('push.newcomerNameless'),
-            threadId: 'newcomer',
-            collapseId: `newcomer:${userId}`,
-            data: { kind: 'newcomer' },
-          });
-        }),
+        devices.map((d) => this.send(d, make(translator(isLocale(d.locale) ? d.locale : 'tr'), name))),
       );
     } catch (err) {
-      console.warn('push newcomer', err);
+      console.warn(`push ${what}`, err);
     }
   }
 

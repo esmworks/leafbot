@@ -19,6 +19,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
   line in Today) to choose the team spaces the person goes into, and a notification on their phones. The box stays
   until one of them chooses, which takes it away for everyone, or closes it, which puts it away on that device only;
   the person stays listed in Today. Those already on the server are not asked about.
+- Anyone can join an open team space, or ask to join a closed one, under Settings → Spaces and folders, and leave a
+  space there or take back a request. Those who look after the server get the request as a box at the bottom right
+  (and a line in Today) to let the person in or decline, and a notification on their phones; they themselves join
+  any space at once. A secret space stays unknown to those outside it. A box closed on one device opens again from
+  Today.
 - A step that waits for someone's second yes is asked of them in a box at the bottom right too, with the bot, the
   step, who asked and who said yes first, and buttons to say yes or deny. Before, it was listed only in Today, and
   waited unseen until that was opened. Closing the box puts it away on that device; Today still lists it.

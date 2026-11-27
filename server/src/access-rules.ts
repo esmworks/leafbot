@@ -262,6 +262,11 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'POST /api/groups': 'self',
   'PATCH /api/groups/:id': 'self',
   'PUT /api/groups/:id/members': 'admin',
+  // Anyone joins an open space or asks to join a closed one; the route keeps secret ones unknown.
+  'POST /api/groups/:id/join': 'signedIn',
+  'POST /api/groups/:id/leave': 'signedIn',
+  'GET /api/space-requests': 'admin',
+  'POST /api/space-requests/:id': 'admin',
   'GET /api/newcomers': 'admin',
   'POST /api/newcomers/:id': 'admin',
   'POST /api/groups/:id/move': 'self',

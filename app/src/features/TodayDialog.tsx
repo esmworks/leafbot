@@ -10,7 +10,9 @@ import {
   Sparkles,
   UserPlus,
 } from 'lucide-react';
+import { useClosedCards } from '@/features/ActionCards';
 import { useNewcomers } from '@/features/Newcomers';
+import { useSpaceRequestTitle, useSpaceRequests } from '@/features/SpaceRequests';
 import { personName } from '@/features/PeopleTab';
 import { BotAvatar } from '@/components/BotAvatar';
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -48,6 +50,14 @@ export function TodayDialog() {
   const { data: summaries = [] } = useSummaries();
   const { data: bots = [] } = useBots();
   const newcomers = useNewcomers();
+  const spaceRequests = useSpaceRequests();
+  const requestTitle = useSpaceRequestTitle();
+  const reopen = useClosedCards((c) => c.reopen);
+  /** Brings a card back over the app, even one closed on this device, and steps aside for it. */
+  const back = (id: string) => {
+    reopen(id);
+    setOpen(false);
+  };
   const byId = new Map(bots.map((b) => [b.id, b]));
   const waiting = summaries.filter((s) => s.waiting);
   const { data: health = [] } = useRoutineHealth(open);
@@ -121,13 +131,23 @@ export function TodayDialog() {
                 <>
                   {/* Someone new waits for their team spaces; their card is at the bottom right. */}
                   {newcomers.map((p) => (
-                    <Item key={p.id} onClick={() => setOpen(false)}>
+                    <Item key={p.id} onClick={() => back(p.id)}>
                       <UserPlus className="size-4 shrink-0 text-muted-foreground" />
                       <span className="min-w-0 flex-1 truncate">
                         {t('newcomer.joined', { name: personName(p, t('people.owner')) })}
                       </span>
                       <span className="shrink-0 text-xs font-medium text-amber-600 dark:text-amber-400">
                         {t('newcomer.chooseShort')}
+                      </span>
+                    </Item>
+                  ))}
+                  {/* Someone asks to join a closed space; their card is at the bottom right too. */}
+                  {spaceRequests.map((r) => (
+                    <Item key={r.id} onClick={() => back(r.id)}>
+                      <UserPlus className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate">{requestTitle(r)}</span>
+                      <span className="shrink-0 text-xs font-medium text-amber-600 dark:text-amber-400">
+                        {t('spaceRequest.short')}
                       </span>
                     </Item>
                   ))}

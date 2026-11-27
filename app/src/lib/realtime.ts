@@ -131,6 +131,7 @@ function refresh(qc: QueryClient, e: RefreshScope) {
       break;
     case 'groups':
       inv('groups');
+      inv('space-requests');
       break;
     case 'rooms':
       inv('rooms');

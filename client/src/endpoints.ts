@@ -70,6 +70,8 @@ import type {
   PermissionRule,
   Approver,
   SecondYes,
+  SpaceJoin,
+  SpaceRequest,
   ProviderInfo,
   ModelInfo,
   CustomEndpointCreate,
@@ -484,6 +486,12 @@ export function endpoints(send: Transport, base = '') {
       http.post<PrivateBots>(`/api/people/${personId}/private-bots/pause`, { paused }),
     archivePrivateBots: (personId: string) =>
       http.post<PrivateBots>(`/api/people/${personId}/private-bots/archive`, {}),
+    joinSpace: (id: string) => http.post<SpaceJoin>(`/api/groups/${id}/join`, {}),
+    /** Leaves the space, or takes back the request to join it. */
+    leaveSpace: (id: string) => http.post<{ ok: true }>(`/api/groups/${id}/leave`, {}),
+    spaceRequests: () => http.get<SpaceRequest[]>('/api/space-requests'),
+    answerSpaceRequest: (id: string, decision: 'allow' | 'deny') =>
+      http.post<{ ok: true }>(`/api/space-requests/${id}`, { decision }),
     setSpaceMembers: (id: string, change: SpaceMembersChange) =>
       http.put<Group>(`/api/groups/${id}/members`, change),
     moveGroup: (id: string, to: GroupMove) => http.post<Group>(`/api/groups/${id}/move`, to),

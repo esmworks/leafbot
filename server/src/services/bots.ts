@@ -10,6 +10,7 @@ import {
   type Group,
   type GroupMove,
   type SpaceKind,
+  type SpaceRequest,
 } from '@leafbot/shared';
 import { and, asc, eq, inArray, isNotNull, isNull, max, or, sql } from 'drizzle-orm';
 import type { Ctx } from '../context';
@@ -439,6 +440,12 @@ export class BotService {
       for (const userId of change.add ?? []) {
         await tx.insert(schema.groupMembers).values({ groupId: id, userId }).onConflictDoNothing();
       }
+      // Someone put in the space no longer waits to join it.
+      if (change.add?.length) {
+        await tx
+          .delete(schema.spaceRequests)
+          .where(and(eq(schema.spaceRequests.groupId, id), inArray(schema.spaceRequests.userId, change.add)));
+      }
       if (change.remove?.length) {
         await tx
           .delete(schema.groupMembers)
@@ -450,6 +457,66 @@ export class BotService {
     this.ctx.bus.refresh({ scope: 'groups' });
     this.ctx.bus.refresh({ scope: 'bots' });
     return this.getGroup(id);
+  }
+
+  /**
+   * Asks to join a closed space for `userId`; true when the request is new, false when they had
+   * already asked.
+   */
+  async requestSpace(groupId: string, userId: string): Promise<boolean> {
+    const made = await this.ctx.db
+      .insert(schema.spaceRequests)
+      .values({ id: newId(), groupId, userId })
+      .onConflictDoNothing()
+      .returning({ id: schema.spaceRequests.id });
+    if (made.length) this.ctx.bus.refresh({ scope: 'groups' });
+    return made.length > 0;
+  }
+
+  /** Takes back the person's request to join a space, if they had one. */
+  async dropSpaceRequest(groupId: string, userId: string): Promise<void> {
+    const gone = await this.ctx.db
+      .delete(schema.spaceRequests)
+      .where(and(eq(schema.spaceRequests.groupId, groupId), eq(schema.spaceRequests.userId, userId)))
+      .returning({ id: schema.spaceRequests.id });
+    if (gone.length) this.ctx.bus.refresh({ scope: 'groups' });
+  }
+
+  /** The spaces the person asked to join and waits for. */
+  async requestedSpaces(userId: string): Promise<string[]> {
+    const rows = await this.ctx.db
+      .select({ groupId: schema.spaceRequests.groupId })
+      .from(schema.spaceRequests)
+      .where(eq(schema.spaceRequests.userId, userId));
+    return rows.map((r) => r.groupId);
+  }
+
+  /** Every request waiting to be answered, oldest first; a disabled person's wait unseen. */
+  async spaceRequests(): Promise<SpaceRequest[]> {
+    const rows = await this.ctx.db
+      .select({
+        id: schema.spaceRequests.id,
+        groupId: schema.spaceRequests.groupId,
+        userId: schema.spaceRequests.userId,
+        createdAt: schema.spaceRequests.createdAt,
+      })
+      .from(schema.spaceRequests)
+      .innerJoin(schema.users, eq(schema.users.id, schema.spaceRequests.userId))
+      .where(isNull(schema.users.disabledAt))
+      .orderBy(asc(schema.spaceRequests.createdAt));
+    return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+  }
+
+  /** Lets the person in (`allow`) or not; either way the request is answered and goes. */
+  async answerSpaceRequest(id: string, allow: boolean): Promise<void> {
+    const [row] = await this.ctx.db
+      .select()
+      .from(schema.spaceRequests)
+      .where(eq(schema.spaceRequests.id, id))
+      .limit(1);
+    if (!row) throw notFound('spaceRequest');
+    if (allow) await this.setSpaceMembers(row.groupId, { add: [row.userId] });
+    else await this.dropSpaceRequest(row.groupId, row.userId);
   }
 
   async renameGroup(id: string, name: string): Promise<Group> {

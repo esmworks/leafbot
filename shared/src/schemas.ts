@@ -92,6 +92,8 @@ export const Group = z.object({
   membersEdit: z.boolean().optional(),
   /** The people in a team space; empty for a folder. */
   memberIds: z.array(z.string()).optional(),
+  /** Whether the asking person asked to join this closed space and waits for an answer. */
+  requested: z.boolean().optional(),
   createdAt: z.string(),
 });
 export type Group = z.infer<typeof Group>;
@@ -361,6 +363,15 @@ export type GroupUpdate = z.infer<typeof GroupUpdate>;
 /** The team spaces those who look after the server put someone new in; none is a choice too. */
 export const NewcomerPlace = z.object({ spaceIds: z.array(z.string().min(1)).max(200) });
 export type NewcomerPlace = z.infer<typeof NewcomerPlace>;
+
+/** Someone asking to join a closed team space, for those who look after the server to answer. */
+export const SpaceRequest = z.object({ id: Id, groupId: Id, userId: Id, createdAt: z.string() });
+export type SpaceRequest = z.infer<typeof SpaceRequest>;
+export const SpaceRequestAnswer = z.object({ decision: z.enum(['allow', 'deny']) });
+export type SpaceRequestAnswer = z.infer<typeof SpaceRequestAnswer>;
+/** What joining a space came to: in at once (an open space), or asked and waiting (a closed one). */
+export const SpaceJoin = z.object({ state: z.enum(['joined', 'requested']) });
+export type SpaceJoin = z.infer<typeof SpaceJoin>;
 
 export interface PrivateBots {
   count: number;

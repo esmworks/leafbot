@@ -11,7 +11,7 @@ import { personName } from '@/features/PeopleTab';
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { isSpace } from '@/lib/places';
-import { useBots, useGroups, useManagesServer, usePeople } from '@/lib/queries';
+import { useBots, useGroups, useManagesServer, usePeople, useSession } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 
 const KINDS: SpaceKind[] = ['open', 'closed', 'secret'];
@@ -167,6 +167,7 @@ function SpaceRow({ space, manages }: { space: Group; manages: boolean }) {
     t('groups.count', { count }),
     t('spaces.memberCount', { count: members.length }),
     space.kind && t(`spaces.kind.${space.kind}`),
+    space.requested && t('spaces.asked'),
   ].filter(Boolean);
   return (
     <div className="px-4 py-3">
@@ -176,6 +177,7 @@ function SpaceRow({ space, manages }: { space: Group; manages: boolean }) {
           <div className="truncate text-sm">{space.name}</div>
           <div className="truncate text-xs text-muted-foreground">{summary.join(' · ')}</div>
         </div>
+        <Membership space={space} manages={manages} />
         {manages && (
           <>
             <Button
@@ -246,6 +248,60 @@ function SpaceRow({ space, manages }: { space: Group; manages: boolean }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * The person's own way in or out of a space: an open one is joined at once, a closed one is asked
+ * for (those who look after the server join it at once), and leaving takes back a request too.
+ */
+function Membership({ space, manages }: { space: Group; manages: boolean }) {
+  const t = useT();
+  const qc = useQueryClient();
+  const me = useSession().data?.user?.id;
+  const inSpace = !!me && !!space.memberIds?.includes(me);
+  const done = () => {
+    void qc.invalidateQueries({ queryKey: ['groups'] });
+    void qc.invalidateQueries({ queryKey: ['bots'] });
+  };
+  const join = useMutation({
+    mutationFn: () => api.joinSpace(space.id),
+    onSuccess: (r) => {
+      if (r.state === 'requested') toast.success(t('spaces.requestSent'));
+      done();
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+  const leave = useMutation({
+    mutationFn: () => api.leaveSpace(space.id),
+    onSuccess: done,
+    onError: (e) => toast.error((e as Error).message),
+  });
+  if (!me) return null;
+  const busy = join.isPending || leave.isPending;
+  if (inSpace) {
+    return (
+      <Button
+        variant="ghost"
+        className="rounded-full"
+        disabled={busy}
+        onClick={() => confirm(t('spaces.leaveConfirm', { name: space.name })) && leave.mutate()}
+      >
+        {t('spaces.leave')}
+      </Button>
+    );
+  }
+  if (space.requested) {
+    return (
+      <Button variant="ghost" className="rounded-full" disabled={busy} onClick={() => leave.mutate()}>
+        {t('spaces.takeBack')}
+      </Button>
+    );
+  }
+  return (
+    <Button variant="secondary" className="rounded-full" disabled={busy} onClick={() => join.mutate()}>
+      {space.kind === 'closed' && !manages ? t('spaces.ask') : t('spaces.join')}
+    </Button>
   );
 }
 

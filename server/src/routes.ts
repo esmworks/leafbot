@@ -46,6 +46,7 @@ import {
   GroupUpdate,
   SpaceMembersChange,
   NewcomerPlace,
+  SpaceRequestAnswer,
   MAX_BOT_IMPORT_BYTES,
   MemoryCreate,
   MemoryUpdate,
@@ -1315,8 +1316,15 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     return s.skills.get(p.id);
   });
 
-  // Each person sees the team spaces open to them and their own Private folders.
-  app.get('/api/groups', async (req) => (await s.bots.listGroups()).filter((g) => seesGroup(me(req), g)));
+  // Each person sees the team spaces open to them and their own Private folders, and which closed
+  // spaces they asked to join.
+  app.get('/api/groups', async (req) => {
+    const viewer = me(req);
+    const asked = new Set(await s.bots.requestedSpaces(viewer.userId));
+    return (await s.bots.listGroups())
+      .filter((g) => seesGroup(viewer, g))
+      .map((g) => (asked.has(g.id) ? { ...g, requested: true } : g));
+  });
   /** A group the person may change: a folder of their own, or a team space when they look after the server. */
   const ownGroup = async (req: FastifyRequest) => {
     const group = await s.bots.getGroup(IdParams.parse(req.params).id);
@@ -1348,6 +1356,46 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     );
     await placeChanged();
     return group;
+  });
+  /** A team space the asking person knows of; a secret one stays unknown to those outside it. */
+  const knownSpace = async (req: FastifyRequest) => {
+    const group = await s.bots.getGroup(IdParams.parse(req.params).id);
+    if (group.ownerUserId || !seesGroup(me(req), group)) throw notFound('group');
+    return group;
+  };
+  // An open space is joined at once; a closed one is asked for, and those who look after the server
+  // are told. They themselves join any space at once.
+  app.post('/api/groups/:id/join', async (req) => {
+    const viewer = me(req);
+    const group = await knownSpace(req);
+    if (group.memberIds?.includes(viewer.userId)) return { state: 'joined' as const };
+    if (group.kind === 'open' || canAdminister(viewer.role)) {
+      await s.bots.setSpaceMembers(group.id, { add: [viewer.userId] });
+      await placeChanged();
+      return { state: 'joined' as const };
+    }
+    if (await s.bots.requestSpace(group.id, viewer.userId)) {
+      void s.push.spaceRequest(viewer.userId, group.name);
+    }
+    return { state: 'requested' as const };
+  });
+  // Leaving takes back a request to join too.
+  app.post('/api/groups/:id/leave', async (req) => {
+    const viewer = me(req);
+    const group = await knownSpace(req);
+    await s.bots.dropSpaceRequest(group.id, viewer.userId);
+    if (group.memberIds?.includes(viewer.userId)) {
+      await s.bots.setSpaceMembers(group.id, { remove: [viewer.userId] });
+      await placeChanged();
+    }
+    return { ok: true };
+  });
+  app.get('/api/space-requests', async () => s.bots.spaceRequests());
+  app.post('/api/space-requests/:id', async (req) => {
+    const { decision } = SpaceRequestAnswer.parse(req.body);
+    await s.bots.answerSpaceRequest(IdParams.parse(req.params).id, decision === 'allow');
+    if (decision === 'allow') await placeChanged();
+    return { ok: true };
   });
   app.post('/api/groups/:id/move', async (req) =>
     s.bots.moveGroup((await ownGroup(req)).id, GroupMove.parse(req.body)),

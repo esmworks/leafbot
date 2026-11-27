@@ -63,6 +63,22 @@ export const groupMembers = pgTable(
   (t) => [primaryKey({ columns: [t.groupId, t.userId] }), index('group_members_user_idx').on(t.userId)],
 );
 
+/** Someone asking to join a closed team space, until one of those who look after the server answers. */
+export const spaceRequests = pgTable(
+  'space_requests',
+  {
+    id: text('id').primaryKey(),
+    groupId: text('group_id')
+      .notNull()
+      .references(() => groups.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: created(),
+  },
+  (t) => [uniqueIndex('space_requests_group_user_idx').on(t.groupId, t.userId)],
+);
+
 export const bots = pgTable('bots', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),

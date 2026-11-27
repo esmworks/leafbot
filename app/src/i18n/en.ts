@@ -2649,6 +2649,20 @@ export const en: Catalog<MessageKey> = {
     'No team space yet. Open one under Settings → Spaces and folders to share bots with them.',
   'newcomer.chooseShort': 'Choose their spaces',
   'newcomer.done': 'Done',
+  'spaces.join': 'Join',
+  'spaces.ask': 'Ask to join',
+  'spaces.asked': 'Request sent',
+  'spaces.takeBack': 'Take back request',
+  'spaces.leave': 'Leave',
+  'spaces.leaveConfirm':
+    'If you leave {name}, you can no longer talk with its bots; your conversations are kept. Leave?',
+  'spaces.requestSent':
+    'Your request went to those who look after the server. Once they let you in, the space’s bots show in the sidebar.',
+  'spaceRequest.title': '{name} asks to join {space}',
+  'spaceRequest.body': 'If you let them in, they can talk with the bots in it.',
+  'spaceRequest.allow': 'Let in',
+  'spaceRequest.deny': 'Decline',
+  'spaceRequest.short': 'Asks to join',
   'spaces.hint':
     'The bots in a team space are open to the people in it: they can talk with them. Folders only tidy your Private and share nothing with anyone.',
   'spaces.placeholder': 'New folder or space name',
