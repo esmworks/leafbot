@@ -7,10 +7,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
-import { useClaudeAuth, useInfo } from '@/lib/queries';
+import { useClaudeAuth, useInfo, usePeople } from '@/lib/queries';
 import { cn } from '@/lib/utils';
 
 type Method = 'token' | 'apiKey';
+
+/** Where Anthropic says which sign-ins products built on Claude Code may use. */
+const TERMS_URL = 'https://code.claude.com/docs/en/legal-and-compliance';
 
 /** The Claude status as one line: which sign-in the server uses and whether it works. */
 export function useClaudeState() {
@@ -37,6 +40,7 @@ export function ClaudeConnect({ checking = false }: { checking?: boolean }) {
   const t = useT();
   const qc = useQueryClient();
   const { loading, auth, connected, unknown, claude } = useClaudeState();
+  const { data: people } = usePeople();
   const [open, setOpen] = useState(false);
   const [other, setOther] = useState(false);
   const [method, setMethod] = useState<Method>('token');
@@ -82,6 +86,10 @@ export function ClaudeConnect({ checking = false }: { checking?: boolean }) {
           : t('claude.usingApiKey', { hint: auth.hint ?? '' })
         : t('claude.usingLogin');
   const pending = checking || unknown;
+  // Everyone's turns run on one subscription once others are on the server, which Anthropic's
+  // terms do not allow; the owner is told so and decides, nothing is stopped.
+  const sharedSubscription =
+    connected && auth?.kind !== 'apiKey' && (people?.filter((p) => !p.disabled).length ?? 0) > 1;
   const showForm = open || (!connected && !pending);
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -139,6 +147,36 @@ export function ClaudeConnect({ checking = false }: { checking?: boolean }) {
           </Button>
         )}
       </div>
+
+      {sharedSubscription && !checking && (
+        <div className="space-y-2 rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+          <p>{t('claude.sharedSubscription')}</p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <a
+              href={TERMS_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+            >
+              {t('claude.sharedTerms')} <ExternalLink className="size-3.5" />
+            </a>
+            {!open && (
+              <button
+                type="button"
+                className="text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                onClick={() => {
+                  setOpen(true);
+                  setOther(true);
+                  setMethod('apiKey');
+                  setResult(null);
+                }}
+              >
+                {t('claude.useApiKey')}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <ClaudeSignIn
