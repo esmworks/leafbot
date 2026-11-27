@@ -160,6 +160,7 @@ import { storageReport } from './storage';
 import { OWNER_ID } from './users';
 import { HttpError, notFound, truncate } from './util';
 import type { AccountHost } from './tunnel/host';
+import type { AccountSignIn } from './tunnel/signin';
 import { tunnelIdentity } from './tunnel/identity';
 import { atLeast, managesServer } from './services/access';
 import { findProjects, findSetup } from './services/setup-import';
@@ -201,6 +202,7 @@ interface Deps {
   services: Services;
   /** This server's link to a Leaf Bot account, through which browsers reach it. */
   accountHost: AccountHost;
+  accountSignIn: AccountSignIn;
   backup: BackupService;
   transcribe: TranscribeService;
   auth: Auth;
@@ -1492,6 +1494,22 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     return d.accountHost.link(code, name ?? '');
   });
   app.delete('/api/account-host', async () => d.accountHost.unlink());
+  // Signing the owner in to their account from the app, which links the server on the way.
+  app.post('/api/account-host/email', async (req, reply) => {
+    const { email } = z.object({ email: z.string().trim().min(3).max(254) }).parse(req.body);
+    await d.accountSignIn.start(email, pickLocale(req.headers['accept-language'], await s.settings.locale()));
+    return reply.code(204).send();
+  });
+  app.post('/api/account-host/verify', async (req) => {
+    const { email, code } = z
+      .object({ email: z.string().trim().min(3).max(254), code: z.string().trim().min(1).max(16) })
+      .parse(req.body);
+    return d.accountSignIn.verify(email, code);
+  });
+  app.post('/api/account-host/name', async (req) => {
+    const { name } = z.object({ name: z.string().max(200) }).parse(req.body);
+    return d.accountSignIn.setName(name);
+  });
 
   app.get('/api/tailscale', async () => s.tailscale.state());
   app.post('/api/tailscale', async (req) => {

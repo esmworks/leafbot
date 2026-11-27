@@ -74,6 +74,8 @@ import { PhoneBridge } from './phone/bridge';
 import { sweepUploads } from './uploads';
 import { HttpError } from './util';
 import { AccountHost } from './tunnel/host';
+import { AccountLinks } from './tunnel/links';
+import { AccountSignIn } from './tunnel/signin';
 import { tunnelIdentity } from './tunnel/identity';
 import type { RtcFactory } from './tunnel/signal';
 
@@ -139,7 +141,15 @@ const PUBLIC_API = new Set([
  * Routes that start a session of the server's own (a cookie) and so mean nothing over the tunnel,
  * where the account is the sign-in.
  */
-const TUNNEL_REFUSED = new Set(['/api/access', '/api/login', '/api/pair', '/api/account-host']);
+const TUNNEL_REFUSED = new Set([
+  '/api/access',
+  '/api/login',
+  '/api/pair',
+  '/api/account-host',
+  '/api/account-host/email',
+  '/api/account-host/verify',
+  '/api/account-host/name',
+]);
 /** Routes (as registered, not as a URL spells them) that need no access key or session. */
 const openRoute = (route: string) => PUBLIC_API.has(route) || route.startsWith(`${WEBHOOK_PATH}/`);
 
@@ -570,10 +580,16 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     },
     rtc: opts.rtc ?? null,
   });
+  const accountSignIn = new AccountSignIn({
+    issuer: config.account?.issuer ?? 'https://api.leafbot.app',
+    host: accountHost,
+    links: new AccountLinks(db.db),
+  });
 
   registerMcpServer(app, services);
   registerRoutes(app, {
     accountHost,
+    accountSignIn,
     services,
     transcribe: services.transcribe,
     backup: new BackupService(

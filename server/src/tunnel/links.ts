@@ -1,5 +1,5 @@
 import type { TicketClaims } from '@leafbot/shared/account';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { schema, type Db } from '../db';
 import { OWNER_ID } from '../users';
 import { newId } from '../util';
@@ -19,6 +19,60 @@ export class AccountLinks {
    * ticket's owner account is not the one already linked to the owner here.
    */
   async resolve(claims: TicketClaims): Promise<{ userId: string } | null> {
+    const found = await this.find(claims);
+    if (found && claims.name) await this.useName(found.userId, claims.name);
+    return found;
+  }
+
+  /**
+   * Links this server's owner to the account that just claimed it from here (the app's sign-in), so
+   * the owner is that account from its first visit on. An earlier owner account loses its link: the
+   * account service only lets the claim through for the server's owner there.
+   */
+  async linkOwner(accountUserId: string): Promise<void> {
+    await this.db.transaction(async (tx) => {
+      await tx.delete(schema.accountLinks).where(eq(schema.accountLinks.userId, OWNER_ID));
+      await tx.delete(schema.accountLinks).where(eq(schema.accountLinks.accountUserId, accountUserId));
+      await tx.insert(schema.accountLinks).values({ accountUserId, userId: OWNER_ID });
+    });
+  }
+
+  /**
+   * Calls a person by the name their account has. It replaces the name shown here, and the name they
+   * are called by too while that is unset or still the account's earlier name: a name someone typed
+   * here themselves stays. Written only when the account's name changed, as tickets come often.
+   */
+  async useName(userId: string, raw: string, opts: { always?: boolean } = {}): Promise<void> {
+    const name = raw.trim().slice(0, 80);
+    if (!name) return;
+    const [row] = await this.db
+      .select({ displayName: schema.users.displayName, profile: schema.users.profile })
+      .from(schema.users)
+      .where(eq(schema.users.id, userId))
+      .limit(1);
+    if (!row) return;
+    const called = typeof row.profile.userName === 'string' ? row.profile.userName : '';
+    // `always`: the person just typed it as their name, so it is what they are called here too.
+    const follows = opts.always || !called || called === row.displayName;
+    if (row.displayName === name && (!follows || called === name)) return;
+    await this.db
+      .update(schema.users)
+      .set({
+        displayName: name,
+        ...(follows
+          ? { profile: sql`${schema.users.profile} || ${JSON.stringify({ userName: name })}::jsonb` }
+          : {}),
+      })
+      .where(eq(schema.users.id, userId));
+    // The owner's own are also the server's, for what runs for nobody in particular.
+    if (follows && userId === OWNER_ID)
+      await this.db
+        .insert(schema.kv)
+        .values({ key: 'setting.userName', value: name })
+        .onConflictDoUpdate({ target: schema.kv.key, set: { value: name } });
+  }
+
+  private async find(claims: TicketClaims): Promise<{ userId: string } | null> {
     const role = claims.role;
     if (!role) return null;
     const [link] = await this.db
