@@ -64,6 +64,9 @@ export const tr = {
   'accountGate.name': 'Ad ve soyad',
   'accountGate.enterName': 'Adınızı yazın',
   'accountGate.continue': 'Devam',
+  'accountGate.offline':
+    'Leaf Bot hesabına şu an ulaşılamıyor. Onsuz devam edebilirsiniz; uygulama bir sonraki açılışta yeniden sorar.',
+  'accountGate.skip': 'Giriş yapmadan devam et',
   'login.useCode': 'Eşleştirme koduyla gir',
   'login.codeHint':
     'Oturumu açık bir cihazdan kod alın: Ayarlar → Bağlantı → Başka bir cihaz bağla. Kod bir kez ve beş dakika içinde çalışır.',

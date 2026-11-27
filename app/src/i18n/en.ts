@@ -62,6 +62,9 @@ export const en: Catalog<MessageKey> = {
   'accountGate.name': 'First and last name',
   'accountGate.enterName': 'Write your name',
   'accountGate.continue': 'Continue',
+  'accountGate.offline':
+    "The Leaf Bot account can't be reached right now. You can go on without it; the app asks again the next time it opens.",
+  'accountGate.skip': 'Go on without signing in',
   'login.useCode': 'Sign in with a pairing code',
   'login.codeHint':
     'Get a code on a device already signed in: Settings → Connection → Connect another device. It works once, within five minutes.',
