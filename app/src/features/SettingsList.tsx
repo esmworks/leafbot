@@ -63,11 +63,17 @@ export function Tag({ children }: { children: ReactNode }) {
   );
 }
 
-/** A heading over a group of rows, with room for something on its right. */
-export function Heading({ title, children }: { title: string; children?: ReactNode }) {
+/**
+ * A heading over a group of rows, with room for something on its right. It reads like a settings
+ * card's title: the title, then what the group is for.
+ */
+export function Heading({ title, hint, children }: { title: string; hint?: string; children?: ReactNode }) {
   return (
     <div className="mb-2 flex min-h-8 flex-wrap items-center justify-between gap-2 px-1">
-      <h3 className="text-sm font-medium text-muted-foreground">{title}</h3>
+      <div className="min-w-0 flex-1 space-y-1">
+        <h3 className="text-sm font-medium">{title}</h3>
+        {hint && <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p>}
+      </div>
       {children}
     </div>
   );
@@ -83,7 +89,6 @@ export function ListRow({
   status,
   tags,
   detail,
-  mono = false,
   onOpen,
 }: {
   name: string;
@@ -92,8 +97,6 @@ export function ListRow({
   tags?: ReactNode;
   /** A few words under the name; parts left empty are skipped. */
   detail: (string | null | undefined | false)[];
-  /** The words are an address. */
-  mono?: boolean;
   onOpen(): void;
 }) {
   return (
@@ -105,7 +108,7 @@ export function ListRow({
           {status}
           {tags}
         </span>
-        <span className={cn('block truncate text-xs text-muted-foreground', mono && 'font-mono')}>
+        <span className="block truncate text-xs text-muted-foreground">
           {detail.filter(Boolean).join(' · ')}
         </span>
       </span>

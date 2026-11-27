@@ -292,7 +292,7 @@ export function AddProviderForm({ onAdded }: { onAdded?: () => void }) {
             }}
             aria-label={t('provider.keyFor', { provider: providerName(current) })}
             placeholder={t('provider.keyFor', { provider: providerName(current) })}
-            className="h-10 min-w-56 flex-1 rounded-full px-4 font-mono"
+            className="h-10 min-w-56 flex-1 rounded-full px-4"
           />
           <Button type="submit" className="h-10 rounded-full" disabled={!key.trim() || save.isPending}>
             {save.isPending && <Loader2 className="animate-spin" />}
@@ -421,7 +421,7 @@ export function PlanSignIn({ plan, onDone }: { plan: (typeof PLANS)[number]; onD
               onChange={(e) => setPasted(e.target.value)}
               placeholder={t('provider.pastePlaceholder')}
               aria-label={t('provider.pastePlaceholder')}
-              className="h-10 min-w-56 flex-1 rounded-full px-4 font-mono"
+              className="h-10 min-w-56 flex-1 rounded-full px-4"
             />
             <Button type="submit" className="h-10 rounded-full" disabled={!pasted.trim() || paste.isPending}>
               {t('common.save')}
@@ -467,7 +467,7 @@ export function EndpointRow({ provider: p, plain = false }: { provider: Provider
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{p.custom!.name}</span>
-        <span className="block truncate font-mono text-xs text-muted-foreground">
+        <span className="block truncate text-xs text-muted-foreground">
           {p.custom!.baseUrl}
           {p.hint ? ` · ${p.hint}` : ''}
         </span>
@@ -561,7 +561,7 @@ export function EndpointEdit({ provider: p, onDone }: { provider: ProviderInfo; 
           onChange={(e) => setBaseUrl(e.target.value)}
           aria-label={t('provider.customUrl')}
           spellCheck={false}
-          className="h-10 min-w-56 flex-1 rounded-full px-4 font-mono"
+          className="h-10 min-w-56 flex-1 rounded-full px-4"
         />
       </div>
       <Input
@@ -571,7 +571,7 @@ export function EndpointEdit({ provider: p, onDone }: { provider: ProviderInfo; 
         placeholder={t('provider.customModelsEdit')}
         title={t('provider.customModelsEdit')}
         spellCheck={false}
-        className="h-10 rounded-full px-4 font-mono"
+        className="h-10 rounded-full px-4"
       />
       <div className="flex flex-wrap gap-2">
         <Input
@@ -581,7 +581,7 @@ export function EndpointEdit({ provider: p, onDone }: { provider: ProviderInfo; 
           onChange={(e) => setKey(e.target.value)}
           aria-label={t('provider.customKey')}
           placeholder={p.hint ? t('provider.customKeyKeep', { hint: p.hint }) : t('provider.customKey')}
-          className="h-10 min-w-40 flex-1 rounded-full px-4 font-mono"
+          className="h-10 min-w-40 flex-1 rounded-full px-4"
         />
         <Button type="button" variant="ghost" className="h-10 rounded-full" onClick={onDone}>
           {t('common.cancel')}
@@ -697,7 +697,7 @@ export function EndpointForm({
           aria-label={t('provider.customUrl')}
           placeholder={EXAMPLE_URL}
           spellCheck={false}
-          className="h-10 min-w-56 flex-1 rounded-full px-4 font-mono"
+          className="h-10 min-w-56 flex-1 rounded-full px-4"
         />
       </div>
       <div className="flex flex-wrap gap-2">
@@ -709,7 +709,7 @@ export function EndpointForm({
           onChange={(e) => setKey(e.target.value)}
           aria-label={t('provider.customKey')}
           placeholder={t('provider.customKey')}
-          className="h-10 min-w-40 flex-1 rounded-full px-4 font-mono"
+          className="h-10 min-w-40 flex-1 rounded-full px-4"
         />
         <Input
           value={models}
@@ -717,7 +717,7 @@ export function EndpointForm({
           aria-label={t('provider.customModels')}
           placeholder={t('provider.customModels')}
           spellCheck={false}
-          className="h-10 min-w-40 flex-1 rounded-full px-4 font-mono"
+          className="h-10 min-w-40 flex-1 rounded-full px-4"
         />
         <Button
           type="button"
@@ -884,7 +884,7 @@ export function ModelSearch({
         placeholder={placeholder ?? models[0]?.value ?? t('provider.model')}
         spellCheck={false}
         autoComplete="off"
-        className={cn('h-10 rounded-full px-4 pe-9 font-mono', className)}
+        className={cn('h-10 rounded-full px-4 pe-9', className)}
       />
       <ChevronDown className="pointer-events-none absolute top-1/2 end-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
       {open && (shown.length > 0 || q) && (
@@ -910,10 +910,10 @@ export function ModelSearch({
                   {m.name && m.name !== m.value ? (
                     <span className="flex min-w-0 flex-1 items-baseline gap-2">
                       <span className="truncate">{m.name}</span>
-                      <span className="truncate font-mono text-xs text-muted-foreground">{m.value}</span>
+                      <span className="truncate text-xs text-muted-foreground">{m.value}</span>
                     </span>
                   ) : (
-                    <span className="min-w-0 flex-1 truncate font-mono">{m.value}</span>
+                    <span className="min-w-0 flex-1 truncate">{m.value}</span>
                   )}
                   {m.value === value && <Check className="size-4 shrink-0 text-muted-foreground" />}
                 </li>

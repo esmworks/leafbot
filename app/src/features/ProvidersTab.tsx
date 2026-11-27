@@ -9,6 +9,7 @@ import {
 } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Check,
   ChevronDown,
   ChevronRight,
   ImageIcon,
@@ -262,7 +263,6 @@ function ConnectedRow({ provider: p }: { provider: ProviderInfo }) {
         models && t('provider.foundModels', { count: models.length }),
         bots > 0 && t('providers.bots', { count: bots }),
       ]}
-      mono={!!p.custom}
       onOpen={() => show(p.id)}
     />
   );
@@ -350,7 +350,7 @@ function Available({ find }: { find: string }) {
   if (!shown.length) return null;
   return (
     <section className="mb-6">
-      <Heading title={t('providers.available')} />
+      <Heading title={t('providers.available')} hint={t('keys.hint')} />
       <div className="divide-y rounded-2xl border bg-card/50">
         {shown.map((o) => (
           <OfferRow
@@ -378,7 +378,6 @@ function Available({ find }: { find: string }) {
           </button>
         )}
       </div>
-      <p className="mt-2 px-1 text-xs text-muted-foreground">{t('keys.hint')}</p>
     </section>
   );
 }
@@ -494,7 +493,7 @@ function KeyField({ id, onSaved }: { id: string; onSaved(): void }) {
           }}
           aria-label={t('provider.keyFor', { provider: providerName(id) })}
           placeholder={t('provider.keyFor', { provider: providerName(id) })}
-          className="h-10 min-w-56 flex-1 rounded-full px-4 font-mono"
+          className="h-10 min-w-56 flex-1 rounded-full px-4"
         />
         <Button type="submit" className="h-10 rounded-full" disabled={!key.trim() || save.isPending}>
           {save.isPending && <Loader2 className="animate-spin" />}
@@ -530,13 +529,11 @@ function NewBotsRow() {
     ref ?? (engine !== CLAUDE && splitPiModel(stored).provider === engine ? stored : `${engine}/`);
   const { data: models = [] } = useProviderModelInfo(engine === CLAUDE ? null : engine);
   const saved = engine !== CLAUDE && value === stored;
+  // Rows of the defaults card rather than one block, so the card's dividers separate the choice,
+  // the way to Claude's own model, the model field and the offer to move existing bots.
   return (
-    <div className="space-y-3 px-4 py-3">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="min-w-40 flex-1">
-          <div className="text-sm">{t('model.newBots')}</div>
-          <div className="text-xs text-muted-foreground">{t('model.newBotsHint')}</div>
-        </div>
+    <>
+      <Row label={t('model.newBots')} hint={t('model.newBotsHint')}>
         <Select
           value={engine}
           onValueChange={(v) => {
@@ -558,47 +555,54 @@ function NewBotsRow() {
             ))}
           </SelectContent>
         </Select>
-      </div>
+      </Row>
       {engine === CLAUDE ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="-ms-3 rounded-full text-muted-foreground"
-            onClick={() => show(CLAUDE)}
-          >
-            {t('providers.claudeModel')}
-            <ChevronRight className="rtl:-scale-x-100" />
-          </Button>
-          {!connected.length && (
-            <span className="text-xs text-muted-foreground">{t('providers.addFirst')}</span>
-          )}
-        </div>
+        <button type="button" onClick={() => show(CLAUDE)} className={cn(rowClass, 'hover:bg-accent/60')}>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm">{t('providers.claudeModel')}</span>
+            {!connected.length && (
+              <span className="block text-xs text-muted-foreground">{t('providers.addFirst')}</span>
+            )}
+          </span>
+          <ChevronRight className="size-4 shrink-0 text-muted-foreground rtl:-scale-x-100" />
+        </button>
       ) : (
-        <div className="space-y-2">
-          <div className="flex flex-wrap gap-2">
+        <div className="space-y-2 px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2">
             <ModelSearch
               value={splitPiModel(value).model}
               models={models.map((m) => ({ value: m.id, name: m.name }))}
               onChange={(m) => setRef(`${engine}/${m}`)}
             />
-            <Button
-              className="h-10 rounded-full"
-              onClick={() => pi.save.mutate(value)}
-              disabled={!isPiModel(value) || saved || pi.save.isPending}
-            >
-              {pi.save.isPending && <Loader2 className="animate-spin" />}
-              {pi.save.isPending ? t('claude.testing') : t('provider.tryAndSave')}
-            </Button>
+            {!saved && (
+              <Button
+                className="h-10 rounded-full"
+                onClick={() => pi.save.mutate(value)}
+                disabled={!isPiModel(value) || pi.save.isPending}
+              >
+                {pi.save.isPending && <Loader2 className="animate-spin" />}
+                {pi.save.isPending ? t('claude.testing') : t('provider.tryAndSave')}
+              </Button>
+            )}
           </div>
-          {saved && <p className="text-xs text-muted-foreground">{t('provider.inUse')}</p>}
+          {saved && <InUse text={t('provider.inUse')} />}
           {pi.error && (
             <p className="text-sm text-destructive">{t('provider.failed', { detail: pi.error })}</p>
           )}
         </div>
       )}
       {(engine === CLAUDE ? settings?.defaultEngine !== 'pi' : saved) && <MoveExistingBots />}
-    </div>
+    </>
+  );
+}
+
+/** Says the model in the field is the one saved, where a disabled save button would only look broken. */
+function InUse({ text }: { text: string }) {
+  return (
+    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <Check className="size-3.5 shrink-0" />
+      {text}
+    </p>
   );
 }
 
@@ -635,8 +639,7 @@ function MoveExistingBots() {
     if (window.confirm(text)) move.mutate();
   };
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/50 px-3 py-2">
-      <span className="text-xs text-muted-foreground">{t('model.moveExisting', { count })}</span>
+    <Row label={t('model.moveExisting', { count })}>
       <Button
         size="sm"
         variant="outline"
@@ -647,7 +650,7 @@ function MoveExistingBots() {
         {move.isPending && <Loader2 className="animate-spin" />}
         {t('model.moveButton')}
       </Button>
-    </div>
+    </Row>
   );
 }
 
@@ -775,27 +778,28 @@ function PiModelSetting({
       </div>
       {open && (
         <div className="space-y-2">
-          <PiModelPicker
-            value={value}
-            onChange={setRef}
-            empty={<p className="text-sm text-muted-foreground">{t('providers.addFirst')}</p>}
-          />
-          {hasProvider && (
-            <div className="flex items-center gap-3">
+          {/* The save sits beside the model while there is something to save; once saved, a quiet
+              line says so instead of a button that can no longer be pressed. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <PiModelPicker
+                value={value}
+                onChange={setRef}
+                empty={<p className="text-sm text-muted-foreground">{t('providers.addFirst')}</p>}
+              />
+            </div>
+            {hasProvider && value !== stored && (
               <Button
-                size="sm"
-                className="rounded-full"
+                className="h-10 rounded-full"
                 onClick={() => pi.save.mutate(value)}
-                disabled={!isPiModel(value) || value === stored || pi.save.isPending}
+                disabled={!isPiModel(value) || pi.save.isPending}
               >
                 {pi.save.isPending && <Loader2 className="animate-spin" />}
                 {pi.save.isPending ? t('claude.testing') : t('provider.tryAndSave')}
               </Button>
-              {stored && value === stored && (
-                <span className="text-xs text-muted-foreground">{t(inUse)}</span>
-              )}
-            </div>
-          )}
+            )}
+          </div>
+          {hasProvider && stored && value === stored && <InUse text={t(inUse)} />}
           {pi.error && (
             <p className="text-sm text-destructive">{t('provider.failed', { detail: pi.error })}</p>
           )}
@@ -1024,7 +1028,7 @@ function KeyPage({ provider: p }: { provider: ProviderInfo }) {
             <div className="flex min-h-14 flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
               <div className="min-w-40 flex-1">
                 <div className="text-sm">{t('provider.customUrl')}</div>
-                <div className="truncate font-mono text-xs text-muted-foreground">
+                <div className="truncate text-xs text-muted-foreground">
                   {p.custom.baseUrl}
                   {p.hint ? ` · ${p.hint}` : ''}
                 </div>
@@ -1222,7 +1226,7 @@ function ModelList({ provider: p }: { provider: ProviderInfo }) {
                     {isAdvisor && <Tag>{t('providers.role.advisor')}</Tag>}
                   </span>
                   {m.name !== m.id && (
-                    <span className="block truncate font-mono text-xs text-muted-foreground">{m.id}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{m.id}</span>
                   )}
                 </span>
                 {m.images && (
