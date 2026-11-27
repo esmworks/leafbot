@@ -321,8 +321,8 @@ export function SettingsPage() {
           {/* The title and the search stay put while the sections scroll under them: scrolled with
               the list, the title would slide in under the window buttons. */}
           <div className="flex shrink-0 flex-col gap-1 px-3">
-            {/* Room for the window buttons; empty in a browser. */}
-            <div className="window-drag h-12 shrink-0 phone:hidden" />
+            {/* Room for the window buttons in the desktop app; a browser has none to make room for. */}
+            <div className="window-drag h-3 shrink-0 frameless:h-12 phone:hidden" />
             {/* The title goes back as well as the arrow: it is the larger mark, and where a hand reaches for. */}
             <h1 className="flex shrink-0 pb-3 phone:pt-1">
               <Button
@@ -406,7 +406,7 @@ export function SettingsPage() {
               </h1>
             </div>
           ) : (
-            <div className="window-drag h-12 shrink-0" />
+            <div className="window-drag h-3 shrink-0 frameless:h-12" />
           )}
           {/* Keyed by the section, so another section starts at its top. */}
           <div
