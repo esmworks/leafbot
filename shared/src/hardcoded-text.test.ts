@@ -19,6 +19,7 @@ const PACKAGES = [
   'desktop/src',
   'computer/src',
   'mobile/src',
+  'extension/src',
 ];
 
 /** Files that hold the catalogs, or text no person reads. Each needs its reason. */
@@ -40,6 +41,7 @@ const ALLOWED = new Map<string, string>([
   ['app/src/i18n/zh.ts', 'Chinese catalog'],
   ['server/src/i18n.ts', 'server catalogs'],
   ['desktop/src/i18n.ts', 'desktop catalogs'],
+  ['extension/src/i18n.ts', 'Chrome extension catalogs'],
   ['mobile/src/i18n/tr.ts', 'Turkish catalog of the phone app'],
   ['mobile/src/i18n/en.ts', 'English catalog of the phone app'],
   ['mobile/src/i18n/de.ts', 'German catalog of the phone app'],

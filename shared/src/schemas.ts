@@ -438,6 +438,11 @@ export const SendMessage = z
     offline: z.boolean().optional(),
     /** Said aloud in a voice call: the answer is read aloud, so it is kept short and plain. */
     spoken: z.boolean().optional(),
+    /**
+     * Sent from the side panel of the person's Chrome while it shares that Chrome: the turn may
+     * then read its tabs (see `ChromeBridge`).
+     */
+    chrome: z.boolean().optional(),
   })
   .refine((m) => m.text.length > 0 || m.files.length > 0, {
     message: 'validation.emptyMessage',

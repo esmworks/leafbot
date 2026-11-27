@@ -6,6 +6,7 @@ packages:
   - desktop
   - computer
   - mobile
+  - extension
 allowBuilds:
   electron: true
   electron-winstaller: false

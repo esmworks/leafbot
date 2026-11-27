@@ -69,6 +69,7 @@ import { personCommandTools } from './person-commands';
 import { personComputerTools } from './person-computer';
 import { callTools } from './calls';
 import { personPhoneTools } from './person-phone';
+import { personBrowserTools } from './person-browser';
 import { handFiles, pageImageTool, sendFileTool, showPageTool } from './files';
 import { imageTool } from './images';
 import { videoTool } from './videos';
@@ -657,6 +658,8 @@ export type ToolName =
   | 'person_phone_calendar'
   | 'person_phone_contacts'
   | 'person_phone_location'
+  | 'person_browser_tabs'
+  | 'person_browser_read'
   | 'call_listen'
   | 'call_status'
   | 'call_stop';
@@ -3179,6 +3182,23 @@ export class ToolFactory {
           now: this.clock,
         }),
       );
+    }
+    // The person's own Chrome, through the extension's side panel: only in work their own message
+    // from that panel started (see `ChromeBridge`), in their own conversation, and not for a bot
+    // that may only read. The panel shares Chrome only while it is open with sharing on.
+    const chromes = this.ctx.chromes;
+    if (
+      chromes &&
+      writer &&
+      chromes.has(writer) &&
+      chromes.fromChrome(turn.id) &&
+      turn.source === 'user' &&
+      !team &&
+      !turn.guest &&
+      !turn.rehearsalId &&
+      bot.permissionMode !== 'readonly'
+    ) {
+      tools.push(...personBrowserTools({ def, t, chromes, person: writer, botName: bot.name }));
     }
     // Listening to a call in the bot's browser: the other people's voices go to the speech-to-text
     // service, so only in work the person's own message started, in their own conversation, and

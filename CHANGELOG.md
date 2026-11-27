@@ -38,6 +38,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
 - `docker/firewall.sh` takes `HOST_PORTS` (such as `udp/3478 tcp/3478 udp/49152:65535`), ports on the host the
   containers may open connections to. A server on the same machine as its TURN server needs it: the firewall shuts
   the containers out of the host, so the server could not reach TURN and browsers could not reach the server.
+- A Chrome extension (`extension/`, early): a side panel to talk to the bots beside any page. With sharing on, a
+  message written in the panel lets the bot list the open tabs and read the text of one, so a question about the page
+  in front needs no copying. Only turns started from the panel reach Chrome, the first read in each turn asks on a
+  card at every permission level, and each new site needs the person's own yes in Chrome. The server lets in
+  requests from the extension's own id only.
 - A coding agent bot's effort is now set as the agent's own thinking level, or the nearest level it has, when
   the agent offers one. The effort field shows for these bots too; an agent without such a setting ignores it.
 - Routines can have no schedule ("No schedule" under When). Such a routine runs only when one of its events

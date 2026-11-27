@@ -226,6 +226,7 @@ const SEND: Verb = ['göndermek', 'gönderebilir', 'göndermeyecek'];
 const STOP: Verb = ['durdurmak', 'durdurabilir', 'durdurmayacak'];
 const USE: Verb = ['kullanmak', 'kullanabilir', 'kullanmayacak'];
 const READ: Verb = ['okumak', 'okuyabilir', 'okumayacak'];
+const SEE: Verb = ['görmek', 'görebilir', 'görmeyecek'];
 const UPLOAD: Verb = ['yüklemek', 'yükleyebilir', 'yüklemeyecek'];
 const TURN_OFF: Verb = ['kapatmak', 'kapatabilir', 'kapatmayacak'];
 const DELETE: Verb = ['silmek', 'silebilir', 'silmeyecek'];
@@ -250,6 +251,11 @@ export const commandRulePattern = (command: string, cwd: string) =>
   `${PERSON_COMMAND_RUN}(${command} @ ${cwd})`;
 /** The name prefix of the tools that read the person's own phone. */
 export const PERSON_PHONE = 'person_phone_';
+/**
+ * The name prefix of the tools that read the person's own Chrome, through the extension's side
+ * panel. Like the phone, the first read in a turn asks at every level.
+ */
+export const PERSON_BROWSER = 'person_browser_';
 
 /** One action in both languages, before the bot's name is put in. */
 interface Phrase {
@@ -292,6 +298,18 @@ function phraseFor(name: string, input: Record<string, unknown>): Phrase {
     return {
       tr: ['telefonunun konumunu', 'telefonunun konumunu', READ],
       en: ['see where your phone is', 'see where your phone is'],
+    };
+  }
+  if (name === `${PERSON_BROWSER}tabs`) {
+    return {
+      tr: ['Chrome’da açık sekmeleri', 'Chrome’da açık sekmeleri', SEE],
+      en: ['see the tabs open in your Chrome', 'see the tabs open in your Chrome'],
+    };
+  }
+  if (name === `${PERSON_BROWSER}read`) {
+    return {
+      tr: ['Chrome’da açık bir sayfayı', 'bu sayfayı', READ],
+      en: ['read a page open in your Chrome', 'read this page'],
     };
   }
   if (name === 'call_listen') {

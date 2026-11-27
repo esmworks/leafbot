@@ -1,0 +1,7 @@
+{
+  "name": { "message": "Leaf Bot" },
+  "description": {
+    "message": "Leaf Bot botlarınla her sayfanın yanında konuş, seçtiğin sekmeleri okumalarına izin ver."
+  },
+  "open": { "message": "Leaf Bot’u aç" }
+}
