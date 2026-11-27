@@ -1717,6 +1717,9 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const id = IdParams.parse(req.params).id;
     const m = await s.threads.message(id);
     const source = await s.threads.get(m.threadId);
+    // A branch is a talk with the bot outside the room: someone put in a room talks there with a
+    // bot not shared with them, nowhere else.
+    if (source.kind === 'room') await s.access.requireBot(me(req), source.botId, 'chat');
     const t = await s.settings.translator();
     const title = t('thread.forkTitle', { title: source.title || t('thread.untitled') });
     return s.threads.fork(id, truncate(title, 120), me(req).userId);
@@ -1823,12 +1826,21 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     return s.rooms.create(body, me(req).userId);
   });
   app.get('/api/rooms/:id', async (req) => s.rooms.get(IdParams.parse(req.params).id));
+  /**
+   * Refuses anyone but whoever opened the room: an admin put in it only puts people in or takes
+   * them out, and may not see all of its bots to choose them again.
+   */
+  const ownRoom = async (req: FastifyRequest, id: string) => {
+    if ((await s.threads.row(id)).userId !== me(req).userId) throw new HttpError(403, 'error.roomOwnerOnly');
+  };
   app.patch('/api/rooms/:id', async (req) => {
+    await ownRoom(req, IdParams.parse(req.params).id);
     const body = RoomUpdate.parse(req.body);
     for (const botId of body.botIds ?? []) await s.access.requireBot(me(req), botId, 'chat');
     return s.rooms.update(IdParams.parse(req.params).id, body);
   });
   app.delete('/api/rooms/:id', async (req) => {
+    await ownRoom(req, IdParams.parse(req.params).id);
     await s.rooms.remove(IdParams.parse(req.params).id);
     return { ok: true };
   });
@@ -1875,6 +1887,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   }));
   // The room starts afresh for its bots; refused while one of them speaks or waits.
   app.post('/api/rooms/:id/reset', async (req) => {
+    await ownRoom(req, IdParams.parse(req.params).id);
     await s.rooms.reset(IdParams.parse(req.params).id, await s.settings.translator());
     return { ok: true };
   });
@@ -1891,7 +1904,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.post('/api/rooms/:id/meetings', async (req) => s.meetings.begin(await meetingRoom(req)));
   app.post('/api/rooms/:id/meetings/:meetingId/answer', async (req) => {
     const { id, meetingId } = MeetingParams.parse(req.params);
-    return s.meetings.answer(id, meetingId, MeetingAnswer.parse(req.body));
+    const answer = MeetingAnswer.parse(req.body);
+    // "Always" and "never" change how the room is set, which is its opener's to choose.
+    if (answer.answer === 'always' || answer.answer === 'never') await ownRoom(req, id);
+    return s.meetings.answer(id, meetingId, answer);
   });
   app.post('/api/rooms/:id/meetings/:meetingId/end', async (req) => {
     const { id, meetingId } = MeetingParams.parse(req.params);

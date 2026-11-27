@@ -29,6 +29,7 @@ import {
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { BotAvatar } from '@/components/BotAvatar';
+import { ActionCard } from '@/components/ui/action-card';
 import { Markdown } from '@/components/Markdown';
 import { Button } from '@/components/ui/button';
 import {
@@ -80,6 +81,39 @@ function useMembers(room: Room | undefined): BotFace[] {
         .map((id) => bots.find((b) => b.id === id) ?? room?.faces?.find((f) => f.id === id))
         .filter((b): b is BotFace => !!b),
     [room?.members, room?.faces, bots],
+  );
+}
+
+/** The rooms someone else opened and put the one signed in into. */
+export function useRoomsAddedTo(): Room[] {
+  const { data: rooms = [] } = useRooms();
+  const me = useSession().data?.user?.id;
+  return me ? rooms.filter((r) => r.ownerId && r.ownerId !== me) : [];
+}
+
+/** Tells someone they were put in a room, once on each device, with the way to it. */
+export function RoomAddedCard({ room, onClose }: { room: Room; onClose: () => void }) {
+  const t = useT();
+  const openRoom = useUi((s) => s.openRoom);
+  const { data: everyone = [] } = usePeople();
+  const opener = everyone.find((p) => p.id === room.ownerId);
+  return (
+    <ActionCard
+      role="dialog"
+      aria-label={t('room.addedTitle', { room: room.title })}
+      className="pointer-events-auto"
+      title={t('room.addedTitle', { room: room.title })}
+      description={t('room.addedBody', {
+        name: opener ? personName(opener, t('people.owner')) : t('room.someone'),
+      })}
+      closeLabel={t('actionCard.close')}
+      onClose={onClose}
+      actionLabel={t('room.addedOpen')}
+      onAction={() => {
+        openRoom(room.id);
+        onClose();
+      }}
+    />
   );
 }
 
@@ -564,17 +598,19 @@ export function RoomView({ room }: { room: Room }) {
     return () => ro.disconnect();
   }, []);
 
+  const writerOf = (m: Message) => m.userId ?? (room.people?.length ? null : (room.ownerId ?? me));
   /**
    * Whose words a row is: a bot's id, `user` for the one signed in, `person:<id>` for someone else
-   * in the room, or null for the room's own notes. A line with no person is the room's opener's.
+   * in the room, or null for the room's own notes. A line with no person is the opener's in a room
+   * of one; in a shared room it is someone no longer here.
    */
   const speakerOf = (m: Message) =>
     m.role === 'assistant' || m.role === 'approval' || (m.role === 'system' && m.author.startsWith('bot:'))
       ? m.author.slice(4)
       : m.role === 'user'
-        ? m.author !== 'user' || (m.userId ?? room.ownerId ?? me) === me
+        ? m.author !== 'user' || writerOf(m) === me
           ? 'user'
-          : `person:${m.userId ?? room.ownerId}`
+          : `person:${writerOf(m) ?? ''}`
         : null;
   const nameOf = (id: string) => {
     const p = everyone.find((x) => x.id === id);
@@ -757,7 +793,8 @@ function RoomHeader({ room, members }: { room: Room; members: BotFace[] }) {
   const meetingLive = room.meeting?.status === 'active';
   const { owner, manages } = useRoomRole(room);
   const [peopleOpen, setPeopleOpen] = useState(false);
-  // Only whoever opened the room changes its bots: an admin put in it may not see them all.
+  // Only whoever opened the room changes, resets or deletes it; an admin put in it chooses its
+  // people, and may not see all of its bots to choose them again.
   const openSettings = () =>
     owner ? openRoomDialog({ mode: 'edit', roomId: room.id }) : setPeopleOpen(true);
   const leave = useMutation({
@@ -838,7 +875,7 @@ function RoomHeader({ room, members }: { room: Room; members: BotFace[] }) {
               <DropdownMenuItem onClick={() => showMinutes(room.id)}>
                 <ClipboardList /> {t('meeting.list')}
               </DropdownMenuItem>
-              {manages && (
+              {owner && (
                 <DropdownMenuItem
                   disabled={reset.isPending}
                   onClick={() => confirm(t('room.resetConfirm')) && reset.mutate()}
@@ -854,7 +891,7 @@ function RoomHeader({ room, members }: { room: Room; members: BotFace[] }) {
                   <LogOut /> {t('room.leave')}
                 </DropdownMenuItem>
               )}
-              {manages && (
+              {owner && (
                 <DropdownMenuItem
                   className="text-destructive"
                   onClick={() => confirm(t('room.deleteConfirm', { name: room.title })) && remove.mutate()}

@@ -392,6 +392,7 @@ const tr = {
   'error.teamThreadManage': 'Ekip konuşmasını yalnızca botu değiştirebilenler düzenleyebilir ya da silebilir',
   'error.roomManage': 'Odayı yalnızca açan kişi ve odadaki yöneticiler değiştirebilir',
   'error.roomOwnerLeaves': 'Odayı açan kişi ayrılamaz; istersen odayı silebilirsin',
+  'error.roomOwnerOnly': 'Bunu yalnızca odayı açan kişi yapabilir',
   'error.slackToken':
     'Slack anahtarları geçerli görünmüyor: uygulama anahtarı xapp- ile, bot anahtarı xoxb- ile başlar',
   'error.slackRefused': 'Slack anahtarı kabul etmedi ({reason})',
@@ -2921,6 +2922,7 @@ const en: Catalog<ServerKey> = {
   'error.teamThreadManage': 'Only those who may change the bot can edit or delete a team conversation',
   'error.roomManage': 'Only whoever opened the room and the admins in it can change it',
   'error.roomOwnerLeaves': 'Whoever opened the room cannot leave it; they can delete it instead',
+  'error.roomOwnerOnly': 'Only whoever opened the room can do this',
   'error.slackToken':
     "The Slack tokens don't look right: the app token starts with xapp-, the bot token with xoxb-",
   'error.slackRefused': 'Slack did not accept the token ({reason})',

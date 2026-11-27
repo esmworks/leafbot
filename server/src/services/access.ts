@@ -411,13 +411,14 @@ export class AccessService {
 
   /**
    * The cards a person may answer, as a condition on approvals joined with their conversation: in a
-   * team conversation only the one whose request asked and those who may change the bot answer, so
-   * the others are not listed a card they would be refused.
+   * team conversation (or a room more than one person is in) only the one whose request asked and
+   * those who may change the card's bot answer, so the others are not listed a card they would be
+   * refused.
    */
   private cardsAnswerableBy(viewer: Viewer, editable: string[]): SQL {
     return or(
       and(ne(schema.threads.kind, 'team'), not(this.sharedRoomHere())),
-      editable.length ? inArray(schema.threads.botId, editable) : undefined,
+      editable.length ? inArray(schema.approvals.botId, editable) : undefined,
       exists(
         this.ctx.db
           .select({ id: schema.turns.id })

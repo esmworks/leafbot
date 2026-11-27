@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { NewcomerCard, useNewcomers } from '@/features/Newcomers';
+import { RoomAddedCard, useRoomsAddedTo } from '@/features/Rooms';
 import { SecondYesCard, useSecondYes } from '@/features/SecondYes';
 import { SpaceRequestCard, useSpaceRequests } from '@/features/SpaceRequests';
 
@@ -52,16 +53,17 @@ export const useClosedCards = create<{
 /**
  * The questions that wait on this person and need nothing else to answer, as cards at the bottom
  * right over the app: someone new to place in team spaces and someone asking to join a closed one
- * (for those who look after the server), and a step that waits for this person's second yes. A
- * card stays until it is answered, or closed, which puts it away on this device only; Today still
- * lists it.
+ * (for those who look after the server), a step that waits for this person's second yes, and a
+ * room someone put them in. A card stays until it is answered, or closed, which puts it away on this
+ * device only; Today still lists the questions.
  */
 export function ActionCards() {
   const newcomers = useNewcomers();
   const requests = useSpaceRequests();
   const second = useSecondYes();
+  const added = useRoomsAddedTo();
   const { closed, close } = useClosedCards();
-  const waiting = new Set([...newcomers, ...requests, ...second].map((x) => x.id));
+  const waiting = new Set([...newcomers, ...requests, ...second, ...added].map((x) => x.id));
   const open = <T extends { id: string }>(list: T[]) => list.filter((x) => !closed.includes(x.id));
   const cards = [
     ...open(second).map((s) => <SecondYesCard key={s.id} item={s} onClose={() => close(s.id, waiting)} />),
@@ -71,6 +73,7 @@ export function ActionCards() {
     ...open(newcomers).map((p) => (
       <NewcomerCard key={p.id} person={p} onClose={() => close(p.id, waiting)} />
     )),
+    ...open(added).map((r) => <RoomAddedCard key={r.id} room={r} onClose={() => close(r.id, waiting)} />),
   ];
   if (!cards.length) return null;
   return (

@@ -307,7 +307,8 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'GET /api/rooms': 'self',
   'POST /api/rooms': 'self',
   'GET /api/rooms/:id': read(),
-  // A room is managed by whoever opened it and the admins put in it; its other people talk and leave.
+  // Whoever opened a room and the admins put in it choose its people; only the opener renames, resets
+  // or deletes it (routes.ts checks that). Its other people talk and leave.
   'PATCH /api/rooms/:id': manage(),
   'DELETE /api/rooms/:id': manage(),
   'PUT /api/rooms/:id/people': manage(),

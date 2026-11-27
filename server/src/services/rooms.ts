@@ -244,6 +244,14 @@ export class RoomService {
         ).map((r) => r.id)
       : [];
     if (able.length !== wanted.length) throw notFound('person');
+    // The first person put in: the bots start afresh, since their sessions may hold what the owner's
+    // own notes or connections gave them, which the others are not to read. The room's lines stay.
+    if (able.length && !before.size) {
+      await this.ctx.db
+        .update(schema.roomMembers)
+        .set({ engineSessionId: null, engineSessionCostUsd: null, seenAt: null })
+        .where(eq(schema.roomMembers.roomId, id));
+    }
     if (able.length) {
       await this.ctx.db
         .insert(schema.roomPeople)
@@ -485,9 +493,11 @@ export class RoomService {
     const people = await this.names(roomId, t);
     const room = await this.services.threads.row(roomId);
     const bots = await this.services.bots.list({ includeArchived: true });
+    // A line whose writer was removed has no person: in a shared room it is not put on the owner.
+    const shared = people.size > 1;
     const name = (m: Message) =>
       m.author === 'user'
-        ? (people.get(m.userId ?? room.userId ?? '') ?? t('room.person'))
+        ? (people.get(m.userId ?? (shared ? '' : (room.userId ?? ''))) ?? t('room.person'))
         : m.author === `bot:${bot.id}`
           ? t('room.you', { name: bot.name })
           : (bots.find((b) => `bot:${b.id}` === m.author)?.name ?? m.author);

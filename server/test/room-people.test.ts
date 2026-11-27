@@ -57,6 +57,9 @@ describe('kişili odalar', () => {
     await t.services.turns.idle();
     const answered = (await t.messages(r.id)).filter((m) => m.role === 'assistant');
     expect(answered.length).toBeGreaterThan(0);
+    // Nor may she take its talk out of the room as a branch of her own.
+    const reply = answered.at(-1)!;
+    expect((await ayse.api('POST', `/api/messages/${reply.id}/fork`)).status).toBe(404);
     // The bot is still not shared with her outside the room.
     const bots = (await ayse.api<Bot[]>('GET', '/api/bots')).body.map((b) => b.id);
     expect(bots).not.toContain(bot.id);
@@ -70,7 +73,20 @@ describe('kişili odalar', () => {
     const alone = t.engine.requests.filter((x) => x.threadId === r.id).at(-1)!;
     expect(alone.systemPrompt).toContain('Gizli meslek');
 
+    // Its session may hold what the owner's own notes gave it: the first person put in starts it afresh.
+    const sessionOf = async () =>
+      (
+        await t.services.ctx.db.select().from(schema.roomMembers).where(eq(schema.roomMembers.roomId, r.id))
+      )[0]!.engineSessionId;
+    expect(await sessionOf()).not.toBeNull();
+    await t.services.ctx.db.insert(schema.memories).values({
+      id: `n-${r.id}`,
+      scope: 'room',
+      place: `room:${r.id}`,
+      content: 'Fiyatlar KDV dahil yazılır',
+    });
     await people(r.id, { add: ['ayse'] });
+    expect(await sessionOf()).toBeNull();
     await say(ayse, r.id, 'merhaba');
     await t.services.turns.idle();
     const hers = t.engine.requests.filter((x) => x.threadId === r.id).at(-1)!;
@@ -80,6 +96,8 @@ describe('kişili odalar', () => {
     await t.services.turns.idle();
     const together = t.engine.requests.filter((x) => x.threadId === r.id).at(-1)!;
     expect(together.systemPrompt).not.toContain('Gizli meslek');
+    // The room's own notes are shared, so they still reach it.
+    expect(together.systemPrompt).toContain('KDV dahil yazılır');
     expect(together.prompt).toContain('Erhan: hoş geldin');
     expect(together.tools.map((x) => x.name)).not.toContain('routine_create');
   });
@@ -106,6 +124,10 @@ describe('kişili odalar', () => {
     const added = await people(r.id, { add: ['mert'] }, dilek);
     expect(added.status).toBe(200);
     expect(added.body.people).toEqual(['dilek', 'mert']);
+    // Renaming, starting afresh and deleting stay with whoever opened it.
+    expect((await dilek.api('PATCH', `/api/rooms/${r.id}`, { title: 'Başka' })).status).toBe(403);
+    expect((await dilek.api('POST', `/api/rooms/${r.id}/reset`)).status).toBe(403);
+    expect((await dilek.api('DELETE', `/api/rooms/${r.id}`)).status).toBe(403);
   });
 
   it('ekleyen, botu paylaşılmamış kişileri görür; odadaki kişi botun yüzünü görür', async () => {
@@ -149,6 +171,35 @@ describe('kişili odalar', () => {
     const answered = await ayse.api('POST', `/api/approvals/${card.id}`, {
       decision: 'allow',
       answer: 'Ocak',
+    });
+    expect(answered.status).toBeLessThan(300);
+    await t.services.turns.idle();
+  });
+
+  it('iki botlu odada kartı, kartın botunu değiştirebilen de yanıtlar', async () => {
+    const second = await t.bot({ name: 'İkinci' });
+    await t.api('PUT', `/api/bots/${second.id}/access`, { everyone: 'none', people: { mert: 'edit' } });
+    const made = await t.api<Room>('POST', '/api/rooms', {
+      title: 'İki bot',
+      botIds: [bot.id, second.id],
+      responders: 'mentions',
+    });
+    const r = made.body;
+    await people(r.id, { add: ['ayse', 'mert'] });
+    const call = { questions: [{ question: 'Hangi gün?', options: ['Pazartesi', 'Salı'] }] };
+    expect((await say(ayse, r.id, `@İkinci [araç:ask_user ${JSON.stringify(call)}]`)).status).toBe(201);
+    const card = await waitFor(async () =>
+      (await t.api<Approval[]>('GET', '/api/approvals?status=pending')).body.find((a) => a.threadId === r.id),
+    );
+    expect(card.botId).toBe(second.id);
+    const waiting = (await mert.api<Approval[]>('GET', '/api/approvals?status=pending')).body.map(
+      (a) => a.id,
+    );
+    expect(waiting).toContain(card.id);
+    expect(await t.services.access.noticeAudience(r.id)).toContain('mert');
+    const answered = await mert.api('POST', `/api/approvals/${card.id}`, {
+      decision: 'allow',
+      answer: 'Salı',
     });
     expect(answered.status).toBeLessThan(300);
     await t.services.turns.idle();
