@@ -7,6 +7,9 @@ import { SpaceRequestCard, useSpaceRequests } from '@/features/SpaceRequests';
 /** The cards this device closed without answering; kept here, not on the server. */
 const CLOSED_KEY = 'leafbot.actionCards.closed';
 
+/** How many closed cards a device remembers; far more than ever wait at once. */
+const KEEP_CLOSED = 200;
+
 function readClosed(): string[] {
   try {
     const raw = localStorage.getItem(CLOSED_KEY);
@@ -31,14 +34,15 @@ function keep(ids: string[]) {
  */
 export const useClosedCards = create<{
   closed: string[];
-  close: (id: string, waiting: ReadonlySet<string>) => void;
+  close: (id: string) => void;
   reopen: (id: string) => void;
 }>((set) => ({
   closed: readClosed(),
-  close: (id, waiting) =>
+  close: (id) =>
     set(({ closed }) => {
-      // Those answered since are dropped, so the list does not grow with every card ever closed.
-      const next = [...closed.filter((x) => waiting.has(x)), id];
+      // Only the latest are kept, so the list does not grow with every card ever closed. Not
+      // pruned by what still waits: a list still loading would drop a card closed a moment ago.
+      const next = [...closed.filter((x) => x !== id), id].slice(-KEEP_CLOSED);
       keep(next);
       return { closed: next };
     }),
@@ -63,17 +67,12 @@ export function ActionCards() {
   const second = useSecondYes();
   const added = useRoomsAddedTo();
   const { closed, close } = useClosedCards();
-  const waiting = new Set([...newcomers, ...requests, ...second, ...added].map((x) => x.id));
   const open = <T extends { id: string }>(list: T[]) => list.filter((x) => !closed.includes(x.id));
   const cards = [
-    ...open(second).map((s) => <SecondYesCard key={s.id} item={s} onClose={() => close(s.id, waiting)} />),
-    ...open(requests).map((r) => (
-      <SpaceRequestCard key={r.id} request={r} onClose={() => close(r.id, waiting)} />
-    )),
-    ...open(newcomers).map((p) => (
-      <NewcomerCard key={p.id} person={p} onClose={() => close(p.id, waiting)} />
-    )),
-    ...open(added).map((r) => <RoomAddedCard key={r.id} room={r} onClose={() => close(r.id, waiting)} />),
+    ...open(second).map((s) => <SecondYesCard key={s.id} item={s} onClose={() => close(s.id)} />),
+    ...open(requests).map((r) => <SpaceRequestCard key={r.id} request={r} onClose={() => close(r.id)} />),
+    ...open(newcomers).map((p) => <NewcomerCard key={p.id} person={p} onClose={() => close(p.id)} />),
+    ...open(added).map((r) => <RoomAddedCard key={r.id} room={r} onClose={() => close(r.id)} />),
   ];
   if (!cards.length) return null;
   return (

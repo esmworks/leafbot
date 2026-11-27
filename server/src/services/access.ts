@@ -266,11 +266,10 @@ export class AccessService {
     if (manage && row.kind === 'team' && !atLeast(await this.level(viewer, row.botId), 'edit')) {
       throw new HttpError(403, 'error.teamThreadManage');
     }
-    // A room is managed by whoever opened it and the admins put in it; the others talk and leave.
+    // A room, and every line in it, is managed by whoever opened it; an admin put in it only
+    // chooses its people (`requireRoomPeople`), and the others talk and leave.
     const owner = row.userId === viewer.userId;
-    if (manage && row.kind === 'room' && !owner && !managesServer(viewer.role)) {
-      throw new HttpError(403, 'error.roomManage');
-    }
+    if (manage && row.kind === 'room' && !owner) throw new HttpError(403, 'error.roomOwnerOnly');
     // Someone put in a room talks there with its bots even if they are not shared with them: in
     // that room only, where the one who put them in chose to bring them.
     if (write && row.kind === 'room' && !owner) return row;
@@ -289,6 +288,30 @@ export class AccessService {
       }
     }
     return row;
+  }
+
+  /** A room whose people the person may choose: its opener, or an admin put in it. */
+  async requireRoomPeople(viewer: Viewer, roomId: string): Promise<ThreadRow> {
+    const row = await this.requireThread(viewer, roomId, false);
+    if (row.kind !== 'room') throw notFound('room');
+    if (row.userId !== viewer.userId && !managesServer(viewer.role)) {
+      throw new HttpError(403, 'error.roomPeople');
+    }
+    return row;
+  }
+
+  /**
+   * For each person who may sign in, the bots among `botIds` they may not talk with: whoever puts
+   * them in a room is told they will talk with these there all the same.
+   */
+  async unsharedWith(botIds: string[]): Promise<Map<string, string[]>> {
+    const people = (await this.people()).map((p) => p.userId);
+    const out = new Map<string, string[]>();
+    for (const botId of botIds) {
+      const reach = new Set(await this.botPeople(botId, 'chat'));
+      for (const p of people) if (!reach.has(p)) out.set(p, [...(out.get(p) ?? []), botId]);
+    }
+    return out;
   }
 
   /** A person as a viewer; someone no longer here counts as a member, reaching only what is shared with everyone. */

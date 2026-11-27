@@ -212,7 +212,7 @@ export const tr = {
   'room.peopleYou': 'sen',
   'room.peopleRemove': '{name} adlı kişiyi odadan çıkar',
   'room.addedTitle': '“{room}” odasına alındın',
-  'room.addedBody': 'Bu odayı {name} açtı ve seni içine aldı. Odadaki herkes konuşmanın tamamını görür.',
+  'room.addedBody': '{name} seni bu odaya aldı. Odadaki herkes konuşmanın tamamını görür.',
   'room.addedOpen': 'Odaya git',
   'room.menu': 'Oda seçenekleri',
   'room.someone': 'Biri',

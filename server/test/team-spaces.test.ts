@@ -247,6 +247,15 @@ describe('ekip alanları', () => {
     await t.person('yeni2');
     expect((await t.api('POST', '/api/newcomers/yeni2', { spaceIds: [folder.id] })).status).toBe(400);
     expect(await waiting()).toContain('yeni2');
+    // A folder among spaces stops the whole answer before anyone is put anywhere.
+    expect((await t.api('POST', '/api/newcomers/yeni2', { spaceIds: [space.id, folder.id] })).status).toBe(
+      400,
+    );
+    expect(await waiting()).toContain('yeni2');
+    const yeni2 = await t.person('yeni2');
+    expect(await levelOf(yeni2, bot.id)).toBe('none');
+    // Nor is someone who does not exist put in a space.
+    expect((await t.api('PUT', `/api/groups/${space.id}/members`, { add: ['kimse'] })).status).toBe(404);
   });
 
   it('açık alana kişi kendisi katılır ve ayrılır; gizli alanı dışarıdan bilemez', async () => {

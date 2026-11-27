@@ -11,7 +11,7 @@ import {
   type RoomSend,
   type RoomUpdate,
 } from '@leafbot/shared';
-import { and, asc, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
 import { isSilentReply, SILENT_REPLY, type TurnOutcome } from '../engine/types';
@@ -97,7 +97,12 @@ export class RoomService {
     const thread = await this.services.threads.get(id);
     const members = await this.members(id);
     const owner = await this.services.threads.row(id);
-    const people = await this.services.access.roomPeople(id);
+    const putIn = await this.ctx.db
+      .select({ userId: schema.roomPeople.userId, addedBy: schema.roomPeople.addedBy })
+      .from(schema.roomPeople)
+      .where(eq(schema.roomPeople.roomId, id))
+      .orderBy(asc(schema.roomPeople.createdAt));
+    const people = putIn.map((p) => p.userId);
     const faces = members.length
       ? await this.ctx.db
           .select({
@@ -139,6 +144,7 @@ export class RoomService {
       preview: last?.props.kind === 'contextReset' ? null : thread.preview,
       ...(owner.userId && { ownerId: owner.userId }),
       people,
+      addedBy: Object.fromEntries(putIn.map((p) => [p.userId, p.addedBy])),
       faces,
       createdAt: thread.createdAt,
       updatedAt: thread.updatedAt,
@@ -246,7 +252,9 @@ export class RoomService {
     if (able.length !== wanted.length) throw notFound('person');
     // The first person put in: the bots start afresh, since their sessions may hold what the owner's
     // own notes or connections gave them, which the others are not to read. The room's lines stay.
+    // Not while one of them works: its turn would keep the old session when it ends.
     if (able.length && !before.size) {
+      if ((await this.services.threads.state(id)) !== 'idle') throw new HttpError(409, 'error.roomBusy');
       await this.ctx.db
         .update(schema.roomMembers)
         .set({ engineSessionId: null, engineSessionCostUsd: null, seenAt: null })
@@ -292,6 +300,22 @@ export class RoomService {
     }
     this.services.access.forget();
     this.ctx.bus.refresh({ scope: 'rooms' });
+  }
+
+  /**
+   * Marks the lines a person wrote in rooms before they are removed. Their id goes from the lines
+   * with them, and a line with no person would otherwise read as the room's opener's.
+   */
+  async markWriterGone(userId: string): Promise<void> {
+    await this.ctx.db
+      .update(schema.messages)
+      .set({ props: sql`${schema.messages.props} || '{"writerGone": true}'::jsonb` })
+      .where(
+        and(
+          eq(schema.messages.userId, userId),
+          inArray(schema.messages.threadId, this.ctx.db.select({ id: schema.rooms.id }).from(schema.rooms)),
+        ),
+      );
   }
 
   /** What each person in the room is called to its bots: their own name, else their username. */
@@ -493,11 +517,12 @@ export class RoomService {
     const people = await this.names(roomId, t);
     const room = await this.services.threads.row(roomId);
     const bots = await this.services.bots.list({ includeArchived: true });
-    // A line whose writer was removed has no person: in a shared room it is not put on the owner.
-    const shared = people.size > 1;
+    // A line whose writer was removed is marked so: it is nobody's here, not the opener's.
     const name = (m: Message) =>
       m.author === 'user'
-        ? (people.get(m.userId ?? (shared ? '' : (room.userId ?? ''))) ?? t('room.person'))
+        ? m.props.writerGone === true
+          ? t('room.person')
+          : (people.get(m.userId ?? room.userId ?? '') ?? t('room.person'))
         : m.author === `bot:${bot.id}`
           ? t('room.you', { name: bot.name })
           : (bots.find((b) => `bot:${b.id}` === m.author)?.name ?? m.author);

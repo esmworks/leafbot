@@ -410,6 +410,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const { id } = IdParams.parse(req.params);
     const { spaceIds } = NewcomerPlace.parse(req.body);
     if (!(await d.auth.users.person(id))) throw notFound('person');
+    // Every space is checked first, so a wrong one leaves the person in none rather than some.
+    for (const spaceId of spaceIds) {
+      if ((await s.bots.getGroup(spaceId)).ownerUserId) throw new HttpError(400, 'error.notASpace');
+    }
     for (const spaceId of spaceIds) await s.bots.setSpaceMembers(spaceId, { add: [id] });
     await d.auth.users.place(id);
     s.access.forget();
@@ -439,8 +443,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     // Signed out first, so nothing new of theirs starts while they are removed.
     await d.auth.users.change(id, { disabled: true });
     await peopleChanged(id, true);
-    // A room they opened that others are in stays for them, managed by the next in line.
+    // A room they opened that others are in stays for them, managed by the next in line; what they
+    // wrote in rooms stays theirs, not whoever's the room is once their name is gone.
     await s.rooms.passOn(id);
+    await s.rooms.markWriterGone(id);
     const threads = await s.ctx.db
       .select({ id: schema.threads.id, botId: schema.threads.botId })
       .from(schema.threads)
@@ -1855,20 +1861,18 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   });
   app.get('/api/rooms/:id', async (req) => s.rooms.get(IdParams.parse(req.params).id));
   /**
-   * Refuses anyone but whoever opened the room: an admin put in it only puts people in or takes
-   * them out, and may not see all of its bots to choose them again.
+   * Refuses anyone but whoever opened the room, for what its rule lets everyone in it do but is
+   * the opener's to choose. (Renaming, resetting and deleting it are `manage`, which is theirs.)
    */
   const ownRoom = async (req: FastifyRequest, id: string) => {
     if ((await s.threads.row(id)).userId !== me(req).userId) throw new HttpError(403, 'error.roomOwnerOnly');
   };
   app.patch('/api/rooms/:id', async (req) => {
-    await ownRoom(req, IdParams.parse(req.params).id);
     const body = RoomUpdate.parse(req.body);
     for (const botId of body.botIds ?? []) await s.access.requireBot(me(req), botId, 'chat');
     return s.rooms.update(IdParams.parse(req.params).id, body);
   });
   app.delete('/api/rooms/:id', async (req) => {
-    await ownRoom(req, IdParams.parse(req.params).id);
     await s.rooms.remove(IdParams.parse(req.params).id);
     return { ok: true };
   });
@@ -1876,6 +1880,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   // bots, even ones not shared with them.
   app.put('/api/rooms/:id/people', async (req) => {
     const id = IdParams.parse(req.params).id;
+    await s.access.requireRoomPeople(me(req), id);
     const added = await s.rooms.setPeople(id, RoomPeopleChange.parse(req.body), me(req).userId);
     for (const userId of added) void s.push.roomAdded(userId, me(req).userId, id);
     return s.rooms.get(id);
@@ -1884,14 +1889,13 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   // is told they will talk with these there all the same.
   app.get('/api/rooms/:id/unshared', async (req) => {
     const id = IdParams.parse(req.params).id;
+    await s.access.requireRoomPeople(me(req), id);
     const room = await s.rooms.get(id);
-    const bots = (await s.bots.list({ includeArchived: true })).filter((b) => room.members.includes(b.id));
-    const people = (await d.auth.users.list()).filter((p) => !p.disabled);
+    const names = new Map((room.faces ?? []).map((f) => [f.id, f.name]));
     const out: Record<string, string[]> = {};
-    for (const p of people) {
-      const levels = await s.access.levels(await s.access.viewerOf(p.id));
-      const missing = bots.filter((b) => !atLeast(levels.get(b.id) ?? 'none', 'chat')).map((b) => b.name);
-      if (missing.length) out[p.id] = missing;
+    for (const [userId, botIds] of await s.access.unsharedWith(room.members)) {
+      const missing = botIds.flatMap((b) => names.get(b) ?? []);
+      if (missing.length) out[userId] = missing;
     }
     return out;
   });
@@ -1915,7 +1919,6 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   }));
   // The room starts afresh for its bots; refused while one of them speaks or waits.
   app.post('/api/rooms/:id/reset', async (req) => {
-    await ownRoom(req, IdParams.parse(req.params).id);
     await s.rooms.reset(IdParams.parse(req.params).id, await s.settings.translator());
     return { ok: true };
   });
@@ -1955,6 +1958,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   });
   app.delete('/api/rooms/:id/meetings/:meetingId', async (req) => {
     const { id, meetingId } = MeetingParams.parse(req.params);
+    // The minutes are everyone's in the room; only its opener throws them away.
+    await ownRoom(req, id);
     await s.meetings.remove(id, meetingId);
     return { ok: true };
   });

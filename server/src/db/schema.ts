@@ -341,7 +341,7 @@ export const roomPeople = pgTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    /** Who put them in; null when they came with the room as it passed to them. */
+    /** Who put them in, told to them in the app; null when not known. */
     addedBy: text('added_by'),
     createdAt: created(),
   },

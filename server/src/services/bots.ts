@@ -436,6 +436,14 @@ export class BotService {
   async setSpaceMembers(id: string, change: { add?: string[]; remove?: string[] }): Promise<Group> {
     const group = await this.getGroup(id);
     if (group.ownerUserId) throw new HttpError(400, 'error.notASpace');
+    const add = [...new Set(change.add ?? [])];
+    if (add.length) {
+      const known = await this.ctx.db
+        .select({ id: schema.users.id })
+        .from(schema.users)
+        .where(inArray(schema.users.id, add));
+      if (known.length !== add.length) throw notFound('person');
+    }
     await this.ctx.db.transaction(async (tx) => {
       for (const userId of change.add ?? []) {
         await tx.insert(schema.groupMembers).values({ groupId: id, userId }).onConflictDoNothing();
