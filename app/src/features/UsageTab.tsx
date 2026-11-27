@@ -37,7 +37,7 @@ export function UsageTab() {
 
   return (
     <>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
+      <div className="mb-2 flex flex-wrap items-end justify-between gap-4">
         <div>
           <div className="text-sm text-muted-foreground">{t('usage.total')}</div>
           <div className="text-3xl font-semibold tabular-nums">{data ? f.usd(data.total.costUsd) : '–'}</div>
@@ -73,6 +73,12 @@ export function UsageTab() {
           </Select>
         </div>
       </div>
+      {/* What the total is (an estimate on a subscription) belongs with the total, not after the
+          lists below it. */}
+      <div className="mb-8 space-y-1 text-xs leading-relaxed text-muted-foreground">
+        {data && <p>{t('usage.estimate')}</p>}
+        {data && data.total.unpriced > 0 && <p>{t('usage.unpriced', { count: data.total.unpriced })}</p>}
+      </div>
       {isPending ? (
         <div className="flex justify-center py-16 text-muted-foreground">
           <Loader2 className="size-5 animate-spin" />
@@ -83,8 +89,10 @@ export function UsageTab() {
         <Report data={data} filtered={botId !== null} onPickBot={setBotId} />
       )}
       <PlanUsage plan={data?.plan} />
-      <SpendLimit period="month" spend={data?.month} />
-      {settings?.dailyLimitUsd !== undefined && <SpendLimit period="day" spend={data?.day} />}
+      <Card title={t('usage.limits')}>
+        <SpendLimit period="month" spend={data?.month} />
+        {settings?.dailyLimitUsd !== undefined && <SpendLimit period="day" spend={data?.day} />}
+      </Card>
       <RoutineGate gate={data?.gate} />
       <PromiseNet net={data?.promises} />
       <SuggestionNet net={data?.suggestions} />
@@ -123,9 +131,10 @@ function SpendLimit({ period, spend }: { period: 'month' | 'day'; spend?: UsageR
   };
   const share = spend && spend.limitUsd > 0 ? Math.min(1, spend.costUsd / spend.limitUsd) : 0;
   return (
-    <Card title={t(period === 'month' ? 'usage.month' : 'usage.day')}>
+    // One block, so the card's divider runs between the periods, not between a row and its bar.
+    <div>
       <Row
-        label={spend ? f.usd(spend.costUsd) : '–'}
+        label={`${t(period === 'month' ? 'usage.month' : 'usage.day')} · ${spend ? f.usd(spend.costUsd) : '–'}`}
         hint={
           spend && spend.limitUsd > 0
             ? t(period === 'month' ? 'usage.monthOf' : 'usage.dayOf', { limit: f.usd(spend.limitUsd) })
@@ -159,7 +168,7 @@ function SpendLimit({ period, spend }: { period: 'month' | 'day'; spend?: UsageR
           </div>
         </div>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -537,10 +546,6 @@ function Report({
           })}
         </Card>
       )}
-      <div className="space-y-1 px-1 text-xs text-muted-foreground">
-        <p>{t('usage.estimate')}</p>
-        {data.total.unpriced > 0 && <p>{t('usage.unpriced', { count: data.total.unpriced })}</p>}
-      </div>
     </>
   );
 }

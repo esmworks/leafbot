@@ -35,6 +35,7 @@ import {
   LogOut,
   MessageCircle,
   Plug,
+  Plus,
   Shield,
   Smartphone,
   Sparkles,
@@ -1228,8 +1229,10 @@ function Permissions() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['rules'] }),
   });
   const section = (l: 'ask' | 'allow' | 'block', title: MessageKey, hint: MessageKey) => (
-    <Card title={t(title)}>
-      <div className="px-4 py-3 text-xs text-muted-foreground">{t(hint)}</div>
+    <Card title={t(title)} hint={t(hint)}>
+      {!rules.some((r) => r.list === l) && (
+        <div className="px-4 py-3 text-sm text-muted-foreground">{t('rules.none')}</div>
+      )}
       {rules
         .filter((r) => r.list === l)
         .map((r) => {
@@ -1269,105 +1272,109 @@ function Permissions() {
   );
   return (
     <>
+      {/* The rule's parts as labelled rows in one card, so each optional part says what it is
+          beside its field, not in a loose line above or below it. */}
       <form
-        className="mb-6 space-y-2"
         onSubmit={(e) => {
           e.preventDefault();
           if (pattern.trim() && !limitIncomplete) add.mutate();
         }}
       >
-        <div className="flex gap-2">
-          <Select value={list} onValueChange={(v) => setList(v as 'ask' | 'allow' | 'block')}>
-            <SelectTrigger className="w-48 rounded-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ask">{t('rules.ask')}</SelectItem>
-              <SelectItem value="allow">{t('rules.allow')}</SelectItem>
-              <SelectItem value="block">{t('rules.block')}</SelectItem>
-            </SelectContent>
-          </Select>
-          <Input
-            value={pattern}
-            onChange={(e) => setPattern(e.target.value)}
-            placeholder={t('rules.placeholder')}
-            className="flex-1 rounded-full"
-          />
-          <Button className="rounded-full" disabled={!pattern.trim() || limitIncomplete}>
-            {t('common.add')}
-          </Button>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">{t('rules.limit')}</span>
-          <Input
-            value={field}
-            onChange={(e) => setField(e.target.value)}
-            placeholder={t('rules.limitField')}
-            aria-label={t('rules.limitField')}
-            className="h-8 w-40 rounded-full"
-          />
-          <Input
-            value={limit}
-            onChange={(e) => setLimit(e.target.value)}
-            inputMode="decimal"
-            placeholder={t('rules.limitValue')}
-            aria-label={t('rules.limitValue')}
-            aria-invalid={limitBad || undefined}
-            className="h-8 w-28 rounded-full"
-          />
-        </div>
-        <p className={cn('text-xs', limitBad ? 'text-destructive' : 'text-muted-foreground')}>
-          {t(limitBad ? 'rules.limitInvalid' : 'rules.limitHint')}
-        </p>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground">{t('rules.forBotLabel')}</span>
-          <Select
-            value={forBot}
-            onValueChange={(v) => {
-              setForBot(v);
-              setSecondUser('anyone');
-            }}
-          >
-            <SelectTrigger className="h-8 w-48 rounded-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t('rules.allBots')}</SelectItem>
-              {bots.map((b) => (
-                <SelectItem key={b.id} value={b.id}>
-                  {b.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        {secondOffered && (
-          <div className="space-y-1.5">
-            <label className="flex items-center gap-2 text-sm">
-              <Switch checked={second} onCheckedChange={setSecond} />
-              {t('rules.second')}
-            </label>
-            {second && (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground">{t('rules.secondWho')}</span>
-                <Select value={secondUser} onValueChange={setSecondUser}>
-                  <SelectTrigger className="h-8 w-56 rounded-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="anyone">{t('rules.secondAnyone')}</SelectItem>
-                    {approvers.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {personName({ displayName: p.name, username: null }, t('people.owner'))}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+        <Card title={t('rules.addTitle')}>
+          <Row label={t('rules.tool')}>
+            <Input
+              value={pattern}
+              onChange={(e) => setPattern(e.target.value)}
+              placeholder={t('rules.placeholder')}
+              aria-label={t('rules.tool')}
+              className="w-full rounded-full sm:w-72"
+            />
+          </Row>
+          <Row label={t('rules.listLabel')}>
+            <Select value={list} onValueChange={(v) => setList(v as 'ask' | 'allow' | 'block')}>
+              <SelectTrigger className="w-56 rounded-full" aria-label={t('rules.listLabel')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ask">{t('rules.ask')}</SelectItem>
+                <SelectItem value="allow">{t('rules.allow')}</SelectItem>
+                <SelectItem value="block">{t('rules.block')}</SelectItem>
+              </SelectContent>
+            </Select>
+          </Row>
+          <Row label={t('rules.forBotLabel')}>
+            <Select
+              value={forBot}
+              onValueChange={(v) => {
+                setForBot(v);
+                setSecondUser('anyone');
+              }}
+            >
+              <SelectTrigger className="w-56 rounded-full" aria-label={t('rules.forBotLabel')}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('rules.allBots')}</SelectItem>
+                {bots.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Row>
+          <Row label={t('rules.limit')} hint={limitBad ? undefined : t('rules.limitHint')}>
+            <div className="flex flex-col items-end gap-1">
+              <div className="flex gap-2">
+                <Input
+                  value={field}
+                  onChange={(e) => setField(e.target.value)}
+                  placeholder={t('rules.limitField')}
+                  aria-label={t('rules.limitField')}
+                  className="w-36 rounded-full"
+                />
+                <Input
+                  value={limit}
+                  onChange={(e) => setLimit(e.target.value)}
+                  inputMode="decimal"
+                  placeholder={t('rules.limitValue')}
+                  aria-label={t('rules.limitValue')}
+                  aria-invalid={limitBad || undefined}
+                  className="w-20 rounded-full"
+                />
               </div>
-            )}
-            <p className="text-xs text-muted-foreground">{t('rules.secondHint')}</p>
+              {limitBad && <p className="text-xs text-destructive">{t('rules.limitInvalid')}</p>}
+            </div>
+          </Row>
+          {secondOffered && (
+            <Row label={t('rules.second')} hint={t('rules.secondHint')}>
+              <Switch checked={second} onCheckedChange={setSecond} aria-label={t('rules.second')} />
+            </Row>
+          )}
+          {secondOffered && second && (
+            <Row label={t('rules.secondWho')}>
+              <Select value={secondUser} onValueChange={setSecondUser}>
+                <SelectTrigger className="w-56 rounded-full" aria-label={t('rules.secondWho')}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="anyone">{t('rules.secondAnyone')}</SelectItem>
+                  {approvers.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {personName({ displayName: p.name, username: null }, t('people.owner'))}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Row>
+          )}
+          <div className="flex justify-end px-4 py-3">
+            <Button className="rounded-full" disabled={!pattern.trim() || limitIncomplete || add.isPending}>
+              <Plus className="size-4" />
+              {t('common.add')}
+            </Button>
           </div>
-        )}
+        </Card>
       </form>
       {section('ask', 'rules.ask', 'rules.askHint')}
       {section('allow', 'rules.allow', 'rules.allowHint')}
@@ -1506,40 +1513,25 @@ function MemoryTab() {
     });
   return (
     <>
-      <form
-        className="mb-3 flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (text.trim()) add.mutate();
-        }}
-      >
-        <Input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={t('memory.placeholder')}
-          className="flex-1 rounded-full"
-        />
-        <Button className="rounded-full" disabled={!text.trim()}>
-          {t('common.add')}
-        </Button>
-      </form>
-      <div className="mb-2">
+      <p className="mb-4 text-sm leading-relaxed text-muted-foreground">{t('memory.pinHint')}</p>
+      {/* The search and the view sit on one line over the notes; adding is done in the list each
+          note goes to, so the field says whose note it becomes. */}
+      <div className="mb-8 flex flex-wrap items-center gap-2">
         <Input
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t('memory.search')}
           aria-label={t('memory.search')}
-          className="rounded-full"
+          className="min-w-48 flex-1 rounded-full"
         />
+        <Tabs value={view} onValueChange={(v) => setView(v === 'map' ? 'map' : 'list')}>
+          <TabsList>
+            <TabsTrigger value="list">{t('memory.viewList')}</TabsTrigger>
+            <TabsTrigger value="map">{t('memory.viewMap')}</TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
-      <p className="mb-6 px-1 text-xs text-muted-foreground">{t('memory.pinHint')}</p>
-      <Tabs value={view} onValueChange={(v) => setView(v === 'map' ? 'map' : 'list')} className="mb-4">
-        <TabsList>
-          <TabsTrigger value="list">{t('memory.viewList')}</TabsTrigger>
-          <TabsTrigger value="map">{t('memory.viewMap')}</TabsTrigger>
-        </TabsList>
-      </Tabs>
       <PendingMemory bots={[...bots, ...archived]} />
       <MemoryFlags bots={[...bots, ...archived]} />
       {expiredHits.length > 0 && (
@@ -1657,6 +1649,24 @@ function MemoryTab() {
             </Card>
           )}
           <Card title={t('memory.user')}>
+            <form
+              className="flex gap-2 px-4 py-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (text.trim()) add.mutate();
+              }}
+            >
+              <Input
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder={t('memory.userPlaceholder')}
+                aria-label={t('memory.userPlaceholder')}
+                className="flex-1 rounded-full"
+              />
+              <Button className="rounded-full" disabled={!text.trim() || add.isPending}>
+                {t('common.add')}
+              </Button>
+            </form>
             {user.length === 0 && (
               <div className="px-4 py-3 text-sm text-muted-foreground">
                 {t(searching ? 'memory.searchEmpty' : 'memory.empty')}
@@ -1878,25 +1888,25 @@ function GroupsTab() {
   });
   return (
     <>
-      <p className="mb-4 text-sm text-muted-foreground">{t('groups.hint')}</p>
-      <form
-        className="mb-6 flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (name.trim()) add.mutate();
-        }}
-      >
-        <Input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={t('groups.placeholder')}
-          className="flex-1 rounded-full"
-        />
-        <Button className="rounded-full" disabled={!name.trim()}>
-          {t('common.add')}
-        </Button>
-      </form>
-      <Card>
+      <Card hint={t('groups.hint')}>
+        <form
+          className="flex gap-2 px-4 py-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (name.trim()) add.mutate();
+          }}
+        >
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={t('groups.placeholder')}
+            aria-label={t('groups.placeholder')}
+            className="flex-1 rounded-full"
+          />
+          <Button className="rounded-full" disabled={!name.trim() || add.isPending}>
+            {t('common.add')}
+          </Button>
+        </form>
         {groups.length === 0 && (
           <div className="px-4 py-3 text-sm text-muted-foreground">{t('groups.empty')}</div>
         )}

@@ -276,6 +276,7 @@ export const en: Catalog<MessageKey> = {
   'message.saveCode': 'Save as a file',
   'message.showMarkdown': 'Show as Markdown',
   'message.showFormatted': 'Show formatted',
+  'usage.limits': 'Spending limits',
   'usage.month': 'This month',
   'usage.monthOf':
     'of a {limit} limit, background calls included; turns and background work wait for next month once it is reached',
@@ -901,7 +902,7 @@ export const en: Catalog<MessageKey> = {
   'plugin.install': 'Install',
   'plugin.installed': 'Installed {servers} servers and {skills} skills',
   'ai.intro':
-    'Model services the server calls besides the bots’ own. Each goes through a provider connected under Providers: OpenAI, Groq, Google or Mistral with a saved key, or endpoints of your own added there by name (Ollama, a Whisper or Kokoro server, ElevenLabs, Google’s speech API). A key is saved once and serves the bots and these services alike. With none picked, the server’s environment decides (AI_EMBEDDINGS_*, STT_*, TTS_*).',
+    'Model services the server calls besides the bots’ own. Each goes through a provider connected under Providers, so a key is saved once. With none picked, the server’s environment decides (AI_EMBEDDINGS_*, STT_*, TTS_*).',
   'ai.embeddings': 'Memory search by meaning',
   'ai.embeddingsHint':
     'Bots find notes by what they mean, not only by their words: “my spouse” finds “Ayşe is my wife”. Notes are indexed in the background.',
@@ -931,6 +932,7 @@ export const en: Catalog<MessageKey> = {
   'ai.provider': 'Provider',
   'ai.pickProvider': 'Pick a provider',
   'ai.manageProviders': 'Providers',
+  'ai.setupNotes': 'Setting up with ElevenLabs or Google',
   'ai.saved': 'Saved',
   'ai.clear': 'Clear',
   'ai.test': 'Try',
@@ -1456,6 +1458,7 @@ export const en: Catalog<MessageKey> = {
   'vault.empty':
     'The vault is empty. When a bot signs in to a site and you choose "Save to the vault", it shows up here.',
   'vault.noMatch': 'No matching entries.',
+  'vault.logins': 'Logins',
   'vault.note':
     'Bots never see passwords: the server types a password only into the site it was saved for (and its subdomains). Passwords are stored encrypted on the server.',
   'vault.noUsername': '(no username)',
@@ -2473,6 +2476,10 @@ export const en: Catalog<MessageKey> = {
   'rules.forBot': 'Only for {bot}',
   'rules.forBotLabel': 'For',
   'rules.allBots': 'Every bot',
+  'rules.addTitle': 'Add a rule',
+  'rules.tool': 'Tool',
+  'rules.listLabel': 'What happens',
+  'rules.none': 'No rules.',
   'rules.second': 'Needs a second person’s yes',
   'rules.secondWho': 'Second person',
   'rules.secondAnyone': 'Anyone who may change the bot',
@@ -2487,6 +2494,7 @@ export const en: Catalog<MessageKey> = {
   'memory.undo': 'Undo',
   'memory.placeholder': 'Add something every bot should know',
   'memory.user': 'About you (every bot sees this)',
+  'memory.userPlaceholder': 'Add something about you every bot should know',
   'memory.bots': "The bots' own notes",
   'memory.empty': 'Nothing yet.',
   'memory.archivedBot': '{name} (archived)',
