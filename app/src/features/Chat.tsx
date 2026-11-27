@@ -93,6 +93,7 @@ import {
 } from '@/lib/queries';
 import { useLayout } from '@/lib/layout';
 import { useLatestFirst } from '@/lib/latestFirst';
+import { followsEnd, keyIntent, type ReaderIntent } from '@/lib/readerScroll';
 import { usePaused, usePauseActions } from '@/lib/paused';
 import { PHONE } from '@/lib/media';
 import { useLiveCatchUp } from '@/lib/liveCatchUp';
@@ -824,6 +825,29 @@ function Conversation({
   const [pending, setPending] = useState<Message[]>([]);
   const scroller = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  // The person's own scrolling, told apart from the scrolling the conversation does itself.
+  const intent = useRef<ReaderIntent | null>(null);
+  const draggingBar = useRef(false);
+  const lastTop = useRef(0);
+  const lastTouchY = useRef<number | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const at = e.target;
+      if (at instanceof HTMLInputElement || at instanceof HTMLTextAreaElement) return;
+      if (at instanceof HTMLElement && at.isContentEditable) return;
+      const up = keyIntent(e.key, e.shiftKey);
+      if (up !== null) intent.current = { up, at: performance.now() };
+    };
+    const onUp = () => {
+      draggingBar.current = false;
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerup', onUp);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerup', onUp);
+    };
+  }, []);
   const loadOlder = useMutation({
     // A message picked in the search may be far back: it is reached in full pages.
     mutationFn: async (size: number) => ({ size, page: await api.messages(threadId, messages[0]!.id, size) }),
@@ -1012,6 +1036,9 @@ function Conversation({
   const focusLoaded = !!focused && messages.some((m) => m.id === focused);
   // A long conversation opens on its latest rows; a message to bring into view needs them all.
   const hiddenRows = useLatestFirst(rows.length, !!focused || loadOlder.isPending);
+  // Earlier rows drawn above keep the end in place before they are shown, in a browser that does
+  // not hold the place on screen by itself.
+  useLayoutEffect(() => followNow.current(), [hiddenRows]);
   // A message further back than the pages on screen: older pages come in until it is there.
   useEffect(() => {
     if (!focused || focusLoaded || isLoading || loadOlder.isPending) return;
@@ -1104,6 +1131,8 @@ function Conversation({
         // On a touch screen a tap on the conversation puts the keyboard away, as messaging apps do;
         // a tap on a link, button or field does what it always does.
         onPointerDown={(e) => {
+          // The scroll bar is the conversation's own box, not a row in it.
+          if (e.button === 0 && e.target === e.currentTarget) draggingBar.current = true;
           const typing = document.activeElement;
           if (
             e.pointerType === 'touch' &&
@@ -1112,9 +1141,32 @@ function Conversation({
           )
             typing.blur();
         }}
+        onWheel={(e) => {
+          if (e.ctrlKey || e.deltaY === 0 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+          intent.current = { up: e.deltaY < 0, at: performance.now() };
+        }}
+        onTouchMove={(e) => {
+          const y = e.touches.length === 1 ? e.touches[0]!.clientY : null;
+          // A finger moving down scrolls the conversation up.
+          if (y !== null && lastTouchY.current !== null && y !== lastTouchY.current)
+            intent.current = { up: y > lastTouchY.current, at: performance.now() };
+          lastTouchY.current = y;
+        }}
+        onTouchEnd={() => {
+          lastTouchY.current = null;
+        }}
         onScroll={(e) => {
           const el = e.currentTarget;
-          stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          const moved = el.scrollTop - lastTop.current;
+          lastTop.current = el.scrollTop;
+          stick.current = followsEnd({
+            following: stick.current,
+            moved,
+            fromEnd: el.scrollHeight - el.scrollTop - el.clientHeight,
+            intent: intent.current,
+            dragging: draggingBar.current,
+            now: performance.now(),
+          });
           if (stick.current) {
             if (awayAt !== null) setAwayAt(null);
           } else if (awayAt === null) setAwayAt(messages.length);
