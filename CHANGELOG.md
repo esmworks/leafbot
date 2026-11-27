@@ -326,6 +326,15 @@ version is 0.x, a minor release may change the data format or the API; the serve
   deploy: `docker/compose.images.yml`, added to the panel's compose command, pulls the release's images (the latest,
   or the one `LEAFBOT_VERSION` names), so the server changes only when a release is deployed. See "Hazır imajlarla"
   in docker/README.md.
+- Moving bots from Grok Bot takes less copying. The app offers it once to the owner and admins (on the owner's own
+  computer only where the Grok Bot app is installed). Settings → Import and backup reads Grok Bot's reply pasted or
+  dropped as it came, with the document in a code block, split over several blocks or with trailing commas and
+  curled quotes, and finds export files Grok Bot left in Downloads in the last 30 days. A one-hour link, added in
+  Grok Bot as a custom connector, lets a bot there send its export straight to the server: over the server's public
+  address, or on the person's computer through a Cloudflare quick tunnel when `cloudflared` is installed. Where the
+  Grok Bot app is on the same computer, each moved bot's recent chat there comes over as its latest conversation,
+  with the original times. An export that carries credential fields (API keys, tokens, passwords) is refused, naming
+  them, and key-shaped text in it is masked.
 
 ### Changed
 

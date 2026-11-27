@@ -50,6 +50,9 @@ import type {
   RoomCreate,
   RoomUpdate,
   BotImportPlan,
+  GrokChatResult,
+  GrokLook,
+  GrokMoveLink,
   BotImportResult,
   GrokTemplateCard,
   Approval,
@@ -250,6 +253,8 @@ export interface Settings {
   routineSuggestions?: boolean;
   /** Whether a bot tells the person, once a day, of what went wrong and waits on them; missing on older servers. */
   checkIns?: boolean;
+  /** The person has seen the offer to move their bots from Grok Bot; missing on older servers. */
+  grokMoveOffered?: boolean;
   /** The promise safety net after a bot's reply; missing on older servers. */
   promiseKeeper?: boolean;
   /** The time of day a reminder of the person's own promise arrives (HH:MM); missing on older servers. */
@@ -898,6 +903,21 @@ export function endpoints(send: Transport, base = '') {
     importBots: (file: Blob) => http.post<BotImportResult>('/api/import/bots', file),
     /** What a Grok Bot share link's page shows about the bot. */
     readGrokLink: (url: string) => http.post<GrokTemplateCard>('/api/import/grok-link', { url }),
+    /** Grok Bot's export files in Downloads and its desktop app's bots, on the person's computer. */
+    grokLook: () => http.get<GrokLook>('/api/import/grok'),
+    /** The text of export files `grokLook` found, to import as a pasted reply would be. */
+    grokFiles: (names: string[]) => http.post<{ text: string }>('/api/import/grok/files', { names }),
+    /** Each moved bot's chat from the Grok Bot app, by its name there. */
+    grokChats: (bots: { id: string; name: string }[]) =>
+      http.post<GrokChatResult[]>('/api/import/grok/chats', { bots }),
+    /** The link Grok Bot sends bots over, with what arrived after `after`. */
+    grokLink: () => http.get<GrokMoveLink>('/api/import/grok/link'),
+    /** What arrived on the link up to `upTo` and is not imported yet, as one text. */
+    grokLinkTexts: (upTo: number) => http.get<{ text: string }>(`/api/import/grok/link/texts?upTo=${upTo}`),
+    /** What arrived up to `upTo` was imported, so it is not offered again. */
+    grokLinkImported: (upTo: number) => http.post<GrokMoveLink>('/api/import/grok/link/imported', { upTo }),
+    openGrokLink: () => http.post<GrokMoveLink>('/api/import/grok/link'),
+    endGrokLink: () => http.del<GrokMoveLink>('/api/import/grok/link'),
     /** Whether the server can turn speech into text (an OpenAI or Groq key is saved). */
     transcribeStatus: () => http.get<{ available: boolean }>('/api/transcribe'),
     /** A recording from the message box, written out by the provider whose key the server has. */

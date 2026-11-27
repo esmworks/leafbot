@@ -5,9 +5,23 @@ description: Packs the user's Grok Bot agents (instructions, picture, timed task
 
 # Move agents to Leaf Bot
 
-The result of this task is one JSON file named `leafbot-bots.json`. The user loads it in Leaf Bot
-(**Settings → Import**), where it is previewed before anything is created. Leaf Bot checks the file
-strictly; a file that does not match the shape below is rejected as a whole.
+The result of this task is one JSON document in the shape below. The user loads it in Leaf Bot
+(**Settings → Import**), where it is previewed before anything is created. Leaf Bot checks it
+strictly; a document that does not match the shape below is rejected as a whole.
+
+Hand it over in the first of these ways that works:
+
+1. **The Leaf Bot connector.** When you have its tools (`move_status`, `send_export`), call
+   `move_status`, then send the document with `send_export`, one agent per call when they are
+   large. Write no file.
+2. **A file.** Save it as `leafbot-bots.json`, in the user's Downloads folder if you can write to
+   their computer, otherwise in your workspace, and attach it to your reply.
+3. **Your reply.** Put the whole document in a single ```json code block, with nothing else
+   inside the block.
+
+When it is too long for one message, file or call, split it: send several documents, each
+complete and valid in this same shape (`format`, `version`, `bots`). An agent can be split over
+several of them under the same `ref`; Leaf Bot joins the parts and imports each thing once.
 
 ## What the file looks like
 
@@ -163,12 +177,13 @@ accounts or event-triggered tasks: `bot` (the agent's `ref`, or `null`), `what` 
 3. Keep credentials out of the file. API keys, passwords, tokens, cookies and signed URLs never
    go in, not even inside instructions or prompts; put a note such as `[needs the user's API key]`
    in their place.
-4. Write `leafbot-bots.json`, then check it:
+4. Write the document, then check it:
    - it parses as JSON, with `format` `leafbot-bot-import` and `version` `1`;
    - every `ref` is unique, and every group member is one of them;
    - every schedule is one of the six shapes, none of them guessed;
    - every skill's `body` is its full text, not a summary;
    - no credentials appear anywhere;
    - everything left behind is listed in `notImported`.
-5. Tell the user where the file is, how many agents and groups it contains and what is in
-   `notImported`, and that they can now load it under **Settings → Import** in Leaf Bot.
+5. Hand it over as described at the top. Then tell the user how many agents and groups it
+   contains and what is in `notImported`, and, unless you sent it over the connector, that they
+   can now load it (or paste your reply) under **Settings → Import** in Leaf Bot.

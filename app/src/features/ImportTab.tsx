@@ -1,11 +1,30 @@
-import { describeSchedule, grokLinkPage, parseGrokLink, type BotImportPlan } from '@leafbot/shared';
-import { useMutation, useQuery } from '@tanstack/react-query';
-import { ArchiveRestore, Copy, Download, ExternalLink, FileUp, Link2, Loader2, Plus } from 'lucide-react';
+import {
+  describeSchedule,
+  grokLinkPage,
+  parseGrokLink,
+  type BotImportPlan,
+  type BotImportResult,
+  type GrokChatResult,
+} from '@leafbot/shared';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  ArchiveRestore,
+  ClipboardPaste,
+  Copy,
+  Download,
+  ExternalLink,
+  FileUp,
+  FolderDown,
+  Link2,
+  Loader2,
+  Plus,
+} from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { useLocale, useT, type MessageKey } from '@/i18n';
 import { api } from '@/lib/api';
 import { copyText } from '@/lib/clipboard';
@@ -13,43 +32,93 @@ import { useFormat } from '@/lib/format';
 import { useBots } from '@/lib/queries';
 import { useUi } from '@/lib/store';
 import { FoundProjects } from './FoundProjects';
+import { GrokConnectCard } from './GrokConnectCard';
 import { Card, Row } from './SettingsPage';
 
 /** The instructions the other app follows to write the import file; served with the app. */
 const EXPORT_INSTRUCTIONS = `${import.meta.env.BASE_URL}import/grok-bot-export.md`;
 
+/** The text of the export, as a body the import route reads. */
+const asBody = (text: string) => new Blob([text], { type: 'application/octet-stream' });
+
 /**
- * Bots from Grok Bot: the person runs the export instructions there, then picks the file it
- * writes. Everything in it is shown before anything is saved.
+ * Bots from Grok Bot: the person runs the export instructions there, then brings back what it
+ * wrote: the file, its reply pasted as it came, a file it left in Downloads, or what it sent over
+ * the connector link. Everything in it is shown before anything is saved; on the person's own
+ * computer each bot's chat comes over too, from the Grok Bot app.
  */
 export function ImportTab() {
   const t = useT();
   const locale = useLocale((s) => s.locale);
   const input = useRef<HTMLInputElement>(null);
-  const [file, setFile] = useState<File | null>(null);
+  /** The export being previewed, and where it came from (a file's name), if anywhere. */
+  const [text, setText] = useState<string | null>(null);
+  const [source, setSource] = useState<string | null>(null);
+  /** The last link arrival in the text being previewed, marked imported on the server after commit. */
+  const [linkUpTo, setLinkUpTo] = useState<number | null>(null);
+  const [reply, setReply] = useState('');
   const [plan, setPlan] = useState<BotImportPlan | null>(null);
+  const [moved, setMoved] = useState<{ names: string[]; chats: GrokChatResult[] } | null>(null);
+  const qc = useQueryClient();
+  const look = useQuery({ queryKey: ['grok-look'], queryFn: api.grokLook, retry: false });
+  const appBots = look.data?.appBots ?? null;
 
   const reset = () => {
-    setFile(null);
+    setText(null);
+    setSource(null);
+    setLinkUpTo(null);
     setPlan(null);
     if (input.current) input.current.value = '';
   };
   const preview = useMutation({
-    mutationFn: api.previewBotImport,
+    mutationFn: (body: string) => api.previewBotImport(asBody(body)),
     onSuccess: setPlan,
     onError: (e) => {
       reset();
       toast.error((e as Error).message);
     },
   });
+  const read = (body: string, from: string | null, upTo: number | null = null) => {
+    setText(body);
+    setSource(from);
+    setLinkUpTo(upTo);
+    setPlan(null);
+    setMoved(null);
+    preview.mutate(body);
+  };
+  const chats = useMutation({ mutationFn: api.grokChats });
   const commit = useMutation({
-    mutationFn: api.importBots,
-    onSuccess: (result) => {
+    mutationFn: (body: string) => api.importBots(asBody(body)),
+    onSuccess: async (result: BotImportResult) => {
       toast.success(t('import.done', { count: result.botIds.length }));
+      const names = result.plan.bots.map((b) => b.name);
+      if (linkUpTo !== null) {
+        void api
+          .grokLinkImported(linkUpTo)
+          .then((state) => qc.setQueryData(['grok-link'], state))
+          .catch(() => {});
+      }
       reset();
+      setReply('');
+      setMoved({ names, chats: [] });
+      // Each bot's chat from the Grok Bot app, found by its name there, not the one it got here.
+      if (appBots !== null && result.botIds.length) {
+        const bots = result.botIds.map((id, i) => ({ id, name: result.plan.bots[i]!.nameInFile }));
+        try {
+          setMoved({ names, chats: await chats.mutateAsync(bots) });
+        } catch (e) {
+          toast.error((e as Error).message);
+        }
+      }
     },
     onError: (e) => toast.error((e as Error).message),
   });
+  const found = useMutation({
+    mutationFn: (names: string[]) => api.grokFiles(names),
+    onSuccess: (r, names) => read(r.text, names.join(', ')),
+    onError: (e) => toast.error((e as Error).message),
+  });
+  const busy = preview.isPending || commit.isPending || found.isPending;
 
   // Loaded ahead so the click copies at once: a copy that waits on the network is no longer the
   // click's, and Safari refuses it.
@@ -77,6 +146,11 @@ export function ImportTab() {
   return (
     <>
       <p className="mb-4 text-sm text-muted-foreground">{t('import.hint')}</p>
+      <GrokConnectCard
+        disabled={busy}
+        hosted={look.data?.onComputer === false}
+        onArrived={(body, upTo) => read(body, t('import.fromLink'), upTo)}
+      />
       <GrokLinkCard onCopy={(scope, intro) => void copyInstructions(scope, intro)} />
       <Card title={t('import.step1')}>
         <Row label={t('import.instructions')} hint={t('import.instructionsHint')}>
@@ -97,36 +171,96 @@ export function ImportTab() {
         </Row>
       </Card>
       <Card title={t('import.step2')}>
-        <Row label={file?.name ?? t('import.file')} hint={t('import.fileHint')}>
+        <Row label={t('import.file')} hint={t('import.fileHint')}>
           <input
             ref={input}
             type="file"
-            accept=".json,application/json"
+            accept=".json,.md,.txt,application/json,text/plain"
             className="hidden"
             onChange={(e) => {
               const picked = e.target.files?.[0];
-              if (!picked) return;
-              setFile(picked);
-              setPlan(null);
-              preview.mutate(picked);
+              if (picked) void picked.text().then((body) => read(body, picked.name));
             }}
           />
           <Button
             variant="outline"
             size="sm"
             className="rounded-full"
-            disabled={preview.isPending || commit.isPending}
+            disabled={busy}
             onClick={() => input.current?.click()}
           >
-            {preview.isPending ? <Loader2 className="size-4 animate-spin" /> : <FileUp className="size-4" />}
+            {preview.isPending && source !== null ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <FileUp className="size-4" />
+            )}
             {t('import.choose')}
           </Button>
         </Row>
+        {look.data?.files.length ? (
+          <Row
+            label={t('import.found', { names: look.data.files.flatMap((f) => f.bots).join(', ') })}
+            hint={look.data.files.map((f) => f.name).join(', ')}
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full"
+              disabled={busy}
+              onClick={() => found.mutate(look.data!.files.map((f) => f.name))}
+            >
+              {found.isPending ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <FolderDown className="size-4" />
+              )}
+              {t('import.useFound')}
+            </Button>
+          </Row>
+        ) : null}
+        <div className="space-y-2 px-4 py-3">
+          <div className="text-sm">{t('import.replyLabel')}</div>
+          <div className="text-xs text-muted-foreground">{t('import.replyHint')}</div>
+          <Textarea
+            value={reply}
+            onChange={(e) => setReply(e.target.value)}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={(e) => {
+              const dropped = e.dataTransfer.files[0];
+              if (!dropped) return;
+              e.preventDefault();
+              void dropped.text().then((body) => read(body, dropped.name));
+            }}
+            placeholder={t('import.replyPlaceholder')}
+            aria-label={t('import.replyLabel')}
+            className="max-h-48 min-h-24 rounded-xl font-mono text-xs"
+          />
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-full"
+              disabled={busy || !reply.trim()}
+              onClick={() => read(reply, null)}
+            >
+              {preview.isPending && source === null ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <ClipboardPaste className="size-4" />
+              )}
+              {t('import.readReply')}
+            </Button>
+          </div>
+        </div>
       </Card>
 
-      {plan && file && (
+      {moved && <MovedCard names={moved.names} chats={moved.chats} loading={chats.isPending} />}
+
+      {plan && text !== null && (
         <>
           <p className="mb-4 text-sm text-muted-foreground">{t('import.safety')}</p>
+          {appBots !== null && <p className="mb-4 text-sm text-muted-foreground">{t('import.chatsToo')}</p>}
+          {source && <p className="mb-4 text-xs text-muted-foreground">{t('import.from', { source })}</p>}
           <Card title={t('import.bots', { count: plan.bots.length })}>
             {plan.bots.map((bot) => (
               <details key={bot.ref} className="group px-4 py-3">
@@ -247,7 +381,7 @@ export function ImportTab() {
             <Button variant="ghost" className="rounded-full" onClick={reset} disabled={commit.isPending}>
               {t('common.cancel')}
             </Button>
-            <Button className="rounded-full" onClick={() => commit.mutate(file)} disabled={commit.isPending}>
+            <Button className="rounded-full" onClick={() => commit.mutate(text)} disabled={commit.isPending}>
               {commit.isPending && <Loader2 className="size-4 animate-spin" />}
               {t('import.confirm', { count: plan.bots.length })}
             </Button>
@@ -258,6 +392,35 @@ export function ImportTab() {
       <ExportCard />
       <BackupCard />
     </>
+  );
+}
+
+/** What the last import made, and for each bot whether its chat came over from the Grok Bot app. */
+function MovedCard({
+  names,
+  chats,
+  loading,
+}: {
+  names: string[];
+  chats: GrokChatResult[];
+  loading: boolean;
+}) {
+  const t = useT();
+  return (
+    <Card title={t('import.movedTitle')}>
+      {names.map((name, i) => {
+        const chat = chats[i];
+        const hint = !chat
+          ? loading
+            ? t('import.chat.loading')
+            : undefined
+          : 'messages' in chat
+            ? t('import.chat.came', { count: chat.messages })
+            : t(`import.chat.${chat.reason}`);
+        return <Row key={`${i}-${name}`} label={name} hint={hint} />;
+      })}
+      <Row label={t('import.movedRoutines')} />
+    </Card>
   );
 }
 

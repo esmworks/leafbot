@@ -147,6 +147,8 @@ export const Settings = z.object({
    * no AI, and when something is new a bot tells them. Off stops the looking; each person has their own.
    */
   checkIns: z.boolean().default(true),
+  /** The person has seen the offer to move their bots from Grok Bot; it shows once. */
+  grokMoveOffered: z.boolean().default(false),
   /** The time of day, in the person's time zone, that a reminder of their own promise arrives. */
   promiseRemindAt: z
     .string()
@@ -221,6 +223,7 @@ export const PERSONAL_SETTINGS = [
   'promiseRemindAt',
   'routineSuggestions',
   'checkIns',
+  'grokMoveOffered',
   // The language the app and the bots speak with the person.
   'language',
 ] as const satisfies readonly (keyof Settings)[];
@@ -236,6 +239,7 @@ const Profile = Settings.pick({
   promiseRemindAt: true,
   routineSuggestions: true,
   checkIns: true,
+  grokMoveOffered: true,
   language: true,
 });
 

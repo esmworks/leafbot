@@ -256,6 +256,17 @@ const tr = {
   'error.botPlanChanged': 'Kart beklerken bu adlardan biri alındı; plan yeniden kurulmalı',
   'error.grokLinkInvalid': 'Bu bir Grok Bot paylaşım bağlantısı değil (x.ai/bot/… biçiminde olmalı)',
   'error.importInvalid': 'İçe aktarma dosyası geçersiz: {path} alanı hatalı',
+  'error.importText.notExport':
+    'Bu bir Leaf Bot içe aktarma dosyası değil, içinde öyle bir cevap da bulunamadı. Botun cevabının tamamını kopyala ya da yazdığı dosyayı seç.',
+  'error.importText.cutOff':
+    'Cevap kesik görünüyor. Botundan kalanını aynı biçimde ayrı bir mesaj olarak göndermesini iste, sonra ikisini birlikte yapıştır.',
+  'error.importText.tooLarge':
+    'Bu, içe aktarmanın alabileceğinden büyük. Botundan birkaç mesaja bölmesini iste.',
+  'error.importText.credentials':
+    'Bunda şifre ya da anahtar alanı var, bu yüzden hiçbir şey okunmadı: {keys}. Botundan onlar olmadan yeniden yazmasını iste.',
+  'error.moveUnavailable': "Bu sunucu Grok Bot'a bağlantı açamıyor",
+  'import.grokChatTitle': "Grok Bot'taki sohbet",
+  'error.moveFailed': 'Bağlantı açılamadı. İnternete bağlı olduğunu kontrol edip yeniden dene.',
   'error.memoryNeedsBot': 'Bot hafızası için bot gerekli',
   'error.memoryNeedsPlace': 'Yer notu için bir kanal ya da oda gerekli',
   'error.memoryPinnedFull':
@@ -2769,6 +2780,17 @@ const en: Catalog<ServerKey> = {
   'error.botPlanChanged': 'One of these names was taken while the card waited; the plan has to be made again',
   'error.grokLinkInvalid': 'That is not a Grok Bot share link (it looks like x.ai/bot/…)',
   'error.importInvalid': 'The import file is invalid: the field {path} is wrong',
+  'error.importText.notExport':
+    "This is not a Leaf Bot import file, and no reply holding one was found in it. Copy the bot's whole reply, or choose the file it made.",
+  'error.importText.cutOff':
+    'The reply looks cut off. Ask your bot to send the rest as another message in the same shape, then paste both.',
+  'error.importText.tooLarge':
+    'That is larger than an import can take. Ask your bot to split it into several messages.',
+  'error.importText.credentials':
+    'This has password or key fields in it, so nothing was read: {keys}. Ask your bot to write it again without them.',
+  'error.moveUnavailable': 'This server cannot open a link for Grok Bot',
+  'import.grokChatTitle': 'Chat from Grok Bot',
+  'error.moveFailed': "Couldn't make the link. Check that you're online and try again.",
   'error.memoryNeedsBot': 'Bot memory needs a bot',
   'error.memoryNeedsPlace': 'A place note needs a channel or a room',
   'error.memoryPinnedFull':

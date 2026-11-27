@@ -60,6 +60,7 @@ import type { AccountStatus, Engine, ModelTest } from './engine/types';
 import { registerMcpServer } from './mcp-server';
 import { TEAMS_PATH } from './channels/teams';
 import { EMAIL_INBOUND_PATH, registerRoutes, WEBHOOK_PATH } from './routes';
+import { MOVE_HOOK_PATH } from './services/grok-move';
 import { OAUTH_CALLBACK_PATH } from './services/connections';
 import { githubAuthorLookup, type GitAuthorLookup } from './services/github-author';
 import { dropAllClients, OAUTH_CLIENT_PATH, setToolCallTimeout } from './connections/client';
@@ -152,7 +153,11 @@ const TUNNEL_REFUSED = new Set([
   '/api/account-host/name',
 ]);
 /** Routes (as registered, not as a URL spells them) that need no access key or session. */
-const openRoute = (route: string) => PUBLIC_API.has(route) || route.startsWith(`${WEBHOOK_PATH}/`);
+const openRoute = (route: string) =>
+  PUBLIC_API.has(route) ||
+  route.startsWith(`${WEBHOOK_PATH}/`) ||
+  // Grok Bot sending bots over the move link, which checks the link's key itself.
+  route.startsWith(`${MOVE_HOOK_PATH}/`);
 
 export async function createServer(config: Config, opts: ServerOptions = {}): Promise<LeafBotServer> {
   const db = await openDb({ url: config.databaseUrl, dataDir: config.dataDir, memory: config.memoryDb });
