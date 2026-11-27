@@ -2640,7 +2640,7 @@ export const en: Catalog<MessageKey> = {
     'No team space yet. Open one under Settings → Spaces and folders to share bots with them.',
   'newcomer.chooseShort': 'Choose their spaces',
   'newcomer.done': 'Done',
-  'newcomer.later': 'Later',
+  'newcomer.close': 'Close; do not show again on this device',
   'spaces.hint':
     'The bots in a team space are open to the people in it: they can talk with them. Folders only tidy your Private and share nothing with anyone.',
   'spaces.placeholder': 'New folder or space name',

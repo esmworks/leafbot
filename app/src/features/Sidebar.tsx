@@ -19,7 +19,6 @@ import { BotAvatar } from '@/components/BotAvatar';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BotDragProvider, useBotDrag, useDragItem, useSectionOver } from '@/features/botDrag';
-import { NewcomerCards } from '@/features/Newcomers';
 import { RoomRail, RoomsSection } from '@/features/Rooms';
 import { BotMenu, GroupMenu, SidebarMenu } from '@/features/SidebarMenus';
 import { isRtl } from '@leafbot/shared';
@@ -350,7 +349,6 @@ function SidebarPanel({
               <kbd className="ms-auto shrink-0 rounded border px-1 text-[10px]">{SEARCH_KEYS}</kbd>
             </button>
           )}
-          <NewcomerCards />
           {needsYou.length > 0 && (
             <section className="mb-1" aria-label={t('sidebar.needsYou')}>
               <h3 className={cn(heading, 'flex items-center gap-2')}>

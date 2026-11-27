@@ -24,6 +24,7 @@ import { RightPanel } from '@/features/RightPanel';
 import { SearchDialog } from '@/features/SearchDialog';
 import { SettingsPage } from '@/features/SettingsPage';
 import { ShortcutsDialog } from '@/features/ShortcutsDialog';
+import { NewcomerBoxes } from '@/features/Newcomers';
 import { TodayDialog } from '@/features/TodayDialog';
 import { BoardDialog } from '@/features/board/BoardDialog';
 import { DashboardsDialog } from '@/features/DashboardsDialog';
@@ -363,6 +364,7 @@ function Workspace() {
         <SearchDialog />
         <ShortcutsDialog />
         <TodayDialog />
+        <NewcomerBoxes />
         <BoardDialog />
         <DashboardsDialog />
         <PageCallQuestion />

@@ -15,9 +15,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
   a bot's owner moves it only into a space they are in. Moving a bot says first who loses it and who gains it, and
   that a bot in a space uses its notes and the space's shared folder with the people in it too. The groups a server
   already has become secret spaces with nobody in them, so nothing anyone sees changes until someone is put in one.
-- When someone comes to the server for the first time, those who look after it get a card at the top of the sidebar
-  (and a line in Today) to choose the team spaces the person goes into, and a notification on their phones; the
-  card goes for everyone once one of them chooses. Those already on the server are not asked about.
+- When someone comes to the server for the first time, those who look after it get a box at the top right (and a
+  line in Today) to choose the team spaces the person goes into, and a notification on their phones. The box stays
+  until one of them chooses, which takes it away for everyone, or closes it, which puts it away on that device only;
+  the person stays listed in Today. Those already on the server are not asked about.
 - A server can be opened from the web at www.leafbot.app/bots without opening a port or having an address of its
   own. Its owner signs in to a Leaf Bot account on the website, takes an install code there and pastes it under
   Settings → Connection → Leaf Bot account. The server then keeps a connection out to Leaf Bot's relay, and people

@@ -235,6 +235,7 @@ describe('ekip alanları', () => {
     const waiting = async () =>
       (await t.api<{ id: string }[]>('GET', '/api/newcomers')).body.map((p) => p.id);
     expect(await waiting()).toContain('yeni');
+    expect(await waiting()).not.toContain('yonetici2');
     expect((await yeni.api('GET', '/api/newcomers')).status).toBe(403);
     expect(await levelOf(yeni, bot.id)).toBe('none');
 

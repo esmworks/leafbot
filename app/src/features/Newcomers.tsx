@@ -1,6 +1,6 @@
 import type { PersonInfo } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, X } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -16,26 +16,50 @@ export function useNewcomers() {
   return useQuery({ queryKey: ['newcomers'], queryFn: api.newcomers, enabled: manages }).data ?? [];
 }
 
+/** The newcomers this device closed the box of without choosing; kept here, not on the server. */
+const CLOSED_KEY = 'leafbot.newcomers.closed';
+
+function readClosed(): string[] {
+  try {
+    const raw = localStorage.getItem(CLOSED_KEY);
+    const list: unknown = raw ? JSON.parse(raw) : [];
+    return Array.isArray(list) ? list.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
 /**
- * A card for each person who came and waits for their team spaces, at the top of the sidebar of
- * those who look after the server. Choosing (even none) places them for everyone; "Later" only
- * puts the card away on this screen until the app opens again.
+ * A box at the top right for each person who came and waits for their team spaces, over the app
+ * of those who look after the server. It stays until one of them chooses the spaces (even none),
+ * which places the person for everyone, or closes it, which puts it away on this device only; the
+ * person is still listed in Today.
  */
-export function NewcomerCards() {
+export function NewcomerBoxes() {
   const newcomers = useNewcomers();
-  const [later, setLater] = useState<string[]>([]);
-  const shown = newcomers.filter((p) => !later.includes(p.id));
+  const [closed, setClosed] = useState(readClosed);
+  const close = (id: string) =>
+    setClosed((c) => {
+      const next = [...c, id];
+      try {
+        localStorage.setItem(CLOSED_KEY, JSON.stringify(next));
+      } catch {
+        // Without storage it is put away until the app opens again.
+      }
+      return next;
+    });
+  const shown = newcomers.filter((p) => !closed.includes(p.id));
   if (!shown.length) return null;
   return (
-    <div className="mb-2 space-y-2 px-1">
+    <div className="pointer-events-none fixed end-4 top-14 z-40 flex max-h-[calc(100%-4.5rem)] w-80 max-w-[calc(100vw-2rem)] flex-col gap-3 overflow-y-auto">
       {shown.map((p) => (
-        <NewcomerCard key={p.id} person={p} onLater={() => setLater((l) => [...l, p.id])} />
+        <NewcomerCard key={p.id} person={p} onClose={() => close(p.id)} />
       ))}
     </div>
   );
 }
 
-function NewcomerCard({ person, onLater }: { person: PersonInfo; onLater: () => void }) {
+function NewcomerCard({ person, onClose }: { person: PersonInfo; onClose: () => void }) {
   const t = useT();
   const qc = useQueryClient();
   const { data: groups = [] } = useGroups();
@@ -52,10 +76,24 @@ function NewcomerCard({ person, onLater }: { person: PersonInfo; onLater: () => 
   const name = personName(person, t('people.owner'));
   const toggle = (id: string, on: boolean) => setChosen((c) => (on ? [...c, id] : c.filter((x) => x !== id)));
   return (
-    <section aria-label={t('newcomer.joined', { name })} className="rounded-xl border bg-card/70 p-3 text-sm">
+    <section
+      role="dialog"
+      aria-label={t('newcomer.joined', { name })}
+      className="pointer-events-auto rounded-2xl border bg-popover p-4 text-sm text-popover-foreground shadow-lg"
+    >
       <div className="flex items-center gap-2 font-medium">
         <UserPlus className="size-4 shrink-0 text-primary" />
-        <span className="min-w-0 truncate">{t('newcomer.joined', { name })}</span>
+        <span className="min-w-0 flex-1 truncate">{t('newcomer.joined', { name })}</span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="-me-2 size-7 rounded-lg"
+          onClick={onClose}
+          aria-label={t('newcomer.close')}
+          title={t('newcomer.close')}
+        >
+          <X className="size-4" />
+        </Button>
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
         {spaces.length ? t('newcomer.choose') : t('newcomer.noSpaces')}
@@ -77,9 +115,6 @@ function NewcomerCard({ person, onLater }: { person: PersonInfo; onLater: () => 
       <div className="mt-3 flex gap-2">
         <Button size="sm" className="rounded-lg" disabled={place.isPending} onClick={() => place.mutate()}>
           {t('newcomer.done')}
-        </Button>
-        <Button size="sm" variant="ghost" className="rounded-lg" onClick={onLater}>
-          {t('newcomer.later')}
         </Button>
       </div>
     </section>

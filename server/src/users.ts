@@ -116,13 +116,16 @@ export class Users {
     return rows.map(personOf).sort((a, b) => Number(b.role === 'owner') - Number(a.role === 'owner'));
   }
 
-  /** Those who came since team spaces and wait for theirs to be chosen, the earliest first. */
+  /**
+   * Members who came since team spaces and wait for theirs to be chosen, the earliest first. Those
+   * who look after the server reach every space's bots already, so none of them waits.
+   */
   async newcomers(): Promise<PersonInfo[]> {
     const rows = await this.db
       .select()
       .from(schema.users)
       .where(
-        and(isNull(schema.users.placedAt), ne(schema.users.role, 'owner'), isNull(schema.users.disabledAt)),
+        and(isNull(schema.users.placedAt), eq(schema.users.role, 'member'), isNull(schema.users.disabledAt)),
       )
       .orderBy(asc(schema.users.createdAt));
     return rows.map(personOf);
