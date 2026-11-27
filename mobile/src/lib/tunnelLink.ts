@@ -24,7 +24,12 @@ export interface LinkDeps {
   /** Opens a tunnel; `onEnd` is called once when it ends after it opened. Rejects with why it could not. */
   open(onEnd: (code: string) => void): Promise<LiveTunnel>;
   sleep?(ms: number): Promise<void>;
+  /** The clock, in ms; `Date.now` by default. */
+  now?(): number;
 }
+
+/** A tunnel that stayed open this long counts as working, so the next attempt is quick again. */
+const STEADY_MS = 30_000;
 
 /** No tunnel was there, and none came, while a request waited for it. */
 export class NoTunnelError extends Error {
@@ -45,6 +50,7 @@ export class Link {
   private listeners = new Set<() => void>();
   private round = 0;
   private wake: (() => void) | null = null;
+  private openedAt = 0;
   private waiting: { done: (t: LiveTunnel) => void; fail: (e: NoTunnelError) => void }[] = [];
 
   constructor(private d: LinkDeps) {}
@@ -125,6 +131,10 @@ export class Link {
     });
   }
 
+  private now(): number {
+    return this.d.now ? this.d.now() : Date.now();
+  }
+
   private openOnce(current: () => boolean): Promise<string> {
     return new Promise((ended, fail) => {
       this.d.open(ended).then((live) => {
@@ -133,6 +143,7 @@ export class Link {
           return ended('closed');
         }
         this.live = live;
+        this.openedAt = this.now();
         this.set({ at: 'online' });
         for (const w of this.waiting.splice(0)) w.done(live);
       }, fail);
@@ -147,8 +158,10 @@ export class Link {
         const how = await this.openOnce(current);
         if (!current()) return;
         this.drop();
-        // It was open, so the next attempt is quick again.
-        attempt = 0;
+        // It stayed open a while, so the next attempt is quick again. One that drops as soon as it
+        // opens keeps backing off, or a server that takes and drops every tunnel would be tried
+        // every second.
+        if (this.now() - this.openedAt >= STEADY_MS) attempt = 0;
         if (!passingEnd(how)) {
           this.set({ at: 'refused', reason: how });
           return this.failWaiting();

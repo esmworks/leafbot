@@ -1,6 +1,6 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Linking, StyleSheet, View } from 'react-native';
 import { Button, ErrorText, Field, FormScreen, Hint, Mark, Title } from '@/components/ui';
 import { t } from '@/i18n';
@@ -29,9 +29,13 @@ export default function Connect() {
   const { code: linked } = useLocalSearchParams<{ code?: string }>();
   const { ready, phase, redeem } = useServer();
   const [permission, askPermission] = useCameraPermissions();
+  const link = typeof linked === 'string' ? linked : null;
+  // A link only fills the code in: it is redeemed when the person says so, or a page or message
+  // could sign this phone in to someone else's account without them knowing.
+  const linkCode = link ? parseConnectCode(link) : null;
   const [scanning, setScanning] = useState(false);
-  const [typing, setTyping] = useState(false);
-  const [value, setValue] = useState('');
+  const [typing, setTyping] = useState(!!linkCode);
+  const [value, setValue] = useState(linkCode ?? '');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [denied, setDenied] = useState(false);
@@ -60,14 +64,6 @@ export default function Connect() {
       setBusy(false);
     }
   };
-
-  const link = typeof linked === 'string' ? linked : null;
-  useEffect(() => {
-    // The link's code is tried once, when the app has read what it kept; the attempt only starts a request.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (ready && link) void attempt(link);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, link]);
 
   const scan = async () => {
     setError(null);
@@ -104,6 +100,7 @@ export default function Connect() {
       <Mark />
       <Title>{t('connect.title')}</Title>
       <Hint>{t('connect.intro')}</Hint>
+      {phase !== 'signedOut' ? <Hint>{t('connect.switchAccount')}</Hint> : null}
       {typing ? (
         <>
           <Field

@@ -37,12 +37,14 @@ describe('Link', () => {
     expect(link.state.at).toBe('idle');
   });
 
-  it('waits longer after each failure, up to 30 s, and starts over once it was open', async () => {
+  it('waits longer after each failure, up to 30 s, and starts over once it was open a while', async () => {
     const { waits, sleep } = instantSleeps();
     let n = 0;
+    let clock = 0;
     const ends: ((c: string) => void)[] = [];
     const link = new Link({
       sleep,
+      now: () => clock,
       open: async (onEnd) => {
         n++;
         if (n <= 6) throw new TunnelError('timeout');
@@ -54,10 +56,29 @@ describe('Link', () => {
     await settle();
     expect(waits.slice(0, 6)).toEqual([1000, 2000, 4000, 8000, 16000, 30000]);
     expect(link.state.at).toBe('online');
+    clock += 30_000;
     ends[0]!('closed');
     await settle();
     // The connection dropped after it had worked: the next wait is the short one again.
     expect(waits[6]).toBe(1000);
+    link.stop();
+  });
+
+  it('keeps backing off when every tunnel drops as soon as it opens', async () => {
+    const { waits, sleep } = instantSleeps();
+    let opens = 0;
+    const link = new Link({
+      sleep,
+      now: () => 0,
+      open: async (onEnd) => {
+        opens++;
+        if (opens <= 4) setTimeout(() => onEnd('closed'), 0);
+        return tunnel();
+      },
+    });
+    link.start();
+    for (let i = 0; i < 12; i++) await settle();
+    expect(waits.slice(0, 4)).toEqual([1000, 2000, 4000, 8000]);
     link.stop();
   });
 
