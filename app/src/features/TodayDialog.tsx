@@ -119,7 +119,7 @@ export function TodayDialog() {
               items={waiting}
               extra={
                 <>
-                  {/* Someone new waits for their team spaces; their card is at the top of the sidebar. */}
+                  {/* Someone new waits for their team spaces; their card is at the bottom right. */}
                   {newcomers.map((p) => (
                     <Item key={p.id} onClick={() => setOpen(false)}>
                       <UserPlus className="size-4 shrink-0 text-muted-foreground" />

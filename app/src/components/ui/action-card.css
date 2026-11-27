@@ -208,6 +208,44 @@
   color: var(--ac-white);
 }
 
+.action-card__meta {
+  font-size: 0.75rem;
+  color: var(--ac-paragraph);
+}
+
+.action-card__more {
+  font-size: 0.75rem;
+  color: var(--ac-paragraph);
+  text-underline-offset: 4px;
+  cursor: pointer;
+}
+
+.action-card__more:hover {
+  color: var(--ac-white);
+  text-decoration: underline;
+}
+
+.action-card__detail {
+  overflow: auto;
+
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  max-height: 10rem;
+  background-color: hsla(0, 0%, 100%, 0.06);
+
+  font-size: 0.75rem;
+  color: var(--ac-white);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+
+  border-radius: 0.5rem;
+}
+
+.action-card__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .action-card__button {
   cursor: pointer;
 
@@ -221,6 +259,19 @@
   border: 0;
   border-radius: 9999px;
   box-shadow: inset 0 -2px 25px -4px var(--ac-white);
+}
+
+/* The other answer: the same shape, without the glow, so the main one is still the one to see. */
+.action-card__button--quiet {
+  background-image: none;
+  background-color: transparent;
+
+  border: 1px solid var(--ac-line);
+  box-shadow: none;
+}
+
+.action-card__button--quiet:hover {
+  background-color: var(--ac-line);
 }
 
 .action-card__button:disabled {

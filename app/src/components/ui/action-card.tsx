@@ -18,6 +18,8 @@ function ActionCard({
   onClose,
   actionLabel,
   onAction,
+  secondaryLabel,
+  onSecondary,
   busy,
   className,
   children,
@@ -30,6 +32,9 @@ function ActionCard({
   onClose?: () => void;
   actionLabel: React.ReactNode;
   onAction: () => void;
+  /** With `onSecondary`, a quieter button beside the main one, such as "Deny". */
+  secondaryLabel?: React.ReactNode;
+  onSecondary?: () => void;
   busy?: boolean;
 }) {
   return (
@@ -54,15 +59,53 @@ function ActionCard({
       </div>
       <hr className="action-card__line" />
       {children}
-      <button type="button" className="action-card__button" disabled={busy} onClick={onAction}>
-        {actionLabel}
-      </button>
+      <div className="action-card__actions">
+        {onSecondary && (
+          <button
+            type="button"
+            className="action-card__button action-card__button--quiet"
+            disabled={busy}
+            onClick={onSecondary}
+          >
+            {secondaryLabel}
+          </button>
+        )}
+        <button type="button" className="action-card__button" disabled={busy} onClick={onAction}>
+          {actionLabel}
+        </button>
+      </div>
     </section>
   );
 }
 
 function ActionCardList({ className, ...props }: React.ComponentProps<'ul'>) {
   return <ul data-slot="action-card-list" className={cn('action-card__list', className)} {...props} />;
+}
+
+/** A small line under the question, such as who asked and when. */
+function ActionCardMeta({ className, ...props }: React.ComponentProps<'p'>) {
+  return <p data-slot="action-card-meta" className={cn('action-card__meta', className)} {...props} />;
+}
+
+/** Text that may run long, folded behind a link until asked for. */
+function ActionCardDetail({
+  text,
+  showLabel,
+  hideLabel,
+}: {
+  text: string;
+  showLabel: string;
+  hideLabel: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div>
+      <button type="button" className="action-card__more" onClick={() => setOpen((v) => !v)}>
+        {open ? hideLabel : showLabel}
+      </button>
+      {open && <div className="action-card__detail">{text}</div>}
+    </div>
+  );
 }
 
 /** A line of the list the person ticks: a ring that fills with a check once chosen. */
@@ -99,4 +142,4 @@ function ActionCardCheck({
   );
 }
 
-export { ActionCard, ActionCardCheck, ActionCardList };
+export { ActionCard, ActionCardCheck, ActionCardDetail, ActionCardList, ActionCardMeta };

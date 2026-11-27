@@ -15,51 +15,11 @@ export function useNewcomers() {
   return useQuery({ queryKey: ['newcomers'], queryFn: api.newcomers, enabled: manages }).data ?? [];
 }
 
-/** The newcomers this device closed the box of without choosing; kept here, not on the server. */
-const CLOSED_KEY = 'leafbot.newcomers.closed';
-
-function readClosed(): string[] {
-  try {
-    const raw = localStorage.getItem(CLOSED_KEY);
-    const list: unknown = raw ? JSON.parse(raw) : [];
-    return Array.isArray(list) ? list.filter((x): x is string => typeof x === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
 /**
- * A card at the bottom right for each person who came and waits for their team spaces, over the
- * app of those who look after the server. It stays until one of them chooses the spaces (even none),
- * which places the person for everyone, or closes it, which puts it away on this device only; the
- * person is still listed in Today.
+ * Someone who came and waits for their team spaces, asked of those who look after the server. Once
+ * one of them chooses (even none), the person is placed for everyone.
  */
-export function NewcomerBoxes() {
-  const newcomers = useNewcomers();
-  const [closed, setClosed] = useState(readClosed);
-  const close = (id: string) =>
-    setClosed((c) => {
-      const next = [...c, id];
-      try {
-        localStorage.setItem(CLOSED_KEY, JSON.stringify(next));
-      } catch {
-        // Without storage it is put away until the app opens again.
-      }
-      return next;
-    });
-  const shown = newcomers.filter((p) => !closed.includes(p.id));
-  if (!shown.length) return null;
-  return (
-    // On a phone it sits above the bar at the bottom of the list.
-    <div className="pointer-events-none fixed end-4 bottom-24 z-40 flex max-h-[calc(100%-7rem)] max-w-[calc(100vw-2rem)] flex-col-reverse gap-3 overflow-y-auto p-0.5 md:bottom-4 md:max-h-[calc(100%-2rem)]">
-      {shown.map((p) => (
-        <NewcomerCard key={p.id} person={p} onClose={() => close(p.id)} />
-      ))}
-    </div>
-  );
-}
-
-function NewcomerCard({ person, onClose }: { person: PersonInfo; onClose: () => void }) {
+export function NewcomerCard({ person, onClose }: { person: PersonInfo; onClose: () => void }) {
   const t = useT();
   const qc = useQueryClient();
   const { data: groups = [] } = useGroups();
@@ -82,7 +42,7 @@ function NewcomerCard({ person, onClose }: { person: PersonInfo; onClose: () => 
       className="pointer-events-auto"
       title={t('newcomer.joined', { name })}
       description={spaces.length ? t('newcomer.choose') : t('newcomer.noSpaces')}
-      closeLabel={t('newcomer.close')}
+      closeLabel={t('actionCard.close')}
       onClose={onClose}
       actionLabel={t('newcomer.done')}
       onAction={() => place.mutate()}

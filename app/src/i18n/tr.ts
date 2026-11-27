@@ -479,6 +479,8 @@ export const tr = {
   'today.canarySeen': 'Gördüm',
   'today.waiting': 'Seni bekleyenler',
   'second.title': 'İkinci onayını bekleyenler',
+  'second.cardTitle': '{bot} ikinci onayını bekliyor',
+  'actionCard.close': 'Kapat; bu cihazda bir daha gösterme',
   'second.askedBy': '{name} istedi',
   'second.firstYes': '{name} evet dedi, {when}',
   'second.allow': 'Evet de',
@@ -2597,7 +2599,6 @@ export const tr = {
     'Henüz ekip alanı yok. Ayarlar → Alanlar ve klasörler’den açınca botlarını onunla paylaşabilirsin.',
   'newcomer.chooseShort': 'Alanlarını seç',
   'newcomer.done': 'Tamam',
-  'newcomer.close': 'Kapat; bu cihazda bir daha gösterme',
   'spaces.hint':
     'Ekip alanındaki botlar alanın üyelerine açılır: onlarla konuşabilirler. Klasörler yalnızca senin Özel’ini düzenler, kimseyle bir şey paylaşmaz.',
   'spaces.placeholder': 'Yeni klasör ya da alan adı',

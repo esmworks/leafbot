@@ -19,6 +19,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
   line in Today) to choose the team spaces the person goes into, and a notification on their phones. The box stays
   until one of them chooses, which takes it away for everyone, or closes it, which puts it away on that device only;
   the person stays listed in Today. Those already on the server are not asked about.
+- A step that waits for someone's second yes is asked of them in a box at the bottom right too, with the bot, the
+  step, who asked and who said yes first, and buttons to say yes or deny. Before, it was listed only in Today, and
+  waited unseen until that was opened. Closing the box puts it away on that device; Today still lists it.
 - Someone invited to a server, the first time they come, sees a welcome with the server's name, the team spaces
   they are in and the bots there (or that their bots show once they are put in a space), then a short question
   about themselves they can skip. No starter bots are made for them; the first run that sets up bots and the AI is

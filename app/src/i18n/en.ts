@@ -503,6 +503,8 @@ export const en: Catalog<MessageKey> = {
   'today.canarySeen': 'Mark as seen',
   'today.waiting': 'Waiting for you',
   'second.title': 'Waiting for your second yes',
+  'second.cardTitle': '{bot} is waiting for your second yes',
+  'actionCard.close': 'Close; do not show again on this device',
   'second.askedBy': 'Asked by {name}',
   'second.firstYes': '{name} said yes, {when}',
   'second.allow': 'Say yes',
@@ -2647,7 +2649,6 @@ export const en: Catalog<MessageKey> = {
     'No team space yet. Open one under Settings → Spaces and folders to share bots with them.',
   'newcomer.chooseShort': 'Choose their spaces',
   'newcomer.done': 'Done',
-  'newcomer.close': 'Close; do not show again on this device',
   'spaces.hint':
     'The bots in a team space are open to the people in it: they can talk with them. Folders only tidy your Private and share nothing with anyone.',
   'spaces.placeholder': 'New folder or space name',
