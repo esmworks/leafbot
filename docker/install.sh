@@ -256,10 +256,12 @@ manage() {
     access-key) get_env LEAFBOT_ACCESS_KEY ;;
     login)
       # Asks in the running server's container, on its own data and database, in the language of
-      # this installation; the server reaches the account only after it starts again.
-      compose exec -e LANG="$UI" leafbot node dist/index.mjs login
+      # this installation. The account lists the server by its address, as the container's own name
+      # is its id. The server reaches the account only after it starts again.
+      compose exec -e LANG="$UI" -e LEAFBOT_SERVER_NAME="$(get_env LEAFBOT_DOMAIN)" leafbot node dist/index.mjs login
       say "Sunucu yeniden başlatılıyor." "Restarting the server."
       compose restart leafbot
+      ! systemctl is-enabled --quiet leafbot-firewall.service 2>/dev/null || systemctl restart leafbot-firewall.service
       ;;
     compose) compose "${REST[@]}" ;;
   esac

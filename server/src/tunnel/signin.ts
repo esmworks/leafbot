@@ -165,12 +165,13 @@ export class AccountSignIn {
   }
 }
 
-/** What the account lists this server as: the computer's name. */
+/**
+ * What the account lists this server as: `LEAFBOT_SERVER_NAME`, else the computer's name. In a
+ * container the computer's name is the container's id, which tells the owner nothing.
+ */
 function serverName(): string {
   return (
-    hostname()
-      .replace(/\.local$/, '')
-      .trim()
-      .slice(0, 80) || 'Leaf Bot'
+    (process.env.LEAFBOT_SERVER_NAME?.trim() || hostname().replace(/\.local$/, '')).trim().slice(0, 80) ||
+    'Leaf Bot'
   );
 }

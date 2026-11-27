@@ -114,18 +114,28 @@ describe('leafbot login', () => {
     ]);
   });
 
-  it('mails a new code when the code is left empty', async () => {
+  it('mails a new code when the code is left empty, and names the server as it is told', async () => {
     const account = fakeAccount({ name: 'Ada' });
     const io = terminal(['ada@example.com', '', '123456']);
-    const code = await login({
-      config: dataFolder(true),
-      io,
-      locale: 'en',
-      fetcher: account.fetcher,
-      serverAnswers: stopped,
-    });
-    expect(code).toBe(0);
+    // In a container the computer's name is the container's id; the installer names it instead.
+    process.env.LEAFBOT_SERVER_NAME = 'bot.example.com';
+    try {
+      const code = await login({
+        config: dataFolder(true),
+        io,
+        locale: 'en',
+        fetcher: account.fetcher,
+        serverAnswers: stopped,
+      });
+      expect(code).toBe(0);
+    } finally {
+      delete process.env.LEAFBOT_SERVER_NAME;
+    }
     expect(account.calls.filter((c) => c.path === '/v1/auth/email/start')).toHaveLength(2);
+    expect(account.calls.find((c) => c.path === '/v1/servers/install-codes')?.body).toEqual({
+      name: 'bot.example.com',
+    });
+    expect(account.calls.find((c) => c.path === '/v1/host/claim')?.body?.name).toBe('bot.example.com');
   });
 
   it('says why when the server belongs to another account, and stops', async () => {

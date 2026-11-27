@@ -97,12 +97,13 @@ Sunucuyu Leaf Bot hesabınıza bağlamak için `login` komutunu kapsayıcısınd
 başlatın:
 
 ```bash
-docker compose -f docker/compose.yml --env-file docker/.env exec leafbot node dist/index.mjs login
+docker compose -f docker/compose.yml --env-file docker/.env exec -e LANG=tr -e LEAFBOT_SERVER_NAME=bot.ornek.com leafbot node dist/index.mjs login
 docker compose -f docker/compose.yml --env-file docker/.env restart leafbot
 ```
 
 Komut sunucunun veri klasöründe (`LEAFBOT_DATA_DIR`) ve veritabanında çalışır, bu yüzden sunucu hiç başlamadan da
-kullanılır. Gömülü veritabanıyla (`DATABASE_URL` yokken) çalışan bir sunucu önce durdurulmalıdır, çünkü o
+kullanılır. `LEAFBOT_SERVER_NAME` hesabın sunucuyu hangi adla listeleyeceğidir; verilmezse kapsayıcının kimliği
+görünür. Gömülü veritabanıyla (`DATABASE_URL` yokken) çalışan bir sunucu önce durdurulmalıdır, çünkü o
 veritabanını aynı anda tek bir süreç açabilir.
 
 ## Uzaktan erişim

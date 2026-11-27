@@ -274,7 +274,7 @@ Connection → Connect another device on a device already signed in.
 To link the server to your Leaf Bot account from the terminal, run the `login` command in its container:
 
 ```bash
-docker compose -f docker/compose.yml --env-file docker/.env exec leafbot node dist/index.mjs login
+docker compose -f docker/compose.yml --env-file docker/.env exec -e LEAFBOT_SERVER_NAME=bot.example.com leafbot node dist/index.mjs login
 ```
 
 ```bash
@@ -282,10 +282,11 @@ docker compose -f docker/compose.yml --env-file docker/.env restart leafbot
 ```
 
 It asks for your email, the code mailed to it and, when the account has none, your name; the server reaches the
-account once it has restarted. The command works on the server's data folder (`LEAFBOT_DATA_DIR`) and its database,
+account once it has restarted. `LEAFBOT_SERVER_NAME` is what the account lists the server as; without it the account
+shows the container's id. The command works on the server's data folder (`LEAFBOT_DATA_DIR`) and its database,
 so it also runs before the server's first start. A server on the embedded database (no `DATABASE_URL`) must be stopped
 first, because only one process may open that database: `docker run --rm -it -v <data volume>:/data <image> node
-dist/index.mjs login`, then start the server again. From a checkout, `pnpm --filter ./server login` does the same with
+dist/index.mjs login`, then start the server again. From a checkout, `pnpm --filter ./server run login` does the same with
 `server/data`.
 
 [docker/README.md](docker/README.md) covers the details (in Turkish): signing in to Claude, the browser and password
@@ -446,6 +447,7 @@ The server reads these environment variables:
 | `LEAFBOT_DISCORD_API`           | Discord's own       | Address of Discord's API with its version; only tests change it         |
 | `LEAFBOT_MODEL_CATALOG_URL`     | models.dev          | Public model catalog for model names and new models; `off` turns it off |
 | `LEAFBOT_LOG`                   | —                   | `1` turns on request logging                                            |
+| `LEAFBOT_SERVER_NAME`           | the computer's name | What your Leaf Bot account lists the server as when it signs in         |
 
 Model provider keys and the Claude token are entered in the app, stored encrypted in the database and never read from
 the server's environment.
