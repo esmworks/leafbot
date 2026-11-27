@@ -5,6 +5,7 @@ import { loginFromTerminal } from './cli/login';
 import { loadConfig } from './config';
 import { translator } from './i18n';
 import { launchMark, launchSpan, launchTimingsLine } from './launch-timings';
+import { watchLoopStalls } from './loop-stalls';
 import { loadRtc } from './tunnel/rtc-datachannel';
 
 // Every module is loaded and run by now: the time to here is the cost of the code itself.
@@ -50,6 +51,7 @@ launchMark('listening');
 // The desktop shell reads this line to learn the port, and the next one to learn where the time went.
 console.log(`LEAFBOT_READY ${address}`);
 console.log(launchTimingsLine());
+watchLoopStalls();
 if (!config.accessKey) console.log(t('log.accessKey', { path: `${config.dataDir}/access-key` }));
 
 let closing = false;
