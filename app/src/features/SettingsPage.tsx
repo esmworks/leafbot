@@ -534,10 +534,27 @@ function Notifications() {
   );
 }
 
-export function Card({ title, children }: { title?: string; children: React.ReactNode }) {
+/**
+ * A titled group of rows. `hint` says what the group is for and sits under the title, outside the
+ * box: inside it, the rows' dividers would cut the explanation off from the title it belongs to.
+ */
+export function Card({
+  title,
+  hint,
+  children,
+}: {
+  title?: string;
+  hint?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="mb-6">
-      {title && <h3 className="mb-2 px-1 text-sm font-medium text-muted-foreground">{title}</h3>}
+    <section className="mb-8">
+      {(title || hint) && (
+        <div className="mb-2 space-y-1 px-1">
+          {title && <h3 className="text-sm font-medium">{title}</h3>}
+          {hint && <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p>}
+        </div>
+      )}
       <div className="divide-y rounded-2xl border bg-card/50">{children}</div>
     </section>
   );
@@ -1526,8 +1543,7 @@ function MemoryTab() {
       <PendingMemory bots={[...bots, ...archived]} />
       <MemoryFlags bots={[...bots, ...archived]} />
       {expiredHits.length > 0 && (
-        <Card title={t('memory.expired')}>
-          <p className="px-4 py-3 text-xs text-muted-foreground">{t('memory.expiredHint')}</p>
+        <Card title={t('memory.expired')} hint={t('memory.expiredHint')}>
           {expiredHits.map((m) => (
             <NoteRow
               key={m.id}
@@ -1604,13 +1620,13 @@ function MemoryTab() {
       ) : (
         <>
           {(manages || common.length > 0) && (
-            <Card title={t('memory.common')}>
-              <p className="px-4 py-3 text-xs text-muted-foreground">
-                {t(manages ? 'memory.commonHint' : 'memory.commonHintMember')}
-              </p>
+            <Card
+              title={t('memory.common')}
+              hint={t(manages ? 'memory.commonHint' : 'memory.commonHintMember')}
+            >
               {manages && (
                 <form
-                  className="flex gap-2 px-4 pb-3"
+                  className="flex gap-2 px-4 py-3"
                   onSubmit={(e) => {
                     e.preventDefault();
                     if (commonText.trim()) addCommon.mutate();
@@ -1710,10 +1726,7 @@ function MemoryTab() {
             })}
           </Card>
           {roomGroups.length > 0 && (
-            <Card title={t('memory.rooms')}>
-              {!searching && (
-                <p className="px-4 py-3 text-xs text-muted-foreground">{t('memory.roomsHint')}</p>
-              )}
+            <Card title={t('memory.rooms')} hint={!searching && t('memory.roomsHint')}>
               {roomGroups.map((g) => {
                 const isOpen = searching || open.has(g.place);
                 return (

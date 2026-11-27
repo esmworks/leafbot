@@ -2576,6 +2576,9 @@ export const tr = {
   'import.copied': 'Talimat kopyalandı',
   'import.copyFailed': 'Talimat kopyalanamadı; indirip açın',
   'import.step2': '2. Yazdığını geri getirin',
+  'import.move.title': "Grok Bot'tan taşıyın",
+  'import.move.hint':
+    "Talimatı Grok Bot'a verin, sonra onun yazdığını buraya getirin: dosya olarak, Downloads'tan ya da cevabını yapıştırarak.",
   'import.file': 'leafbot-bots.json',
   'import.fileHint': 'Önce neyin ekleneceğini gösteririz; onaylamadan hiçbir şey kaydedilmez.',
   'import.choose': 'Dosya seç',
@@ -2658,7 +2661,7 @@ export const tr = {
   'grokMove.copyFailed': 'Kopyalanamadı',
   'grokMove.connect.title': "Grok Bot'u bağlayın",
   'grokMove.connect.hint':
-    'Botlarınız kurulumlarını buraya kendileri gönderir, tek seferde. Ya da aşağıdaki iki adımı kullanın.',
+    'Botlarınız kurulumlarını buraya kendileri gönderir, tek seferde. Ya da aşağıdaki yollardan birini kullanın.',
   'grokMove.connect.start': "Grok Bot'a yapıştıracağınız bağlantıyı alın",
   'grokMove.connect.stopped':
     "Bağlantı çalışmayı bıraktı. Yenisini alıp Grok Bot'ta eskisinin yerine yapıştırın.",
@@ -2667,9 +2670,9 @@ export const tr = {
   'grokMove.connect.get': 'Bağlantıyı al',
   'grokMove.connect.unavailable': "Bu sunucu Grok Bot'a bağlantı açamıyor",
   'grokMove.connect.unavailableHint':
-    "Bağlantı için ya sunucunun herkese açık bir adresi ya da bu bilgisayarda cloudflared programı gerekir (macOS'ta: brew install cloudflared). O zamana kadar aşağıdaki iki adım çalışır.",
+    "Bağlantı için ya sunucunun herkese açık bir adresi ya da bu bilgisayarda cloudflared programı gerekir (macOS'ta: brew install cloudflared). O zamana kadar aşağıdaki yollar çalışır.",
   'grokMove.connect.unavailableHostedHint':
-    'Bağlantı için bu sunucunun herkese açık bir adresi (LEAFBOT_PUBLIC_URL) gerekir; sunucuyu çalıştıran kişi bunu ayarlayabilir. O zamana kadar aşağıdaki iki adım çalışır.',
+    'Bağlantı için bu sunucunun herkese açık bir adresi (LEAFBOT_PUBLIC_URL) gerekir; sunucuyu çalıştıran kişi bunu ayarlayabilir. O zamana kadar aşağıdaki yollar çalışır.',
   'grokMove.connect.linkLabel': 'Grok Bot için bağlantı',
   'grokMove.connect.copy': 'Kopyala',
   'grokMove.connect.until': 'Şu saate kadar çalışır: {time}',

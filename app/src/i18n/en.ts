@@ -2625,6 +2625,9 @@ export const en: Catalog<MessageKey> = {
   'import.copied': 'Instructions copied',
   'import.copyFailed': 'Could not copy the instructions; download and open them',
   'import.step2': '2. Bring back what it wrote',
+  'import.move.title': 'Move from Grok Bot',
+  'import.move.hint':
+    'Give Grok Bot the instructions, then bring back what it wrote: as a file, from Downloads, or by pasting its reply.',
   'import.file': 'leafbot-bots.json',
   'import.fileHint': 'We show what will be added first; nothing is saved until you confirm.',
   'import.choose': 'Choose file',
@@ -2709,7 +2712,8 @@ export const en: Catalog<MessageKey> = {
   'grokMove.copied': 'Copied',
   'grokMove.copyFailed': 'Could not copy',
   'grokMove.connect.title': 'Connect Grok Bot',
-  'grokMove.connect.hint': 'Your bots send their own setup here, all in one go. Or use the two steps below.',
+  'grokMove.connect.hint':
+    'Your bots send their own setup here, all in one go. Or use one of the ways below.',
   'grokMove.connect.start': 'Get the link to paste into Grok Bot',
   'grokMove.connect.stopped':
     'The link stopped working. Get a new one and paste it into Grok Bot in place of the old one.',
@@ -2718,9 +2722,9 @@ export const en: Catalog<MessageKey> = {
   'grokMove.connect.get': 'Get the link',
   'grokMove.connect.unavailable': 'This server cannot open a link for Grok Bot',
   'grokMove.connect.unavailableHint':
-    'The link needs a public address for the server, or the cloudflared program on this computer (on macOS: brew install cloudflared). Until then the two steps below work.',
+    'The link needs a public address for the server, or the cloudflared program on this computer (on macOS: brew install cloudflared). Until then the ways below work.',
   'grokMove.connect.unavailableHostedHint':
-    'The link needs a public address for this server (LEAFBOT_PUBLIC_URL), which whoever runs it can set. Until then the two steps below work.',
+    'The link needs a public address for this server (LEAFBOT_PUBLIC_URL), which whoever runs it can set. Until then the ways below work.',
   'grokMove.connect.linkLabel': 'Link for Grok Bot',
   'grokMove.connect.copy': 'Copy',
   'grokMove.connect.until': 'Works until {time}',

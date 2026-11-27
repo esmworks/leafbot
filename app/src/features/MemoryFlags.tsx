@@ -20,8 +20,7 @@ export function MemoryFlags({ bots }: { bots: readonly Pick<Bot, 'id' | 'name'>[
   const { data: flags = [] } = useQuery({ queryKey: ['memory', 'flags'], queryFn: api.memoryFlags });
   if (!flags.length) return null;
   return (
-    <Card title={t('memory.flags')}>
-      <p className="px-4 py-3 text-xs text-muted-foreground">{t('memory.flagsHint')}</p>
+    <Card title={t('memory.flags')} hint={t('memory.flagsHint')}>
       {flags.map((f) => (
         <FlagRow key={f.id} f={f} bots={bots} />
       ))}
