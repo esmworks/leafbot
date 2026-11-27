@@ -12,3 +12,35 @@ export const DISPLAY_POLL_MS = 10_000;
 export function keepDisplayOn(idleMs: unknown, quietMs = DISPLAY_QUIET_MS): boolean {
   return typeof idleMs === 'number' && Number.isFinite(idleMs) && idleMs < quietMs;
 }
+
+/** Why the screen is kept on: a bot of the main server is using this Mac, or one of this computer's server. */
+export type DisplayReason = 'mac' | 'local';
+
+/**
+ * Keeps the screen on while any reason holds. Each reason is set and cleared on its own: this
+ * computer's server saying none of its bots uses the Mac must not let the screen sleep under a bot
+ * of the main server that does, nor the other way round.
+ */
+export class DisplayHold {
+  private reasons = new Set<DisplayReason>();
+  private id: number | null = null;
+
+  constructor(
+    private start: () => number,
+    private stop: (id: number) => void,
+  ) {}
+
+  set(reason: DisplayReason, on: boolean) {
+    if (on) this.reasons.add(reason);
+    else this.reasons.delete(reason);
+    if (this.reasons.size && this.id === null) this.id = this.start();
+    if (!this.reasons.size && this.id !== null) {
+      this.stop(this.id);
+      this.id = null;
+    }
+  }
+
+  get held(): boolean {
+    return this.id !== null;
+  }
+}

@@ -38,7 +38,7 @@ import {
   type ServerId,
 } from './desktop-config';
 import { createCrashGuard, isCrash } from './crash-guard';
-import { DISPLAY_POLL_MS, keepDisplayOn } from './display-awake';
+import { DISPLAY_POLL_MS, DisplayHold, keepDisplayOn } from './display-awake';
 import { startEgress } from './egress';
 import { startHelper } from '@leafbot/shared/windows';
 import { readMoveDeclined, runsFromTransientPlace, writeMoveDeclined } from './install-location';
@@ -151,6 +151,8 @@ let accessKey: string | null = null;
 let offeredTo: string | null = null;
 /** Asks this computer's server now and then whether a bot works there, while the window shows another. */
 let workTimer: ReturnType<typeof setInterval> | null = null;
+/** Ends when this computer's server, told to stop, has stopped. */
+let localStopping: Promise<void> = Promise.resolve();
 const LOCAL_WORK_POLL_MS = 30_000;
 /** Tray status line, kept as a key so it follows a language change. */
 let status: { key: DesktopKey; params?: Record<string, string> } = { key: 'status.starting' };
@@ -160,8 +162,11 @@ let stopped = false;
 let unread = 0;
 /** Keeps the computer from sleeping while a bot works; null while none does. */
 let awake: number | null = null;
-/** Keeps the screen on while a bot uses this Mac, so its screenshots are not black; null while not. */
-let displayAwake: number | null = null;
+/** Keeps the screen on while a bot uses this Mac, so its screenshots are not black. */
+const display = new DisplayHold(
+  () => powerSaveBlocker.start('prevent-display-sleep'),
+  (id) => powerSaveBlocker.stop(id),
+);
 let displayTimer: ReturnType<typeof setInterval> | null = null;
 let updates: Updates | null = null;
 /** A downloaded version waiting for a restart. */
@@ -412,6 +417,8 @@ function startOffers() {
 }
 
 async function startLocal() {
+  // A server still stopping holds the port and the data folder.
+  await localStopping;
   if (server) return;
   setStatus('status.serverStarting');
   const proc = new ServerProcess({
@@ -499,7 +506,9 @@ async function stopLocal() {
   if (workTimer) clearInterval(workTimer);
   workTimer = null;
   setAwake(false);
-  await proc?.stop();
+  const stopping = proc?.stop() ?? Promise.resolve();
+  localStopping = stopping.catch(() => {});
+  await stopping;
   const remote = mainRemote();
   if (remote) setStatus('status.remote', { host: hostOf(remote.url) });
 }
@@ -507,8 +516,18 @@ async function stopLocal() {
 /**
  * Makes a new choice of servers real: this computer's server starts or stops, the main server is
  * offered this computer, and the window moves to the server it now shows. The choice is kept.
+ * Changes go one after another, each made from the choice the one before left, so a quick off and
+ * on never starts a second server beside one still stopping.
  */
-async function apply(next: DesktopConfig) {
+function apply(change: (cfg: DesktopConfig) => DesktopConfig): Promise<void> {
+  applying = applying
+    .then(() => applyNow(change(config)))
+    .catch((err: unknown) => log.warn('could not change the servers', err));
+  return applying;
+}
+let applying: Promise<void> = Promise.resolve();
+
+async function applyNow(next: DesktopConfig) {
   const before = config;
   config = next;
   saveConfig();
@@ -893,6 +912,10 @@ function fromMainPage(e: IpcMainInvokeEvent) {
     return false;
   }
 }
+/** From the page of this computer's own server, shown in the main window. */
+function fromLocalPage(e: IpcMainInvokeEvent) {
+  return config.shown === 'local' && !!localOrigin && origin === localOrigin && fromMainPage(e);
+}
 function fromConnectPage(e: IpcMainInvokeEvent) {
   return !!connectWin && e.sender === connectWin.webContents;
 }
@@ -915,11 +938,13 @@ function registerIpc() {
         }
       : null,
   );
-  // Every server this app keeps, for the page to list and switch between.
-  ipcMain.handle('leafbot:servers', (e) => (fromMainPage(e) ? serverList() : null));
+  // Every server this app keeps, for the page to list and switch between. Only this computer's own
+  // server's page is told: a server elsewhere, perhaps someone else's, does not learn the person's
+  // other servers nor move the window to one (it has `use-local`, as before).
+  ipcMain.handle('leafbot:servers', (e) => (fromLocalPage(e) ? serverList() : null));
   ipcMain.handle('leafbot:show-server', async (e, id: unknown) => {
-    if (!fromMainPage(e) || !isKept(id) || id === config.shown) return;
-    await apply(show(config, id));
+    if (!fromLocalPage(e) || !isKept(id) || id === config.shown) return;
+    await apply((c) => show(c, id));
   });
   // The quick window: putting itself away, opening a conversation in the main window, and the
   // shortcut that opens it, for the app to show.
@@ -949,7 +974,7 @@ function registerIpc() {
         saved = '';
       }
       if (!safeStorage.isEncryptionAvailable()) throw new Error(t('error.noKeychain'));
-      await apply(addRemote(config, { url, key: saved }));
+      await apply((c) => addRemote(c, { url, key: saved }));
       connectWin?.close();
       return { ok: true };
     } catch (err) {
@@ -994,7 +1019,7 @@ function registerIpc() {
   });
   ipcMain.handle('leafbot:use-local', async (e) => {
     if (!fromConnectPage(e) && !fromMainPage(e)) return;
-    await apply(show(config, 'local'));
+    await apply((c) => show(c, 'local'));
     connectWin?.close();
   });
 }
@@ -1054,22 +1079,15 @@ function startDisplayWatch() {
   const tick = async () => {
     if (!server?.running) return;
     const { personComputerIdleMs } = await localTurns();
-    const on = keepDisplayOn(personComputerIdleMs);
-    if (on && displayAwake === null) displayAwake = powerSaveBlocker.start('prevent-display-sleep');
-    if (!on && displayAwake !== null) releaseDisplay();
+    if (displayTimer) display.set('local', keepDisplayOn(personComputerIdleMs));
   };
   displayTimer = setInterval(() => void tick(), DISPLAY_POLL_MS);
-}
-
-function releaseDisplay() {
-  if (displayAwake !== null) powerSaveBlocker.stop(displayAwake);
-  displayAwake = null;
 }
 
 function stopDisplayWatch() {
   if (displayTimer) clearInterval(displayTimer);
   displayTimer = null;
-  releaseDisplay();
+  display.set('local', false);
 }
 
 /**
@@ -1152,8 +1170,7 @@ function startMac() {
       macInUse = active;
       // A sleeping display makes the bot's screenshots black: kept on while the use goes on, which
       // ends by itself after a quiet while.
-      if (active && displayAwake === null) displayAwake = powerSaveBlocker.start('prevent-display-sleep');
-      if (!active) releaseDisplay();
+      display.set('mac', active);
       rebuildMenu();
     },
     log: (level, line) => log[level](line),
@@ -1217,7 +1234,7 @@ function stopMacOffer() {
   macGate = null;
   if (macInUse) {
     macInUse = false;
-    releaseDisplay();
+    display.set('mac', false);
   }
 }
 
@@ -1329,7 +1346,7 @@ function serverMenu(): Electron.MenuItemConstructorOptions[] {
       label: list.length > 1 && s.main ? t('menu.mainServer', { name: name(s.id) }) : name(s.id),
       type: 'radio' as const,
       checked: s.shown,
-      click: () => void apply(show(config, s.id)),
+      click: () => void apply((c) => show(c, s.id)),
     })),
     {
       label: t('menu.runLocal'),
@@ -1370,7 +1387,7 @@ async function turnLocal(on: boolean) {
       if (response !== 0) return rebuildMenu();
     }
   }
-  await apply(setLocal(config, on));
+  await apply((c) => setLocal(c, on));
 }
 
 /** Forgets a server elsewhere after asking; what is on it stays there. */
@@ -1383,7 +1400,7 @@ async function leaveServer(url: string) {
     defaultId: 1,
     cancelId: 1,
   });
-  if (response === 0) await apply(removeRemote(config, url));
+  if (response === 0) await apply((c) => removeRemote(c, url));
 }
 
 function createTray() {
