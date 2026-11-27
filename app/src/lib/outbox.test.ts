@@ -76,4 +76,48 @@ describe('outbox', () => {
     useOutbox.getState().hold(held('a'));
     expect(useOutbox.getState().items).toHaveLength(1);
   });
+
+  it('a flush asked for while one runs makes one more pass instead of being lost', async () => {
+    useOutbox.getState().hold(held('a'));
+    let release: () => void = () => {};
+    send.mockImplementationOnce(() => new Promise<void>((r) => (release = r)));
+    send.mockResolvedValue({});
+    const first = flushOutbox();
+    // Written while the first pass is on its way; the connection is up, so it must not wait for a timer.
+    useOutbox.getState().hold(held('b'));
+    const second = flushOutbox();
+    release();
+    await Promise.all([first, second]);
+    expect(send.mock.calls.map((c) => c[1])).toEqual(['a', 'b']);
+    expect(useOutbox.getState().items).toEqual([]);
+  });
+
+  it('many requests during one pass cost a single extra pass, never parallel sends', async () => {
+    useOutbox.getState().hold(held('a'));
+    let release: () => void = () => {};
+    let active = 0;
+    let most = 0;
+    send.mockImplementation(async (_t: string, id: string) => {
+      active++;
+      most = Math.max(most, active);
+      if (id === 'a') await new Promise<void>((r) => (release = r));
+      active--;
+    });
+    const runs = [flushOutbox(), flushOutbox(), flushOutbox()];
+    release();
+    await Promise.all(runs);
+    expect(send).toHaveBeenCalledTimes(1);
+    expect(most).toBe(1);
+  });
+
+  it('marks the message being sent, and back to held when the server still cannot be reached', async () => {
+    useOutbox.getState().hold(held('a'));
+    let fail: (e: unknown) => void = () => {};
+    send.mockImplementationOnce(() => new Promise((_, rej) => (fail = rej)));
+    const run = flushOutbox();
+    expect(useOutbox.getState().items[0]?.phase).toBe('sending');
+    fail(new NoAnswerError('Failed to fetch'));
+    await run;
+    expect(useOutbox.getState().items[0]?.phase ?? 'held').toBe('held');
+  });
 });

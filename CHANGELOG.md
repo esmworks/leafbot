@@ -368,6 +368,18 @@ version is 0.x, a minor release may change the data format or the API; the serve
   Grok Bot app is on the same computer, each moved bot's recent chat there comes over as its latest conversation,
   with the original times. An export that carries credential fields (API keys, tokens, passwords) is refused, naming
   them, and key-shaped text in it is masked.
+- The desktop app shows its window as soon as it starts, with a short "starting" page, while this computer's server
+  starts behind it; before, nothing showed until the server and the page had both loaded.
+- The desktop app keeps how long its last 50 starts took, stage by stage, in `launch-history.json` in its data folder
+  (on this computer only) and writes one line about each start to its log; the server reports its own stages the
+  same way. `node scripts/launch-report.mjs` prints the usual and the slowest starts.
+- The sidebar says when the connection to the server is coming back, and a message waiting to be sent again says
+  so under it.
+- The server writes a line to its log, at most once a minute, when something held it up for a quarter of a second or
+  more, since nothing moves for anyone while it is held.
+- For people working on Leaf Bot: `node scripts/snap.mjs` draws the chat, settings, Today, tasks, dashboards,
+  new-bot and routine screens without a window, from a throwaway server with a sample conversation, and
+  `node scripts/bench-server-start.mjs` times the server's start.
 
 ### Changed
 
@@ -409,6 +421,15 @@ version is 0.x, a minor release may change the data format or the API; the serve
 - Files on a message are listed one under another, each with an icon coloured by its kind (document, PDF, web page,
   sheet, slides, code, archive) and a download button beside it, so a file the preview can show no longer has to be
   opened to be saved. Pictures and players still sit side by side, and the download-all button comes after the list.
+- This computer's server starts faster: Node keeps the compiled code between starts (one cache per version, older
+  ones removed a minute after start), and the browser automation libraries load the first time a bot uses a
+  browser, not at every start. On a development Mac a usual start went from about 0.8 s to about 0.5 s.
+- The app loads less before it shows: settings, the bot form, routines, the file preview, the first-run and account
+  pages, the phone screen, the quick window, the Today, tasks and dashboards windows, and math typesetting load when
+  first opened. The scripts loaded at start went from about 2.8 MB to 2.3 MB. A page that cannot be loaded says so
+  and offers to try again.
+- Streamed replies are drawn once per screen refresh instead of once per word.
+- Messages held while the connection was away are sent again as soon as it is back, instead of after a wait.
 
 ### Fixed
 
@@ -537,6 +558,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 - A message sent from the phone as the app comes back from the background is sent again by itself once the
   connection is back. Large uploads from the phone are no longer cut off after ten minutes while they still move; only
   an upload that stalls for a minute is.
+- Turning this computer's server off right after it had stopped unexpectedly no longer leaves one running: the
+  restart that was waiting is cancelled.
+- An update that did not install (an unsigned build, a replace the system refused) can be tried again; before, every
+  later attempt did nothing. The desktop app starts its server again and says the update failed.
 
 ### Changed
 

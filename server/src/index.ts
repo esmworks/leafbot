@@ -4,7 +4,12 @@ import { createServer } from './app';
 import { loginFromTerminal } from './cli/login';
 import { loadConfig } from './config';
 import { translator } from './i18n';
+import { launchMark, launchSpan, launchTimingsLine } from './launch-timings';
+import { watchLoopStalls } from './loop-stalls';
 import { loadRtc } from './tunnel/rtc-datachannel';
+
+// Every module is loaded and run by now: the time to here is the cost of the code itself.
+launchMark('modules');
 
 // Terminal lines follow the terminal's language.
 const locale = pickLocale([process.env.LC_ALL, process.env.LC_MESSAGES, process.env.LANG]);
@@ -38,11 +43,15 @@ const server = await createServer(config, {
   restart: () => void shutdown('restore', RESTART_CODE),
   // Browsers reach a server linked to an account over WebRTC; without a build for this platform
   // the server runs as before, reachable only at its own address.
-  rtc: await loadRtc(),
+  rtc: await launchSpan('rtc', loadRtc),
 });
+launchMark('created');
 const address = await server.listen();
-// The desktop shell reads this line to learn the port.
+launchMark('listening');
+// The desktop shell reads this line to learn the port, and the next one to learn where the time went.
 console.log(`LEAFBOT_READY ${address}`);
+console.log(launchTimingsLine());
+watchLoopStalls();
 if (!config.accessKey) console.log(t('log.accessKey', { path: `${config.dataDir}/access-key` }));
 
 let closing = false;

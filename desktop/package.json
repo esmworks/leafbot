@@ -7,7 +7,7 @@
   "description": "Your own team of AI bots",
   "author": "esmworks",
   "homepage": "https://github.com/esmworks/leafbot",
-  "main": "dist/main.cjs",
+  "main": "dist/boot.cjs",
   "scripts": {
     "build": "node build.mjs",
     "start": "node build.mjs && electron .",

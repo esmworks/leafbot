@@ -9,15 +9,15 @@ import { mkdirSync, rmSync, statSync } from 'node:fs';
 import { isIP } from 'node:net';
 import { basename, extname, join } from 'node:path';
 import type { BrowserInput, BrowserState } from '@leafbot/shared';
-import {
-  chromium,
-  type Browser,
-  type BrowserContext,
-  type CDPSession,
-  type Download,
-  type FileChooser,
-  type Page,
-} from 'playwright-core';
+import type * as PlaywrightModule from 'playwright-core';
+import type { Browser, BrowserContext, CDPSession, Download, FileChooser, Page } from 'playwright-core';
+import type * as PatchrightModule from 'patchright-core';
+import { privateAddress } from '../services/skill-link';
+
+// Playwright and its patched copy take a quarter of a second to load and most starts open no
+// browser, so each is loaded the first time a browser opens.
+let playwright: Promise<typeof PlaywrightModule> | null = null;
+const loadPlaywright = () => (playwright ??= import('playwright-core'));
 // The same Playwright version with patches for a browser sites see as a person's: it never enables
 // the DevTools Runtime domain on a page, and the server's scripts (page.evaluate and the like) run in
 // an isolated world the page cannot see. Pages can tell when that domain is on, and bot guards such
@@ -26,8 +26,8 @@ import {
 // A script in the page's own world can be watched by the page, which then sees the server look for
 // its challenge. Used only for the desktop's browser; the server's own headless browser keeps the
 // original.
-import { chromium as desktopChromium } from 'patchright-core';
-import { privateAddress } from '../services/skill-link';
+let patchright: Promise<typeof PatchrightModule> | null = null;
+const loadPatchright = () => (patchright ??= import('patchright-core'));
 
 /** The size of every bot's browser window, in CSS pixels. */
 export const VIEWPORT = { width: 1280, height: 800 };
@@ -1219,7 +1219,9 @@ export class BrowserManager {
         const desktop = await this.opts.connect(botId);
         proxied = desktop.proxied;
         // Same API and version as playwright-core; only its overloaded types do not match by name.
-        remote = (await desktopChromium.connectOverCDP(desktop.url, {
+        remote = (await (
+          await loadPatchright()
+        ).chromium.connectOverCDP(desktop.url, {
           timeout: 30_000,
         })) as unknown as Browser;
       } catch (err) {
@@ -1237,7 +1239,9 @@ export class BrowserManager {
     const userAgent = headless ? await this.windowedUserAgent() : undefined;
     const locale = browserLocale(await this.opts.language?.().catch(() => undefined));
     try {
-      context = await chromium.launchPersistentContext(dir, {
+      context = await (
+        await loadPlaywright()
+      ).chromium.launchPersistentContext(dir, {
         executablePath: this.opts.executable ?? undefined,
         headless,
         ...(userAgent ? { userAgent } : {}),
@@ -1282,7 +1286,9 @@ export class BrowserManager {
    */
   private windowedUserAgent(): Promise<string | undefined> {
     this.userAgent ??= (async () => {
-      const browser = await chromium.launch({
+      const browser = await (
+        await loadPlaywright()
+      ).chromium.launch({
         executablePath: this.opts.executable ?? undefined,
         headless: true,
         chromiumSandbox: this.opts.sandbox,

@@ -61,6 +61,16 @@ import {
 } from './mac-bridge';
 import { claimQuickKey, isThreadId, quickBounds, quickUrl, readQuickOn, writeQuickOn } from './quick';
 import { ServerProcess } from './server-process';
+import { compileCacheDir, pruneCompileCaches } from './compile-cache';
+import {
+  describe as describeLaunch,
+  kindOf,
+  readHistory,
+  withRecord,
+  writeHistory,
+  type LaunchRecord,
+} from './launch-record';
+import { isLoadingPage, loadingPageUrl } from './loading-page';
 import { startUpdates, type Updates } from './updates';
 import { MIN_SIZE, readWindowState, resolveWindowState, writeWindowState } from './window-state';
 
@@ -183,8 +193,52 @@ let macGate: MacGate | null = null;
 /** Whether a bot uses this Mac now, with the person's yes on it; shown in the menu bar. */
 let macInUse = false;
 
+/**
+ * This start's stages, in milliseconds since the main process began; kept with the last starts in
+ * `launch-history.json` once the page says its chat is drawn (or after LAUNCH_SETTLE_MS).
+ */
+const launch: {
+  marks: Record<string, number>;
+  server?: LaunchRecord['server'];
+  pageLongTasks?: LaunchRecord['pageLongTasks'];
+  done: boolean;
+} = { marks: {}, done: false };
+const LAUNCH_SETTLE_MS = 30_000;
+const PAGE_MARKS = new Set(['first-paint', 'sidebar', 'chat']);
+function launchMark(name: string) {
+  if (!launch.done) launch.marks[name] ??= Math.round(performance.now());
+}
+launchMark('main');
+
+/** Keeps this start's stages with the last ones and writes them to the log; once. */
+function finishLaunch() {
+  if (launch.done) return;
+  launch.done = true;
+  try {
+    const history = readHistory(userData);
+    const rec: LaunchRecord = {
+      at: new Date().toISOString(),
+      version: app.getVersion(),
+      kind: kindOf(history, app.getVersion()),
+      shown: config.shown === 'local' ? 'local' : 'remote',
+      marks: launch.marks,
+      ...(launch.server ? { server: launch.server } : {}),
+      ...(launch.pageLongTasks ? { pageLongTasks: launch.pageLongTasks } : {}),
+    };
+    log.info(describeLaunch(rec));
+    if (launch.server) log.info(`launch (server): ${JSON.stringify(launch.server)}`);
+    writeHistory(userData, withRecord(history, rec));
+  } catch (err) {
+    log.warn('could not keep the launch times', err);
+  }
+}
+
 const resources = () => (app.isPackaged ? process.resourcesPath : join(app.getAppPath(), '..'));
-const serverEntry = () => join(resources(), 'server', 'dist', 'index.mjs');
+const serverEntry = () => {
+  // start.mjs keeps the compiled code between starts; a server built before it has only index.mjs.
+  const start = join(resources(), 'server', 'dist', 'start.mjs');
+  return existsSync(start) ? start : join(resources(), 'server', 'dist', 'index.mjs');
+};
 const appDir = () => (app.isPackaged ? join(resources(), 'app') : join(resources(), 'app', 'dist'));
 const assets = () => (app.isPackaged ? join(resources(), 'assets') : join(app.getAppPath(), 'assets'));
 /**
@@ -263,6 +317,10 @@ function registerLinks() {
 }
 
 async function boot() {
+  launchMark('ready');
+  setTimeout(finishLaunch, LAUNCH_SETTLE_MS).unref();
+  // Well after the start, not during it: the compiled code of earlier versions goes.
+  setTimeout(() => pruneCompileCaches(userData, app.getVersion()), 60_000).unref();
   // A packaged app takes its Dock icon from the bundle; one run from source would show Electron's.
   // icon.png is the tile of assets/icon.icon drawn flat, without the glass macOS adds to the real one.
   if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(join(assets(), 'icon.png'));
@@ -276,6 +334,7 @@ async function boot() {
   registerQuickKey();
   watchForUpdates();
   config = await readConfigOnceUnlocked();
+  launchMark('config');
   await connect();
   void offerMove();
 }
@@ -397,6 +456,8 @@ async function connect() {
   }
   // A server elsewhere opens at once; this computer's own comes up behind it.
   if (config.shown !== 'local') showWindow();
+  // This computer's own is shown: the window opens now and says the server is starting.
+  else if (!pendingApp) showLoadingWindow();
   await startLocal();
 }
 
@@ -446,9 +507,22 @@ async function startLocal() {
     dataDir,
     appDir: appDir(),
     port: DEFAULT_PORT,
-    log: (level, line) => log[level](`[sunucu] ${line}`),
-    // Development only: run the server with the offline test engine.
+    log: (level, line) => {
+      // The server's own start stages, printed once after its ready line.
+      if (line.startsWith('LEAFBOT_TIMINGS ')) {
+        try {
+          launch.server ??= JSON.parse(line.slice('LEAFBOT_TIMINGS '.length)) as LaunchRecord['server'];
+        } catch {
+          // An older server's line, or none: the start is kept without it.
+        }
+        return;
+      }
+      log[level](`[sunucu] ${line}`);
+    },
     env: {
+      // The compiled server code is kept between starts (see compile-cache.ts, server/build.mjs).
+      LEAFBOT_COMPILE_CACHE: compileCacheDir(userData, app.getVersion(), 'server'),
+      // Development only: run the server with the offline test engine.
       ...(!app.isPackaged && process.env.LEAFBOT_ENGINE
         ? { LEAFBOT_ENGINE: process.env.LEAFBOT_ENGINE }
         : {}),
@@ -479,7 +553,9 @@ async function startLocal() {
     });
   });
   try {
+    launchMark('server-start');
     const url = await proc.start();
+    launchMark('server-ready');
     if (server !== proc) return;
     localOrigin = url;
     localKey = readFileSync(join(dataDir, 'access-key'), 'utf8').trim();
@@ -493,6 +569,8 @@ async function startLocal() {
     if (server !== proc) return;
     log.error('server failed to start', err);
     setStatus('status.failed');
+    // The window that said the server is starting would wait forever: it goes, as before.
+    if (win && !win.isDestroyed() && isLoadingPage(win.webContents.getURL())) closeWindow();
     // Before, the box only had OK and the app stayed in the menu bar with nothing open.
     for (;;) {
       const { response } = await dialog.showMessageBox({
@@ -623,8 +701,19 @@ function watchForUpdates() {
       if (awake !== null) powerSaveBlocker.stop(awake);
       awake = null;
       stopDisplayWatch();
-      await server?.stop();
+      // Stopped as when the person turns it off, so it can be started again if the install fails.
+      await stopLocal();
       stopped = true;
+    },
+    // The installer ran but the app is still here: what beforeInstall stopped comes back.
+    onInstallFailed: (version, message) => {
+      log.warn(`update ${version} did not install: ${message}`);
+      quitting = false;
+      stopped = false;
+      if (config.local) void startLocal();
+      else setStatus('status.remote', { host: hostOf(mainServer(config)) });
+      rebuildMenu();
+      void dialog.showMessageBox({ type: 'error', message: t('update.failed'), detail: message });
     },
     onReady: (version) => {
       updateReady = version;
@@ -639,10 +728,36 @@ const crashGuard = createCrashGuard();
 function showWindow() {
   if (!origin) return;
   if (win && !win.isDestroyed()) {
+    // The window opened before its server was up, or shows a server that moved to another port.
+    const shown = win.webContents.getURL();
+    if (isLoadingPage(shown) || (shown && new URL(shown).origin !== new URL(origin).origin)) {
+      void win.loadURL(origin);
+    }
     win.show();
     win.focus();
     return;
   }
+  createMainWindow();
+  void win!.loadURL(origin);
+}
+
+/** Opens the main window on a page that says this computer's server is starting. */
+function showLoadingWindow() {
+  if (win && !win.isDestroyed()) return;
+  const dark = nativeTheme.shouldUseDarkColors;
+  createMainWindow();
+  void win!.loadURL(
+    loadingPageUrl({
+      background: dark ? '#1b1b1b' : '#fafafa',
+      text: t('status.serverStarting'),
+      name: 'Leaf Bot',
+      dark,
+      frameless: process.platform === 'darwin',
+    }),
+  );
+}
+
+function createMainWindow() {
   const primary = screen.getPrimaryDisplay();
   const screens = [primary, ...screen.getAllDisplays().filter((d) => d.id !== primary.id)];
   const restored = resolveWindowState(
@@ -671,9 +786,16 @@ function showWindow() {
     },
   });
   if (restored.maximized) win.maximize();
+  launchMark('window');
   rememberWindowState(win);
   showUnread();
-  win.once('ready-to-show', () => win?.show());
+  win.once('ready-to-show', () => {
+    launchMark('window-shown');
+    win?.show();
+  });
+  win.webContents.on('did-finish-load', () => {
+    if (win && !isLoadingPage(win.webContents.getURL())) launchMark('page-loaded');
+  });
   win.webContents.on('context-menu', (_e, params) => showContextMenu(win!, params));
   // A dead page is reloaded; one that dies again and again is left to the person to decide.
   win.webContents.on('render-process-gone', (_e, details) => {
@@ -704,7 +826,6 @@ function showWindow() {
       win?.hide();
     }
   });
-  void win.loadURL(origin);
 }
 
 /**
@@ -1181,6 +1302,21 @@ function registerIpc() {
     if (n === unread) return;
     unread = n;
     showUnread();
+  });
+  // The page says when it drew its first screen, its sidebar and its chat, for the launch times.
+  ipcMain.handle('leafbot:launch-mark', (e, name: unknown, longTasks?: unknown) => {
+    if (!fromMainPage(e) || typeof name !== 'string' || !PAGE_MARKS.has(name)) return;
+    launchMark(`page-${name}`);
+    if (
+      longTasks &&
+      typeof longTasks === 'object' &&
+      typeof (longTasks as { count?: unknown }).count === 'number' &&
+      typeof (longTasks as { totalMs?: unknown }).totalMs === 'number'
+    ) {
+      const { count, totalMs } = longTasks as { count: number; totalMs: number };
+      launch.pageLongTasks = { count, totalMs: Math.round(totalMs) };
+    }
+    if (name === 'chat') finishLaunch();
   });
   // The page of this computer's server says when its bots work (see `setAwake`).
   ipcMain.handle('leafbot:set-busy', (e, busy: unknown) => {

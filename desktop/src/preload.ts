@@ -49,6 +49,9 @@ const bridge = {
     ipcRenderer.on('leafbot:open-link', listener);
     return () => ipcRenderer.removeListener('leafbot:open-link', listener);
   },
+  /** The page reached a stage of its start: its first screen, its sidebar or its chat. */
+  launchMark: (name: string, longTasks?: { count: number; totalMs: number }): Promise<void> =>
+    ipcRenderer.invoke('leafbot:launch-mark', name, longTasks),
   /** Puts the quick window away. */
   quickHide: (): Promise<void> => ipcRenderer.invoke('leafbot:quick-hide'),
   /** Opens a conversation in the main window (from the quick window). */

@@ -5,6 +5,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PageBroken } from '@/components/PageBroken';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { desktop } from '@/lib/desktop';
+import { pageMark } from '@/lib/launchMarks';
 import '@/lib/zoom';
 import { App } from './App';
 import './index.css';
@@ -30,3 +31,5 @@ createRoot(document.getElementById('root')!).render(
     </QueryClientProvider>
   </StrictMode>,
 );
+// The frame after the first render is the first screen the person sees.
+requestAnimationFrame(() => requestAnimationFrame(() => pageMark('first-paint')));

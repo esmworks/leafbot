@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MessageFiles } from './Attachments';
-import { usePreview } from './FilePreview';
+import { usePreview } from './previewStore';
 
 vi.mock('@/lib/api', () => ({
   api: {

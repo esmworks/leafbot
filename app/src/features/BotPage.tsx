@@ -12,7 +12,7 @@ import { useInfo } from '@/lib/queries';
 import { publicOrigin, useTransport } from '@/lib/transport';
 import { usePageBridge, useAppTheme } from './PageBridge';
 import { SaveAsApp } from './PageApps';
-import { isLoopback } from './RoutinePage';
+import { isLoopback } from '@/lib/loopback';
 
 /**
  * A page a bot made (show_page), running in the conversation. It is read fresh from the bot's

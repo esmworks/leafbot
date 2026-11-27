@@ -102,6 +102,7 @@ import { McpAppView } from './McpAppView';
 import { EmailApprovalCard } from './EmailApproval';
 import { PersonJobCard } from './PersonJobCard';
 import { speechSupported, toggleSpeech, useServerVoice, useSpeech } from '@/lib/speech';
+import { useOutbox } from '@/lib/outbox';
 import { useUi } from '@/lib/store';
 import { viaTunnel } from '@/lib/transport';
 import { AppLogo } from './Connections';
@@ -134,6 +135,10 @@ export const MessageItem = memo(function MessageItem({
   canRetry?: boolean;
 }) {
   const t = useT();
+  // A held message being sent again no longer waits for the connection.
+  const resending = useOutbox(
+    (s) => !!m.clientId && s.items.some((x) => x.clientId === m.clientId && x.phase === 'sending'),
+  );
   const retry = canRetry && !m.props.retried && m.props.kind !== 'auth' && !!m.turnId;
   const authorBot = m.author.startsWith('bot:') ? bots.get(m.author.slice(4)) : undefined;
   const files = messageFiles(m);
@@ -194,7 +199,7 @@ export const MessageItem = memo(function MessageItem({
           )}
           {/* While it is on its way the row keeps the actions' room, so nothing below it moves when they come. */}
           {pending && m.props.heldOffline === true ? (
-            <OfflineLine text={t('message.heldOffline')} />
+            <OfflineLine text={t(resending ? 'message.resending' : 'message.heldOffline')} />
           ) : pending ? (
             <div className="h-7" aria-hidden />
           ) : (

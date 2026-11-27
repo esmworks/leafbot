@@ -9,30 +9,20 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
-import { AccountGate } from '@/features/AccountGate';
-import { CreateAccount } from '@/features/AccountSetup';
-import { BotFormPage } from '@/features/BotFormPage';
 import { AppsPage } from '@/features/Connections';
 import { ComputerDialog } from '@/features/Computer';
-import { FilePreview } from '@/features/FilePreview';
 import { Chat } from '@/features/Chat';
 import { RoomDialog, RoomView } from '@/features/Rooms';
 import { Login } from '@/features/Login';
-import { Onboarding } from '@/features/onboarding/Onboarding';
-import { PhoneScreen } from '@/features/PhoneScreen';
 import { RightPanel } from '@/features/RightPanel';
 import { SearchDialog } from '@/features/SearchDialog';
-import { SettingsPage } from '@/features/SettingsPage';
 import { ShortcutsDialog } from '@/features/ShortcutsDialog';
 import { ActionCards } from '@/features/ActionCards';
-import { TodayDialog } from '@/features/TodayDialog';
 import { GrokMoveOffer } from '@/features/GrokMoveOffer';
-import { BoardDialog } from '@/features/board/BoardDialog';
-import { DashboardsDialog } from '@/features/DashboardsDialog';
 import { PageAppWindow } from '@/features/PageApps';
 import { PageCallQuestion } from '@/features/PageBridge';
-import { RoutinePage, useOpenedRoutine } from '@/features/RoutinePage';
-import { QuickPanel } from '@/features/QuickPanel';
+import { useOpenedRoutine } from '@/features/openedRoutine';
+import { usePreview } from '@/features/previewStore';
 import { Sidebar } from '@/features/Sidebar';
 import { useLocale, useT } from '@/i18n';
 import { api, setUnauthorizedHandler } from '@/lib/api';
@@ -48,7 +38,35 @@ import { viaTunnel } from '@/lib/transport';
 import { PANEL_WIDTH, useUi } from '@/lib/store';
 import { useUnreadTracking } from '@/lib/unread';
 import { useChatWidth, useFont } from '@/lib/density';
+import { lazyScreen, preloadWhenIdle, useOpenedOnce } from '@/lib/lazyScreen';
 import { cn } from '@/lib/utils';
+
+// Screens most sessions never open load the first time they are shown; the first paint needs only
+// the chat and the sidebar. Dialogs that listen for their own shortcut stay in the main bundle.
+const AccountGate = lazyScreen(() => import('@/features/AccountGate').then((m) => m.AccountGate));
+const CreateAccount = lazyScreen(() => import('@/features/AccountSetup').then((m) => m.CreateAccount));
+const BotFormPage = lazyScreen(() => import('@/features/BotFormPage').then((m) => m.BotFormPage));
+const Onboarding = lazyScreen(() => import('@/features/onboarding/Onboarding').then((m) => m.Onboarding));
+const PhoneScreen = lazyScreen(() => import('@/features/PhoneScreen').then((m) => m.PhoneScreen));
+const QuickPanel = lazyScreen(() => import('@/features/QuickPanel').then((m) => m.QuickPanel));
+const RoutinePage = lazyScreen(() => import('@/features/RoutinePage').then((m) => m.RoutinePage));
+const FilePreview = lazyScreen(() => import('@/features/FilePreview').then((m) => m.FilePreview));
+const SettingsPage = lazyScreen(() => import('@/features/SettingsPage').then((m) => m.SettingsPage));
+const TodayDialog = lazyScreen(() => import('@/features/TodayDialog').then((m) => m.TodayDialog));
+const BoardDialog = lazyScreen(() => import('@/features/board/BoardDialog').then((m) => m.BoardDialog));
+const DashboardsDialog = lazyScreen(() =>
+  import('@/features/DashboardsDialog').then((m) => m.DashboardsDialog),
+);
+const LAZY_SCREENS = [
+  SettingsPage,
+  BotFormPage,
+  TodayDialog,
+  BoardDialog,
+  DashboardsDialog,
+  Onboarding,
+  AccountGate,
+  CreateAccount,
+];
 
 // The chosen chat width applies from the first paint.
 useChatWidth.getState();
@@ -245,6 +263,27 @@ function Workspace() {
 
   useEffect(() => connectRealtime(qc), [qc]);
   useUnreadTracking();
+  // Once the first screen is up, a page served from afar fetches the rest while idle.
+  useEffect(() => preloadWhenIdle(LAZY_SCREENS), []);
+  // ⌘, opens the settings; their own page takes over once it is loaded, and until then this does.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (SettingsPage.loaded()) return;
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key === ',') {
+        e.preventDefault();
+        const { settingsTab, openSettings } = useUi.getState();
+        openSettings(settingsTab ? null : 'general');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  // Mounted from the first opening on, so closing still plays its animation.
+  const settingsMounted = useOpenedOnce(settingsOpen);
+  const todayMounted = useOpenedOnce(useUi((s) => s.todayOpen));
+  const boardMounted = useOpenedOnce(useUi((s) => s.boardOpen));
+  const dashboardsMounted = useOpenedOnce(useUi((s) => s.dashboardsOpen));
+  const previewMounted = useOpenedOnce(usePreview((s) => s.file !== null));
   // The desktop app's menu bar holds Settings (⌘,) too.
   useEffect(() => desktop?.onOpenSettings?.(() => useUi.getState().openSettings('general', true)), []);
 
@@ -365,17 +404,17 @@ function Workspace() {
         </main>
         <RoomDialog />
         <ComputerDialog />
-        <FilePreview />
+        {previewMounted && <FilePreview />}
         <SearchDialog />
         <ShortcutsDialog />
-        <TodayDialog />
+        {todayMounted && <TodayDialog />}
         <ActionCards />
-        <BoardDialog />
-        <DashboardsDialog />
+        {boardMounted && <BoardDialog />}
+        {dashboardsMounted && <DashboardsDialog />}
         <PageCallQuestion />
         <GrokMoveOffer />
       </div>
-      <SettingsPage />
+      {settingsMounted && <SettingsPage />}
     </>
   );
 }
