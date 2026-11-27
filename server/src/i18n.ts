@@ -401,7 +401,7 @@ const tr = {
   'error.secondNotYou': 'Bu adımın ikinci onayını siz veremezsiniz',
   'error.secondNamedFirst': 'Bu kuralda ikinci onayı verecek kişi sizsiniz; ilk onay başka birinden gelmeli',
   'error.teamThreadManage': 'Ekip konuşmasını yalnızca botu değiştirebilenler düzenleyebilir ya da silebilir',
-  'error.roomManage': 'Odayı yalnızca açan kişi ve odadaki yöneticiler değiştirebilir',
+  'error.roomPeople': 'Odanın kişilerini yalnızca odayı açan ve odadaki yöneticiler seçebilir',
   'error.roomOwnerLeaves': 'Odayı açan kişi ayrılamaz; istersen odayı silebilirsin',
   'error.roomOwnerOnly': 'Bunu yalnızca odayı açan kişi yapabilir',
   'error.slackToken':
@@ -2944,7 +2944,7 @@ const en: Catalog<ServerKey> = {
   'error.secondNamedFirst':
     'In this rule you are the one who gives the second yes; the first must come from someone else',
   'error.teamThreadManage': 'Only those who may change the bot can edit or delete a team conversation',
-  'error.roomManage': 'Only whoever opened the room and the admins in it can change it',
+  'error.roomPeople': 'Only whoever opened the room and the admins in it can choose its people',
   'error.roomOwnerLeaves': 'Whoever opened the room cannot leave it; they can delete it instead',
   'error.roomOwnerOnly': 'Only whoever opened the room can do this',
   'error.slackToken':

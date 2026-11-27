@@ -96,7 +96,10 @@ export function RoomAddedCard({ room, onClose }: { room: Room; onClose: () => vo
   const t = useT();
   const openRoom = useUi((s) => s.openRoom);
   const { data: everyone = [] } = usePeople();
-  const opener = everyone.find((p) => p.id === room.ownerId);
+  const me = useSession().data?.user?.id;
+  // Who put them in: the opener, or an admin in the room.
+  const byId = (me && room.addedBy?.[me]) || room.ownerId;
+  const adder = everyone.find((p) => p.id === byId);
   return (
     <ActionCard
       role="dialog"
@@ -104,7 +107,7 @@ export function RoomAddedCard({ room, onClose }: { room: Room; onClose: () => vo
       className="pointer-events-auto"
       title={t('room.addedTitle', { room: room.title })}
       description={t('room.addedBody', {
-        name: opener ? personName(opener, t('people.owner')) : t('room.someone'),
+        name: adder ? personName(adder, t('people.owner')) : t('room.someone'),
       })}
       closeLabel={t('actionCard.close')}
       onClose={onClose}
@@ -598,11 +601,11 @@ export function RoomView({ room }: { room: Room }) {
     return () => ro.disconnect();
   }, []);
 
-  const writerOf = (m: Message) => m.userId ?? (room.people?.length ? null : (room.ownerId ?? me));
+  // A line whose writer was removed is marked so; an old line with no person is the opener's.
+  const writerOf = (m: Message) => (m.props.writerGone === true ? null : (m.userId ?? room.ownerId ?? me));
   /**
    * Whose words a row is: a bot's id, `user` for the one signed in, `person:<id>` for someone else
-   * in the room, or null for the room's own notes. A line with no person is the opener's in a room
-   * of one; in a shared room it is someone no longer here.
+   * in the room, or null for the room's own notes.
    */
   const speakerOf = (m: Message) =>
     m.role === 'assistant' || m.role === 'approval' || (m.role === 'system' && m.author.startsWith('bot:'))

@@ -128,6 +128,47 @@ describe('kişili odalar', () => {
     expect((await dilek.api('PATCH', `/api/rooms/${r.id}`, { title: 'Başka' })).status).toBe(403);
     expect((await dilek.api('POST', `/api/rooms/${r.id}/reset`)).status).toBe(403);
     expect((await dilek.api('DELETE', `/api/rooms/${r.id}`)).status).toBe(403);
+    // Nor through the routes every conversation has.
+    expect((await dilek.api('PATCH', `/api/threads/${r.id}`, { archived: true })).status).toBe(403);
+    expect((await dilek.api('DELETE', `/api/threads/${r.id}`)).status).toBe(403);
+    // Mert is told it was Dilek who put him in, not whoever opened the room.
+    expect((await mert.api<Room>('GET', `/api/rooms/${r.id}`)).body.addedBy?.mert).toBe('dilek');
+  });
+
+  it('tutanağı odadaki kişi silemez, odayı açan siler', async () => {
+    const r = await room('Tutanaklı');
+    await people(r.id, { add: ['ayse'] });
+    await say(null, r.id, 'Lansmanı konuşalım');
+    await t.services.turns.idle();
+    const [m] = (await t.api<{ id: string }[]>('GET', `/api/rooms/${r.id}/meetings`)).body;
+    expect(m).toBeDefined();
+    expect((await ayse.api('DELETE', `/api/rooms/${r.id}/meetings/${m!.id}`)).status).toBe(403);
+    expect((await t.api('DELETE', `/api/rooms/${r.id}/meetings/${m!.id}`)).status).toBe(200);
+  });
+
+  it('silinen kişinin satırları odayı devralanın adıyla gitmez', async () => {
+    await t.person('nur');
+    const made = await t.api<Room>('POST', '/api/rooms', {
+      title: 'Devralınan',
+      botIds: [bot.id],
+      responders: 'mentions',
+    });
+    const r = made.body;
+    await t.services.ctx.db.update(schema.threads).set({ userId: 'nur' }).where(eq(schema.threads.id, r.id));
+    await t.services.rooms.setPeople(r.id, { add: ['ayse'] }, 'nur');
+    await t.services.rooms.post(r.id, { clientId: 'c-nur-1', text: 'Ben Nur, teklif hazır' }, 'nur');
+    await t.services.turns.idle();
+    expect((await t.api('DELETE', '/api/people/nur')).status).toBe(200);
+    expect((await t.services.rooms.get(r.id)).ownerId).toBe('ayse');
+    const lines = (await ayse.api<Message[]>('GET', `/api/threads/${r.id}/messages`)).body;
+    const line = lines.find((x) => x.text === 'Ben Nur, teklif hazır')!;
+    expect(line.props.writerGone).toBe(true);
+
+    await t.services.rooms.post(r.id, { clientId: 'c-ayse-1', text: '@Fatura özetler misin?' }, 'ayse');
+    await t.services.turns.idle();
+    const asked = t.engine.requests.filter((x) => x.threadId === r.id).at(-1)!;
+    expect(asked.prompt).toContain('Ben Nur, teklif hazır');
+    expect(asked.prompt).not.toContain('ayse: Ben Nur');
   });
 
   it('ekleyen, botu paylaşılmamış kişileri görür; odadaki kişi botun yüzünü görür', async () => {

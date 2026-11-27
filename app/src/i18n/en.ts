@@ -209,7 +209,7 @@ export const en: Catalog<MessageKey> = {
   'room.peopleYou': 'you',
   'room.peopleRemove': 'Remove {name} from the room',
   'room.addedTitle': 'You’re in “{room}”',
-  'room.addedBody': '{name} opened this room and put you in it. Everyone here sees the whole conversation.',
+  'room.addedBody': '{name} put you in this room. Everyone here sees the whole conversation.',
   'room.addedOpen': 'Open the room',
   'room.menu': 'Room options',
   'room.someone': 'Someone',

@@ -679,6 +679,8 @@ export const Room = z.object({
   ownerId: z.string().optional(),
   /** The people put in the room besides its owner, earliest first. Missing from older servers. */
   people: z.array(z.string()).optional(),
+  /** Who put each of `people` in; null when not known. Missing from older servers. */
+  addedBy: z.record(z.string(), z.string().nullable()).optional(),
   /**
    * How the member bots look, for someone in the room whom a bot is not shared with: they still
    * see who speaks. Missing from older servers.
