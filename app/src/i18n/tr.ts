@@ -3042,6 +3042,8 @@ export const tr = {
     'Kullanım sınırı dolunca, model yanıt veremeyince ya da artık sunulmayınca iş beklemek yerine bu modelle sürer; sohbetin geçmişi ona aktarılır. Kapalıyken başka modele geçilmez: iş bekler ve sınır sıfırlanınca kendiliğinden yeniden gönderilir.',
   'onboarding.noAi':
     'Henüz bir yapay zekâ bağlı değil. Botlar oluşturulur ama Ayarlar → Bağlantı bölümünden bağlayana kadar cevap veremez.',
+  'onboarding.noAiMember':
+    'Bu sunucuya henüz bir yapay zekâ bağlı değil. Botlar oluşturulur ama sunucuyu yöneten kişi bir tane bağlayana kadar cevap veremez.',
   'apps.open': 'Uygulamalar',
   'apps.title': 'Uygulamaları bağla',
   'apps.subtitle': 'Botların kullanabileceği servisleri ve MCP sunucularını bağlayın.',
