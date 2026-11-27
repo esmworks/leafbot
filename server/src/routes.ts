@@ -1495,10 +1495,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   });
   app.delete('/api/account-host', async () => d.accountHost.unlink());
   // Signing the owner in to their account from the app, which links the server on the way.
-  app.post('/api/account-host/email', async (req, reply) => {
+  app.post('/api/account-host/email', async (req) => {
     const { email } = z.object({ email: z.string().trim().min(3).max(254) }).parse(req.body);
     await d.accountSignIn.start(email, pickLocale(req.headers['accept-language'], await s.settings.locale()));
-    return reply.code(204).send();
+    return { ok: true as const };
   });
   app.post('/api/account-host/verify', async (req) => {
     const { email, code } = z

@@ -58,7 +58,9 @@ export function Onboarding({ onDone }: { onDone(): void }) {
   const [step, setStep] = useState<Step>('language');
   // The AI connected on the AI step; the model step asks for a model of that one.
   const [engine, setEngine] = useState<EngineKind>('claude');
-  const [answers, setAnswers] = useState<Answers>(EMPTY);
+  // The name the account gave, when the person signed in to it first, is not asked again.
+  const known = useSettings().data?.userName?.trim() ?? '';
+  const [answers, setAnswers] = useState<Answers>(() => ({ ...EMPTY, name: known }));
   // Set once the questions were answered, so coming back from the bots shows the whole talk.
   const [answered, setAnswered] = useState(false);
   // Bots already made by an attempt that failed half way, so a retry does not make them again.
@@ -421,8 +423,11 @@ function AboutStep({
 }) {
   const t = useT();
   const reduced = useReducedMotion();
-  const [seen, setSeen] = useState<Question[]>(resume ? QUESTIONS : []);
-  const [current, setCurrent] = useState<Question | 'done'>(resume ? 'done' : 'name');
+  // A name already known shows as answered, still open to change, and the talk starts after it.
+  const [seen, setSeen] = useState<Question[]>(resume ? QUESTIONS : answers.name ? ['name'] : []);
+  const [current, setCurrent] = useState<Question | 'done'>(
+    resume ? 'done' : answers.name ? 'addressAs' : 'name',
+  );
   const [typing, setTyping] = useState(false);
   const timer = useRef<number | undefined>(undefined);
   const end = useRef<HTMLDivElement>(null);

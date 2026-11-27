@@ -165,6 +165,16 @@ export interface AccountHostState {
   noWebRtc: boolean;
 }
 
+/** The owner signed in to their account from the app, and the server linked to it. */
+export interface AccountSignedIn {
+  email: string;
+  /** The account's name; '' when it has none yet. */
+  name: string;
+  /** The account has no name yet: the app asks for it next. */
+  needsName: boolean;
+  host: AccountHostState;
+}
+
 /** How a file goes up: the same `uploadId` on a second try, its progress, calling it off. */
 export interface UploadOptions {
   uploadId?: string;
@@ -538,6 +548,12 @@ export function endpoints(send: Transport, base = '') {
     linkAccountHost: (code: string, name?: string) =>
       http.post<AccountHostState>('/api/account-host', { code, ...(name ? { name } : {}) }),
     unlinkAccountHost: () => http.del<AccountHostState>('/api/account-host'),
+    /** Signs the owner in to their account by an emailed code; the server links itself on the way. */
+    accountSignInStart: (email: string) => http.post<{ ok: true }>('/api/account-host/email', { email }),
+    accountSignInVerify: (email: string, code: string) =>
+      http.post<AccountSignedIn>('/api/account-host/verify', { email, code }),
+    accountSetName: (name: string) =>
+      http.post<{ name: string; savedToAccount: boolean }>('/api/account-host/name', { name }),
     tailscale: () => http.get<TailscaleState>('/api/tailscale'),
     setTailscale: (on: boolean) => http.post<TailscaleState>('/api/tailscale', { on }),
     linkPreview: (url: string) =>
