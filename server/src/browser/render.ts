@@ -1,5 +1,4 @@
 import { PAGE_LIBRARIES } from '@leafbot/shared';
-import { chromium } from 'playwright-core';
 
 /** The largest side of a picture, before the scale; a poster or a banner fits well inside it. */
 export const MAX_RENDER_SIDE = 4096;
@@ -41,6 +40,8 @@ export function renderPage(o: RenderOptions): Promise<Buffer> {
 
 async function render(o: RenderOptions): Promise<Buffer> {
   o.signal?.throwIfAborted();
+  // Loaded here rather than at start: most starts render no page.
+  const { chromium } = await import('playwright-core');
   const browser = await chromium.launch({
     executablePath: o.executable,
     headless: true,

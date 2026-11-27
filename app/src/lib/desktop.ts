@@ -53,6 +53,11 @@ interface DesktopBridge {
   quickKey?(): Promise<string | null>;
   /** Calls `fn` each time the quick window is shown again. Missing in older shells. */
   onQuickShown?(fn: () => void): () => void;
+  /** Tells the shell this page reached a stage of its start, for the launch times. Missing in older shells. */
+  launchMark?(
+    name: 'first-paint' | 'sidebar' | 'chat',
+    longTasks?: { count: number; totalMs: number },
+  ): Promise<void>;
   /** The window has no title bar; the page leaves room for the window buttons. Missing in older shells. */
   framelessTitleBar?: boolean;
 }

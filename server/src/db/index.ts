@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
+import { launchMark, launchSpan } from '../launch-timings';
 import { lockFolder, type FolderLock } from './lock';
 import * as schema from './schema';
 
@@ -65,7 +66,8 @@ export async function openDb(opts: {
   }
   try {
     const db = drizzle(client, { schema, logger: process.env.VITEST ? rawDateGuard : undefined });
-    await migrate(db, { migrationsFolder });
+    launchMark('db.opened');
+    await launchSpan('db.migrate', () => migrate(db, { migrationsFolder }));
     return {
       db: db as unknown as Db,
       kind: 'pglite',

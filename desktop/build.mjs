@@ -11,6 +11,13 @@ const common = {
   sourcemap: true,
 };
 await build({ ...common, entryPoints: ['src/main.ts'], outfile: 'dist/main.cjs' });
+// The entry turns on the compile cache, then loads main.cjs as a file of its own (not bundled in).
+await build({
+  ...common,
+  entryPoints: ['src/boot.ts'],
+  outfile: 'dist/boot.cjs',
+  external: [...common.external, './main.cjs'],
+});
 await build({ ...common, entryPoints: ['src/preload.ts'], outfile: 'dist/preload.cjs' });
 
 // On macOS, the small helper that moves the mouse and types for a bot allowed to use this Mac.
