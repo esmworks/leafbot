@@ -21,6 +21,7 @@ import {
   MailOpen,
   Pause,
   Play,
+  Users,
 } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
@@ -43,7 +44,8 @@ import { useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { moveTo, PINNED, UNGROUPED } from '@/lib/botLayout';
 import { usePauseActions } from '@/lib/paused';
-import { useBots, useGroups, useManagesServer, useSummaries } from '@/lib/queries';
+import { isMine, isSpace, placesFor } from '@/lib/places';
+import { useBots, useGroups, useManagesServer, useSession, useSummaries } from '@/lib/queries';
 import { useUi } from '@/lib/store';
 import { isUnread, useSeen } from '@/lib/unread';
 
@@ -57,6 +59,8 @@ export function BotMenu({ bot, children }: { bot: Bot; children: React.ReactElem
   const t = useT();
   const qc = useQueryClient();
   const { data: groups = [] } = useGroups();
+  const me = useSession().data?.user?.id;
+  const manages = useManagesServer();
   const moveBot = useMoveBot();
   const openBotPage = useUi((s) => s.openBotPage);
   const selectBot = useUi((s) => s.selectBot);
@@ -107,9 +111,9 @@ export function BotMenu({ bot, children }: { bot: Bot; children: React.ReactElem
           void refreshBots();
         }),
     });
-  const toNewGroup = () =>
+  const toNewFolder = () =>
     openNaming({
-      title: t('sidebarMenu.newGroup'),
+      title: t('sidebarMenu.newFolder'),
       initial: '',
       save: async (name) => {
         const group = await api.createGroup(name);
@@ -145,10 +149,12 @@ export function BotMenu({ bot, children }: { bot: Bot; children: React.ReactElem
   };
 
   const current = bot.pinned ? PINNED : (bot.groupId ?? UNGROUPED);
-  const sections = [
-    { key: UNGROUPED, name: t('sidebar.ungrouped') },
-    ...groups.map((g) => ({ key: g.id, name: g.name })),
-  ];
+  const places = placesFor(bot, groups, me, manages);
+  const sections = (places ?? []).map((g) => ({
+    key: g?.id ?? UNGROUPED,
+    name: g?.name ?? t('sidebar.private'),
+    space: !!g && isSpace(g),
+  }));
 
   return (
     <>
@@ -165,27 +171,34 @@ export function BotMenu({ bot, children }: { bot: Bot; children: React.ReactElem
             {bot.pinned ? <PinOff /> : <Pin />}
             {bot.pinned ? t('sidebarMenu.unpin') : t('sidebarMenu.pin')}
           </ContextMenuItem>
-          <ContextMenuSub>
-            <ContextMenuSubTrigger>
-              <FolderInput /> {t('sidebarMenu.moveTo')}
-            </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="w-56">
-              {sections.map((s) => (
-                <ContextMenuItem
-                  key={s.key}
-                  disabled={s.key === current}
-                  onSelect={() => moveBot(bot.id, moveTo(s.key, null))}
-                >
-                  <span className="min-w-0 flex-1 truncate">{s.name}</span>
-                  {s.key === current && <Check className="ms-auto" />}
-                </ContextMenuItem>
-              ))}
-              <ContextMenuSeparator />
-              <ContextMenuItem onSelect={toNewGroup}>
-                <FolderPlus /> {t('sidebarMenu.newGroupItem')}
-              </ContextMenuItem>
-            </ContextMenuSubContent>
-          </ContextMenuSub>
+          {places && (
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <FolderInput /> {t('sidebarMenu.moveTo')}
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-56">
+                {sections.map((s) => (
+                  <ContextMenuItem
+                    key={s.key}
+                    disabled={s.key === current}
+                    onSelect={() => moveBot(bot.id, moveTo(s.key, null))}
+                  >
+                    {s.space && <Users />}
+                    <span className="min-w-0 flex-1 truncate">{s.name}</span>
+                    {s.key === current && <Check className="ms-auto" />}
+                  </ContextMenuItem>
+                ))}
+                {isMine(bot, me) && (
+                  <>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem onSelect={toNewFolder}>
+                      <FolderPlus /> {t('sidebarMenu.newFolderItem')}
+                    </ContextMenuItem>
+                  </>
+                )}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          )}
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={newThread}>
             <MessageSquarePlus /> {t('chat.newThread')}
@@ -306,8 +319,12 @@ export function GroupMenu({
     });
     api.moveGroup(group.id, { beforeId }).then(refresh, fail);
   };
+  const space = isSpace(group);
+  // A space is looked after by those who look after the server; a folder by its owner, who alone sees it.
+  const own = !space || manages;
   const remove = () => {
-    if (!confirm(t('sidebarMenu.deleteGroupConfirm', { name: group.name }))) return;
+    const ask = space ? 'sidebarMenu.deleteSpaceConfirm' : 'sidebarMenu.deleteFolderConfirm';
+    if (!confirm(t(ask, { name: group.name }))) return;
     api.deleteGroup(group.id).then(() => {
       void refresh();
       void qc.invalidateQueries({ queryKey: ['bots'] });
@@ -322,40 +339,50 @@ export function GroupMenu({
           className="w-52"
           onCloseAutoFocus={(e) => dialogNext.current && (e.preventDefault(), (dialogNext.current = false))}
         >
-          <ContextMenuItem
-            onSelect={() => {
-              dialogNext.current = true;
-              setNaming({
-                title: t('sidebarMenu.renameGroup'),
-                initial: group.name,
-                save: (name) => api.renameGroup(group.id, name).then(refresh),
-              });
-            }}
-          >
-            <Pencil /> {t('sidebarMenu.rename')}
-          </ContextMenuItem>
+          {own && (
+            <ContextMenuItem
+              onSelect={() => {
+                dialogNext.current = true;
+                setNaming({
+                  title: t('sidebarMenu.renameGroup'),
+                  initial: group.name,
+                  save: (name) => api.renameGroup(group.id, name).then(refresh),
+                });
+              }}
+            >
+              <Pencil /> {t('sidebarMenu.rename')}
+            </ContextMenuItem>
+          )}
           <ContextMenuItem
             disabled={!anyUnread}
             onSelect={() => useSeen.getState().markAllSeen(groupSummaries)}
           >
             <MailOpen /> {t('sidebarMenu.markGroupRead')}
           </ContextMenuItem>
-          <ContextMenuItem disabled={!prevId} onSelect={() => prevId && move(prevId)}>
-            <ArrowUp /> {t('sidebarMenu.moveUp')}
-          </ContextMenuItem>
-          <ContextMenuItem disabled={!nextId} onSelect={() => nextId && move(after(nextId))}>
-            <ArrowDown /> {t('sidebarMenu.moveDown')}
-          </ContextMenuItem>
+          {own && (
+            <>
+              <ContextMenuItem disabled={!prevId} onSelect={() => prevId && move(prevId)}>
+                <ArrowUp /> {t('sidebarMenu.moveUp')}
+              </ContextMenuItem>
+              <ContextMenuItem disabled={!nextId} onSelect={() => nextId && move(after(nextId))}>
+                <ArrowDown /> {t('sidebarMenu.moveDown')}
+              </ContextMenuItem>
+            </>
+          )}
           {manages && (
             <ContextMenuItem onSelect={togglePause}>
               {group.pausedAt ? <Play /> : <Pause />}
               {group.pausedAt ? t('pause.resumeGroup') : t('pause.pauseGroup')}
             </ContextMenuItem>
           )}
-          <ContextMenuSeparator />
-          <ContextMenuItem variant="destructive" onSelect={remove}>
-            <Trash2 /> {t('common.delete')}
-          </ContextMenuItem>
+          {own && (
+            <>
+              <ContextMenuSeparator />
+              <ContextMenuItem variant="destructive" onSelect={remove}>
+                <Trash2 /> {t('common.delete')}
+              </ContextMenuItem>
+            </>
+          )}
         </ContextMenuContent>
       </ContextMenu>
       <NameDialog naming={naming} onClose={() => setNaming(null)} />
@@ -404,15 +431,32 @@ export function SidebarMenu({ children }: { children: React.ReactElement }) {
             onSelect={() => {
               dialogNext.current = true;
               setNaming({
-                title: t('sidebarMenu.newGroup'),
+                title: t('sidebarMenu.newFolder'),
                 initial: '',
                 save: (name) =>
                   api.createGroup(name).then(() => qc.invalidateQueries({ queryKey: ['groups'] })),
               });
             }}
           >
-            <FolderPlus /> {t('sidebarMenu.newGroup')}
+            <FolderPlus /> {t('sidebarMenu.newFolder')}
           </ContextMenuItem>
+          {manages && (
+            <ContextMenuItem
+              onSelect={() => {
+                dialogNext.current = true;
+                setNaming({
+                  title: t('sidebarMenu.newSpace'),
+                  initial: '',
+                  save: (name) =>
+                    api
+                      .createGroup(name, { space: true })
+                      .then(() => qc.invalidateQueries({ queryKey: ['groups'] })),
+                });
+              }}
+            >
+              <Users /> {t('sidebarMenu.newSpace')}
+            </ContextMenuItem>
+          )}
           <ContextMenuSeparator />
           <ContextMenuItem disabled={!anyUnread} onSelect={() => useSeen.getState().markAllSeen(summaries)}>
             <MailOpen /> {t('sidebarMenu.markAllRead')}

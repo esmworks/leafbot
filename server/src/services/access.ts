@@ -264,8 +264,9 @@ export class AccessService {
   /**
    * Refuses a place a person may not put a bot in. A new bot goes only to its owner's Private:
    * none, or a folder of theirs. A folder holds only its owner's bots, put there by them. A bot
-   * goes into a team space by its owner, who must be in the space, or by those who look after the
-   * server; its notes and the space's shared folder then reach the space's people.
+   * goes into a team space, or back out of one, by its owner (who must be in the space) or by
+   * those who look after the server; its notes and the space's shared folder then reach the
+   * space's people.
    */
   async checkPlace(
     viewer: Viewer,
@@ -273,8 +274,13 @@ export class AccessService {
     ownerUserId: string | undefined,
     creating = false,
   ) {
-    if (!groupId) return;
     const owner = ownerUserId ?? OWNER_ID;
+    // Out of a space, back to Private: by its owner or those who look after the server.
+    if (!groupId) {
+      if (owner !== viewer.userId && !managesServer(viewer.role))
+        throw new HttpError(403, 'error.privateNotYours');
+      return;
+    }
     const [group] = await this.ctx.db
       .select({ ownerUserId: schema.groups.ownerUserId })
       .from(schema.groups)

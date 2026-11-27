@@ -43,10 +43,14 @@ import {
   useConnections,
   useGroups,
   useLibrary,
+  useManagesServer,
   useRoutines,
+  useSession,
   useSkills,
   useSummaries,
 } from '@/lib/queries';
+import { isMine, isSpace, placesFor } from '@/lib/places';
+import { moveWarning } from '@/features/botDrag';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { ComputerCard, useBrowserAvailable } from './Computer';
@@ -630,6 +634,17 @@ function BotFacts({ bot }: { bot: Bot }) {
     onError: (e) => toast.error((e as Error).message),
   });
   const group = groups.find((g) => g.id === bot.groupId);
+  const me = useSession().data?.user?.id;
+  const places = placesFor(bot, groups, me, useManagesServer());
+  const offered = (places ?? []).filter((g) => !!g);
+  // The bot's own place stays named when the person may not move it.
+  const options = group && !offered.some((g) => g.id === group.id) ? [group, ...offered] : offered;
+  const toPlace = (g: string) => {
+    const groupId = g === NO_GROUP ? null : g;
+    const warning = moveWarning(bot, groupId, groups, t);
+    if (warning && !confirm(warning)) return;
+    update.mutate({ groupId });
+  };
   return (
     <section className="space-y-1">
       <h4 className="mb-2 text-sm font-semibold">{t('panel.bot')}</h4>
@@ -663,16 +678,17 @@ function BotFacts({ bot }: { bot: Bot }) {
         </Row>
       )}
       <Row icon={<FileText />} label={t('panel.group')}>
-        <Select
-          value={group?.id ?? NO_GROUP}
-          onValueChange={(g) => update.mutate({ groupId: g === NO_GROUP ? null : g })}
-        >
+        <Select value={group?.id ?? NO_GROUP} onValueChange={toPlace} disabled={!places}>
           <SelectTrigger size="sm" className="h-8 max-w-[180px] rounded-full border-0 bg-secondary">
             <SelectValue />
           </SelectTrigger>
           <SelectContent align="end">
-            <SelectItem value={NO_GROUP}>{bot.isManager ? t('panel.manager') : t('panel.none')}</SelectItem>
-            {groups.map((g) => (
+            {(isMine(bot, me) || !group) && (
+              <SelectItem value={NO_GROUP}>
+                {bot.isManager ? t('panel.manager') : t('sidebar.private')}
+              </SelectItem>
+            )}
+            {[...options.filter((g) => !isSpace(g)), ...options.filter(isSpace)].map((g) => (
               <SelectItem key={g.id} value={g.id}>
                 {g.name}
               </SelectItem>

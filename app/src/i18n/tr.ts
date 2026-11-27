@@ -213,7 +213,6 @@ export const tr = {
   'room.emptyHintMentions': 'Cevap vermesini istediğin botu @ad diye an; herkesi çağırmak için @herkes.',
   'room.unknownBot': 'Silinmiş bot',
   'room.mention': '{name} adlı botu an',
-  'sidebar.ungrouped': 'Grupsuz',
   'sidebar.noBots': 'Henüz bot yok.',
   'sidebar.createFirst': 'İlk botu oluştur',
   'sidebar.defaultUser': 'Kullanıcı',
@@ -222,6 +221,27 @@ export const tr = {
   'sidebar.noMessages': 'Henüz mesaj yok',
   'sidebar.resize': 'Kenar çubuğunu boyutlandır',
   'sidebar.dropToPin': 'Üste sabitlemek için buraya bırak',
+  'sidebar.private': 'Özel',
+  'sidebar.shared': 'Benimle paylaşılanlar',
+  'sidebarMenu.newFolder': 'Yeni klasör',
+  'sidebarMenu.newFolderItem': 'Yeni klasör…',
+  'sidebarMenu.newSpace': 'Yeni ekip alanı',
+  'sidebarMenu.deleteSpaceConfirm':
+    '"{name}" alanı silinsin mi? İçindeki botlar sahiplerinin Özel’ine döner; alandakiler onlarla konuşamaz ve alanın ortak klasörüne erişemez.',
+  'sidebarMenu.deleteFolderConfirm': '"{name}" klasörü silinsin mi? İçindeki botlar Özel’e döner.',
+  'move.leaveSpace': {
+    one: '{space} alanında bir kişi bu botla konuşabiliyor; taşınınca artık konuşamaz. Sohbetleri silinmez, okunur kalır.',
+    other:
+      '{space} alanında {count} kişi bu botla konuşabiliyor; taşınınca artık konuşamazlar. Sohbetleri silinmez, okunur kalır.',
+  },
+  'move.enterSpace': {
+    one: '{space} alanındaki bir kişi bu botla konuşabilecek. Bot, notlarını ve alanın ortak klasörünü onunla konuşurken de kullanır; içlerindekini ona söyleyebilir.',
+    other:
+      '{space} alanındaki {count} kişi bu botla konuşabilecek. Bot, notlarını ve alanın ortak klasörünü onlarla konuşurken de kullanır; içlerindekini onlara söyleyebilir.',
+  },
+  'move.confirm': 'Taşınsın mı?',
+  'bot.private': 'Özel',
+  'bot.newFolder': 'ya da yeni klasör adı',
   'sidebar.emptyGroup': 'Botları buraya sürükle',
   'sidebar.routineFailed': '“{name}” rutininin son çalışması başarısız oldu',
   'sidebar.needsYou': 'Seni bekleyenler',
@@ -237,8 +257,6 @@ export const tr = {
   'sidebarMenu.pin': 'Sabitle',
   'sidebarMenu.unpin': 'Sabitlemeyi kaldır',
   'sidebarMenu.moveTo': 'Şuraya taşı',
-  'sidebarMenu.newGroupItem': 'Yeni grup…',
-  'sidebarMenu.newGroup': 'Yeni grup',
   'sidebarMenu.mute': 'Bu cihazda sessize al',
   'slash.title': 'Komutlar',
   'slash.new': 'Yeni sohbet',
@@ -969,8 +987,6 @@ export const tr = {
   'sidebarMenu.renameGroup': 'Grubu yeniden adlandır',
   'sidebarMenu.moveUp': 'Yukarı taşı',
   'sidebarMenu.moveDown': 'Aşağı taşı',
-  'sidebarMenu.deleteGroupConfirm':
-    '"{name}" grubu silinsin mi? İçindeki botlar Grupsuz\'a taşınır ve grubun ortak klasörüne erişemez.',
 
   // Update notice
   'update.title': 'Leaf Bot güncellendi',
@@ -1612,7 +1628,7 @@ export const tr = {
   'panel.bot': 'Bot',
   'panel.permissions': 'İzinler',
   'panel.internet': 'İnternet',
-  'panel.group': 'Grup',
+  'panel.group': 'Yer',
   'panel.manager': 'Yönetici',
   'panel.none': 'Yok',
   'panel.noFiles': 'Botun klasöründe henüz dosya yok. Botun ürettiği dosyalar burada görünür.',
@@ -2068,9 +2084,7 @@ export const tr = {
   'bot.name': 'Ad',
   'bot.nameRequired': 'Ad gerekli',
   'bot.namePlaceholder': 'Örn. Kâtip',
-  'bot.group': 'Grup',
-  'bot.noGroup': 'Grupsuz',
-  'bot.newGroup': 'ya da yeni grup adı',
+  'bot.group': 'Yer',
   'bot.description': 'Kısa açıklama',
   'bot.descriptionPlaceholder': 'Ne iş yapar?',
   'bot.instructions': 'Talimatlar',

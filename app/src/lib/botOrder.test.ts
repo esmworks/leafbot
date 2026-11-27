@@ -14,7 +14,34 @@ describe('kenar çubuğu sırası', () => {
       bot('d', { pinned: true }),
       bot('e'),
     ];
-    expect(sidebarOrder(bots, groups, new Set(['e'])).map((b) => b.id)).toEqual(['e', 'd', 'c', 'b', 'a']);
+    expect(sidebarOrder(bots, groups, new Set(['e']), undefined).map((b) => b.id)).toEqual([
+      'e',
+      'd',
+      'c',
+      'b',
+      'a',
+    ]);
+  });
+
+  it('alanlar, Özel, klasörler ve benimle paylaşılanlar sırasıyla; görünmeyen yerdeki bot kaybolmaz', () => {
+    const groups = [
+      { id: 'klasor', ownerUserId: 'ben', memberIds: [] },
+      { id: 'alan', ownerUserId: null, memberIds: ['ben'] },
+    ] as Group[];
+    const bots = [
+      bot('paylasilan', { ownerUserId: 'baskasi', groupId: 'gizli-alan' }),
+      bot('klasordeki', { ownerUserId: 'ben', groupId: 'klasor' }),
+      bot('ozel', { ownerUserId: 'ben' }),
+      bot('alandaki', { ownerUserId: 'baskasi', groupId: 'alan' }),
+      bot('baskasinin-ozeli', { ownerUserId: 'baskasi' }),
+    ];
+    expect(sidebarOrder(bots, groups, new Set(), 'ben').map((b) => b.id)).toEqual([
+      'alandaki',
+      'ozel',
+      'klasordeki',
+      'paylasilan',
+      'baskasinin-ozeli',
+    ]);
   });
 
   it('⌘/Ctrl+Shift ile ] ve [ botlar arasında ileri ve geri gider', () => {

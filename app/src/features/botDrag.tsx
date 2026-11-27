@@ -1,10 +1,12 @@
-import type { Bot, BotMove } from '@leafbot/shared';
+import type { Bot, BotMove, Group } from '@leafbot/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useState } from 'react';
 import { toast } from 'sonner';
 import { BotAvatar } from '@/components/BotAvatar';
+import { useT, type T } from '@/i18n';
 import { api } from '@/lib/api';
 import { applyMove, isNoop, moveTo, sectionOf, type SectionKey } from '@/lib/botLayout';
+import { isSpace, othersIn, SHARED } from '@/lib/places';
 import { cn } from '@/lib/utils';
 
 /*
@@ -38,11 +40,36 @@ interface BotDrag {
 const Ctx = createContext<BotDrag>({ drag: null, grab: null });
 export const useBotDrag = () => useContext(Ctx);
 
+/**
+ * What changes for others when the bot goes to `groupId`: who loses it with the space it leaves,
+ * and who gains it, with its notes and the space's shared folder, in the one it enters. Null
+ * when nobody else is touched.
+ */
+export function moveWarning(bot: Bot, groupId: string | null, groups: readonly Group[], t: T): string | null {
+  if (groupId === bot.groupId) return null;
+  const from = groups.find((g) => g.id === bot.groupId);
+  const to = groups.find((g) => g.id === groupId);
+  const leaving = othersIn(from, bot);
+  const entering = othersIn(to, bot);
+  const lines = [
+    leaving > 0 && t('move.leaveSpace', { count: leaving, space: from!.name }),
+    entering > 0 && to && isSpace(to) && t('move.enterSpace', { count: entering, space: to.name }),
+  ].filter(Boolean);
+  return lines.length ? [...lines, t('move.confirm')].join('\n\n') : null;
+}
+
 /** Moves a bot and shows the move at once, before the server answers. */
 export function useMoveBot() {
   const qc = useQueryClient();
+  const t = useT();
   return (id: string, to: BotMove) => {
-    if (isNoop(qc.getQueryData<Bot[]>(['bots']) ?? [], id, to)) return;
+    const bots = qc.getQueryData<Bot[]>(['bots']) ?? [];
+    if (isNoop(bots, id, to)) return;
+    const bot = bots.find((b) => b.id === id);
+    const warning =
+      bot &&
+      moveWarning(bot, to.pinned ? bot.groupId : to.groupId, qc.getQueryData<Group[]>(['groups']) ?? [], t);
+    if (warning && !confirm(warning)) return;
     qc.setQueryData<Bot[]>(['bots'], (old) => (old ? applyMove(old, id, to) : old));
     api.moveBot(id, to).then(
       () => qc.invalidateQueries({ queryKey: ['bots'] }),
@@ -71,7 +98,9 @@ export function BotDragProvider({
   const [drag, setDrag] = useState<DragState | null>(null);
   const current = () => qc.getQueryData<Bot[]>(['bots']) ?? [];
 
-  const drop = (bot: Bot, target: DropTarget) => moveBot(bot.id, moveTo(target.section, target.beforeId));
+  // Bots shared with the person sit in no place of theirs to drop into.
+  const drop = (bot: Bot, target: DropTarget) =>
+    target.section !== SHARED && moveBot(bot.id, moveTo(target.section, target.beforeId));
 
   const grab = (e: React.PointerEvent, bot: Bot) => {
     // On a touch screen a moving finger scrolls the list; the bot's menu moves it instead.
@@ -160,14 +189,18 @@ function autoScroll(el: HTMLElement | null, y: number) {
   else if (y > r.bottom - EDGE) el.scrollTop += 12;
 }
 
-/** Props that make an element a draggable item of a section. */
-export function useDragItem(bot: Bot, axis: 'x' | 'y') {
+/**
+ * Props that make an element a draggable item of a section. `section` is where it shows when not
+ * where its group says (a bot shared with the person). Only one the person may change moves.
+ */
+export function useDragItem(bot: Bot, axis: 'x' | 'y', section: SectionKey = sectionOf(bot)) {
   const { drag, grab } = useBotDrag();
   const over = drag?.target?.overId === bot.id ? drag.target.side : null;
+  const movable = !!grab && section !== SHARED && bot.yourLevel !== 'chat';
   return {
-    item: { 'data-bot-id': bot.id, 'data-section': sectionOf(bot), 'data-axis': axis },
+    item: { 'data-bot-id': bot.id, 'data-section': section, 'data-axis': axis },
     /** For the item's button: pressing and moving it drags the bot. Missing when moving is off. */
-    onGrab: grab ? (e: React.PointerEvent) => grab(e, bot) : undefined,
+    onGrab: movable ? (e: React.PointerEvent) => grab(e, bot) : undefined,
     dragging: drag?.bot.id === bot.id,
     indicator: over && <DropLine axis={axis} side={over} />,
   };

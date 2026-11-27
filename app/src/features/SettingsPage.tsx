@@ -1896,7 +1896,15 @@ function GroupsTab() {
                 size="icon"
                 className="size-8 rounded-full"
                 onClick={() =>
-                  (count === 0 || confirm(t('sidebarMenu.deleteGroupConfirm', { name: g.name }))) &&
+                  (count === 0 ||
+                    confirm(
+                      t(
+                        g.ownerUserId ? 'sidebarMenu.deleteFolderConfirm' : 'sidebarMenu.deleteSpaceConfirm',
+                        {
+                          name: g.name,
+                        },
+                      ),
+                    )) &&
                   remove.mutate(g.id)
                 }
                 aria-label={t('common.delete')}

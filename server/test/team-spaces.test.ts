@@ -155,6 +155,37 @@ describe('ekip alanları', () => {
     expect((await move(admin, other.id)).status).toBe(200);
   });
 
+  it('alandaki üye, değiştirebilse de başkasının botunu Özel’e çekemez; sabitlemek botu alanda tutar', async () => {
+    const space = (await t.api<Group>('POST', '/api/groups', { name: 'Ortak', space: true })).body;
+    await t.api('PATCH', `/api/groups/${space.id}`, { membersEdit: true });
+    await t.api('PUT', `/api/groups/${space.id}/members`, { add: ['ayse'] });
+    const bot = await t.bot({ name: 'Ortak bot' });
+    const move = (p: Pick<Person, 'api'>, body: { pinned: boolean; groupId: string | null }) =>
+      p.api('POST', `/api/bots/${bot.id}/move`, { ...body, beforeId: null });
+    expect((await move(t, { pinned: false, groupId: space.id })).status).toBe(200);
+    expect(await levelOf(ayse, bot.id)).toBe('edit');
+
+    expect((await move(ayse, { pinned: false, groupId: null })).status).toBe(403);
+    expect((await move(ayse, { pinned: true, groupId: null })).status).toBe(200);
+    expect((await t.services.bots.get(bot.id)).groupId).toBe(space.id);
+    expect(await levelOf(ayse, bot.id)).toBe('edit');
+  });
+
+  it('gizli alandaki bot tek tek paylaşıldığı kişiye görünür, alanın kendisi görünmez', async () => {
+    const secret = (await t.api<Group>('POST', '/api/groups', { name: 'Gizli işler', space: true })).body;
+    const bot = await t.bot({ name: 'Tek paylaşılan' });
+    await t.api('POST', `/api/bots/${bot.id}/move`, { pinned: false, groupId: secret.id, beforeId: null });
+    await t.services.ctx.db
+      .update(schema.bots)
+      .set({ access: { everyone: 'none', people: { mert: 'chat' } } })
+      .where(eq(schema.bots.id, bot.id));
+    t.services.access.forget();
+    const seenBot = (await mert.api<Bot[]>('GET', '/api/bots')).body.find((b) => b.id === bot.id);
+    expect(seenBot?.yourLevel).toBe('chat');
+    const groups = (await mert.api<Group[]>('GET', '/api/groups')).body.map((g) => g.id);
+    expect(groups).not.toContain(secret.id);
+  });
+
   it('alan silinince botlar sahiplerinin Özel’ine döner, alandakiler erişimi kaybeder', async () => {
     const space = (await t.api<Group>('POST', '/api/groups', { name: 'Silinecek', space: true })).body;
     const bot = await t.bot({ name: 'Silinen alandaki' });

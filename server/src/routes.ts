@@ -822,8 +822,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const id = IdParams.parse(req.params).id;
     const body = BotMove.parse(req.body);
     const before = await s.bots.get(id);
-    if (body.groupId === before.groupId) return s.bots.move(id, body);
-    await s.access.checkPlace(me(req), body.groupId, before.ownerUserId);
+    // Pinning keeps the bot in its place.
+    const groupId = body.pinned ? before.groupId : body.groupId;
+    if (groupId === before.groupId) return s.bots.move(id, body);
+    await s.access.checkPlace(me(req), groupId, before.ownerUserId);
     const bot = await s.bots.move(id, body);
     await placeChanged();
     return bot;
