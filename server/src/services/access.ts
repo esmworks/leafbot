@@ -1,4 +1,4 @@
-import type { Bot, BotAccess, BotLevel, Role } from '@leafbot/shared';
+import type { Bot, BotAccess, BotLevel, Group, Role } from '@leafbot/shared';
 import { and, desc, eq, exists, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { Ctx } from '../context';
 import { schema } from '../db';
@@ -83,6 +83,16 @@ async function spacesOf(ctx: Ctx, userId: string): Promise<Map<string, BotLevel>
     .innerJoin(schema.groups, eq(schema.groups.id, schema.groupMembers.groupId))
     .where(eq(schema.groupMembers.userId, userId));
   return new Map(rows.map((r) => [r.groupId, spaceLevel(r.membersEdit)]));
+}
+
+/**
+ * Whether a person sees a group: their own Private folder, a team space everyone sees, or a secret
+ * one they are in. Those who look after the server see every space, never another's folder.
+ */
+export function seesGroup(viewer: Viewer, group: Group): boolean {
+  if (group.ownerUserId) return group.ownerUserId === viewer.userId;
+  if (group.kind !== 'secret') return true;
+  return managesServer(viewer.role) || !!group.memberIds?.includes(viewer.userId);
 }
 
 /** The columns of a bot its level is worked out from. */
@@ -214,6 +224,16 @@ export class AccessService {
     if (target.id === from.id && wanted === 'chat') return target;
     if (!atLeast(await this.level(await this.viewerOf(person), target.id), wanted)) throw notFound('bot');
     return target;
+  }
+
+  /**
+   * Whether anyone besides its owner reaches a bot: shared with everyone or with someone, or in a
+   * team space with people in it. What a bot nobody else reaches does is its owner's alone.
+   */
+  async sharedWithAnyone(bot: { access?: BotAccess; groupId: string | null }): Promise<boolean> {
+    const access = bot.access ?? { everyone: 'none', people: {} };
+    if (access.everyone !== 'none' || Object.keys(access.people).length) return true;
+    return (await spaceMembers(this.ctx, bot.groupId)).size > 0;
   }
 
   /** The person who owns a bot; the server's owner when the bot is gone. */

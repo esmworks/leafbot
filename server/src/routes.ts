@@ -162,7 +162,7 @@ import { HttpError, notFound, truncate } from './util';
 import type { AccountHost } from './tunnel/host';
 import type { AccountSignIn } from './tunnel/signin';
 import { tunnelIdentity } from './tunnel/identity';
-import { atLeast, managesServer } from './services/access';
+import { atLeast, managesServer, seesGroup } from './services/access';
 import { findProjects, findSetup } from './services/setup-import';
 import { APP_DIR } from './runtime/turns';
 import { bundlePage } from './tools/page-bundle';
@@ -1264,7 +1264,8 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     return s.skills.get(p.id);
   });
 
-  app.get('/api/groups', async () => s.bots.listGroups());
+  // Each person sees the team spaces open to them and their own Private folders.
+  app.get('/api/groups', async (req) => (await s.bots.listGroups()).filter((g) => seesGroup(me(req), g)));
   app.post('/api/groups', async (req) => s.bots.createGroup(GroupCreate.parse(req.body).name));
   app.patch('/api/groups/:id', async (req) =>
     s.bots.renameGroup(IdParams.parse(req.params).id, GroupCreate.parse(req.body).name),

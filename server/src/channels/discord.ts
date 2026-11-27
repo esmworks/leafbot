@@ -506,8 +506,7 @@ export class DiscordChannel {
       bot = row.botId ? await this.usable(row.userId, row.botId) : null;
       if (!bot) return say('discord.noBot');
       // What a bot shared with nobody does is its owner's alone; a server is not that place.
-      const access = bot.access ?? { everyone: 'none', people: {} };
-      if (access.everyone === 'none' && !Object.keys(access.people).length) {
+      if (!(await this.services.access.sharedWithAnyone(bot))) {
         return say('discord.botPrivate', { bot: bot.name });
       }
       const thread = await this.services.threads.create(bot.id, {

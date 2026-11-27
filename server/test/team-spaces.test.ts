@@ -74,4 +74,31 @@ describe('ekip alanları', () => {
     const folder = await t.services.bots.createGroup('Benim', { ownerUserId: OWNER_ID });
     await expect(t.services.bots.setSpaceMembers(folder.id, { add: ['ayse'] })).rejects.toThrow();
   });
+
+  it('herkes açık alanları, üyesi olduğu gizli alanları ve yalnızca kendi klasörlerini görür', async () => {
+    const open = await t.services.bots.createGroup('Açık', { kind: 'open' });
+    const secret = await t.services.bots.createGroup('Gizli');
+    const mine = await t.services.bots.createGroup('Ayşenin', { ownerUserId: 'ayse' });
+    const owners = await t.services.bots.createGroup('Sahibin', { ownerUserId: OWNER_ID });
+    await t.services.bots.setSpaceMembers(secret.id, { add: ['ayse'] });
+    const names = async (p: Person) =>
+      new Set((await p.api<{ id: string }[]>('GET', '/api/groups')).body.map((g) => g.id));
+
+    const forAyse = await names(ayse);
+    expect([open.id, secret.id, mine.id].every((id) => forAyse.has(id))).toBe(true);
+    expect(forAyse.has(owners.id)).toBe(false);
+    const forMert = await names(mert);
+    expect(forMert.has(open.id)).toBe(true);
+    expect([secret.id, mine.id, owners.id].some((id) => forMert.has(id))).toBe(false);
+  });
+
+  it('üyesi olan bir alandaki bot paylaşılmış sayılır', async () => {
+    const bot = await t.bot({ name: 'Kanal botu' });
+    const space = await t.services.bots.createGroup('Kanal');
+    await put(bot.id, space.id);
+    const row = { access: { everyone: 'none' as const, people: {} }, groupId: space.id };
+    expect(await t.services.access.sharedWithAnyone(row)).toBe(false);
+    await t.services.bots.setSpaceMembers(space.id, { add: ['mert'] });
+    expect(await t.services.access.sharedWithAnyone(row)).toBe(true);
+  });
 });
