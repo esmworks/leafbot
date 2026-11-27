@@ -1,4 +1,6 @@
-import { monitorEventLoopDelay, type IntervalHistogram } from 'node:perf_hooks';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
+
+type Histogram = ReturnType<typeof monitorEventLoopDelay>;
 
 /**
  * Warns in the log when the server's event loop was held up: while it is, no request, socket
@@ -20,7 +22,7 @@ export function stallLine(s: StallSummary, stallMs = STALL_MS): string | null {
   return `event loop held up: longest ${Math.round(s.maxMs)} ms, 99% under ${Math.round(s.p99Ms)} ms, mean ${s.meanMs.toFixed(1)} ms in the last minute`;
 }
 
-const summary = (h: IntervalHistogram): StallSummary => ({
+const summary = (h: Histogram): StallSummary => ({
   maxMs: h.max / 1e6,
   p99Ms: h.percentile(99) / 1e6,
   meanMs: h.mean / 1e6,
