@@ -5,7 +5,13 @@ export const CODE = 'ABCDE-FGHJK-LMNPQ-RSTUV';
 
 /** The account service's routes the app's sign-in uses, with what each was sent. */
 export function fakeAccount(
-  opts: { name?: string; mailDown?: boolean; down?: boolean; hostTaken?: boolean } = {},
+  opts: {
+    name?: string;
+    mailDown?: boolean;
+    down?: boolean;
+    hostTaken?: boolean;
+    installRefused?: boolean;
+  } = {},
 ) {
   const calls: { path: string; body: Record<string, unknown> | null; auth: string | null }[] = [];
   let name = opts.name ?? '';
@@ -27,7 +33,10 @@ export function fakeAccount(
       return body?.code === '123456' && body.client === 'desktop'
         ? json(200, { user: user(), sessionId: 'sess_00000001', token: 'desk-token-0000000000000000' })
         : json(400, { error: 'invalid_code' });
-    if (path === '/v1/servers/install-codes') return json(201, { code: CODE, expiresAt: 0 });
+    if (path === '/v1/servers/install-codes')
+      return opts.installRefused
+        ? json(400, { error: 'bad_request' })
+        : json(201, { code: CODE, expiresAt: 0 });
     if (path === '/v1/host/claim')
       return opts.hostTaken
         ? json(409, { error: 'host_taken' })

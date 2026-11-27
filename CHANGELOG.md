@@ -35,6 +35,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
   up with `docker/install.sh` it asks in the running server's container and restarts the server afterwards;
   elsewhere `node dist/index.mjs login` runs on the server's data folder (`LEAFBOT_DATA_DIR`), which works before
   the first start and, with the embedded database, only while the server is stopped.
+- The embedded database's folder is locked by the process that opens it (`db.lock` in the data folder). A second
+  server or `leafbot login` on the same folder is refused instead of writing the same files, which corrupts the
+  database; a server starting while another is still shutting down waits for it.
 - `docker/firewall.sh` takes `HOST_PORTS` (such as `udp/3478 tcp/3478 udp/49152:65535`), ports on the host the
   containers may open connections to. A server on the same machine as its TURN server needs it: the firewall shuts
   the containers out of the host, so the server could not reach TURN and browsers could not reach the server.

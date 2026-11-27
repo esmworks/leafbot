@@ -255,13 +255,22 @@ manage() {
       ;;
     access-key) get_env LEAFBOT_ACCESS_KEY ;;
     login)
-      # Asks in the running server's container, on its own data and database, in the language of
-      # this installation. The account lists the server by its address, as the container's own name
-      # is its id. The server reaches the account only after it starts again.
-      compose exec -e LANG="$UI" -e LEAFBOT_SERVER_NAME="$(get_env LEAFBOT_DOMAIN)" leafbot node dist/index.mjs login
-      say "Sunucu yeniden başlatılıyor." "Restarting the server."
-      compose restart leafbot
-      ! systemctl is-enabled --quiet leafbot-firewall.service 2>/dev/null || systemctl restart leafbot-firewall.service
+      # Asks on the server's own data and database, in the language of this installation. The account
+      # lists the server by its address, as the container's own name is its id.
+      local env=(-e LANG="$UI" -e LEAFBOT_SERVER_NAME="$(get_env LEAFBOT_DOMAIN)")
+      if compose ps --status running --services 2>/dev/null | grep -qx leafbot; then
+        compose exec "${env[@]}" leafbot node dist/index.mjs login
+        # The running server reaches the account only after it starts again.
+        say "Sunucu yeniden başlatılıyor." "Restarting the server."
+        compose restart leafbot
+        ! systemctl is-enabled --quiet leafbot-firewall.service 2>/dev/null || systemctl restart leafbot-firewall.service
+      else
+        # Stopped, or starting again after a failure: a container of its own asks, and the server
+        # reads the link at its next start.
+        compose run --rm "${env[@]}" leafbot node dist/index.mjs login
+        say "Sunucu çalışmıyor; başlatmak için: sudo leafbot restart" \
+          "The server is not running; start it with: sudo leafbot restart"
+      fi
       ;;
     compose) compose "${REST[@]}" ;;
   esac

@@ -33,6 +33,8 @@ const tr = {
   'error.accountCodeWrong': 'Kod yanlış ya da süresi dolmuş. Yeni bir kod isteyin.',
   'error.accountMailUnavailable': 'Giriş kodu şu an gönderilemiyor. Biraz sonra yeniden deneyin.',
   'error.accountNameInvalid': 'Adınızı yazın (en çok 80 karakter).',
+  'error.accountInstallRefused':
+    'Hesabınız bu sunucu için bir kurulum kodu veremedi. Biraz sonra yeniden deneyin; olmazsa sunucuyu hesabınızın Sunucular sayfasından ekleyin.',
   'error.hostMissing': 'Host başlığı eksik',
   'error.hostNotAllowed': 'İzin verilmeyen Host: {host}',
   'error.originNull': 'Origin: null reddedildi',
@@ -2540,6 +2542,8 @@ const en: Catalog<ServerKey> = {
   'error.accountCodeWrong': 'The code is wrong or has expired. Ask for a new one.',
   'error.accountMailUnavailable': "The sign-in code can't be sent right now. Try again in a little while.",
   'error.accountNameInvalid': 'Write your name (80 characters at most).',
+  'error.accountInstallRefused':
+    "Your account couldn't make an install code for this server. Try again in a little while, or add the server on your account's Servers page.",
   'error.hostMissing': 'Host header missing',
   'error.hostNotAllowed': 'Host not allowed: {host}',
   'error.originNull': 'Origin: null refused',

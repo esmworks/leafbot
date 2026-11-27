@@ -234,7 +234,7 @@ recommended) and `--help` lists the rest.
 
 `sudo leafbot login` signs the server in to your Leaf Bot account, as the desktop app does on first start: it asks
 for your email, mails you a code, asks for the code (and your name when the account has none), links the server to
-the account and restarts it. You are then the server's owner in the account and reach it from the phone and from
+the account and restarts it (a stopped server is signed in and left stopped). You are then the server's owner in the account and reach it from the phone and from
 www.leafbot.app/bots, with no port or address of its own needed.
 
 Most providers (Hetzner, DigitalOcean, Vultr and others) also take a script when the server is created, under "Cloud

@@ -48,7 +48,7 @@ sudo leafbot compose ...   # bu kurulumun dosyalarıyla docker compose
 
 `sudo leafbot login`, masaüstü uygulamasının ilk açılışta yaptığı girişi terminalde yapar: e-posta adresinizi sorar,
 o adrese bir kod gönderir, kodu (hesabın adı yoksa adınızı da) sorar, sunucuyu hesabınıza bağlar ve sunucuyu yeniden
-başlatır. Ardından hesapta sunucunun sahibi sizsiniz; sunucuya telefondan ve www.leafbot.app/bots adresinden, port
+başlatır (durdurulmuş bir sunucu bağlanır ama durmuş kalır). Ardından hesapta sunucunun sahibi sizsiniz; sunucuya telefondan ve www.leafbot.app/bots adresinden, port
 açmadan ve sunucuya ayrı bir adres vermeden ulaşırsınız. Gelen kod yanlışsa yeniden yazılır; boş bırakıp Enter'a
 basmak yeni bir kod gönderir.
 

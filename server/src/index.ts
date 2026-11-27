@@ -16,10 +16,18 @@ const RESTART_CODE = 75;
 // With no command the server starts, as the desktop app and Docker run it; a command does one job
 // on the same data folder and ends.
 const command = process.argv[2];
-if (command === 'login') process.exit(await loginFromTerminal(config, locale));
+if (command === 'login') await exitAfterOutput(await loginFromTerminal(config, locale));
 if (command !== undefined) {
   console.error(t('cli.unknownCommand', { command }));
-  process.exit(2);
+  await exitAfterOutput(2);
+}
+
+/** Exits once what was printed has been written: a pipe takes it later than a terminal does. */
+async function exitAfterOutput(code: number): Promise<never> {
+  await Promise.all(
+    [process.stdout, process.stderr].map((s) => new Promise<void>((resolve) => s.write('', () => resolve()))),
+  );
+  process.exit(code);
 }
 
 const server = await createServer(config, {

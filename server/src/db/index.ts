@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { PgDatabase, PgQueryResultHKT } from 'drizzle-orm/pg-core';
+import { lockFolder, type FolderLock } from './lock';
 import * as schema from './schema';
 
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
@@ -33,6 +34,11 @@ export async function openDb(opts: {
   url: string | null;
   dataDir: string;
   memory: boolean;
+  /**
+   * How long to wait for another process to let go of the embedded database: a server waits for
+   * one still shutting down; `leafbot login` waits for nothing.
+   */
+  lockWaitMs?: number;
 }): Promise<DbHandle> {
   if (opts.url) {
     const { default: postgres } = await import('postgres');
@@ -47,16 +53,35 @@ export async function openDb(opts: {
   const { drizzle } = await import('drizzle-orm/pglite');
   const { migrate } = await import('drizzle-orm/pglite/migrator');
   let client;
+  let lock: FolderLock | null = null;
   if (opts.memory) {
     client = new PGlite();
   } else {
     const dir = join(opts.dataDir, 'db');
     mkdirSync(dir, { recursive: true, mode: 0o700 });
+    // Only one process may open these files; a second one writing them corrupts the database.
+    lock = await lockFolder(join(opts.dataDir, 'db.lock'), { waitMs: opts.lockWaitMs ?? 40_000 });
     client = new PGlite(dir);
   }
-  const db = drizzle(client, { schema, logger: process.env.VITEST ? rawDateGuard : undefined });
-  await migrate(db, { migrationsFolder });
-  return { db: db as unknown as Db, kind: 'pglite', close: () => client.close() };
+  try {
+    const db = drizzle(client, { schema, logger: process.env.VITEST ? rawDateGuard : undefined });
+    await migrate(db, { migrationsFolder });
+    return {
+      db: db as unknown as Db,
+      kind: 'pglite',
+      close: async () => {
+        try {
+          await client.close();
+        } finally {
+          lock?.release();
+        }
+      },
+    };
+  } catch (e) {
+    await client.close().catch(() => {});
+    lock?.release();
+    throw e;
+  }
 }
 
 /**

@@ -4,6 +4,7 @@ import type { Locale } from '@leafbot/shared';
 import type { Config } from '../config';
 import type { Ctx } from '../context';
 import { openDb } from '../db';
+import { DatabaseInUseError } from '../db/lock';
 import { translator, type T } from '../i18n';
 import { VaultService } from '../services/vault';
 import { AccountHost, accountHostConfig } from '../tunnel/host';
@@ -16,6 +17,8 @@ import { HttpError } from '../util';
 export interface LoginIo {
   ask(question: string): Promise<string | null>;
   say(line: string): void;
+  /** Aborted when the person stops the command (Ctrl+C): nothing is linked after that. */
+  signal?: AbortSignal;
 }
 
 export interface LoginOptions {
@@ -24,7 +27,7 @@ export interface LoginOptions {
   locale: Locale;
   /** The account service as the tests stand it in; the real one otherwise. */
   fetcher?: typeof fetch;
-  /** Whether a server already answers on this data folder's port. */
+  /** Whether a server answers on this configuration's address: asked only of a PostgreSQL setup. */
   serverAnswers?: (config: Config) => Promise<boolean>;
 }
 
@@ -37,13 +40,21 @@ export interface LoginOptions {
 export async function login(opts: LoginOptions): Promise<number> {
   const { config, io } = opts;
   const t = translator(opts.locale);
-  const running = await (opts.serverAnswers ?? serverAnswers)(config);
-  // The embedded database is one folder that only one process may open at a time.
-  if (running && !config.databaseUrl) {
+  let db;
+  try {
+    // The embedded database is one folder only one process may open: a server running on it holds
+    // its lock, and the command does not wait for it.
+    db = await openDb({
+      url: config.databaseUrl,
+      dataDir: config.dataDir,
+      memory: config.memoryDb,
+      lockWaitMs: 0,
+    });
+  } catch (e) {
+    if (!(e instanceof DatabaseInUseError)) throw e;
     io.say(t('login.stopServer'));
     return 1;
   }
-  const db = await openDb({ url: config.databaseUrl, dataDir: config.dataDir, memory: config.memoryDb });
   try {
     // A data folder the server never started on has no owner yet to link the account to.
     await adoptLegacyAccount(db.db);
@@ -67,7 +78,9 @@ export async function login(opts: LoginOptions): Promise<number> {
     if ((await host.state()).linked) io.say(t('login.alreadyLinked'));
     const done = await steps(signIn, io, t, opts.locale);
     if (!done) return 1;
-    if (running) io.say(t('login.restart'));
+    // On PostgreSQL a server may run beside the command; it reads the link when it starts again.
+    if (config.databaseUrl && (await (opts.serverAnswers ?? serverAnswers)(config)))
+      io.say(t('login.restart'));
     return 0;
   } finally {
     await db.close();
@@ -118,11 +131,12 @@ async function steps(signIn: AccountSignIn, io: LoginIo, t: T, locale: Locale): 
       continue;
     }
     try {
-      const signed = await signIn.verify(email, code.slice(0, 16));
+      const signed = await signIn.verify(email, code.slice(0, 16), { signal: io.signal });
       io.say(t('login.linked', { email: signed.email }));
       if (!signed.needsName) return true;
       break;
     } catch (e) {
+      if (io.signal?.aborted) return false;
       if (e instanceof HttpError && e.key === 'error.accountCodeWrong') {
         io.say(t('login.codeWrong'));
         continue;
@@ -148,7 +162,7 @@ async function steps(signIn: AccountSignIn, io: LoginIo, t: T, locale: Locale): 
 }
 
 /** Whether the server answers on its own port on this computer. */
-async function serverAnswers(config: Config): Promise<boolean> {
+export async function serverAnswers(config: Config): Promise<boolean> {
   const any = !config.host || config.host === '0.0.0.0' || config.host === '::';
   const host = any ? '127.0.0.1' : config.host.includes(':') ? `[${config.host}]` : config.host;
   const res = await fetch(`http://${host}:${config.port}/api/health`, {
@@ -159,7 +173,7 @@ async function serverAnswers(config: Config): Promise<boolean> {
 
 /** `leafbot login` on the terminal it was typed in. */
 export async function loginFromTerminal(config: Config, locale: Locale): Promise<number> {
-  const io = terminal();
+  const io = terminal(process.stdin, process.stdout);
   try {
     return await login({ config, io, locale });
   } finally {
@@ -167,9 +181,21 @@ export async function loginFromTerminal(config: Config, locale: Locale): Promise
   }
 }
 
-/** Questions and answers on the terminal; Ctrl+C or the end of the input stops the questions. */
-function terminal(): LoginIo & { close(): void } {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
+/**
+ * Questions and answers on a terminal. The end of the input stops the questions; Ctrl+C also stops
+ * what is under way, so a server is not linked after the person meant to stop.
+ */
+export function terminal(
+  input: NodeJS.ReadableStream,
+  output: NodeJS.WritableStream,
+  opts: { terminal?: boolean } = {},
+): LoginIo & { close(): void } {
+  const rl = createInterface({
+    input,
+    output,
+    ...(opts.terminal !== undefined ? { terminal: opts.terminal } : {}),
+  });
+  const stop = new AbortController();
   // Lines typed or piped in before their question is asked (the database opens first) wait here.
   const lines: string[] = [];
   const waiting: ((answer: string | null) => void)[] = [];
@@ -182,28 +208,33 @@ function terminal(): LoginIo & { close(): void } {
   rl.on('close', () => {
     closed = true;
     // The line a question was left on ends, so what is printed next starts a line of its own.
-    if (waiting.length) process.stdout.write('\n');
+    if (waiting.length) output.write('\n');
     for (const answer of waiting.splice(0)) answer(null);
   });
   // Without a listener of its own, Ctrl+C would only pause the questions.
-  rl.on('SIGINT', () => rl.close());
+  rl.on('SIGINT', () => {
+    stop.abort();
+    lines.length = 0;
+    rl.close();
+  });
   return {
+    signal: stop.signal,
     ask: (question) => {
       // Piped answers may all be read, and the input closed, before the first question.
-      if (closed) process.stdout.write(question);
+      if (closed) output.write(question);
       else {
         rl.setPrompt(question);
         rl.prompt();
       }
-      const line = lines.shift();
+      const line = stop.signal.aborted ? undefined : lines.shift();
       if (line !== undefined) return Promise.resolve(line);
       if (closed) {
-        process.stdout.write('\n');
+        output.write('\n');
         return Promise.resolve(null);
       }
       return new Promise((resolve) => waiting.push(resolve));
     },
-    say: (line) => console.log(line),
+    say: (line) => void output.write(`${line}\n`),
     close: () => rl.close(),
   };
 }

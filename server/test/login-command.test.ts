@@ -1,9 +1,12 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { spawn } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { PassThrough } from 'node:stream';
 import { eq } from 'drizzle-orm';
 import { afterEach, describe, expect, it } from 'vitest';
-import { login, type LoginIo } from '../src/cli/login';
+import { login, serverAnswers, terminal as tty, type LoginIo } from '../src/cli/login';
 import { loadConfig, type Config } from '../src/config';
 import { schema } from '../src/db';
 import { translator } from '../src/i18n';
@@ -15,15 +18,23 @@ import { testServer } from './helpers';
 const en = translator('en');
 const ACCOUNT = { issuer: ISSUER, relayUrl: 'ws://127.0.0.1:9/v1/signal', webHost: 'www.leafbot.app' };
 
-/** A terminal that types the given answers, then ends its input; it keeps what was asked and said. */
-function terminal(answers: string[]): LoginIo & { asked: string[]; said: string[] } {
+/**
+ * A terminal that types the given answers, then ends its input; it keeps what was asked and said.
+ * `onAsk` runs as a question is asked (a test presses Ctrl+C there).
+ */
+function terminal(
+  answers: string[],
+  opts: { signal?: AbortSignal; onAsk?: (question: string) => void } = {},
+): LoginIo & { asked: string[]; said: string[] } {
   const asked: string[] = [];
   const said: string[] = [];
   return {
     asked,
     said,
+    ...(opts.signal ? { signal: opts.signal } : {}),
     ask: async (question) => {
       asked.push(question);
+      opts.onAsk?.(question);
       return answers.shift() ?? null;
     },
     say: (line) => void said.push(line),
@@ -169,20 +180,64 @@ describe('leafbot login', () => {
     expect(io.said).toEqual([tr('error.accountEmailInvalid'), tr('error.accountUnreachable')]);
   });
 
-  it('leaves the embedded database alone while a server runs on it', async () => {
-    const account = fakeAccount();
-    const io = terminal(['ada@example.com']);
+  it('leaves the embedded database alone while another process holds it, whatever port it is on', async () => {
+    const config = dataFolder();
+    // A server on this folder: another live process holds the folder's lock.
+    const other = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { stdio: 'ignore' });
+    const lock = join(config.dataDir, 'db.lock');
+    writeFileSync(lock, JSON.stringify({ pid: other.pid, host: hostname(), token: 'server' }));
+    try {
+      const account = fakeAccount();
+      const io = terminal(['ada@example.com']);
+      const code = await login({ config, io, locale: 'en', fetcher: account.fetcher });
+      expect(code).toBe(1);
+      expect(io.said).toEqual([en('login.stopServer')]);
+      expect(io.asked).toEqual([]);
+      expect(account.calls).toEqual([]);
+      // The holder's lock stays.
+      expect(existsSync(lock)).toBe(true);
+    } finally {
+      other.kill();
+    }
+  });
+
+  it('links nothing once the person stops it while the code is checked', async () => {
+    const stop = new AbortController();
+    const account = fakeAccount({ name: 'Ada' });
+    const io = terminal(['ada@example.com', '123456'], {
+      signal: stop.signal,
+      // Ctrl+C right after the code is typed, while it is checked.
+      onAsk: (q) => q === en('login.askCode') && queueMicrotask(() => stop.abort()),
+    });
     const code = await login({
-      config: dataFolder(),
+      config: dataFolder(true),
       io,
       locale: 'en',
       fetcher: account.fetcher,
-      serverAnswers: async () => true,
+      serverAnswers: stopped,
     });
     expect(code).toBe(1);
-    expect(io.said).toEqual([en('login.stopServer')]);
-    expect(io.asked).toEqual([]);
-    expect(account.calls).toEqual([]);
+    expect(account.calls.map((c) => c.path)).toEqual([
+      '/v1/auth/email/start',
+      '/v1/auth/email/verify',
+      '/v1/auth/signout',
+    ]);
+    expect(io.said).toEqual([en('login.codeSent', { email: 'ada@example.com' })]);
+  });
+
+  it('says the account would not make an install code, not that the email is wrong', async () => {
+    const account = fakeAccount({ installRefused: true });
+    const io = terminal(['ada@example.com', '123456']);
+    const code = await login({
+      config: dataFolder(true),
+      io,
+      locale: 'en',
+      fetcher: account.fetcher,
+      serverAnswers: stopped,
+    });
+    expect(code).toBe(1);
+    expect(io.said.at(-1)).toBe(en('error.accountInstallRefused'));
+    expect(account.calls.at(-1)?.path).toBe('/v1/auth/signout');
   });
 
   it('stops when the input ends', async () => {
@@ -196,5 +251,46 @@ describe('leafbot login', () => {
     });
     expect(code).toBe(1);
     expect(account.calls).toEqual([]);
+  });
+});
+
+describe('the terminal', () => {
+  it('keeps lines piped in before their question, then answers null once the input ends', async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const io = tty(input, output, { terminal: false });
+    input.end('ada@example.com\n123456\n');
+    await new Promise((r) => setImmediate(r));
+    expect(await io.ask('Email: ')).toBe('ada@example.com');
+    expect(await io.ask('Code: ')).toBe('123456');
+    expect(await io.ask('Name: ')).toBeNull();
+    io.say('done');
+    io.close();
+    expect(String(output.read())).toContain('done\n');
+  });
+
+  it('stops on Ctrl+C: the question waiting gets no answer and what runs is told to stop', async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    output.resume();
+    const io = tty(input, output, { terminal: true });
+    const answer = io.ask('Code: ');
+    input.write('\x03');
+    expect(await answer).toBeNull();
+    expect(io.signal?.aborted).toBe(true);
+    io.close();
+  });
+});
+
+describe('whether a server answers', () => {
+  it('asks the configured port on this computer, the loopback address for any address', async () => {
+    const server = createServer((req, res) => res.writeHead(req.url === '/api/health' ? 200 : 404).end());
+    await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+    const { port } = server.address() as { port: number };
+    const config = dataFolder(true);
+    expect(await serverAnswers({ ...config, host: '0.0.0.0', port })).toBe(true);
+    expect(await serverAnswers({ ...config, host: '127.0.0.1', port })).toBe(true);
+    await new Promise((r) => server.close(r));
+    expect(await serverAnswers({ ...config, host: '127.0.0.1', port })).toBe(false);
   });
 });
