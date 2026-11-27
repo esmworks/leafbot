@@ -75,6 +75,11 @@ export const TicketClaims = z.object({
     .string()
     .regex(/^[A-Za-z0-9_-]{43}$/)
     .optional(),
+  /**
+   * The person's name as their account has it, so the server can call them by it without asking
+   * again. Absent on a `host` ticket and while the account has no name yet.
+   */
+  name: z.string().min(1).max(80).optional(),
 });
 export type TicketClaims = z.infer<typeof TicketClaims>;
 

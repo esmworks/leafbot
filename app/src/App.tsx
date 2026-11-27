@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { toast } from 'sonner';
 import { Toaster } from '@/components/ui/sonner';
+import { AccountGate } from '@/features/AccountGate';
 import { CreateAccount } from '@/features/AccountSetup';
 import { BotFormPage } from '@/features/BotFormPage';
 import { AppsPage } from '@/features/Connections';
@@ -39,7 +40,7 @@ import { screenBotOf } from '@/lib/screen';
 import { takeLinkedThread } from '@/lib/threadLink';
 import { desktop } from '@/lib/desktop';
 import { useLayout } from '@/lib/layout';
-import { useBots, useRooms, useSettings } from '@/lib/queries';
+import { useBots, useRooms, useSession, useSettings } from '@/lib/queries';
 import { connectRealtime } from '@/lib/realtime';
 import { viaTunnel } from '@/lib/transport';
 import { PANEL_WIDTH, useUi } from '@/lib/store';
@@ -118,6 +119,28 @@ function Authed() {
   const local = !desktop && !viaTunnel();
   const account = useQuery({ queryKey: ['account'], queryFn: api.account, enabled: local, retry: false });
   const [accountDone, setAccountDone] = useState(false);
+  // The owner signs in to their Leaf Bot account once, before anything else, on a server that is
+  // not linked to one; the server links itself on the way. Decided by what the server has stored,
+  // never by asking the account service, so the app opens without it once linked. Through the
+  // account the person is already signed in; an older server without the route asks nothing.
+  const session = useSession();
+  const mayLink = session.data?.user?.role === 'owner' && !viaTunnel();
+  const accountHost = useQuery({
+    queryKey: ['account-host'],
+    queryFn: api.accountHost,
+    enabled: mayLink,
+    retry: false,
+    staleTime: 30_000,
+  });
+  // Decided once, like the first-run questions: unlinking in Settings does not swap the open app
+  // for the sign-in; the next start asks again.
+  const [askAccount, setAskAccount] = useState<boolean | null>(null);
+  // The answer the sign-in page got before signing in says no one; it is asked again here.
+  const sessionStale = session.data?.authenticated === false;
+  const refetchSession = session.refetch;
+  useEffect(() => {
+    if (sessionStale) void refetchSession();
+  }, [sessionStale, refetchSession]);
   useLocaleSync();
   // The desktop app's quick window shows only what waits for the person.
   if (isQuickView()) return <QuickPanel />;
@@ -127,7 +150,18 @@ function Authed() {
   // The desktop app's window for one saved app shows only that app.
   const appWindow = pageAppWindowOf();
   if (appWindow) return <PageAppWindow id={appWindow} />;
-  if (local && !accountDone) {
+  if (session.isPending || sessionStale) return <Loading />;
+  if (askAccount === null) {
+    const first =
+      !mayLink || accountHost.isError ? false : accountHost.data ? !accountHost.data.linked : null;
+    // Adjusting state while rendering: the choice is kept from the first answer on.
+    if (first !== null) setAskAccount(first);
+    return <Loading />;
+  }
+  if (askAccount) return <AccountGate onDone={() => setAskAccount(false)} />;
+  // Signed in through the account, the owner needs no username and password of the server's own.
+  const viaAccount = accountHost.data?.linked === true;
+  if (local && !accountDone && !viaAccount) {
     if (account.isPending) return <Loading />;
     if (account.data?.username === null) return <CreateAccount onDone={() => setAccountDone(true)} />;
   }

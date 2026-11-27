@@ -73,4 +73,44 @@ describe('AccountLinks', () => {
     await t.auth.users.change(m!.userId, { disabled: false });
     expect(await links.resolve(claims('acct_member05', 'member'))).toEqual(m);
   });
+
+  const settingsOf = (userId: string) => t.services.settings.all(userId);
+  const named = (sub: string, role: TicketClaims['role'], name: string): TicketClaims => ({
+    ...claims(sub, role),
+    name,
+  });
+
+  it('calls a new member by the name their account has', async () => {
+    const m = await links.resolve(named('acct_member06', 'member', 'Mira Kaya'));
+    expect((await t.auth.users.person(m!.userId))?.displayName).toBe('Mira Kaya');
+    expect((await settingsOf(m!.userId)).userName).toBe('Mira Kaya');
+  });
+
+  it('follows a renamed account, but keeps a name typed here', async () => {
+    const m = await links.resolve(named('acct_member07', 'member', 'Deniz'));
+    await links.resolve(named('acct_member07', 'member', 'Deniz Ak'));
+    expect((await settingsOf(m!.userId)).userName).toBe('Deniz Ak');
+    await t.services.settings.update({ userName: 'Den' }, m!.userId);
+    await links.resolve(named('acct_member07', 'member', 'Deniz Akın'));
+    expect((await t.auth.users.person(m!.userId))?.displayName).toBe('Deniz Akın');
+    expect((await settingsOf(m!.userId)).userName).toBe('Den');
+  });
+
+  it('fills the owner’s empty name from the account, never one they gave', async () => {
+    const before = (await settingsOf(OWNER_ID)).userName;
+    await links.useName(OWNER_ID, 'Ada Lovelace');
+    const after = (await settingsOf(OWNER_ID)).userName;
+    expect(after).toBe(before ? before : 'Ada Lovelace');
+    await t.services.settings.update({ userName: 'Ada' }, OWNER_ID);
+    await links.useName(OWNER_ID, 'Ada L.');
+    expect((await settingsOf(OWNER_ID)).userName).toBe('Ada');
+    await links.useName(OWNER_ID, 'Ada K.', { always: true });
+    expect((await settingsOf(OWNER_ID)).userName).toBe('Ada K.');
+  });
+
+  it('moves the owner to the account that linked the server from here', async () => {
+    await links.linkOwner('acct_owner009');
+    expect(await links.resolve(claims('acct_owner009', 'owner'))).toEqual({ userId: OWNER_ID });
+    expect(await links.resolve(claims('acct_owner001', 'owner'))).toBeNull();
+  });
 });
