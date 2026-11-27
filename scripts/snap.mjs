@@ -6,7 +6,7 @@
 // Nothing here is a test: it shows what a screen looks like now.
 //
 //   pnpm --filter @leafbot/server build && pnpm --filter @leafbot/app build
-//   node scripts/snap.mjs [chat] [settings] [today] [tasks] [dashboards] [--tree] [--dark] [--out data/snaps] [--width 1280 --height 800]
+//   node scripts/snap.mjs [chat] [settings] [today] [tasks] [dashboards] [new-bot] [--tree] [--dark] [--out data/snaps] [--width 1280 --height 800]
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -27,6 +27,7 @@ const SCREENS = {
   today: (page) => page.getByRole('button', { name: 'Today', exact: true }).click(),
   tasks: (page) => page.getByRole('button', { name: 'Tasks', exact: true }).click(),
   dashboards: (page) => page.getByRole('button', { name: 'Dashboards', exact: true }).click(),
+  'new-bot': (page) => page.getByRole('button', { name: 'New bot', exact: true }).click(),
 };
 const wanted = args.filter((a) => a in SCREENS);
 const screens = wanted.length ? wanted : Object.keys(SCREENS);
