@@ -27,8 +27,11 @@ export function ApiKeys() {
   const [importing, setImporting] = useState(false);
   return (
     <section className="space-y-2">
-      <div className="flex items-center gap-2 px-1">
-        <h3 className="flex-1 text-sm font-medium">{t('apiKeys.title')}</h3>
+      <div className="flex items-start gap-2 px-1">
+        <div className="flex-1 space-y-1">
+          <h3 className="text-sm font-medium">{t('apiKeys.title')}</h3>
+          <p className="text-xs leading-relaxed text-muted-foreground">{t('apiKeys.note')}</p>
+        </div>
         <Button
           size="sm"
           variant="ghost"
@@ -57,12 +60,7 @@ export function ApiKeys() {
       {editing === 'new' && <KeyForm onDone={() => setEditing(null)} />}
       {editing === 'trap' && <TrapForm onDone={() => setEditing(null)} />}
       <div className="divide-y rounded-2xl border bg-card/50">
-        {!keys.length && (
-          <div className="flex flex-col items-center gap-2 px-6 py-8 text-center text-sm text-muted-foreground">
-            <KeySquare className="size-6" />
-            {t('apiKeys.empty')}
-          </div>
-        )}
+        {!keys.length && <div className="px-4 py-3 text-sm text-muted-foreground">{t('apiKeys.empty')}</div>}
         {keys.map((k) =>
           typeof editing === 'object' && editing?.id === k.id ? (
             <div key={k.id} className="p-3">
@@ -73,7 +71,6 @@ export function ApiKeys() {
           ),
         )}
       </div>
-      <p className="px-1 text-xs text-muted-foreground">{t('apiKeys.note')}</p>
     </section>
   );
 }

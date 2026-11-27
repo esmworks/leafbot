@@ -279,6 +279,7 @@ export const tr = {
   'message.saveCode': 'Dosya olarak kaydet',
   'message.showMarkdown': 'Markdown olarak göster',
   'message.showFormatted': 'Biçimli göster',
+  'usage.limits': 'Harcama sınırı',
   'usage.month': 'Bu ay',
   'usage.monthOf':
     '{limit} sınırından; arka plan çağrıları dahil. Sınıra ulaşılınca turlar ve arka plan işleri gelecek ayı bekler',
@@ -868,7 +869,7 @@ export const tr = {
   'plugin.install': 'Kur',
   'plugin.installed': '{servers} sunucu ve {skills} beceri kuruldu',
   'ai.intro':
-    'Sunucunun botların kendi modelleri dışında çağırdığı servisler. Her biri Sağlayıcılar’da bağlı bir sağlayıcıdan geçer: anahtarı kayıtlı OpenAI, Groq, Google ya da Mistral veya orada adıyla eklediğin kendi uç noktaların (Ollama, Whisper ya da Kokoro sunucusu, ElevenLabs, Google’ın ses API’si). Anahtar bir kez kaydedilir, botlar da bu servisler de onu kullanır. Seçilmezse sunucunun ortam değişkenleri geçerlidir (AI_EMBEDDINGS_*, STT_*, TTS_*).',
+    'Sunucunun, botların kendi modelleri dışında çağırdığı servisler. Her biri Sağlayıcılar’da bağlı bir sağlayıcıdan geçer; anahtar bir kez kaydedilir. Seçilmezse sunucunun ortam değişkenleri geçerlidir (AI_EMBEDDINGS_*, STT_*, TTS_*).',
   'ai.embeddings': 'Anlama göre hafıza araması',
   'ai.embeddingsHint':
     'Botlar notları yalnızca kelimelerine göre değil anlamlarına göre de bulur: “eşim” araması “Ayşe karım” notunu bulur. Notlar arka planda dizinlenir.',
@@ -899,6 +900,7 @@ export const tr = {
   'ai.provider': 'Sağlayıcı',
   'ai.pickProvider': 'Sağlayıcı seç',
   'ai.manageProviders': 'Sağlayıcılar',
+  'ai.setupNotes': 'ElevenLabs ya da Google ile kurulum',
   'ai.saved': 'Kaydedildi',
   'ai.clear': 'Temizle',
   'ai.test': 'Dene',
@@ -1424,6 +1426,7 @@ export const tr = {
   'vault.search': 'Kasada ara',
   'vault.empty': 'Kasada kayıt yok. Bir bot siteye giriş yaparken "Kasaya kaydet" derseniz burada görünür.',
   'vault.noMatch': 'Eşleşen kayıt yok.',
+  'vault.logins': 'Girişler',
   'vault.note':
     'Botlar şifreleri hiç görmez: sunucu şifreyi yalnızca kayıtlı olduğu siteye (ve alt alan adlarına) kendisi yazar. Şifreler sunucuda şifrelenmiş saklanır.',
   'vault.noUsername': '(kullanıcı adı yok)',
@@ -2443,6 +2446,10 @@ export const tr = {
   'rules.forBot': 'Yalnızca {bot} için',
   'rules.forBotLabel': 'Kapsam',
   'rules.allBots': 'Her bot',
+  'rules.addTitle': 'Kural ekle',
+  'rules.tool': 'Araç',
+  'rules.listLabel': 'Ne yapılsın',
+  'rules.none': 'Kural yok.',
   'rules.second': 'İkinci kişinin onayını iste',
   'rules.secondWho': 'İkinci kişi',
   'rules.secondAnyone': 'Botu değiştirebilen herhangi biri',
@@ -2457,6 +2464,7 @@ export const tr = {
   'memory.undo': 'Geri al',
   'memory.placeholder': 'Bütün botların bilmesi gereken bir şey ekleyin',
   'memory.user': 'Sizin hakkınızda (bütün botlar görür)',
+  'memory.userPlaceholder': 'Kendiniz hakkında botların bilmesi gereken bir şey ekleyin',
   'memory.bots': 'Botların kendi notları',
   'memory.empty': 'Henüz kayıt yok.',
   'memory.archivedBot': '{name} (arşivde)',
@@ -2576,6 +2584,9 @@ export const tr = {
   'import.copied': 'Talimat kopyalandı',
   'import.copyFailed': 'Talimat kopyalanamadı; indirip açın',
   'import.step2': '2. Yazdığını geri getirin',
+  'import.move.title': "Grok Bot'tan taşıyın",
+  'import.move.hint':
+    "Talimatı Grok Bot'a verin, sonra onun yazdığını buraya getirin: dosya olarak, Downloads'tan ya da cevabını yapıştırarak.",
   'import.file': 'leafbot-bots.json',
   'import.fileHint': 'Önce neyin ekleneceğini gösteririz; onaylamadan hiçbir şey kaydedilmez.',
   'import.choose': 'Dosya seç',
@@ -2658,7 +2669,7 @@ export const tr = {
   'grokMove.copyFailed': 'Kopyalanamadı',
   'grokMove.connect.title': "Grok Bot'u bağlayın",
   'grokMove.connect.hint':
-    'Botlarınız kurulumlarını buraya kendileri gönderir, tek seferde. Ya da aşağıdaki iki adımı kullanın.',
+    'Botlarınız kurulumlarını buraya kendileri gönderir, tek seferde. Ya da aşağıdaki yollardan birini kullanın.',
   'grokMove.connect.start': "Grok Bot'a yapıştıracağınız bağlantıyı alın",
   'grokMove.connect.stopped':
     "Bağlantı çalışmayı bıraktı. Yenisini alıp Grok Bot'ta eskisinin yerine yapıştırın.",
@@ -2667,9 +2678,9 @@ export const tr = {
   'grokMove.connect.get': 'Bağlantıyı al',
   'grokMove.connect.unavailable': "Bu sunucu Grok Bot'a bağlantı açamıyor",
   'grokMove.connect.unavailableHint':
-    "Bağlantı için ya sunucunun herkese açık bir adresi ya da bu bilgisayarda cloudflared programı gerekir (macOS'ta: brew install cloudflared). O zamana kadar aşağıdaki iki adım çalışır.",
+    "Bağlantı için ya sunucunun herkese açık bir adresi ya da bu bilgisayarda cloudflared programı gerekir (macOS'ta: brew install cloudflared). O zamana kadar aşağıdaki yollar çalışır.",
   'grokMove.connect.unavailableHostedHint':
-    'Bağlantı için bu sunucunun herkese açık bir adresi (LEAFBOT_PUBLIC_URL) gerekir; sunucuyu çalıştıran kişi bunu ayarlayabilir. O zamana kadar aşağıdaki iki adım çalışır.',
+    'Bağlantı için bu sunucunun herkese açık bir adresi (LEAFBOT_PUBLIC_URL) gerekir; sunucuyu çalıştıran kişi bunu ayarlayabilir. O zamana kadar aşağıdaki yollar çalışır.',
   'grokMove.connect.linkLabel': 'Grok Bot için bağlantı',
   'grokMove.connect.copy': 'Kopyala',
   'grokMove.connect.until': 'Şu saate kadar çalışır: {time}',

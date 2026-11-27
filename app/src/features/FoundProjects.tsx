@@ -20,9 +20,8 @@ export function FoundProjects() {
   const projects = data?.projects ?? [];
   if (!data?.available || !projects.length) return null;
   return (
-    <Card title={t('projects.title')}>
-      <p className="px-4 pt-3 text-xs text-muted-foreground">{t('projects.hint')}</p>
-      <ul className="scroll-thin max-h-80 overflow-y-auto">
+    <Card title={t('projects.title')} hint={t('projects.hint')}>
+      <ul className="scroll-thin max-h-80 overflow-y-auto py-1">
         {projects.map((p) => (
           <li key={p.path} className="flex items-center gap-3 px-4 py-2.5">
             <FolderCode className="size-4 shrink-0 text-muted-foreground" />

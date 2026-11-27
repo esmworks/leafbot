@@ -1,6 +1,6 @@
 import type { GrokMoveLink } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Copy, Link2, Loader2, PackageOpen, Unlink } from 'lucide-react';
+import { Copy, Info, Link2, Loader2, PackageOpen, Unlink } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,15 +64,25 @@ export function GrokConnectCard({
     else toast.error(t('grokMove.copyFailed'));
   };
 
+  // Where no link can be made, a note on why, not a card of its own: the page should open on the
+  // ways that work, not on the one that does not.
+  if (!link.available) {
+    return (
+      <div className="mb-8 flex gap-2.5 rounded-2xl bg-muted/50 px-4 py-3 text-xs text-muted-foreground">
+        <Info className="mt-px size-4 shrink-0" />
+        <div className="space-y-0.5 leading-relaxed">
+          <div className="font-medium text-foreground">{t('grokMove.connect.unavailable')}</div>
+          <div>
+            {t(hosted ? 'grokMove.connect.unavailableHostedHint' : 'grokMove.connect.unavailableHint')}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <Card title={t('grokMove.connect.title')}>
-      <p className="px-4 pt-3 text-xs text-muted-foreground">{t('grokMove.connect.hint')}</p>
-      {!link.available ? (
-        <Row
-          label={t('grokMove.connect.unavailable')}
-          hint={t(hosted ? 'grokMove.connect.unavailableHostedHint' : 'grokMove.connect.unavailableHint')}
-        />
-      ) : !link.url ? (
+    <Card title={t('grokMove.connect.title')} hint={t('grokMove.connect.hint')}>
+      {!link.url ? (
         <Row
           label={t(link.stopped ? 'grokMove.connect.stopped' : 'grokMove.connect.start')}
           hint={t('grokMove.connect.private')}

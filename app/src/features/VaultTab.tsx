@@ -1,6 +1,6 @@
 import type { VaultLogin } from '@leafbot/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileUp, KeyRound, Pencil, Plus, QrCode, Search, Trash2 } from 'lucide-react';
+import { FileUp, Pencil, Plus, QrCode, Search, Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -32,52 +32,57 @@ export function VaultTab() {
   const shown = q ? logins.filter((l) => l.site.includes(q) || l.username.toLowerCase().includes(q)) : logins;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('vault.search')}
-            className="h-10 rounded-full ps-9"
-          />
+    <div className="space-y-8">
+      <section className="space-y-2">
+        {/* Every part of the vault opens the same way: its title and what it is for, then its list. */}
+        <div className="space-y-1 px-1">
+          <h3 className="text-sm font-medium">{t('vault.logins')}</h3>
+          <p className="text-xs leading-relaxed text-muted-foreground">{t('vault.note')}</p>
         </div>
-        <Button
-          variant="secondary"
-          className="rounded-full"
-          onClick={() => setImporting(true)}
-          aria-label={t('vaultImport.open')}
-          title={t('vaultImport.open')}
-        >
-          <FileUp />
-        </Button>
-        <Button className="rounded-full" onClick={() => setEditing('new')}>
-          <Plus /> {t('common.add')}
-        </Button>
-      </div>
-
-      {importing && <VaultCsvImport onDone={() => setImporting(false)} />}
-      {editing === 'new' && <LoginForm onDone={() => setEditing(null)} />}
-
-      <div className="divide-y rounded-2xl border bg-card/50">
-        {!isLoading && shown.length === 0 && (
-          <div className="flex flex-col items-center gap-2 px-6 py-10 text-center text-sm text-muted-foreground">
-            <KeyRound className="size-6" />
-            {q ? t('vault.noMatch') : t('vault.empty')}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute top-1/2 start-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t('vault.search')}
+              className="h-10 rounded-full ps-9"
+            />
           </div>
-        )}
-        {shown.map((l) =>
-          editing !== 'new' && editing?.id === l.id ? (
-            <div key={l.id} className="p-3">
-              <LoginForm login={l} onDone={() => setEditing(null)} />
+          <Button
+            variant="secondary"
+            className="rounded-full"
+            onClick={() => setImporting(true)}
+            aria-label={t('vaultImport.open')}
+            title={t('vaultImport.open')}
+          >
+            <FileUp />
+          </Button>
+          <Button className="rounded-full" onClick={() => setEditing('new')}>
+            <Plus /> {t('common.add')}
+          </Button>
+        </div>
+
+        {importing && <VaultCsvImport onDone={() => setImporting(false)} />}
+        {editing === 'new' && <LoginForm onDone={() => setEditing(null)} />}
+
+        <div className="divide-y rounded-2xl border bg-card/50">
+          {!isLoading && shown.length === 0 && (
+            <div className="px-4 py-3 text-sm text-muted-foreground">
+              {q ? t('vault.noMatch') : t('vault.empty')}
             </div>
-          ) : (
-            <LoginRow key={l.id} login={l} onEdit={() => setEditing(l)} />
-          ),
-        )}
-      </div>
-      <p className="px-1 text-xs text-muted-foreground">{t('vault.note')}</p>
+          )}
+          {shown.map((l) =>
+            editing !== 'new' && editing?.id === l.id ? (
+              <div key={l.id} className="p-3">
+                <LoginForm login={l} onDone={() => setEditing(null)} />
+              </div>
+            ) : (
+              <LoginRow key={l.id} login={l} onEdit={() => setEditing(l)} />
+            ),
+          )}
+        </div>
+      </section>
       <PasswordManagers />
       <PaymentCards />
       <ContactDetails />

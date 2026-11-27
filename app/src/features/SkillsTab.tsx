@@ -225,8 +225,7 @@ function SkillChanges({ skills }: { skills: Skill[] }) {
   if (!changes.length) return null;
   const busy = accept.isPending || reject.isPending;
   return (
-    <Card title={t('skills.changes')}>
-      <p className="px-4 py-3 text-xs text-muted-foreground">{t('skills.changesHint')}</p>
+    <Card title={t('skills.changes')} hint={t('skills.changesHint')}>
       {changes.map((c) => (
         <ChangeRow
           key={c.id}

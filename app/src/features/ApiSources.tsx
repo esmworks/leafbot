@@ -34,8 +34,11 @@ export function ApiSources() {
   });
   return (
     <section className="space-y-2">
-      <div className="flex items-center gap-2 px-1">
-        <h3 className="flex-1 text-sm font-medium">{t('apiSources.title')}</h3>
+      <div className="flex items-start gap-2 px-1">
+        <div className="flex-1 space-y-1">
+          <h3 className="text-sm font-medium">{t('apiSources.title')}</h3>
+          <p className="text-xs leading-relaxed text-muted-foreground">{t('apiSources.note')}</p>
+        </div>
         <Button size="sm" variant="secondary" className="rounded-full" onClick={() => setAdding(true)}>
           <Plus /> {t('common.add')}
         </Button>
@@ -85,7 +88,6 @@ export function ApiSources() {
           ))}
         </div>
       )}
-      <p className="px-1 text-xs text-muted-foreground">{t('apiSources.note')}</p>
     </section>
   );
 }

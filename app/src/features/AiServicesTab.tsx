@@ -19,7 +19,7 @@ import { api } from '@/lib/api';
 import { useProviders } from '@/lib/queries';
 import { useUi } from '@/lib/store';
 import { providerName } from './ProviderConnect';
-import { Card } from './SettingsPage';
+import { Card, Row } from './SettingsPage';
 
 const KINDS: { kind: AiKind; title: MessageKey; hint: MessageKey; model: MessageKey }[] = [
   { kind: 'embeddings', title: 'ai.embeddings', hint: 'ai.embeddingsHint', model: 'ai.embeddingsModel' },
@@ -59,9 +59,9 @@ export function AiServicesTab() {
   if (!data || !providers) return null;
   return (
     <>
-      <p className="mb-4 px-1 text-sm text-muted-foreground">{t('ai.intro')}</p>
+      <p className="mb-8 text-sm leading-relaxed text-muted-foreground">{t('ai.intro')}</p>
       {KINDS.map((k) => (
-        <Card key={k.kind} title={t(k.title)}>
+        <Card key={k.kind} title={t(k.title)} hint={t(k.hint)}>
           <ServiceForm
             key={`${data[k.kind].source}:${data[k.kind].provider}:${data[k.kind].model}:${data[k.kind].voice}`}
             meta={k}
@@ -139,43 +139,62 @@ function ServiceForm({
   const dirty = provider !== current.provider || model !== current.model || voice !== current.voice;
   // A provider saved earlier that lost its key stays listed, so the box never shows empty.
   const listed = current.gone && current.provider && !options.some((o) => o.id === current.provider);
+  const notes: MessageKey[] =
+    meta.kind === 'stt'
+      ? ['ai.elevenLabs.stt']
+      : meta.kind === 'tts'
+        ? ['ai.elevenLabs.tts', 'ai.google.tts']
+        : [];
+  const none = options.length === 0 && !listed;
+  // A state worth saying (from the environment, provider gone) leads; the fields follow as labelled
+  // rows, and the notes for one provider or another wait folded until someone sets that one up.
   return (
-    <form onSubmit={submit} className="space-y-2 px-4 py-3">
-      <p className="text-xs text-muted-foreground">{t(meta.hint)}</p>
-      {(meta.kind === 'stt' || meta.kind === 'tts') && (
-        <p className="text-xs text-muted-foreground">{t(`ai.elevenLabs.${meta.kind}`)}</p>
-      )}
-      {meta.kind === 'tts' && <p className="text-xs text-muted-foreground">{t('ai.google.tts')}</p>}
+    <form onSubmit={submit} className="divide-y">
       {current.source === 'env' && !dirty && (
-        <p className="text-xs text-muted-foreground">{t('ai.fromEnv')}</p>
+        <p className="px-4 py-3 text-xs text-muted-foreground">{t('ai.fromEnv')}</p>
       )}
-      {current.gone && !dirty && <p className="text-xs text-destructive">{t('ai.gone')}</p>}
-      {options.length === 0 && !listed ? (
-        <p className="text-xs text-muted-foreground">{t('ai.noProvider')}</p>
+      {current.gone && !dirty && <p className="px-4 py-3 text-xs text-destructive">{t('ai.gone')}</p>}
+      {none ? (
+        <Row label={t('ai.noProvider')}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="rounded-full"
+            onClick={() => openSettings('providers')}
+          >
+            {t('ai.manageProviders')}
+          </Button>
+        </Row>
       ) : (
         <>
-          <Select value={provider || undefined} onValueChange={pick}>
-            <SelectTrigger className="w-full rounded-full" aria-label={t('ai.provider')}>
-              <SelectValue placeholder={t('ai.pickProvider')} />
-            </SelectTrigger>
-            <SelectContent>
-              {listed && <SelectItem value={current.provider}>{current.provider}</SelectItem>}
-              {options.map((o) => (
-                <SelectItem key={o.id} value={o.id}>
-                  {o.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex gap-2">
+          <Row label={t('ai.provider')}>
+            <Select value={provider || undefined} onValueChange={pick}>
+              <SelectTrigger className="w-56 rounded-full" aria-label={t('ai.provider')}>
+                <SelectValue placeholder={t('ai.pickProvider')} />
+              </SelectTrigger>
+              <SelectContent>
+                {listed && <SelectItem value={current.provider}>{current.provider}</SelectItem>}
+                {options.map((o) => (
+                  <SelectItem key={o.id} value={o.id}>
+                    {o.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Row>
+          <Row label={t('ai.model')}>
             <Input
               value={model}
               onChange={(e) => setModel(e.target.value)}
               placeholder={t(meta.model)}
               aria-label={t('ai.model')}
+              className="w-56 rounded-full"
               required
             />
-            {meta.kind === 'tts' && (
+          </Row>
+          {meta.kind === 'tts' && (
+            <Row label={t('ai.voice')}>
               <Input
                 value={voice}
                 onChange={(e) => setVoice(e.target.value)}
@@ -183,46 +202,67 @@ function ServiceForm({
                   elevenLabs(at) ? t('ai.voiceId') : googleSpeech(at) ? t('ai.voiceName') : t('ai.voice')
                 }
                 aria-label={t('ai.voice')}
-                className="w-40"
+                className="w-56 rounded-full"
               />
+            </Row>
+          )}
+          <div className="flex flex-wrap items-center justify-end gap-2 px-4 py-3">
+            {extra && <span className="me-auto text-xs text-muted-foreground">{extra}</span>}
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="rounded-full"
+              onClick={() => openSettings('providers')}
+            >
+              {t('ai.manageProviders')}
+            </Button>
+            {current.source === 'settings' && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="rounded-full"
+                onClick={() => clear.mutate()}
+              >
+                {t('ai.clear')}
+              </Button>
             )}
+            {current.source !== 'none' && !current.gone && !dirty && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="rounded-full"
+                disabled={test.isPending}
+                onClick={() => test.mutate()}
+              >
+                {t('ai.test')}
+              </Button>
+            )}
+            <Button
+              type="submit"
+              size="sm"
+              className="rounded-full"
+              disabled={save.isPending || !dirty || !provider || !model.trim()}
+            >
+              {t('common.save')}
+            </Button>
           </div>
         </>
       )}
-      <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
-        {extra && <span className="me-auto text-xs text-muted-foreground">{extra}</span>}
-        <Button
-          type="button"
-          variant="ghost"
-          className="rounded-full"
-          onClick={() => openSettings('providers')}
-        >
-          {t('ai.manageProviders')}
-        </Button>
-        {current.source === 'settings' && (
-          <Button type="button" variant="ghost" className="rounded-full" onClick={() => clear.mutate()}>
-            {t('ai.clear')}
-          </Button>
-        )}
-        {current.source !== 'none' && !current.gone && !dirty && (
-          <Button
-            type="button"
-            variant="secondary"
-            className="rounded-full"
-            disabled={test.isPending}
-            onClick={() => test.mutate()}
-          >
-            {t('ai.test')}
-          </Button>
-        )}
-        <Button
-          type="submit"
-          className="rounded-full"
-          disabled={save.isPending || !dirty || !provider || !model.trim()}
-        >
-          {t('common.save')}
-        </Button>
-      </div>
+      {notes.length > 0 && (
+        <details className="group px-4 py-3">
+          <summary className="cursor-pointer text-xs text-muted-foreground transition-colors select-none hover:text-foreground">
+            {t('ai.setupNotes')}
+          </summary>
+          <div className="mt-2 space-y-2 text-xs leading-relaxed text-muted-foreground">
+            {notes.map((n) => (
+              <p key={n}>{t(n)}</p>
+            ))}
+          </div>
+        </details>
+      )}
     </form>
   );
 }

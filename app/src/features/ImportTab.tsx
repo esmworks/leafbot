@@ -145,14 +145,15 @@ export function ImportTab() {
 
   return (
     <>
-      <p className="mb-4 text-sm text-muted-foreground">{t('import.hint')}</p>
+      <p className="mb-8 text-sm leading-relaxed text-muted-foreground">{t('import.hint')}</p>
       <GrokConnectCard
         disabled={busy}
         hosted={look.data?.onComputer === false}
         onArrived={(body, upTo) => read(body, t('import.fromLink'), upTo)}
       />
-      <GrokLinkCard onCopy={(scope, intro) => void copyInstructions(scope, intro)} />
-      <Card title={t('import.step1')}>
+      {/* One card for the whole way by hand: the instructions out, then what Grok Bot wrote back in
+          one of its three forms, in the order the person takes them. */}
+      <Card title={t('import.move.title')} hint={t('import.move.hint')}>
         <Row label={t('import.instructions')} hint={t('import.instructionsHint')}>
           <Button
             variant="outline"
@@ -169,8 +170,6 @@ export function ImportTab() {
             </a>
           </Button>
         </Row>
-      </Card>
-      <Card title={t('import.step2')}>
         <Row label={t('import.file')} hint={t('import.fileHint')}>
           <input
             ref={input}
@@ -218,9 +217,11 @@ export function ImportTab() {
             </Button>
           </Row>
         ) : null}
-        <div className="space-y-2 px-4 py-3">
-          <div className="text-sm">{t('import.replyLabel')}</div>
-          <div className="text-xs text-muted-foreground">{t('import.replyHint')}</div>
+        <div className="space-y-3 px-4 py-3">
+          <div>
+            <div className="text-sm">{t('import.replyLabel')}</div>
+            <div className="text-xs text-muted-foreground">{t('import.replyHint')}</div>
+          </div>
           <Textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}
@@ -233,7 +234,7 @@ export function ImportTab() {
             }}
             placeholder={t('import.replyPlaceholder')}
             aria-label={t('import.replyLabel')}
-            className="max-h-48 min-h-24 rounded-xl font-mono text-xs"
+            className="max-h-48 min-h-24 rounded-xl text-sm"
           />
           <div className="flex justify-end">
             <Button
@@ -253,6 +254,8 @@ export function ImportTab() {
           </div>
         </div>
       </Card>
+
+      <GrokLinkCard onCopy={(scope, intro) => void copyInstructions(scope, intro)} />
 
       {moved && <MovedCard names={moved.names} chats={moved.chats} loading={chats.isPending} />}
 
@@ -424,6 +427,9 @@ function MovedCard({
   );
 }
 
+/** A heading between the rows of one card, for the ways that apply to one kind of person. */
+const SUBHEAD = 'bg-muted/40 px-4 py-2 text-xs font-medium text-muted-foreground';
+
 /**
  * A Grok Bot share or marketplace link. Its page shows the bot's name, who shared it and what it
  * does; the bot as a whole, with its instructions, memory, skills and routines, reaches the Grok
@@ -454,8 +460,7 @@ function GrokLinkCard({ onCopy }: { onCopy: (scope: string, intro?: string) => v
     .replace(/\s+/g, ' ')
     .trim();
   return (
-    <Card title={t('import.link.title')}>
-      <p className="px-4 pt-3 text-xs text-muted-foreground">{t('import.link.hint')}</p>
+    <Card title={t('import.link.title')} hint={t('import.link.hint')}>
       <form
         className="flex flex-wrap items-center gap-2 px-4 py-3"
         onSubmit={(e) => {
@@ -492,7 +497,7 @@ function GrokLinkCard({ onCopy }: { onCopy: (scope: string, intro?: string) => v
             )}
             {!card.name && <p className="mt-2 text-xs text-muted-foreground">{t('import.link.unread')}</p>}
           </div>
-          <p className="px-4 pt-3 text-xs font-medium">{t('import.link.withAccount')}</p>
+          <div className={SUBHEAD}>{t('import.link.withAccount')}</div>
           <Row label={t('import.link.add')} hint={t('import.link.addHint')}>
             <Button variant="outline" size="sm" className="rounded-full" asChild>
               <a href={page} target="_blank" rel="noopener noreferrer">
@@ -519,7 +524,7 @@ function GrokLinkCard({ onCopy }: { onCopy: (scope: string, intro?: string) => v
             </Button>
           </Row>
           <Row label={t('import.link.load')} hint={t('import.link.loadHint')} />
-          <p className="px-4 pt-3 text-xs font-medium">{t('import.link.noAccount')}</p>
+          <div className={SUBHEAD}>{t('import.link.noAccount')}</div>
           <Row label={t('import.link.ask')} hint={t('import.link.askHint')}>
             <Button
               variant="outline"
@@ -607,9 +612,8 @@ function BackupCard() {
     onError: (e) => toast.error((e as Error).message),
   });
   return (
-    <Card title={t('backup.title')}>
-      <p className="px-4 py-3 text-xs text-muted-foreground">{t('backup.hint')}</p>
-      <div className="flex flex-wrap items-center gap-2 px-4 pb-3">
+    <Card title={t('backup.title')} hint={t('backup.hint')}>
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3">
         <Input
           type="password"
           autoComplete="new-password"
@@ -684,8 +688,7 @@ function ExportCard() {
   if (!bots.length) return null;
   const href = `/api/export/bots?ids=${picked.map((b) => b.id).join(',')}`;
   return (
-    <Card title={t('export.title')}>
-      <p className="px-4 py-3 text-xs text-muted-foreground">{t('export.hint')}</p>
+    <Card title={t('export.title')} hint={t('export.hint')}>
       {bots.map((b) => (
         <Row key={b.id} label={b.name}>
           <Switch
