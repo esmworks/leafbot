@@ -494,6 +494,8 @@ export function endpoints(send: Transport, base = '') {
       replyTo?: string,
       offline?: boolean,
       spoken?: boolean,
+      /** Sent from the Chrome extension's panel while it shares Chrome with the bots. */
+      chrome?: boolean,
     ) =>
       http.post<Message>(`/api/threads/${threadId}/messages`, {
         clientId,
@@ -502,6 +504,7 @@ export function endpoints(send: Transport, base = '') {
         replyTo,
         ...(offline && { offline: true }),
         ...(spoken && { spoken: true }),
+        ...(chrome && { chrome: true }),
       }),
     search: (q: string, opts: { threadId?: string; limit?: number } = {}) =>
       http.get<SearchHit[]>(
@@ -565,6 +568,8 @@ export function endpoints(send: Transport, base = '') {
     stopPersonJob: (id: string) => http.post<{ stopped: boolean }>(`/api/person-jobs/${id}/stop`),
 
     approvals: () => http.get<Approval[]>('/api/approvals'),
+    /** Only the cards that still wait for an answer. */
+    pendingApprovals: () => http.get<Approval[]>('/api/approvals?status=pending'),
     /** Steps waiting for this person's second yes, without the conversations they come from. */
     secondYes: () => http.get<SecondYes[]>('/api/approvals-second'),
     answerSecond: (id: string, decision: 'allow' | 'deny') =>

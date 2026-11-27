@@ -71,6 +71,7 @@ import { isServerKey, translator, type T } from './i18n';
 import { serverLocale } from './services/settings';
 import { inOrder } from './in-order';
 import { PhoneBridge } from './phone/bridge';
+import { ChromeBridge } from './chrome/bridge';
 import { sweepUploads } from './uploads';
 import { HttpError } from './util';
 
@@ -217,6 +218,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
   const personComputer = config.personComputer ? PersonComputer.start(config.personComputer) : null;
   const macs = new MacBridge();
   const phones = new PhoneBridge();
+  const chromes = new ChromeBridge();
   const ctx: Ctx = {
     db: db.db,
     bus,
@@ -227,6 +229,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     personComputer,
     macs,
     phones,
+    chromes,
     // Read once a turn runs, after the startup check below has answered.
     shellUnavailable: () => shellSandbox.status === 'unavailable',
   };
@@ -620,6 +623,11 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     if (!socket) throw new Error('gone');
     return socket.timeout(timeoutMs).emitWithAck('phone:ask', ask);
   });
+  chromes.attach(async (socketId, ask, timeoutMs) => {
+    const socket = io.sockets.sockets.get(socketId);
+    if (!socket) throw new Error('gone');
+    return socket.timeout(timeoutMs).emitWithAck('chrome:ask', ask);
+  });
   // The desktop app offers its computer as the bots' way out to the web. Frames are binary
   // messages of the egress protocol; the sign-in is the same as for every socket. Every bot's
   // pages then pass through that computer, so only those who look after the server offer one.
@@ -686,7 +694,14 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     socket.on('phone:offer', (kinds) => {
       if (viewer) phones.offer(socket.id, viewer.userId, kinds);
     });
-    socket.on('disconnect', () => phones.drop(socket.id));
+    // The Chrome extension's side panel says whether its person shares that Chrome with their bots.
+    socket.on('chrome:offer', (sharing) => {
+      if (viewer) chromes.offer(socket.id, viewer.userId, sharing);
+    });
+    socket.on('disconnect', () => {
+      phones.drop(socket.id);
+      chromes.drop(socket.id);
+    });
 
     // Watching and driving a bot's browser. Only existing bots: the id names a profile folder.
     const watching = new Set<string>();

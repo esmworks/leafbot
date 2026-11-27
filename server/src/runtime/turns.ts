@@ -13,6 +13,7 @@ import {
   type LiveText,
   outsideIn,
   type OutsideTrigger,
+  PERSON_BROWSER,
   PERSON_COMPUTER,
   PERSON_PHONE,
 } from '@leafbot/shared';
@@ -1889,6 +1890,8 @@ export class TurnManager {
     let macApproval: string | null = null;
     // The same for the person's phone: one yes in a turn lets the bot go on reading it in that turn.
     let phoneApproval: string | null = null;
+    // The same for the person's Chrome: one yes in a turn lets the bot go on reading its tabs.
+    let chromeApproval: string | null = null;
     const canUseTool = async (raw: {
       toolName: string;
       input: Record<string, unknown>;
@@ -1933,6 +1936,8 @@ export class TurnManager {
       // The person's own phone (their calendar, contacts, where they are): the first read in a turn
       // asks at every level, with no "always allow", since it is their private data and not the bot's.
       const onPhone = (ask.toolName.split('__').at(-1) ?? '').startsWith(PERSON_PHONE);
+      // The person's own Chrome (the pages open there, signed in as them): the same as the phone.
+      const onChrome = (ask.toolName.split('__').at(-1) ?? '').startsWith(PERSON_BROWSER);
       // Listening to a call sends other people's voices to the speech-to-text service: asked every
       // time at every level, with no "always allow"; they are the person's to agree to.
       const onCall = ask.toolName.split('__').at(-1) === 'call_listen';
@@ -1993,6 +1998,15 @@ export class TurnManager {
         !askRuleMatches(rules, ask.toolName, ask.input)
       ) {
         return { behavior: 'allow', let: { how: 'card', approvalId: phoneApproval } };
+      }
+      if (
+        onChrome &&
+        chromeApproval &&
+        !turn.rehearsalId &&
+        mode !== 'readonly' &&
+        !askRuleMatches(rules, ask.toolName, ask.input)
+      ) {
+        return { behavior: 'allow', let: { how: 'card', approvalId: chromeApproval } };
       }
       // A page address that imitates a site the person uses (a copy made to take a sign-in or a
       // payment) is theirs to open, at every level; the card says which site it looks like and
@@ -2133,7 +2147,9 @@ export class TurnManager {
         guest: locked,
       });
       const verdict =
-        (copied || onMac || onPhone || onCall || agentAct) && decided === 'allow' ? 'ask' : decided;
+        (copied || onMac || onPhone || onChrome || onCall || agentAct) && decided === 'allow'
+          ? 'ask'
+          : decided;
       if (verdict === 'allow') {
         // A read goes without a line in the bot's list of what it changed.
         if (free.has(ask.toolName) || READ_ONLY_TOOLS.has(ask.toolName)) return { behavior: 'allow' };
@@ -2195,7 +2211,7 @@ export class TurnManager {
         timeoutMs: present ? undefined : this.ctx.config.unattendedApprovalMs,
         // A copy of a site gets no "always allow", nor an answer from another card's rule; nor does
         // the person's Mac.
-        outside: locked || capped || !!copied || onMac || onPhone || onCall || agentAct,
+        outside: locked || capped || !!copied || onMac || onPhone || onChrome || onCall || agentAct,
         second,
         onCreated: async (a) => {
           const { message: card } = await threads.addMessage({
@@ -2207,7 +2223,9 @@ export class TurnManager {
               approvalId: a.id,
               ...held,
               ...(second ? { needsSecond: true } : {}),
-              ...(locked || capped || onMac || onPhone || onCall || agentAct ? { noAlways: true } : {}),
+              ...(locked || capped || onMac || onPhone || onChrome || onCall || agentAct
+                ? { noAlways: true }
+                : {}),
               ...(copied ? { resembles: copied.charAt(0).toUpperCase() + copied.slice(1) } : {}),
             },
             turnId: turn.id,
@@ -2230,6 +2248,7 @@ export class TurnManager {
       const answer = approvals.toAnswer(result, t);
       if (onMac && answer.behavior === 'allow' && result.approvalId) macApproval = result.approvalId;
       if (onPhone && answer.behavior === 'allow' && result.approvalId) phoneApproval = result.approvalId;
+      if (onChrome && answer.behavior === 'allow' && result.approvalId) chromeApproval = result.approvalId;
       return answer.behavior === 'allow'
         ? { ...answer, let: { how: 'card', approvalId: result.approvalId } }
         : answer;

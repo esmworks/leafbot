@@ -7,6 +7,7 @@ import type { Config } from './config';
 import type { Db } from './db';
 import type { EgressHub } from './egress/hub';
 import type { PhoneBridge } from './phone/bridge';
+import type { ChromeBridge } from './chrome/bridge';
 
 export interface Ctx {
   db: Db;
@@ -35,4 +36,6 @@ export interface Ctx {
   egress?: EgressHub | null;
   /** The people's phones connected now, for the bots to read what each person lets them. */
   phones?: PhoneBridge;
+  /** The people's Chrome side panels that share their Chrome now. */
+  chromes?: ChromeBridge;
 }

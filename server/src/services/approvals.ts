@@ -5,6 +5,7 @@ import {
   hideSecretAnswers,
   PERSON_COMMAND,
   PERSON_COMMAND_RUN,
+  PERSON_BROWSER,
   PERSON_COMPUTER,
   PERSON_PHONE,
   questionItems,
@@ -400,7 +401,8 @@ export function managerMayNotAnswer(
   if (
     card.toolName.startsWith(PERSON_COMPUTER) ||
     card.toolName.startsWith(PERSON_COMMAND) ||
-    card.toolName.startsWith(PERSON_PHONE)
+    card.toolName.startsWith(PERSON_PHONE) ||
+    card.toolName.startsWith(PERSON_BROWSER)
   )
     return 'cards.keep.device';
   if (typeof line.resembles === 'string') return 'cards.keep.lookalike';

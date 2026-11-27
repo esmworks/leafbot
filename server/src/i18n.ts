@@ -931,6 +931,7 @@ const tr = {
   'outside.screen': 'kişinin bilgisayarının ekranı',
   'outside.command': 'kişinin bilgisayarında çalışan bir komutun çıktısı',
   'outside.phone': 'kişinin telefonu',
+  'outside.chrome': 'kişinin Chrome’unda açık bir sayfa',
   'outside.call': 'görüşmede konuşanlar',
   'call.already': 'Zaten bir görüşmeyi dinliyorsun; önce call_stop ile bırak.',
   'call.noSpeech':
@@ -1908,6 +1909,19 @@ const tr = {
   'phone.failed': 'Telefon bunu okuyamadı.',
   'phone.noEvents': 'Bu aralıkta takvimde etkinlik yok.',
   'phone.noContacts': 'Rehberde eşleşen kişi yok.',
+  'tool.person_browser_tabs':
+    'Kişinin Chrome’unda açık sekmeleri listele (yalnız okur): her birinin numarası, adresi, başlığı ve önde olup olmadığı.',
+  'tool.person_browser_read':
+    'Kişinin Chrome’unda açık bir sayfanın yazısını oku (yalnız okur). tab: person_browser_tabs’ın verdiği numara; boşsa öndeki sekme. Chrome bu siteyi okumak için kişiye bir kez daha sorabilir.',
+  'chrome.unreachable':
+    'Chrome’a ulaşılamadı: kişinin Chrome’unda Leaf Bot yan paneli açık değil, Chrome’u paylaşmıyor ya da yanıt vermedi. Kişiden paneli açıp paylaşmayı açmasını isteyebilirsin.',
+  'chrome.off': 'Kişi Chrome’u paylaşmayı yan panelde kapattı.',
+  'chrome.denied': 'Kişi bu siteyi okumaya izin vermedi. Sayfayı okumadan devam et ya da kişiye sor.',
+  'chrome.notFound': 'Bu numarada açık bir sekme yok; person_browser_tabs ile yeniden bak.',
+  'chrome.notWeb': 'Bu sekmede bir web sayfası yok (yeni sekme, ayarlar ya da bir dosya); okunamaz.',
+  'chrome.failed': 'Chrome bu sayfayı okuyamadı.',
+  'chrome.noTabs': 'Chrome’da açık bir web sayfası yok.',
+  'chrome.cut': '[Sayfanın yazısı uzun; burada kesildi.]',
   'personComputer.badKeys': 'Bilinmeyen tuş adı: {keys}. Örnek: Return, cmd+s, cmd+shift+4.',
   'personComputer.failed': 'Bilgisayarda bir sorun çıktı: {message}',
   'computer.exitCode': 'Çıkış kodu: {code}',
@@ -3395,6 +3409,7 @@ const en: Catalog<ServerKey> = {
   'outside.screen': "the person's computer screen",
   'outside.command': "the output of a command on the person's computer",
   'outside.phone': "the person's phone",
+  'outside.chrome': "a page open in the person's Chrome",
   'outside.call': 'what people said in a call',
   'call.already': 'You are already listening to a call; stop it with call_stop first.',
   'call.noSpeech':
@@ -4378,6 +4393,19 @@ const en: Catalog<ServerKey> = {
   'phone.failed': 'The phone could not read this.',
   'phone.noEvents': 'No calendar events in this range.',
   'phone.noContacts': 'No matching contacts.',
+  'tool.person_browser_tabs':
+    "List the tabs open in the person's Chrome (read only): each one's number, address, title and whether it is in front.",
+  'tool.person_browser_read':
+    "Read the text of a page open in the person's Chrome (read only). tab: the number person_browser_tabs gave; empty for the tab in front. Chrome may ask the person once more before the extension reads that site.",
+  'chrome.unreachable':
+    "Chrome could not be reached: the Leaf Bot side panel is not open in the person's Chrome, does not share it, or did not answer. You can ask them to open the panel and turn sharing on.",
+  'chrome.off': 'The person turned Chrome sharing off in the side panel.',
+  'chrome.denied': 'The person did not allow reading this site. Go on without the page, or ask them.',
+  'chrome.notFound': 'No tab is open with this number; look again with person_browser_tabs.',
+  'chrome.notWeb': 'This tab holds no web page (a new tab, settings or a file); it cannot be read.',
+  'chrome.failed': 'Chrome could not read this page.',
+  'chrome.noTabs': 'No web page is open in Chrome.',
+  'chrome.cut': '[The page text is long; it was cut here.]',
   'personComputer.badKeys': 'Unknown key name: {keys}. For example: Return, cmd+s, cmd+shift+4.',
   'personComputer.failed': 'Something went wrong on the computer: {message}',
   'computer.exitCode': 'Exit code: {code}',

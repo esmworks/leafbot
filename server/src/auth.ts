@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Params, Role, SessionInfo } from '@leafbot/shared';
+import { CHROME_EXTENSION_ORIGIN, type Params, type Role, type SessionInfo } from '@leafbot/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import type { Config } from './config';
 import { schema, type Db } from './db';
@@ -146,6 +146,10 @@ export function checkHostOrigin(
   const origin = meta.origin;
   if (origin === undefined) return null;
   if (origin === 'null') return refuse('error.originNull');
+  // The Leaf Bot extension's own pages (its side panel in Chrome), and no other extension's: the
+  // id comes from the extension's key, and a web page cannot send an extension's origin. Its
+  // requests still sign in like any other, with the session of a paired device.
+  if (origin === CHROME_EXTENSION_ORIGIN) return null;
   let url: URL;
   try {
     url = new URL(origin);

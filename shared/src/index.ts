@@ -33,6 +33,7 @@ export * from './word-bold';
 export * from './old-names';
 export * from './app-events';
 export * from './phone';
+export * from './chrome';
 export * from './card';
 export * from './card-chart';
 export * from './dashboards';

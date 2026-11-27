@@ -1364,7 +1364,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
       const { message, created } = await s.rooms.post(id, RoomSend.parse(req.body), me(req).userId);
       return reply.code(created ? 201 : 200).send(message);
     }
-    const { offline, spoken, ...body } = SendMessage.parse(req.body);
+    const { offline, spoken, chrome, ...body } = SendMessage.parse(req.body);
     const { message, created } = await s.inbox.send(id, {
       ...body,
       userId: me(req).userId,
@@ -1374,6 +1374,10 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
         props: { ...(offline && { sentOffline: true }), ...(spoken && { spoken: true }) },
       }),
     });
+    // Sent from the side panel of the writer's Chrome while it shares it: that turn may read its
+    // tabs. Said by a panel that is connected now, so a stale flag from elsewhere reaches nothing.
+    const chromes = s.ctx.chromes;
+    if (chrome && created && message.turnId && chromes?.has(me(req).userId)) chromes.noteTurn(message.turnId);
     return reply.code(created ? 201 : 200).send(message);
   });
 
