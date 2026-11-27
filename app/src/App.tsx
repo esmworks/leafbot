@@ -126,6 +126,9 @@ function Authed() {
   // account the person is already signed in; an older server without the route asks nothing.
   const session = useSession();
   const mayLink = session.data?.user?.role === 'owner' && !viaTunnel();
+  const role = session.data?.user?.role;
+  // Until the session says otherwise, the person is taken to look after the server, as with one account.
+  const manages = !role || role === 'owner' || role === 'admin';
   const accountHost = useQuery({
     queryKey: ['account-host'],
     queryFn: api.accountHost,
@@ -176,7 +179,8 @@ function Authed() {
       settings.isError || bots.isError
         ? false
         : settings.data && bots.data
-          ? settings.data.onboarded === false && bots.data.length === 0
+          ? // Someone invited finds bots shared with them, and is welcomed to them once.
+            settings.data.onboarded === false && (bots.data.length === 0 || !manages)
           : null;
     // Adjusting state while rendering: the choice is kept from the first answer on.
     if (first !== null) setOnboarding(first);

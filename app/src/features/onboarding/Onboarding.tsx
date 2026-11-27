@@ -3,6 +3,7 @@ import {
   LOCALES,
   PROFILE_FOCUS,
   PROFILE_HELP,
+  type Bot,
   type Locale,
   type ProfileFocus,
   type ProfileHelp,
@@ -21,7 +22,16 @@ import { useLocale, useT } from '@/i18n';
 import { api } from '@/lib/api';
 import { desktop, useDesktopServer } from '@/lib/desktop';
 import { newBotEngine } from '@/lib/new-bot';
-import { useManagesServer, useProviders, useSettings } from '@/lib/queries';
+import { isSpace, placeOf, SHARED } from '@/lib/places';
+import {
+  useBots,
+  useGroups,
+  useInfo,
+  useManagesServer,
+  useProviders,
+  useSession,
+  useSettings,
+} from '@/lib/queries';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { ClaudeConnect, useClaudeState } from '../ClaudeConnect';
@@ -45,15 +55,16 @@ interface Answers {
 
 const EMPTY: Answers = { name: '', addressAs: '', roles: [], roleText: '', helpWith: [], about: '' };
 
-type Step = 'language' | 'server' | 'ai' | 'model' | 'about' | 'bots';
+type Step = 'language' | 'server' | 'ai' | 'model' | 'welcome' | 'about' | 'bots';
 type EngineKind = 'claude' | 'pi';
 
 /**
  * First run on an empty server: a full-window page without the sidebar. It picks the language,
  * where the server runs (desktop app), how Claude signs in, the default model and effort, asks who
  * the person is, saves the answers to the profile and sets up starter bots from them. Someone
- * invited to the server skips the AI and model steps: those set up the server for everyone, so
- * only those who look after it may change them.
+ * invited to the server skips the AI and model steps, which set up the server for everyone, and
+ * makes no starter bots: they are welcomed to the server and its team spaces instead, then asked
+ * who they are, which they may skip.
  */
 export function Onboarding({ onDone }: { onDone(): void }) {
   const t = useT();
@@ -73,6 +84,15 @@ export function Onboarding({ onDone }: { onDone(): void }) {
     onSuccess: onDone,
     onError: (e) => toast.error((e as Error).message),
   });
+  // Someone invited keeps what they told about themselves and goes to the bots shared with them.
+  const finishMember = useMutation({
+    mutationFn: async () => {
+      await saveAnswers(answers, t);
+      await api.updateSettings({ onboarded: true });
+    },
+    onSuccess: onDone,
+    onError: (e) => toast.error((e as Error).message),
+  });
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Room for the window buttons, and a handle to move the window. */}
@@ -88,10 +108,16 @@ export function Onboarding({ onDone }: { onDone(): void }) {
         </Button>
       </header>
       {step === 'language' && (
-        <LanguageStep onNext={() => setStep(desktop?.openConnect ? 'server' : manages ? 'ai' : 'about')} />
+        <LanguageStep onNext={() => setStep(desktop?.openConnect ? 'server' : manages ? 'ai' : 'welcome')} />
       )}
       {step === 'server' && (
-        <ServerStep onBack={() => setStep('language')} onNext={() => setStep(manages ? 'ai' : 'about')} />
+        <ServerStep onBack={() => setStep('language')} onNext={() => setStep(manages ? 'ai' : 'welcome')} />
+      )}
+      {step === 'welcome' && (
+        <WelcomeStep
+          onBack={() => setStep(desktop?.openConnect ? 'server' : 'language')}
+          onNext={() => setStep('about')}
+        />
       )}
       {step === 'ai' && (
         <AiStep
@@ -115,7 +141,8 @@ export function Onboarding({ onDone }: { onDone(): void }) {
           onChange={setAnswers}
           onNext={() => {
             setAnswered(true);
-            setStep('bots');
+            if (manages) setStep('bots');
+            else finishMember.mutate();
           }}
         />
       )}
@@ -123,6 +150,85 @@ export function Onboarding({ onDone }: { onDone(): void }) {
         <BotsStep answers={answers} created={created} onBack={() => setStep('about')} onDone={onDone} />
       )}
     </div>
+  );
+}
+
+/** Keeps what the person told about themselves in their profile, which the bots read. */
+function saveAnswers(answers: Answers, t: ReturnType<typeof useT>) {
+  return api.updateSettings({
+    userName: answers.name,
+    addressAs: answers.addressAs,
+    occupation: occupationText(answers, t),
+    ...(answers.focus ? { focus: answers.focus } : {}),
+    helpWith: answers.helpWith,
+    aboutMe: answers.about,
+  });
+}
+
+/**
+ * Someone invited sees the server they came to: the team spaces they are in, with the bots there,
+ * and the bots shared with them alone. Nothing yet when nobody has put them in a space.
+ */
+function WelcomeStep({ onBack, onNext }: { onBack(): void; onNext(): void }) {
+  const t = useT();
+  const server = useInfo().data?.name?.trim();
+  const { data: groups = [] } = useGroups();
+  const { data: bots = [] } = useBots();
+  const me = useSession().data?.user?.id;
+  const spaces = groups.filter((g) => isSpace(g) && (!g.memberIds || (!!me && g.memberIds.includes(me))));
+  const shared = bots.filter((b) => placeOf(b, groups, me) === SHARED);
+  const list = (items: Bot[]) => (
+    <ul className="divide-y rounded-2xl border">
+      {items.map((b) => (
+        <li key={b.id} className="flex items-center gap-3 px-4 py-3">
+          <BotAvatar avatar={b.avatar} material={b.material} color={b.color} seed={b.id} size={36} />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium">{b.name}</span>
+            {b.description && (
+              <span className="block truncate text-sm text-muted-foreground">{b.description}</span>
+            )}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+  return (
+    <StepPage
+      title={server ? t('invitee.title', { server }) : t('invitee.titlePlain')}
+      body={t('invitee.body')}
+      onBack={onBack}
+      next={
+        <Button className="rounded-full" onClick={onNext}>
+          {t('onboarding.continue')} <ArrowRight className="rtl:-scale-x-100" />
+        </Button>
+      }
+    >
+      {spaces.length || shared.length ? (
+        <div className="space-y-6">
+          {spaces.map((g) => {
+            const here = bots.filter((b) => b.groupId === g.id);
+            return (
+              <section key={g.id}>
+                <h2 className="mb-2 text-sm font-medium">{g.name}</h2>
+                {here.length ? (
+                  list(here)
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t('invitee.spaceEmpty')}</p>
+                )}
+              </section>
+            );
+          })}
+          {shared.length > 0 && (
+            <section>
+              <h2 className="mb-2 text-sm font-medium">{t('sidebar.shared')}</h2>
+              {list(shared)}
+            </section>
+          )}
+        </div>
+      ) : (
+        <p className="rounded-2xl border px-4 py-3 text-sm text-muted-foreground">{t('invitee.noSpaces')}</p>
+      )}
+    </StepPage>
   );
 }
 
@@ -429,6 +535,7 @@ function AboutStep({
   onNext(): void;
 }) {
   const t = useT();
+  const manages = useManagesServer();
   const reduced = useReducedMotion();
   // A name already known shows as answered, still open to change, and the talk starts after it.
   const [seen, setSeen] = useState<Question[]>(resume ? QUESTIONS : answers.name ? ['name'] : []);
@@ -476,7 +583,7 @@ function AboutStep({
     if (live && typing) break;
     turns.push(
       <BotSays key={`${q}-ask`}>
-        {i === 0 && <p className="mb-1">{t('onboarding.intro')}</p>}
+        {i === 0 && <p className="mb-1">{t(manages ? 'onboarding.intro' : 'onboarding.introMember')}</p>}
         <p className="font-medium">{t(`onboarding.q.${q}`)}</p>
         {(q === 'occupation' || q === 'helpWith') && live && (
           <p className="text-muted-foreground">{t('onboarding.pickMany')}</p>
@@ -775,14 +882,7 @@ function BotsStep({
   const [chosen, setChosen] = useState<StarterId[]>(offered);
   const finish = useMutation({
     mutationFn: async () => {
-      await api.updateSettings({
-        userName: answers.name,
-        addressAs: answers.addressAs,
-        occupation: occupationText(answers, t),
-        ...(answers.focus ? { focus: answers.focus } : {}),
-        helpWith: answers.helpWith,
-        aboutMe: answers.about,
-      });
+      await saveAnswers(answers, t);
       for (const id of offered) {
         if (!chosen.includes(id) || created.has(id)) continue;
         created.set(id, (await api.createBot({ ...starterBot(id, t), ...engine })).id);

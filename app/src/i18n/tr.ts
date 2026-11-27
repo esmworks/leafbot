@@ -2584,6 +2584,13 @@ export const tr = {
   'health.ask.idle':
     '“{name}” rutinim 30 gündür hiç çalışmadı. Rutini oku, koşulunun ya da izlediği şeyin neden hiç tutmadığını bul ve ne yapalım öner. Rutini değiştirmeden önce bana sor.',
 
+  'invitee.title': '{server} sunucusuna hoş geldin',
+  'invitee.titlePlain': 'Hoş geldin',
+  'invitee.body':
+    'Sana açılan botlar aşağıda. Her biriyle kendi sohbetin olur; başkalarının sohbetlerini görmezsin, onlar da seninkini.',
+  'invitee.spaceEmpty': 'Bu alanda henüz bot yok.',
+  'invitee.noSpaces':
+    'Henüz sana açılan bir bot yok. Yönetici seni bir ekip alanına ekleyince oradaki botlar kenar çubuğunda görünür.',
   'newcomer.joined': '{name} katıldı',
   'newcomer.choose': 'Hangi ekip alanlarına girsin? Seçtiğin alanlardaki botlarla konuşabilir.',
   'newcomer.noSpaces':
@@ -2829,6 +2836,8 @@ export const tr = {
   'onboarding.continue': 'Devam',
   'onboarding.back': 'Geri',
   'onboarding.intro': 'Sizi biraz tanıyayım, botlarınızı ona göre hazırlayayım.',
+  'onboarding.introMember':
+    'Sizi biraz tanıyayım; botlar sizinle konuşurken bunu bilir. İsterseniz geçebilirsiniz.',
   'onboarding.q.name': 'Adınız ve soyadınız nedir?',
   'onboarding.q.addressAs': 'Size nasıl hitap edeyim?',
   'onboarding.q.focus': "Leaf Bot'u daha çok ne için kullanacaksınız?",

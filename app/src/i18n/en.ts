@@ -2634,6 +2634,13 @@ export const en: Catalog<MessageKey> = {
   'health.ask.idle':
     'My routine “{name}” has not run in 30 days. Read the routine, find out why its condition or what it watches never held, and suggest what to do. Ask me before you change the routine.',
 
+  'invitee.title': 'Welcome to {server}',
+  'invitee.titlePlain': 'Welcome',
+  'invitee.body':
+    'These are the bots open to you. You have your own conversations with each; you do not see anyone else’s, nor they yours.',
+  'invitee.spaceEmpty': 'No bots in this space yet.',
+  'invitee.noSpaces':
+    'No bot is open to you yet. Once someone who looks after the server puts you in a team space, its bots show in the sidebar.',
   'newcomer.joined': '{name} joined',
   'newcomer.choose': 'Which team spaces do they go into? They can talk with the bots in the ones you pick.',
   'newcomer.noSpaces':
@@ -2880,6 +2887,8 @@ export const en: Catalog<MessageKey> = {
   'onboarding.continue': 'Continue',
   'onboarding.back': 'Back',
   'onboarding.intro': 'Let me get to know you a little, so I can set up your bots.',
+  'onboarding.introMember':
+    'Let me get to know you a little; the bots know it when they talk with you. You can skip this.',
   'onboarding.q.name': 'What is your full name?',
   'onboarding.q.addressAs': 'What should I call you?',
   'onboarding.q.focus': 'What will you mostly use Leaf Bot for?',
