@@ -6,6 +6,10 @@ interface DesktopBridge {
   useLocal(): Promise<void>;
   /** The server this window shows: the one on this computer or a remote one. Missing in older shells. */
   server?(): Promise<{ mode: 'local' | 'remote'; url: string | null } | null>;
+  /** Every server the shell keeps, the window's among them. Missing in older shells. */
+  servers?(): Promise<DesktopServerEntry[] | null>;
+  /** Shows another kept server in the window; `local` is this computer's own. Missing in older shells. */
+  showServer?(id: string): Promise<void>;
   /** Opens the shell's window for connecting to another server. Missing in older shells. */
   openConnect?(): Promise<void>;
   /** Tells the shell the app's language, for its menu and windows. Missing in older shells. */
@@ -41,6 +45,24 @@ const shell = window as unknown as { leafbotDesktop?: DesktopBridge; yumakbotDes
 export const desktop = shell.leafbotDesktop ?? shell.yumakbotDesktop ?? null;
 
 export type DesktopServer = { mode: 'local' | 'remote'; url: string | null };
+
+/**
+ * A server the desktop app keeps: this computer's own (`id` is `local`, no `url`) or one elsewhere.
+ * The main server is the first one elsewhere, else this computer's own.
+ */
+export type DesktopServerEntry = { id: string; url: string | null; main: boolean; shown: boolean };
+
+/** The servers the desktop app keeps; null outside the desktop app or in an older shell. */
+export function useDesktopServers(): DesktopServerEntry[] | null {
+  const [servers, setServers] = useState<DesktopServerEntry[] | null>(null);
+  useEffect(() => {
+    desktop
+      ?.servers?.()
+      .then(setServers)
+      .catch(() => setServers(null));
+  }, []);
+  return servers;
+}
 
 /** The server the desktop window shows; null outside the desktop app or in an older shell. */
 export function useDesktopServer(): DesktopServer | null {

@@ -23,14 +23,22 @@ import {
 import log from 'electron-log/main';
 import { autoUpdater } from 'electron-updater';
 import {
+  addRemote,
+  LOCAL_ONLY,
   lockedRemote,
+  mainServer,
   normalizeRemoteUrl,
   readDesktopConfig,
+  remoteOf,
+  removeRemote,
+  setLocal,
+  show,
   writeDesktopConfig,
   type DesktopConfig,
+  type ServerId,
 } from './desktop-config';
 import { createCrashGuard, isCrash } from './crash-guard';
-import { DISPLAY_POLL_MS, keepDisplayOn } from './display-awake';
+import { DISPLAY_POLL_MS, DisplayHold, keepDisplayOn } from './display-awake';
 import { startEgress } from './egress';
 import { startHelper } from '@leafbot/shared/windows';
 import { readMoveDeclined, runsFromTransientPlace, writeMoveDeclined } from './install-location';
@@ -125,11 +133,27 @@ let quickWin: BrowserWindow | null = null;
 /** The global shortcut that opens it, or null when another app holds every one we try. */
 let quickKey: string | null = null;
 let tray: Tray | null = null;
+/** This computer's own server, while it runs. */
 let server: ServerProcess | null = null;
-let config: DesktopConfig = { mode: 'local' };
+/** Its address and access key, once it answers. */
+let localOrigin: string | null = null;
+let localKey: string | null = null;
+let config: DesktopConfig = LOCAL_ONLY;
+/**
+ * The person chose this computer's server for this run because the keychain would not give back a
+ * saved server's key. Nothing is written then, so that server is still there on the next start.
+ */
+let keepSavedConfig = false;
 /** Origin of the page the main window shows; the only origin that may ask for the key. */
 let origin: string | null = null;
 let accessKey: string | null = null;
+/** The main server this computer is offered to (its address and key), or null when there is none. */
+let offeredTo: string | null = null;
+/** Asks this computer's server now and then whether a bot works there, while the window shows another. */
+let workTimer: ReturnType<typeof setInterval> | null = null;
+/** Ends when this computer's server, told to stop, has stopped. */
+let localStopping: Promise<void> = Promise.resolve();
+const LOCAL_WORK_POLL_MS = 30_000;
 /** Tray status line, kept as a key so it follows a language change. */
 let status: { key: DesktopKey; params?: Record<string, string> } = { key: 'status.starting' };
 let quitting = false;
@@ -138,8 +162,11 @@ let stopped = false;
 let unread = 0;
 /** Keeps the computer from sleeping while a bot works; null while none does. */
 let awake: number | null = null;
-/** Keeps the screen on while a bot uses this Mac, so its screenshots are not black; null while not. */
-let displayAwake: number | null = null;
+/** Keeps the screen on while a bot uses this Mac, so its screenshots are not black. */
+const display = new DisplayHold(
+  () => powerSaveBlocker.start('prevent-display-sleep'),
+  (id) => powerSaveBlocker.stop(id),
+);
 let displayTimer: ReturnType<typeof setInterval> | null = null;
 let updates: Updates | null = null;
 /** A downloaded version waiting for a restart. */
@@ -209,6 +236,9 @@ if (!app.requestSingleInstanceLock()) {
  * Run from source, Electron needs the app's path.
  */
 function registerLinks() {
+  // A copy run with a data folder of its own is a second copy beside the installed app, for
+  // trying a change: the links stay with the installed app.
+  if (process.env.LEAFBOT_DESKTOP_DATA) return;
   for (const scheme of LINK_SCHEMES) {
     if (process.defaultApp && process.argv[1]) {
       app.setAsDefaultProtocolClient(scheme, process.execPath, [join(process.cwd(), process.argv[1])]);
@@ -257,9 +287,28 @@ async function readConfigOnceUnlocked(): Promise<DesktopConfig> {
       defaultId: 0,
       cancelId: 0,
     });
-    if (response === 1) return { mode: 'local' };
+    if (response === 1) {
+      keepSavedConfig = true;
+      return LOCAL_ONLY;
+    }
   }
 }
+
+function saveConfig() {
+  if (keepSavedConfig) {
+    log.info('the saved servers stay as they were; this run uses this computer only');
+    return;
+  }
+  try {
+    writeDesktopConfig(userData, config, safeStorage);
+  } catch (err) {
+    log.warn('could not save the servers', err);
+  }
+}
+
+/** The main server when it is elsewhere; null when this computer's own is the main one. */
+const mainRemote = () => remoteOf(config, mainServer(config));
+const hostOf = (url: string) => new URL(url).host;
 
 /**
  * An app opened from a disk image or straight from a download cannot replace itself, so updates
@@ -323,28 +372,59 @@ async function checkForUpdatesNow() {
 }
 
 async function connect() {
-  if (config.mode === 'remote') {
-    origin = config.url;
-    accessKey = config.key;
-    setStatus('status.remote', { host: new URL(config.url).host });
+  startOffers();
+  pointAtShown();
+  if (!config.local) {
+    setStatus('status.remote', { host: hostOf(mainServer(config)) });
     showWindow();
-    const remote = config;
-    stopEgress = startEgress({
-      url: remote.url,
-      // The access key, or the session a pairing code gave the window.
-      headers: async (): Promise<Record<string, string>> => {
-        if (remote.key) return { authorization: `Bearer ${remote.key}` };
-        const cookies = await session.defaultSession.cookies.get({ url: remote.url });
-        return cookies.length ? { cookie: cookies.map((c) => `${c.name}=${c.value}`).join('; ') } : {};
-      },
-      device: hostname().replace(/\.local$/, ''),
-      log: (level, line) => log[level](line),
-    });
-    startMac();
     return;
   }
+  // A server elsewhere opens at once; this computer's own comes up behind it.
+  if (config.shown !== 'local') showWindow();
+  await startLocal();
+}
+
+/** Points the window's origin and key at the server it shows; no origin while that one is not up. */
+function pointAtShown() {
+  const remote = remoteOf(config, config.shown);
+  origin = remote ? remote.url : localOrigin;
+  accessKey = remote ? remote.key : localKey;
+}
+
+/**
+ * Offers this computer to the main server when that one is elsewhere: as the bots' way out to the
+ * web, and the Mac when the person turned that on. Only the main server gets it, so the bots that
+ * keep working while this computer is away are the ones that may use it while it is here.
+ */
+function startOffers() {
+  const remote = mainRemote();
+  const to = remote ? `${remote.url}\n${remote.key}` : null;
+  if (to === offeredTo) return;
+  offeredTo = to;
+  stopEgress?.();
+  stopEgress = null;
+  stopMacOffer();
+  if (!remote) return;
+  stopEgress = startEgress({
+    url: remote.url,
+    // The access key, or the session a pairing code gave the window.
+    headers: async (): Promise<Record<string, string>> => {
+      if (remote.key) return { authorization: `Bearer ${remote.key}` };
+      const cookies = await session.defaultSession.cookies.get({ url: remote.url });
+      return cookies.length ? { cookie: cookies.map((c) => `${c.name}=${c.value}`).join('; ') } : {};
+    },
+    device: hostname().replace(/\.local$/, ''),
+    log: (level, line) => log[level](line),
+  });
+  startMac();
+}
+
+async function startLocal() {
+  // A server still stopping holds the port and the data folder.
+  await localStopping;
+  if (server) return;
   setStatus('status.serverStarting');
-  server = new ServerProcess({
+  const proc = new ServerProcess({
     entry: serverEntry(),
     execPath: process.execPath,
     dataDir,
@@ -361,15 +441,20 @@ async function connect() {
         : {}),
     },
   });
-  server.on('restarted', (url: string) => {
-    origin = url;
+  server = proc;
+  proc.on('restarted', (url: string) => {
+    if (server !== proc) return;
+    localOrigin = url;
     setStatus('status.running');
+    if (config.shown !== 'local') return;
+    origin = url;
     void win?.loadURL(url);
   });
-  server.on('exit', (e: { expected: boolean }) => {
-    if (!e.expected) setStatus('status.restarting');
+  proc.on('exit', (e: { expected: boolean }) => {
+    if (!e.expected && server === proc) setStatus('status.restarting');
   });
-  server.on('gave-up', () => {
+  proc.on('gave-up', () => {
+    if (server !== proc) return;
     setStatus('status.stopped');
     void dialog.showMessageBox({
       type: 'error',
@@ -378,11 +463,18 @@ async function connect() {
     });
   });
   try {
-    origin = await server.start();
-    accessKey = readFileSync(join(dataDir, 'access-key'), 'utf8').trim();
+    const url = await proc.start();
+    if (server !== proc) return;
+    localOrigin = url;
+    localKey = readFileSync(join(dataDir, 'access-key'), 'utf8').trim();
     setStatus('status.running');
-    showWindow();
+    watchLocalWork();
+    if (config.shown === 'local') {
+      pointAtShown();
+      showWindow();
+    }
   } catch (err) {
+    if (server !== proc) return;
     log.error('server failed to start', err);
     setStatus('status.failed');
     // Before, the box only had OK and the app stayed in the menu bar with nothing open.
@@ -400,10 +492,70 @@ async function connect() {
         shell.showItemInFolder(log.transports.file.getFile().path);
         continue;
       }
-      if (response === 0) await switchTo(config);
+      if (response === 0 && server === proc) {
+        await stopLocal();
+        await startLocal();
+      }
       return;
     }
   }
+}
+
+async function stopLocal() {
+  const proc = server;
+  server = null;
+  localOrigin = null;
+  localKey = null;
+  if (workTimer) clearInterval(workTimer);
+  workTimer = null;
+  setAwake(false);
+  const stopping = proc?.stop() ?? Promise.resolve();
+  localStopping = stopping.catch(() => {});
+  await stopping;
+  const remote = mainRemote();
+  if (remote) setStatus('status.remote', { host: hostOf(remote.url) });
+}
+
+/**
+ * Makes a new choice of servers real: this computer's server starts or stops, the main server is
+ * offered this computer, and the window moves to the server it now shows. The choice is kept.
+ * Changes go one after another, each made from the choice the one before left, so a quick off and
+ * on never starts a second server beside one still stopping.
+ */
+function apply(change: (cfg: DesktopConfig) => DesktopConfig): Promise<void> {
+  applying = applying
+    .then(() => applyNow(change(config)))
+    .catch((err: unknown) => log.warn('could not change the servers', err));
+  return applying;
+}
+let applying: Promise<void> = Promise.resolve();
+
+async function applyNow(next: DesktopConfig) {
+  const before = config;
+  config = next;
+  saveConfig();
+  startOffers();
+  if (before.local && !next.local) await stopLocal();
+  const reshow =
+    before.shown !== next.shown || remoteOf(before, next.shown)?.key !== remoteOf(next, next.shown)?.key;
+  if (reshow) {
+    // The old page belongs to another origin; start fresh.
+    closeQuick();
+    closeWindow();
+    pointAtShown();
+    showWindow();
+  }
+  if (!before.local && next.local) await startLocal();
+  rebuildMenu();
+}
+
+function closeWindow() {
+  if (win && !win.isDestroyed()) {
+    quitting = true;
+    win.close();
+    quitting = false;
+  }
+  win = null;
 }
 
 /**
@@ -713,6 +865,11 @@ function openConnectWindow() {
       nodeIntegration: false,
     },
   });
+  // A closed window's objects throw when touched; the next question about it must find none.
+  const opened = connectWin;
+  opened.on('closed', () => {
+    if (connectWin === opened) connectWin = null;
+  });
   void connectWin.loadFile(join(assets(), 'connect.html'), { query: { lang: locale() } });
 }
 
@@ -763,6 +920,10 @@ function fromMainPage(e: IpcMainInvokeEvent) {
     return false;
   }
 }
+/** From the page of this computer's own server, shown in the main window. */
+function fromLocalPage(e: IpcMainInvokeEvent) {
+  return config.shown === 'local' && !!localOrigin && origin === localOrigin && fromMainPage(e);
+}
 function fromConnectPage(e: IpcMainInvokeEvent) {
   return !!connectWin && e.sender === connectWin.webContents;
 }
@@ -778,8 +939,21 @@ function registerIpc() {
   });
   // Which server the window shows, so the page can offer to switch.
   ipcMain.handle('leafbot:server', (e) =>
-    fromMainPage(e) ? { mode: config.mode, url: config.mode === 'remote' ? config.url : null } : null,
+    fromMainPage(e)
+      ? {
+          mode: config.shown === 'local' ? 'local' : 'remote',
+          url: config.shown === 'local' ? null : config.shown,
+        }
+      : null,
   );
+  // Every server this app keeps, for the page to list and switch between. Only this computer's own
+  // server's page is told: a server elsewhere, perhaps someone else's, does not learn the person's
+  // other servers nor move the window to one (it has `use-local`, as before).
+  ipcMain.handle('leafbot:servers', (e) => (fromLocalPage(e) ? serverList() : null));
+  ipcMain.handle('leafbot:show-server', async (e, id: unknown) => {
+    if (!fromLocalPage(e) || !isKept(id) || id === config.shown) return;
+    await apply((c) => show(c, id));
+  });
   // The quick window: putting itself away, opening a conversation in the main window, and the
   // shortcut that opens it, for the app to show.
   ipcMain.handle('leafbot:quick-hide', (e) => {
@@ -807,8 +981,8 @@ function registerIpc() {
         await pairWith(url, saved);
         saved = '';
       }
-      writeDesktopConfig(userData, { mode: 'remote', url, key: saved }, safeStorage);
-      await switchTo(readDesktopConfig(userData, safeStorage));
+      if (!safeStorage.isEncryptionAvailable()) throw new Error(t('error.noKeychain'));
+      await apply((c) => addRemote(c, { url, key: saved }));
       connectWin?.close();
       return { ok: true };
     } catch (err) {
@@ -835,18 +1009,10 @@ function registerIpc() {
     unread = n;
     showUnread();
   });
-  // While a bot works on this computer, the computer stays awake, so a routine or a long reply is
-  // not cut short by sleep. The screen may still turn off, except while a bot is using this Mac
-  // (see `startDisplayWatch`).
+  // The page of this computer's server says when its bots work (see `setAwake`).
   ipcMain.handle('leafbot:set-busy', (e, busy: unknown) => {
-    if (!fromMainPage(e) || config.mode !== 'local') return;
-    if (busy === true && awake === null) awake = powerSaveBlocker.start('prevent-app-suspension');
-    if (busy === true) startDisplayWatch();
-    if (busy !== true && awake !== null) {
-      powerSaveBlocker.stop(awake);
-      awake = null;
-    }
-    if (busy !== true) stopDisplayWatch();
+    if (!fromMainPage(e) || config.shown !== 'local') return;
+    setAwake(busy === true);
   });
   ipcMain.handle('leafbot:open-at-login', (e, on?: unknown) => {
     if (!fromMainPage(e)) return null;
@@ -861,10 +1027,55 @@ function registerIpc() {
   });
   ipcMain.handle('leafbot:use-local', async (e) => {
     if (!fromConnectPage(e) && !fromMainPage(e)) return;
-    writeDesktopConfig(userData, { mode: 'local' }, safeStorage);
-    await switchTo({ mode: 'local' });
+    await apply((c) => show(c, 'local'));
     connectWin?.close();
   });
+}
+
+/** A server this app keeps: this computer's own while it runs, or one elsewhere on the list. */
+function isKept(id: unknown): id is ServerId {
+  return id === 'local' ? config.local : typeof id === 'string' && !!remoteOf(config, id);
+}
+
+/** The servers this app keeps, the main one first when it is elsewhere. */
+function serverList() {
+  const main = mainServer(config);
+  const ids: ServerId[] = [...config.remotes.map((r) => r.url), ...(config.local ? ['local'] : [])];
+  return ids.map((id) => ({
+    id,
+    url: id === 'local' ? null : id,
+    main: id === main,
+    shown: id === config.shown,
+  }));
+}
+
+/**
+ * Keeps the computer awake while a bot works on this computer's server, so a routine or a long
+ * reply is not cut short by sleep. The screen may still turn off, except while a bot is using this
+ * Mac (see `startDisplayWatch`).
+ */
+function setAwake(busy: boolean) {
+  if (busy && awake === null) awake = powerSaveBlocker.start('prevent-app-suspension');
+  if (busy) startDisplayWatch();
+  if (!busy && awake !== null) {
+    powerSaveBlocker.stop(awake);
+    awake = null;
+  }
+  if (!busy) stopDisplayWatch();
+}
+
+/**
+ * While the window shows a server elsewhere, its page cannot say whether this computer's bots
+ * work: this computer's server is asked now and then instead.
+ */
+function watchLocalWork() {
+  if (workTimer) return;
+  workTimer = setInterval(() => {
+    if (config.shown === 'local' || !server?.running) return;
+    void runningBotCount().then((count) => {
+      if (config.shown !== 'local' && server?.running) setAwake(count > 0);
+    });
+  }, LOCAL_WORK_POLL_MS);
 }
 
 /**
@@ -874,44 +1085,17 @@ function registerIpc() {
 function startDisplayWatch() {
   if (displayTimer) return;
   const tick = async () => {
-    if (config.mode !== 'local') return;
+    if (!server?.running) return;
     const { personComputerIdleMs } = await localTurns();
-    const on = keepDisplayOn(personComputerIdleMs);
-    if (on && displayAwake === null) displayAwake = powerSaveBlocker.start('prevent-display-sleep');
-    if (!on && displayAwake !== null) releaseDisplay();
+    if (displayTimer) display.set('local', keepDisplayOn(personComputerIdleMs));
   };
   displayTimer = setInterval(() => void tick(), DISPLAY_POLL_MS);
-}
-
-function releaseDisplay() {
-  if (displayAwake !== null) powerSaveBlocker.stop(displayAwake);
-  displayAwake = null;
 }
 
 function stopDisplayWatch() {
   if (displayTimer) clearInterval(displayTimer);
   displayTimer = null;
-  releaseDisplay();
-}
-
-async function switchTo(next: DesktopConfig) {
-  stopEgress?.();
-  stopEgress = null;
-  stopMacOffer();
-  if (awake !== null) powerSaveBlocker.stop(awake);
-  awake = null;
-  await server?.stop();
-  server = null;
-  config = next;
-  // The old page belongs to another origin; start fresh.
-  closeQuick();
-  if (win && !win.isDestroyed()) {
-    quitting = true;
-    win.close();
-    quitting = false;
-    win = null;
-  }
-  await connect();
+  display.set('local', false);
 }
 
 /**
@@ -966,7 +1150,7 @@ function hardenSessions() {
  * This computer can be offered to a remote server's bots: a Mac or a Windows computer, with its
  * helper in place, connected to a server elsewhere.
  */
-const canOfferMac = () => helperSystem() && config.mode === 'remote' && existsSync(personComputer());
+const canOfferMac = () => helperSystem() && !!mainRemote() && existsSync(personComputer());
 
 /**
  * Offers this Mac to the bots of the remote server, when the person turned it on in the menu bar.
@@ -975,8 +1159,8 @@ const canOfferMac = () => helperSystem() && config.mode === 'remote' && existsSy
  */
 function startMac() {
   stopMacOffer();
-  if (!canOfferMac() || !readMacOn(userData) || config.mode !== 'remote') return;
-  const remote = config;
+  const remote = mainRemote();
+  if (!canOfferMac() || !readMacOn(userData) || !remote) return;
   const helper = startHelper(personComputer(), 'jpeg');
   const bridge = startMacBridge({
     url: remote.url,
@@ -994,8 +1178,7 @@ function startMac() {
       macInUse = active;
       // A sleeping display makes the bot's screenshots black: kept on while the use goes on, which
       // ends by itself after a quiet while.
-      if (active && displayAwake === null) displayAwake = powerSaveBlocker.start('prevent-display-sleep');
-      if (!active) releaseDisplay();
+      display.set('mac', active);
       rebuildMenu();
     },
     log: (level, line) => log[level](line),
@@ -1035,8 +1218,9 @@ async function sessionCookie(url: string): Promise<string | null> {
  */
 function watchMacSignIn() {
   session.defaultSession.cookies.on('changed', (_e, cookie) => {
-    if (config.mode !== 'remote' || !stopMac || !SESSION_COOKIES.includes(cookie.name)) return;
-    const url = config.url;
+    const remote = mainRemote();
+    if (!remote || !stopMac || !SESSION_COOKIES.includes(cookie.name)) return;
+    const url = remote.url;
     if (cookie.domain?.replace(/^\./, '') !== new URL(url).hostname) return;
     if (macRestart) clearTimeout(macRestart);
     macRestart = setTimeout(() => {
@@ -1058,7 +1242,7 @@ function stopMacOffer() {
   macGate = null;
   if (macInUse) {
     macInUse = false;
-    releaseDisplay();
+    display.set('mac', false);
   }
 }
 
@@ -1156,6 +1340,75 @@ function macMenu(): Electron.MenuItemConstructorOptions[] {
       : []),
     { type: 'separator' },
   ];
+}
+
+/**
+ * The menu bar's part for the servers: the ones kept, the main one marked when there are several,
+ * which the window shows, this computer's own server on or off, adding one and leaving one.
+ */
+function serverMenu(): Electron.MenuItemConstructorOptions[] {
+  const list = serverList();
+  const name = (id: ServerId) => (id === 'local' ? t('menu.thisComputer') : hostOf(id));
+  return [
+    ...list.map((s) => ({
+      label: list.length > 1 && s.main ? t('menu.mainServer', { name: name(s.id) }) : name(s.id),
+      type: 'radio' as const,
+      checked: s.shown,
+      click: () => void apply((c) => show(c, s.id)),
+    })),
+    {
+      label: t('menu.runLocal'),
+      type: 'checkbox',
+      checked: config.local,
+      // This computer's server is the only one while no other is kept.
+      enabled: config.remotes.length > 0,
+      click: (item) => void turnLocal(item.checked),
+    },
+    { label: t('menu.connectRemote'), click: () => openConnectWindow() },
+    ...(config.remotes.length
+      ? [
+          {
+            label: t('menu.removeServer'),
+            submenu: config.remotes.map((r) => ({
+              label: hostOf(r.url),
+              click: () => void leaveServer(r.url),
+            })),
+          },
+        ]
+      : []),
+  ];
+}
+
+/** Turns this computer's own server on, or off after asking when its bots are at work. */
+async function turnLocal(on: boolean) {
+  if (!on) {
+    const count = await runningBotCount();
+    if (count > 0) {
+      const { response } = await dialog.showMessageBox({
+        type: 'warning',
+        message: t('dialog.quitWorking', { count }),
+        detail: t('dialog.stopLocalDetail'),
+        buttons: [t('dialog.stopLocal'), t('dialog.keepWorking')],
+        defaultId: 1,
+        cancelId: 1,
+      });
+      if (response !== 0) return rebuildMenu();
+    }
+  }
+  await apply((c) => setLocal(c, on));
+}
+
+/** Forgets a server elsewhere after asking; what is on it stays there. */
+async function leaveServer(url: string) {
+  const { response } = await dialog.showMessageBox({
+    type: 'question',
+    message: t('dialog.removeServer', { host: hostOf(url) }),
+    detail: t('dialog.removeServerDetail'),
+    buttons: [t('dialog.remove'), t('dialog.cancel')],
+    defaultId: 1,
+    cancelId: 1,
+  });
+  if (response === 0) await apply((c) => removeRemote(c, url));
 }
 
 function createTray() {
@@ -1270,9 +1523,7 @@ function rebuildMenu() {
       },
       { type: 'separator' },
       { label: t(status.key, status.params), enabled: false },
-      config.mode === 'local'
-        ? { label: t('menu.connectRemote'), click: () => openConnectWindow() }
-        : { label: t('menu.useLocal'), click: () => void switchTo({ mode: 'local' }) },
+      ...serverMenu(),
       { type: 'separator' },
       ...macMenu(),
       {
@@ -1303,6 +1554,7 @@ function rebuildMenu() {
 app.on('activate', () => showWindow());
 app.on('will-quit', () => {
   globalShortcut.unregisterAll();
+  if (workTimer) clearInterval(workTimer);
   // A command does not outlive the app that answers for it.
   jobs?.stopAll();
   stopMacOffer();
@@ -1318,9 +1570,9 @@ async function runningBotCount(): Promise<number> {
 
 /** What the local server says about running turns; a server that does not answer says nothing. */
 async function localTurns(): Promise<{ count?: unknown; personComputerIdleMs?: unknown }> {
-  if (config.mode !== 'local' || !origin) return {};
+  if (!localOrigin) return {};
   return session.defaultSession
-    .fetch(`${origin}/api/turns/running`, { signal: AbortSignal.timeout(2000) })
+    .fetch(`${localOrigin}/api/turns/running`, { signal: AbortSignal.timeout(2000) })
     .then(async (res) => (res.ok ? ((await res.json()) as object) : {}))
     .catch(() => ({}));
 }

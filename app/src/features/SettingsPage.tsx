@@ -75,7 +75,7 @@ import {
   useSession,
   useSettings,
 } from '@/lib/queries';
-import { desktop, useDesktopServer } from '@/lib/desktop';
+import { desktop, useDesktopServer, useDesktopServers } from '@/lib/desktop';
 import { useUi, type SettingsTab } from '@/lib/store';
 import { NoteSource } from './NoteSource';
 import { LearnSetting, MemoryHistory, NoteRow } from './MemoryNote';
@@ -1093,35 +1093,61 @@ function Devices() {
   );
 }
 
-/** In the desktop app: switch this window to another server, or back to the one on this computer. */
+/**
+ * In the desktop app: the servers it keeps, with the main one marked and a way to show another in
+ * this window; connecting to one more, or back to the one on this computer.
+ */
 function DesktopServerRow() {
   const t = useT();
   const server = useDesktopServer();
+  const servers = useDesktopServers();
   if (!desktop?.openConnect || !server) return null;
+  const name = (url: string | null) => (url ? new URL(url).host : t('connection.thisComputer'));
+  const localKept = servers?.some((s) => s.id === 'local') ?? false;
   return (
-    <Row
-      label={t('connection.connectedTo')}
-      hint={server.mode === 'local' ? t('connection.thisComputer') : (server.url ?? '')}
-    >
-      <Button
-        variant="secondary"
-        size="sm"
-        className="rounded-full"
-        onClick={() => void desktop!.openConnect?.()}
+    <>
+      <Row
+        label={t('connection.connectedTo')}
+        hint={server.mode === 'local' ? t('connection.thisComputer') : (server.url ?? '')}
       >
-        {t('connection.connectOther')}
-      </Button>
-      {server.mode === 'remote' && (
         <Button
           variant="secondary"
           size="sm"
           className="rounded-full"
-          onClick={() => void desktop!.useLocal()}
+          onClick={() => void desktop!.openConnect?.()}
         >
-          {t('connection.useLocal')}
+          {t(servers ? 'connection.addServer' : 'connection.connectOther')}
         </Button>
-      )}
-    </Row>
+        {server.mode === 'remote' && !localKept && (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="rounded-full"
+            onClick={() => void desktop!.useLocal()}
+          >
+            {t('connection.useLocal')}
+          </Button>
+        )}
+      </Row>
+      {servers &&
+        servers.length > 1 &&
+        servers.map((s) => (
+          <Row key={s.id} label={name(s.url)} hint={s.main ? t('connection.mainServer') : undefined}>
+            {s.shown ? (
+              <span className="text-xs text-muted-foreground">{t('connection.shownHere')}</span>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                className="rounded-full"
+                onClick={() => void desktop!.showServer?.(s.id)}
+              >
+                {t('connection.showHere')}
+              </Button>
+            )}
+          </Row>
+        ))}
+    </>
   );
 }
 

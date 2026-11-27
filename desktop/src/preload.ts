@@ -10,6 +10,11 @@ const bridge = {
   useLocal: (): Promise<void> => ipcRenderer.invoke('leafbot:use-local'),
   server: (): Promise<{ mode: 'local' | 'remote'; url: string | null } | null> =>
     ipcRenderer.invoke('leafbot:server'),
+  /** Every server the app keeps; the window shows one, and one is the main server. */
+  servers: (): Promise<{ id: string; url: string | null; main: boolean; shown: boolean }[] | null> =>
+    ipcRenderer.invoke('leafbot:servers'),
+  /** Shows another kept server in the window; `local` is this computer's own. */
+  showServer: (id: string): Promise<void> => ipcRenderer.invoke('leafbot:show-server', id),
   openConnect: (): Promise<void> => ipcRenderer.invoke('leafbot:open-connect'),
   setLocale: (locale: string): Promise<void> => ipcRenderer.invoke('leafbot:set-locale', locale),
   setUnread: (count: number): Promise<void> => ipcRenderer.invoke('leafbot:set-unread', count),

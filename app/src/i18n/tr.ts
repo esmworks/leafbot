@@ -2334,6 +2334,10 @@ export const tr = {
   'connection.thisComputer': 'Bu bilgisayar',
   'connection.connectOther': 'Başka sunucuya bağlan',
   'connection.useLocal': 'Bu bilgisayara dön',
+  'connection.addServer': 'Sunucu ekle',
+  'connection.mainServer': 'Ana sunucu: bu bilgisayar kapalıyken de çalışır',
+  'connection.shownHere': 'Bu pencerede açık',
+  'connection.showHere': 'Burada aç',
 
   'browserInfo.label': 'Botların tarayıcısı',
   'browserInfo.ok': 'Var',

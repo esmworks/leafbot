@@ -48,12 +48,13 @@ describe('masaüstü ayarı', () => {
   };
   it('uzak sunucu anahtarı şifreli saklanır ve geri okunur', () => {
     const d = mkdtempSync(join(tmpdir(), 'leafbot-cfg-'));
-    writeDesktopConfig(d, { mode: 'remote', url: 'https://a.example.com', key: 'gizli' }, crypto);
-    expect(readDesktopConfig(d, crypto)).toEqual({
-      mode: 'remote',
-      url: 'https://a.example.com',
-      key: 'gizli',
-    });
+    const cfg = {
+      local: false,
+      remotes: [{ url: 'https://a.example.com', key: 'gizli' }],
+      shown: 'https://a.example.com',
+    };
+    writeDesktopConfig(d, cfg, crypto);
+    expect(readDesktopConfig(d, crypto)).toEqual(cfg);
     rmSync(d, { recursive: true, force: true });
   });
   it('uzak adres https olmalı; yerel ağ istisnadır', () => {
