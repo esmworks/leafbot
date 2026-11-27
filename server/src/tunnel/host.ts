@@ -1,5 +1,6 @@
 import { createPrivateKey, generateKeyPairSync, sign, type KeyObject } from 'node:crypto';
 import type { Server } from 'node:http';
+import { AccountInvite, type Locale } from '@leafbot/shared';
 import { eq } from 'drizzle-orm';
 import { schema, type Db } from '../db';
 import { HttpError, newId } from '../util';
@@ -195,6 +196,71 @@ export class AccountHost {
       token: this.deps.vault.open(s.token, this.bind(s.hostId, 'token')),
       key: createPrivateKey(this.deps.vault.open(s.key, this.bind(s.hostId, 'key'))),
     };
+  }
+
+  /**
+   * Asks the account service, with this server's machine token, to do something about its invites.
+   * Its refusals become the server's own messages; anything else reads as the service being away.
+   */
+  private async hostCall(path: string, init: { method: string; body?: unknown }): Promise<unknown> {
+    const secrets = await this.secrets();
+    if (!secrets) throw new HttpError(409, 'error.serverNotLinked');
+    const res = await this.fetcher(`${this.deps.config.issuer}${path}`, {
+      method: init.method,
+      headers: {
+        authorization: `Bearer ${secrets.token}`,
+        ...(init.body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
+    }).catch(() => null);
+    if (!res) throw new HttpError(502, 'error.accountUnreachable');
+    if (res.status === 204) return null;
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    if (res.ok) return body;
+    if (res.status === 429) throw new HttpError(429, 'error.accountTooManyTries');
+    if (res.status === 404) throw new HttpError(404, 'error.inviteGone');
+    if (body?.error === 'already_member') throw new HttpError(409, 'error.personAlreadyLinked');
+    if (body?.error === 'mail_unavailable' || body?.error === 'mail_failed')
+      throw new HttpError(503, 'error.inviteMailUnavailable');
+    if (res.status === 400) throw new HttpError(400, 'error.accountEmailInvalid');
+    throw new HttpError(502, 'error.accountUnreachable');
+  }
+
+  /**
+   * Invites an address to this server through the account. With `person`, whoever accepts comes in
+   * as that person here, with what is theirs.
+   */
+  async invite(input: {
+    email: string;
+    role: 'admin' | 'member';
+    person?: string;
+    lang: Locale;
+  }): Promise<{ id: string; expiresAt: number }> {
+    const made = (await this.hostCall('/v1/host/invites', {
+      method: 'POST',
+      body: {
+        email: input.email,
+        role: input.role,
+        ...(input.person ? { person: input.person } : {}),
+        lang: input.lang === 'tr' ? 'tr' : 'en',
+      },
+    })) as { id?: unknown; expiresAt?: unknown } | null;
+    if (typeof made?.id !== 'string' || typeof made.expiresAt !== 'number')
+      throw new HttpError(502, 'error.accountUnreachable');
+    return { id: made.id, expiresAt: made.expiresAt };
+  }
+
+  /** The invites waiting to be accepted; none while the server is not linked. */
+  async invites(): Promise<AccountInvite[]> {
+    if (!(await this.secrets())) return [];
+    const body = (await this.hostCall('/v1/host/invites', { method: 'GET' })) as { invites?: unknown } | null;
+    return AccountInvite.array()
+      .catch([])
+      .parse(body?.invites ?? []);
+  }
+
+  async revokeInvite(id: string): Promise<void> {
+    await this.hostCall(`/v1/host/invites/${encodeURIComponent(id)}`, { method: 'DELETE' });
   }
 
   /** A host ticket from the account service, proving to the relay which server this is. */

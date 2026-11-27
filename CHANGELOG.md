@@ -7,6 +7,12 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- People are invited through the Leaf Bot account. Settings → People → Invite sends an invite to an email address;
+  with its link the person signs in to their account (made with that email if they have none) and comes to the
+  server. Someone already on the server who signs in with a username and password gets "Invite to an account" on
+  their row: when they accept, they come in with their account as the same person, with their role, bots,
+  conversations and notes, instead of as someone new. Pending invites are listed there and can be taken back. A
+  server needs to be linked to an account to invite; adding a person with a password is no longer offered there.
 - Team spaces and a Private for everyone. Every new bot starts in its maker's Private, which nobody else sees; moved
   into a team space, it is open to the people in that space, who can talk with it (and change it, when the space
   lets its people change its bots). The sidebar lists the team spaces the person is in, then their Private with

@@ -37,6 +37,11 @@ const tr = {
   'error.accountCodeWrong': 'Kod yanlış ya da süresi dolmuş. Yeni bir kod isteyin.',
   'error.accountMailUnavailable': 'Giriş kodu şu an gönderilemiyor. Biraz sonra yeniden deneyin.',
   'error.accountNameInvalid': 'Adınızı yazın (en çok 80 karakter).',
+  'error.serverNotLinked': 'Davet göndermek için önce bu sunucuyu Leaf Bot hesabınıza bağlayın.',
+  'error.inviteMailUnavailable': 'Davet e-postası şu an gönderilemiyor. Biraz sonra yeniden deneyin.',
+  'error.inviteGone': 'Bu davet artık yok.',
+  'error.personAlreadyLinked': 'Bu kişi zaten Leaf Bot hesabıyla giriyor.',
+  'error.ownerNotInvited': 'Sunucunun sahibi davet edilmez; kendi hesabıyla girer.',
   'error.accountInstallRefused':
     'Hesabınız bu sunucu için bir kurulum kodu veremedi. Biraz sonra yeniden deneyin; olmazsa sunucuyu hesabınızın Sunucular sayfasından ekleyin.',
   'error.hostMissing': 'Host başlığı eksik',
@@ -2576,6 +2581,11 @@ const en: Catalog<ServerKey> = {
   'error.accountCodeWrong': 'The code is wrong or has expired. Ask for a new one.',
   'error.accountMailUnavailable': "The sign-in code can't be sent right now. Try again in a little while.",
   'error.accountNameInvalid': 'Write your name (80 characters at most).',
+  'error.serverNotLinked': 'To send invites, first link this server to your Leaf Bot account.',
+  'error.inviteMailUnavailable': "The invite email can't be sent right now. Try again in a little while.",
+  'error.inviteGone': 'This invite no longer exists.',
+  'error.personAlreadyLinked': 'This person already signs in with a Leaf Bot account.',
+  'error.ownerNotInvited': 'The owner of the server is not invited; they sign in with their own account.',
   'error.accountInstallRefused':
     "Your account couldn't make an install code for this server. Try again in a little while, or add the server on your account's Servers page.",
   'error.hostMissing': 'Host header missing',

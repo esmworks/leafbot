@@ -64,6 +64,24 @@ describe('kişileri yönetmek', () => {
     expect((await admin.api('PATCH', `/api/people/${member.id}`, { role: 'admin' })).status).toBe(403);
   });
 
+  it('hesapla davet: üye davet edemez, yöneticiyi yalnızca sahip getirir, sahip davet edilmez', async () => {
+    const invite = (who: Person | TestServer, body: Record<string, unknown>) =>
+      who.api<{ message?: string }>('POST', '/api/people/invites', body);
+    expect((await invite(member, { email: 'a@example.com' })).status).toBe(403);
+    expect((await admin.api('GET', '/api/people/invites')).status).toBe(200);
+    expect((await member.api('GET', '/api/people/invites')).status).toBe(403);
+    expect((await invite(admin, { email: 'a@example.com', role: 'admin' })).status).toBe(403);
+    // The person's own role counts, not the one asked for.
+    expect((await invite(admin, { email: 'a@example.com', personId: admin.id })).status).toBe(403);
+    expect((await invite(admin, { email: 'a@example.com', personId: OWNER_ID })).status).toBe(400);
+    expect((await invite(admin, { email: 'a@example.com', personId: 'yok-boyle-biri' })).status).toBe(404);
+    expect((await invite(admin, { email: 'gecersiz' })).status).toBe(400);
+    // Allowed, but this server is linked to no account yet.
+    expect((await invite(admin, { email: 'a@example.com', personId: member.id })).status).toBe(409);
+    const people = (await admin.api<PersonInfo[]>('GET', '/api/people')).body;
+    expect(people.find((p) => p.id === member.id)?.linked).toBe(false);
+  });
+
   it('devre dışı kalan ya da şifresi değişen hemen çıkar; yeni rol hemen geçerli olur', async () => {
     const p = await t.person('gecici');
     expect((await p.api('GET', '/api/push/apns')).status).toBe(403);

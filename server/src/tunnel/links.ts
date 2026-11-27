@@ -133,6 +133,8 @@ export class AccountLinks {
         .returning();
       return linked.length ? { userId: OWNER_ID } : null;
     }
+    // An invite made for someone already here: they come in as that person, with what is theirs.
+    if (claims.person) return this.adopt(claims.sub, claims.person, role);
     const userId = newId();
     return this.db
       .transaction(async (tx) => {
@@ -155,5 +157,58 @@ export class AccountLinks {
           .limit(1);
         return again?.userId ? { userId: again.userId } : null;
       });
+  }
+
+  /**
+   * Links an account to a person already here, the one its invite named. Never the owner (who
+   * changes only by linking the server again), never someone disabled, and never a person another
+   * account already came in as: the invite brings that person's things with it, so it does so once.
+   * A person removed here since the invite was made keeps the account out, as a removal does.
+   */
+  private async adopt(
+    accountUserId: string,
+    personId: string,
+    role: 'admin' | 'member',
+  ): Promise<{ userId: string } | null> {
+    if (personId === OWNER_ID) return null;
+    return (
+      this.db
+        .transaction(async (tx) => {
+          const [person] = await tx
+            .select({ role: schema.users.role, disabledAt: schema.users.disabledAt })
+            .from(schema.users)
+            .where(eq(schema.users.id, personId))
+            .limit(1);
+          if (!person || person.role === 'owner' || person.disabledAt) return null;
+          const [taken] = await tx
+            .select({ accountUserId: schema.accountLinks.accountUserId })
+            .from(schema.accountLinks)
+            .where(eq(schema.accountLinks.userId, personId))
+            .limit(1);
+          if (taken) return null;
+          const linked = await tx
+            .insert(schema.accountLinks)
+            .values({ accountUserId, userId: personId })
+            .onConflictDoNothing()
+            .returning();
+          if (!linked.length) return null;
+          if (person.role !== role) {
+            await tx.update(schema.users).set({ role }).where(eq(schema.users.id, personId));
+          }
+          return { userId: personId };
+        })
+        .catch(() => null)
+        // Two first visits at once: the link is made once, and the other visit finds it.
+        .then(async (made) => made ?? (await this.linkedTo(accountUserId)))
+    );
+  }
+
+  private async linkedTo(accountUserId: string): Promise<{ userId: string } | null> {
+    const [again] = await this.db
+      .select({ userId: schema.accountLinks.userId })
+      .from(schema.accountLinks)
+      .where(eq(schema.accountLinks.accountUserId, accountUserId))
+      .limit(1);
+    return again?.userId ? { userId: again.userId } : null;
   }
 }

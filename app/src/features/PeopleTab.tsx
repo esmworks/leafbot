@@ -1,6 +1,6 @@
 import type { PersonInfo } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Archive, KeyRound, Pause, Play, Plus, Trash2, UserRound } from 'lucide-react';
+import { Archive, KeyRound, Mail, Pause, Play, Plus, Trash2, UserRound, X } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -30,8 +30,10 @@ export function personNameOf(
 }
 
 /**
- * The people on this server. Everyone sees who is here; those who look after the server add,
+ * The people on this server. Everyone sees who is here; those who look after the server invite,
  * change and remove them. Only the owner handles admins, and nobody changes themselves here.
+ * Everyone comes in with a Leaf Bot account: someone new by an emailed invite, and someone who was
+ * here before accounts by one that brings them in as the same person.
  */
 export function PeopleTab() {
   const t = useT();
@@ -43,14 +45,65 @@ export function PeopleTab() {
       <p className="px-1 text-sm text-muted-foreground">{t('people.intro')}</p>
       {manages && !adding && (
         <Button className="rounded-full" onClick={() => setAdding(true)}>
-          <Plus /> {t('people.add')}
+          <Plus /> {t('people.invite')}
         </Button>
       )}
-      {adding && <NewPerson onDone={() => setAdding(false)} />}
+      {adding && <NewInvite onDone={() => setAdding(false)} />}
+      {manages && <PendingInvites people={people} />}
       <div className="divide-y rounded-2xl border bg-card/50">
         {people.map((p) => (
           <PersonRow key={p.id} person={p} />
         ))}
+      </div>
+    </div>
+  );
+}
+
+const INVITES_KEY = ['people-invites'];
+
+/** Invites sent through the account that wait to be accepted, each one taken back with a click. */
+function PendingInvites({ people }: { people: PersonInfo[] }) {
+  const t = useT();
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: INVITES_KEY, queryFn: api.personInvites });
+  const revoke = useMutation({
+    mutationFn: (id: string) => api.revokeInvite(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: INVITES_KEY }),
+    onError: (e) => toast.error((e as Error).message),
+  });
+  const invites = data?.invites ?? [];
+  if (!invites.length) return null;
+  return (
+    <div className="space-y-1">
+      <div className="px-1 text-xs font-medium text-muted-foreground">{t('people.pending')}</div>
+      <div className="divide-y rounded-2xl border bg-card/50">
+        {invites.map((i) => {
+          const forWhom = i.person ? personNameOf(people, i.person, t('people.owner')) : '';
+          return (
+            <div key={i.id} className="flex items-center gap-3 px-4 py-2">
+              <Mail className="size-4 shrink-0 text-muted-foreground" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm">{i.email}</div>
+                <div className="truncate text-xs text-muted-foreground">
+                  {t(`people.role.${i.role}`)}
+                  {forWhom ? ` · ${t('people.pendingFor', { name: forWhom })}` : ''}
+                  {i.undelivered ? ` · ${t('people.undelivered')}` : ''}
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+                disabled={revoke.isPending}
+                onClick={() => revoke.mutate(i.id)}
+                aria-label={t('people.revokeInvite')}
+                title={t('people.revokeInvite')}
+              >
+                <X />
+              </Button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -61,6 +114,7 @@ function PersonRow({ person }: { person: PersonInfo }) {
   const qc = useQueryClient();
   const me = useSession().data?.user;
   const [resetting, setResetting] = useState(false);
+  const [inviting, setInviting] = useState(false);
   const isMe = me?.id === person.id;
   // The owner stays as they are; admins are the owner's to change.
   const mayChange =
@@ -97,6 +151,7 @@ function PersonRow({ person }: { person: PersonInfo }) {
             {person.username && person.displayName ? `${person.username} · ` : ''}
             {t(`people.role.${person.role}`)}
             {person.disabled ? ` · ${t('people.disabled')}` : ''}
+            {person.linked ? ` · ${t('people.linked')}` : ''}
           </div>
         </div>
         {mayChange && (
@@ -114,16 +169,30 @@ function PersonRow({ person }: { person: PersonInfo }) {
                 <SelectItem value="admin">{t('people.role.admin')}</SelectItem>
               </SelectContent>
             </Select>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="rounded-full"
-              onClick={() => setResetting((r) => !r)}
-              aria-label={t('people.resetPassword')}
-              title={t('people.resetPassword')}
-            >
-              <KeyRound />
-            </Button>
+            {!person.linked && !person.disabled && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+                onClick={() => setInviting((v) => !v)}
+                aria-label={t('people.inviteToAccount')}
+                title={t('people.inviteToAccount')}
+              >
+                <Mail />
+              </Button>
+            )}
+            {!person.linked && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+                onClick={() => setResetting((r) => !r)}
+                aria-label={t('people.resetPassword')}
+                title={t('people.resetPassword')}
+              >
+                <KeyRound />
+              </Button>
+            )}
             <Button
               variant="ghost"
               className="rounded-full"
@@ -151,6 +220,13 @@ function PersonRow({ person }: { person: PersonInfo }) {
         )}
       </div>
       {mayChange && <PrivateBots person={person} name={name} />}
+      {inviting && (
+        <InviteForm
+          personId={person.id}
+          hint={t('people.inviteToAccountHint', { name })}
+          onDone={() => setInviting(false)}
+        />
+      )}
       {resetting && (
         <NewPassword
           onSave={(password) => change.mutate({ password }, { onSuccess: () => setResetting(false) })}
@@ -258,60 +334,52 @@ function NewPassword({
   );
 }
 
-function NewPerson({ onDone }: { onDone(): void }) {
+/** Someone new, invited by address; the owner chooses whether they come as an admin. */
+function NewInvite({ onDone }: { onDone(): void }) {
+  const t = useT();
+  return <InviteForm hint={t('people.inviteHint')} onDone={onDone} />;
+}
+
+/**
+ * Sends an invite through the account to one address: for someone new, or, with `personId`, for
+ * someone already here, who then keeps their role and what is theirs.
+ */
+function InviteForm({ personId, hint, onDone }: { personId?: string; hint: string; onDone(): void }) {
   const t = useT();
   const qc = useQueryClient();
   const isOwner = useSession().data?.user?.role === 'owner';
-  const [username, setUsername] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
   const [role, setRole] = useState<'member' | 'admin'>('member');
-  const add = useMutation({
+  const send = useMutation({
     mutationFn: () =>
-      api.addPerson({
-        username,
-        password,
-        role,
-        ...(displayName.trim() && { displayName: displayName.trim() }),
+      api.invitePerson({
+        email: email.trim(),
+        ...(personId ? { personId } : { role }),
       }),
-    onSuccess: (p) => {
-      void qc.invalidateQueries({ queryKey: ['people'] });
-      toast.success(t('people.added', { name: personName(p, '') }));
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: INVITES_KEY });
+      toast.success(t('people.invited', { email: email.trim() }));
       onDone();
     },
     onError: (e) => toast.error((e as Error).message),
   });
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    add.mutate();
+    send.mutate();
   };
   return (
-    <form onSubmit={submit} className="space-y-2 rounded-2xl border bg-background p-3">
+    <form onSubmit={submit} className="mt-2 space-y-2 rounded-2xl border bg-background p-3">
       <Input
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        placeholder={t('people.username')}
-        aria-label={t('people.username')}
+        type="email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        placeholder={t('people.inviteEmail')}
+        aria-label={t('people.inviteEmail')}
         autoComplete="off"
+        autoFocus
         required
       />
-      <Input
-        value={displayName}
-        onChange={(e) => setDisplayName(e.target.value)}
-        placeholder={t('people.displayName')}
-        aria-label={t('people.displayName')}
-        autoComplete="off"
-      />
-      <Input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder={t('people.password', { min: String(MIN_PASSWORD) })}
-        aria-label={t('people.passwordLabel')}
-        autoComplete="new-password"
-        required
-      />
-      {isOwner && (
+      {isOwner && !personId && (
         <Select value={role} onValueChange={(r) => setRole(r as 'member' | 'admin')}>
           <SelectTrigger className="w-full rounded-full" aria-label={t('people.roleLabel')}>
             <SelectValue />
@@ -322,17 +390,13 @@ function NewPerson({ onDone }: { onDone(): void }) {
           </SelectContent>
         </Select>
       )}
-      <p className="px-1 text-xs text-muted-foreground">{t('people.passwordHint')}</p>
+      <p className="px-1 text-xs text-muted-foreground">{hint}</p>
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="ghost" className="rounded-full" onClick={onDone}>
           {t('common.cancel')}
         </Button>
-        <Button
-          type="submit"
-          className="rounded-full"
-          disabled={add.isPending || !username.trim() || password.length < MIN_PASSWORD}
-        >
-          {t('people.add')}
+        <Button type="submit" className="rounded-full" disabled={send.isPending || !email.trim()}>
+          {t('people.send')}
         </Button>
       </div>
     </form>

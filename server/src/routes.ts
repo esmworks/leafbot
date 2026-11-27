@@ -14,6 +14,7 @@ import {
   AccessRequest,
   AccountSet,
   PersonCreate,
+  PersonInvite,
   PersonUpdate,
   connectionToolParts,
   describeAction,
@@ -403,6 +404,34 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     // The others who look after the server learn of them; the one who added them knows.
     void s.push.newcomer(made.id, me(req).userId);
     return made;
+  });
+  // Invites through the Leaf Bot account: to someone new, or to someone already here, who then comes
+  // in with their account as the same person, with what is theirs.
+  app.get('/api/people/invites', async () => ({ invites: await d.accountHost.invites() }));
+  app.post('/api/people/invites', async (req) => {
+    const body = PersonInvite.parse(req.body);
+    const who = me(req);
+    let role = body.role ?? 'member';
+    if (body.personId !== undefined) {
+      const person = await d.auth.users.person(body.personId);
+      if (!person) throw notFound('person');
+      if (person.role === 'owner') throw new HttpError(400, 'error.ownerNotInvited');
+      // They come in with the role they have here; only the owner brings in an admin.
+      role = person.role;
+    }
+    if (role === 'admin' && who.role !== 'owner') throw new HttpError(403, 'error.ownerManagesAdmins');
+    const lang = pickLocale(req.headers['accept-language'], await s.settings.locale());
+    return d.accountHost.invite({
+      email: body.email,
+      role,
+      ...(body.personId !== undefined ? { person: body.personId } : {}),
+      lang,
+    });
+  });
+  app.delete('/api/people/invites/:id', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    await d.accountHost.revokeInvite(id);
+    return { ok: true };
   });
   // Someone new waits until those who look after the server choose their team spaces.
   app.get('/api/newcomers', async () => d.auth.users.newcomers());

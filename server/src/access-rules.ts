@@ -51,6 +51,9 @@ export const ROUTE_RULES: Record<string, Rule> = {
   // People: everyone sees who is here; those who look after the server change them.
   'GET /api/people': 'signedIn',
   'POST /api/people': 'admin',
+  'GET /api/people/invites': 'admin',
+  'POST /api/people/invites': 'admin',
+  'DELETE /api/people/invites/:id': 'admin',
   'PATCH /api/people/:id': 'admin',
   'DELETE /api/people/:id': 'admin',
   'GET /api/people/:id/private-bots': 'admin',

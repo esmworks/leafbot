@@ -1430,6 +1430,20 @@ export const tr = {
   'people.intro':
     'Bu sunucuyu kullanan kişiler. Herkes kendi sohbetlerini, notlarını, bağlantılarını ve kasa kayıtlarını görür; başkasınınkini kimse göremez, yöneticiler de.',
   'people.add': 'Kişi ekle',
+  'people.invite': 'Davet et',
+  'people.inviteEmail': 'E-posta adresi',
+  'people.inviteHint':
+    'Bu adrese bir davet e-postası gider. Kişi davetteki bağlantıyla Leaf Bot hesabına girer (hesabı yoksa aynı e-postayla açılır) ve bu sunucuya gelir.',
+  'people.invited': '{email} adresine davet gönderildi',
+  'people.inviteToAccount': 'Hesaba davet et',
+  'people.inviteToAccountHint':
+    '{name} davetteki bağlantıyla Leaf Bot hesabına girdiğinde bu sunucuya aynı kişi olarak gelir; botları, sohbetleri ve notları yerinde kalır.',
+  'people.linked': 'hesabıyla giriyor',
+  'people.pending': 'Bekleyen davetler',
+  'people.pendingFor': '{name} için',
+  'people.undelivered': 'e-posta ulaşmadı',
+  'people.revokeInvite': 'Daveti geri al',
+  'people.send': 'Gönder',
   'people.owner': 'Sahip',
   'people.you': 'siz',
   'people.role.owner': 'Sahip',

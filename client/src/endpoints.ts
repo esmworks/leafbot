@@ -1,4 +1,6 @@
 import type {
+  AccountInvite,
+  PersonInvite,
   CardAnswer,
   CardTick,
   BotAction,
@@ -360,6 +362,10 @@ export function endpoints(send: Transport, base = '') {
     addPerson: (p: PersonCreate) => http.post<PersonInfo>('/api/people', p),
     updatePerson: (id: string, p: PersonUpdate) => http.patch<PersonInfo>(`/api/people/${id}`, p),
     removePerson: (id: string) => http.del<{ ok: true }>(`/api/people/${id}`),
+    /** Invites through the Leaf Bot account: someone new, or someone here (`personId`) to their account. */
+    invitePerson: (p: PersonInvite) => http.post<{ id: string; expiresAt: number }>('/api/people/invites', p),
+    personInvites: () => http.get<{ invites: AccountInvite[] }>('/api/people/invites'),
+    revokeInvite: (id: string) => http.del<{ ok: true }>(`/api/people/invites/${id}`),
     setBotAccess: (id: string, access: BotAccess) => http.put<Bot>(`/api/bots/${id}/access`, access),
     /** Models that make pictures through a saved key; the chosen one is the `imageModel` setting. */
     imageModels: () => http.get<{ models: ImageModel[] }>('/api/images/models'),

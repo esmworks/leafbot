@@ -113,7 +113,15 @@ export class Users {
   /** Everyone on the server, the owner first, then by when they came. */
   async list(): Promise<PersonInfo[]> {
     const rows = await this.db.select().from(schema.users).orderBy(asc(schema.users.createdAt));
-    return rows.map(personOf).sort((a, b) => Number(b.role === 'owner') - Number(a.role === 'owner'));
+    // Who signs in with an account: the list offers an invite to the others.
+    const linked = new Set(
+      (await this.db.select({ userId: schema.accountLinks.userId }).from(schema.accountLinks)).map(
+        (l) => l.userId,
+      ),
+    );
+    return rows
+      .map((r) => ({ ...personOf(r), linked: linked.has(r.id) }))
+      .sort((a, b) => Number(b.role === 'owner') - Number(a.role === 'owner'));
   }
 
   /**

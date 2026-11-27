@@ -1462,6 +1462,20 @@ export const en: Catalog<MessageKey> = {
   'people.intro':
     'The people who use this server. Each sees their own conversations, notes, connections and vault entries; nobody sees anyone else’s, admins included.',
   'people.add': 'Add person',
+  'people.invite': 'Invite',
+  'people.inviteEmail': 'Email address',
+  'people.inviteHint':
+    'An invite goes to this address. With its link they sign in to their Leaf Bot account (made with the same email if they have none) and come to this server.',
+  'people.invited': 'An invite went to {email}',
+  'people.inviteToAccount': 'Invite to an account',
+  'people.inviteToAccountHint':
+    'When {name} signs in to their Leaf Bot account with the invite’s link, they come to this server as the same person; their bots, conversations and notes stay where they are.',
+  'people.linked': 'signs in with an account',
+  'people.pending': 'Pending invites',
+  'people.pendingFor': 'for {name}',
+  'people.undelivered': 'the email did not arrive',
+  'people.revokeInvite': 'Take back the invite',
+  'people.send': 'Send',
   'people.owner': 'Owner',
   'people.you': 'you',
   'people.role.owner': 'Owner',

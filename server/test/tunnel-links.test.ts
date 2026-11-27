@@ -85,6 +85,60 @@ describe('AccountLinks', () => {
     expect(await links.resolve(claims('acct_member05', 'member'))).toEqual(m);
   });
 
+  const invited = (sub: string, role: TicketClaims['role'], person: string): TicketClaims => ({
+    ...claims(sub, role),
+    person,
+  });
+
+  it('lets an invited account in as the person its invite named, with their role from the account', async () => {
+    const joined: string[] = [];
+    const told = new AccountLinks(t.services.ctx.db, undefined, (id) => joined.push(id));
+    const ada = await t.auth.users.create({
+      username: 'ada-invite',
+      password: 'secret-pass',
+      role: 'member',
+    });
+    expect(await told.resolve(invited('acct_invite01', 'admin', ada.id))).toEqual({ userId: ada.id });
+    expect((await t.auth.users.get(ada.id))?.role).toBe('admin');
+    // Already here and placed: no one is asked to place them again.
+    expect(joined).toEqual([]);
+    expect(await told.resolve(invited('acct_invite01', 'admin', ada.id))).toEqual({ userId: ada.id });
+    // The person comes in once: a second account naming them is kept out, not made someone new.
+    expect(await told.resolve(invited('acct_invite02', 'member', ada.id))).toBeNull();
+  });
+
+  it('never lets an invite take the owner, someone disabled, removed or unknown', async () => {
+    expect(await links.resolve(invited('acct_invite03', 'member', OWNER_ID))).toBeNull();
+    const off = await t.auth.users.create({
+      username: 'off-invite',
+      password: 'secret-pass',
+      role: 'member',
+    });
+    await t.auth.users.change(off.id, { disabled: true });
+    expect(await links.resolve(invited('acct_invite04', 'member', off.id))).toBeNull();
+    const gone = await t.auth.users.create({
+      username: 'gone-invite',
+      password: 'secret-pass',
+      role: 'member',
+    });
+    await t.auth.users.remove(gone.id);
+    expect(await links.resolve(invited('acct_invite05', 'member', gone.id))).toBeNull();
+    const before = (await t.auth.users.list()).length;
+    expect(await links.resolve(invited('acct_invite06', 'member', 'no-such-person-01'))).toBeNull();
+    // Kept out rather than made someone new.
+    expect((await t.auth.users.list()).length).toBe(before);
+  });
+
+  it('gives the person to one account when two first visits name them at once', async () => {
+    const bo = await t.auth.users.create({ username: 'bo-invite', password: 'secret-pass', role: 'member' });
+    const [a, b] = await Promise.all([
+      links.resolve(invited('acct_invite07', 'member', bo.id)),
+      links.resolve(invited('acct_invite07', 'member', bo.id)),
+    ]);
+    expect(a).toEqual({ userId: bo.id });
+    expect(b).toEqual({ userId: bo.id });
+  });
+
   const settingsOf = (userId: string) => t.services.settings.all(userId);
   const named = (sub: string, role: TicketClaims['role'], name: string): TicketClaims => ({
     ...claims(sub, role),

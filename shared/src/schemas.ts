@@ -1481,6 +1481,8 @@ export const PersonInfo = z.object({
   /** No longer able to sign in; their conversations and notes are kept. */
   disabled: z.boolean(),
   createdAt: z.string(),
+  /** Signs in with a Leaf Bot account; set on the people list. */
+  linked: z.boolean().optional(),
 });
 export type PersonInfo = z.infer<typeof PersonInfo>;
 /** The roles a person can be given; there is only ever one owner. */
@@ -1492,6 +1494,28 @@ export const PersonCreate = z.object({
   role: GivenRole.default('member'),
 });
 export type PersonCreate = z.input<typeof PersonCreate>;
+/**
+ * An invite to the server through the Leaf Bot account, sent to an address. With `personId`, it is
+ * for someone already here: whoever accepts it comes in as that person, with what is theirs.
+ */
+export const PersonInvite = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
+  role: GivenRole.default('member'),
+  personId: z.string().min(1).max(100).optional(),
+});
+export type PersonInvite = z.input<typeof PersonInvite>;
+/** An invite waiting to be accepted, as the account service keeps it. */
+export const AccountInvite = z.object({
+  id: z.string(),
+  role: GivenRole,
+  email: z.string().nullable(),
+  /** The person here it is for, when it was made for one. */
+  person: z.string().nullable().default(null),
+  expiresAt: z.number(),
+  /** The mail never arrived: the address does not exist, or is not mailed to. */
+  undelivered: z.boolean().default(false),
+});
+export type AccountInvite = z.infer<typeof AccountInvite>;
 export const PersonUpdate = z.object({
   displayName: z.string().trim().max(100).nullable().optional(),
   role: GivenRole.optional(),

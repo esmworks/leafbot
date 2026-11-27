@@ -14,9 +14,10 @@ const ISSUER = 'https://accounts.example';
 const CODE = 'ABCDE-FGHJK-LMNPQ-RSTUV';
 
 /** The account service's two host routes, as far as linking and host tickets use them. */
-function fakeAccount(opts: { taken?: boolean } = {}) {
+function fakeAccount(opts: { taken?: boolean; inviteError?: [number, string] } = {}) {
   const claims: { hostId: string; publicKey: string; name: string }[] = [];
   const tickets: string[] = [];
+  const invites: { auth: string; body: Record<string, unknown>; id: string }[] = [];
   const fetcher = (async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input);
     const json = (status: number, body: unknown) =>
@@ -35,13 +36,43 @@ function fakeAccount(opts: { taken?: boolean } = {}) {
         credentialId: `cred_${claims.length}`,
       });
     }
+    if (url === `${ISSUER}/v1/host/invites` && init?.method === 'POST') {
+      if (opts.inviteError) return json(opts.inviteError[0], { error: opts.inviteError[1] });
+      const id = `inv_${invites.length + 1}_abcdefgh`;
+      invites.push({
+        auth: new Headers(init.headers).get('authorization') ?? '',
+        body: JSON.parse(String(init.body)) as Record<string, unknown>,
+        id,
+      });
+      return json(201, { id, expiresAt: 1234 });
+    }
+    if (url === `${ISSUER}/v1/host/invites`) {
+      return json(200, {
+        invites: invites.map((i) => ({
+          id: i.id,
+          role: i.body.role,
+          email: i.body.email,
+          person: i.body.person ?? null,
+          createdAt: 1,
+          expiresAt: 1234,
+          undelivered: false,
+        })),
+      });
+    }
+    const revoke = /\/v1\/host\/invites\/(.+)$/.exec(url);
+    if (revoke && init?.method === 'DELETE') {
+      const at = invites.findIndex((i) => i.id === revoke[1]);
+      if (at < 0) return json(404, { error: 'not_found' });
+      invites.splice(at, 1);
+      return new Response(null, { status: 204 });
+    }
     if (url === `${ISSUER}/v1/host/ticket`) {
       tickets.push(new Headers(init?.headers).get('authorization') ?? '');
       return json(200, { ticket: `host-ticket-${tickets.length}`, expiresAt: 0, epoch: 1 });
     }
     return json(404, { error: 'not_found' });
   }) as typeof fetch;
-  return { fetcher, claims, tickets };
+  return { fetcher, claims, tickets, invites };
 }
 
 describe('linking the server to an account', () => {
@@ -119,6 +150,47 @@ describe('linking the server to an account', () => {
     h.stop();
     expect((await h.state()).running).toBe(false);
     await new Promise<void>((r) => relay.close(() => r()));
+  });
+
+  it('invites through the account with its machine token, and only once linked', async () => {
+    const account = fakeAccount();
+    const h = host(account);
+    await h.unlink();
+    await expect(h.invite({ email: 'ann@example.com', role: 'member', lang: 'en' })).rejects.toMatchObject({
+      status: 409,
+      key: 'error.serverNotLinked',
+    });
+    expect(await h.invites()).toEqual([]);
+    await h.link(CODE, 'Office');
+    const made = await h.invite({
+      email: 'ann@example.com',
+      role: 'member',
+      person: 'person-0001',
+      lang: 'tr',
+    });
+    expect(made).toEqual({ id: 'inv_1_abcdefgh', expiresAt: 1234 });
+    expect(account.invites[0]).toMatchObject({
+      auth: expect.stringMatching(/^Bearer mt_\d+_secret$/),
+      body: { email: 'ann@example.com', role: 'member', person: 'person-0001', lang: 'tr' },
+    });
+    expect(await h.invites()).toEqual([
+      expect.objectContaining({ id: 'inv_1_abcdefgh', email: 'ann@example.com', person: 'person-0001' }),
+    ]);
+    await h.revokeInvite('inv_1_abcdefgh');
+    await expect(h.revokeInvite('inv_1_abcdefgh')).rejects.toMatchObject({ key: 'error.inviteGone' });
+  });
+
+  it('says why the account would not send an invite', async () => {
+    const tried = async (error: [number, string]) => {
+      const h = host(fakeAccount({ inviteError: error }));
+      await h.link(CODE, 'Office');
+      return h.invite({ email: 'ann@example.com', role: 'member', lang: 'en' }).catch((e: unknown) => e);
+    };
+    expect(await tried([409, 'already_member'])).toMatchObject({ key: 'error.personAlreadyLinked' });
+    expect(await tried([503, 'mail_unavailable'])).toMatchObject({ key: 'error.inviteMailUnavailable' });
+    expect(await tried([400, 'bad_request'])).toMatchObject({ key: 'error.accountEmailInvalid' });
+    expect(await tried([429, 'rate_limited'])).toMatchObject({ key: 'error.accountTooManyTries' });
+    expect(await tried([500, 'internal'])).toMatchObject({ key: 'error.accountUnreachable' });
   });
 
   it('lets only the owner link it, and never over the tunnel', async () => {
