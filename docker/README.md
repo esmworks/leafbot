@@ -42,8 +42,15 @@ sudo leafbot update        # en son sürüme günceller; ayarlar ve veriler kal�
 sudo leafbot status        # kapsayıcılar ve sunucunun yanıtı
 sudo leafbot logs [servis] # kayıtlar (leafbot, caddy, db, computer)
 sudo leafbot access-key    # erişim anahtarı
+sudo leafbot login         # Leaf Bot hesabınıza girip sunucuyu hesaba bağlar
 sudo leafbot compose ...   # bu kurulumun dosyalarıyla docker compose
 ```
+
+`sudo leafbot login`, masaüstü uygulamasının ilk açılışta yaptığı girişi terminalde yapar: e-posta adresinizi sorar,
+o adrese bir kod gönderir, kodu (hesabın adı yoksa adınızı da) sorar, sunucuyu hesabınıza bağlar ve sunucuyu yeniden
+başlatır (durdurulmuş bir sunucu bağlanır ama durmuş kalır). Ardından hesapta sunucunun sahibi sizsiniz; sunucuya telefondan ve www.leafbot.app/bots adresinden, port
+açmadan ve sunucuya ayrı bir adres vermeden ulaşırsınız. Gelen kod yanlışsa yeniden yazılır; boş bırakıp Enter'a
+basmak yeni bir kod gönderir.
 
 `update` seçenek alır: `sudo leafbot update --computer` botların bilgisayarını sonradan açar.
 
@@ -85,6 +92,19 @@ sudo ./docker/firewall.sh               # Linux ana makinede, compose'dan sonra
 ```
 
 Sunucu yalnızca ana makinenin `127.0.0.1:4319` adresinde dinler. Uzaktan erişim için bkz. "Uzaktan erişim".
+
+Sunucuyu Leaf Bot hesabınıza bağlamak için `login` komutunu kapsayıcısında çalıştırın, sonra sunucuyu yeniden
+başlatın:
+
+```bash
+docker compose -f docker/compose.yml --env-file docker/.env exec -e LANG=tr -e LEAFBOT_SERVER_NAME=bot.ornek.com leafbot node dist/index.mjs login
+docker compose -f docker/compose.yml --env-file docker/.env restart leafbot
+```
+
+Komut sunucunun veri klasöründe (`LEAFBOT_DATA_DIR`) ve veritabanında çalışır, bu yüzden sunucu hiç başlamadan da
+kullanılır. `LEAFBOT_SERVER_NAME` hesabın sunucuyu hangi adla listeleyeceğidir; verilmezse kapsayıcının kimliği
+görünür. Gömülü veritabanıyla (`DATABASE_URL` yokken) çalışan bir sunucu önce durdurulmalıdır, çünkü o
+veritabanını aynı anda tek bir süreç açabilir.
 
 ## Uzaktan erişim
 

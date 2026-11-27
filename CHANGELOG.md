@@ -29,6 +29,15 @@ version is 0.x, a minor release may change the data format or the API; the serve
   calls the person by it, a person reaching a server through their account is no longer nameless there, and the
   first-run questions start after the name when it is already known. An owner signed in this way is not asked to
   make a username and password for the server.
+- `leafbot login` signs a server with no screen (a VPS, a home server) in to its owner's Leaf Bot account the same
+  way, in the terminal: the email, the code mailed to it, and the name when the account has none. Before, such a
+  server could only be linked with an install code fetched from the website and pasted in the app. On a server set
+  up with `docker/install.sh` it asks in the running server's container and restarts the server afterwards;
+  elsewhere `node dist/index.mjs login` runs on the server's data folder (`LEAFBOT_DATA_DIR`), which works before
+  the first start and, with the embedded database, only while the server is stopped.
+- The embedded database's folder is locked by the process that opens it (`db.lock` in the data folder). A second
+  server or `leafbot login` on the same folder is refused instead of writing the same files, which corrupts the
+  database; a server starting while another is still shutting down waits for it.
 - `docker/firewall.sh` takes `HOST_PORTS` (such as `udp/3478 tcp/3478 udp/49152:65535`), ports on the host the
   containers may open connections to. A server on the same machine as its TURN server needs it: the firewall shuts
   the containers out of the host, so the server could not reach TURN and browsers could not reach the server.

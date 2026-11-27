@@ -1,5 +1,6 @@
 import { hostname } from 'node:os';
 import type { Locale } from '@leafbot/shared';
+import type { ServerKey } from '../i18n';
 import { OWNER_ID } from '../users';
 import { HttpError } from '../util';
 import type { AccountHost, AccountHostState } from './host';
@@ -80,14 +81,20 @@ export class AccountSignIn {
     return { status: res.status, body };
   }
 
-  /** The account service's refusal as the app shows it. */
-  private refused(r: { status: number; body: Record<string, unknown> | null }): never {
+  /**
+   * The account service's refusal as the app shows it. `badRequest`: what a plain 400 means at this
+   * step; only the email can be wrong when the code is asked for.
+   */
+  private refused(
+    r: { status: number; body: Record<string, unknown> | null },
+    badRequest: ServerKey = 'error.accountEmailInvalid',
+  ): never {
     const code = typeof r.body?.error === 'string' ? r.body.error : '';
     if (r.status === 429) throw new HttpError(429, 'error.accountTooManyTries');
     if (code === 'invalid_code') throw new HttpError(400, 'error.accountCodeWrong');
     if (code === 'mail_unavailable' || code === 'mail_failed')
       throw new HttpError(503, 'error.accountMailUnavailable');
-    if (r.status === 400) throw new HttpError(400, 'error.accountEmailInvalid');
+    if (r.status === 400) throw new HttpError(400, badRequest);
     throw new HttpError(502, 'error.accountUnreachable');
   }
 
@@ -100,9 +107,15 @@ export class AccountSignIn {
   /**
    * Checks the code, then links this server to the account with an install code that sign-in gets,
    * and makes the account this server's owner here. The account's name, when it has one, becomes
-   * the owner's.
+   * the owner's. `signal`: the person stopped (the terminal's Ctrl+C); the server is then not linked,
+   * unless it already was by the time they did.
    */
-  async verify(email: string, code: string): Promise<SignedIn> {
+  async verify(email: string, code: string, opts: { signal?: AbortSignal } = {}): Promise<SignedIn> {
+    const stopped = async (token: string) => {
+      if (!opts.signal?.aborted) return;
+      await this.end(token);
+      throw opts.signal.reason;
+    };
     const r = await this.call('/v1/auth/email/verify', {
       method: 'POST',
       body: { email, code, client: 'desktop' },
@@ -110,13 +123,15 @@ export class AccountSignIn {
     const user = r.body?.user as AccountUser | undefined;
     const token = typeof r.body?.token === 'string' ? r.body.token : null;
     if (r.status !== 200 || !user?.id || !token) this.refused(r);
+    await stopped(token);
     const name = serverName();
     const install = await this.call('/v1/servers/install-codes', { method: 'POST', body: { name }, token });
     const installCode = typeof install.body?.code === 'string' ? install.body.code : null;
     if (install.status !== 201 || !installCode) {
       await this.end(token);
-      this.refused(install);
+      this.refused(install, 'error.accountInstallRefused');
     }
+    await stopped(token);
     let host: AccountHostState;
     try {
       host = await this.deps.host.link(installCode, name);
@@ -165,12 +180,13 @@ export class AccountSignIn {
   }
 }
 
-/** What the account lists this server as: the computer's name. */
+/**
+ * What the account lists this server as: `LEAFBOT_SERVER_NAME`, else the computer's name. In a
+ * container the computer's name is the container's id, which tells the owner nothing.
+ */
 function serverName(): string {
   return (
-    hostname()
-      .replace(/\.local$/, '')
-      .trim()
-      .slice(0, 80) || 'Leaf Bot'
+    (process.env.LEAFBOT_SERVER_NAME?.trim() || hostname().replace(/\.local$/, '')).trim().slice(0, 80) ||
+    'Leaf Bot'
   );
 }

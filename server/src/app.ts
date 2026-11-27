@@ -74,7 +74,7 @@ import { PhoneBridge } from './phone/bridge';
 import { ChromeBridge } from './chrome/bridge';
 import { sweepUploads } from './uploads';
 import { HttpError } from './util';
-import { AccountHost } from './tunnel/host';
+import { AccountHost, accountHostConfig } from './tunnel/host';
 import { AccountLinks } from './tunnel/links';
 import { AccountSignIn } from './tunnel/signin';
 import { tunnelIdentity } from './tunnel/identity';
@@ -576,15 +576,11 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     db: db.db,
     vault: services.vault,
     server: app.server,
-    config: config.account ?? {
-      issuer: 'https://api.leafbot.app',
-      relayUrl: 'wss://signal.leafbot.app/v1/signal',
-      webHost: 'www.leafbot.app',
-    },
+    config: accountHostConfig(config),
     rtc: opts.rtc ?? null,
   });
   const accountSignIn = new AccountSignIn({
-    issuer: config.account?.issuer ?? 'https://api.leafbot.app',
+    issuer: accountHostConfig(config).issuer,
     host: accountHost,
     links: new AccountLinks(db.db),
   });
