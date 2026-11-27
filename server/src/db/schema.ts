@@ -24,6 +24,13 @@ const OUTSIDE_TRIGGERS = ['watch', 'webhook', 'email', 'whatsapp', 'web', 'forwa
 const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
 const created = () => ts('created_at').notNull().defaultNow();
 
+/**
+ * A team space, whose bots are open to its members, or with an owner, a folder in that person's
+ * Private, which opens nothing to anyone. A bot in neither is its owner's alone. A space is `open`
+ * (everyone sees it and may join), `closed` (everyone sees it and asks to join) or `secret` (only
+ * its members know of it). Groups made before spaces became the server owner's folders, so nobody
+ * reaches a bot through one they did not reach it through before.
+ */
 export const groups = pgTable('groups', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -31,8 +38,30 @@ export const groups = pgTable('groups', {
   position: integer('position').notNull().default(0),
   /** Set while every bot of the group is paused: none of them starts work until it is cleared. */
   pausedAt: ts('paused_at'),
+  /** Whose Private folder this is; null for a team space. */
+  ownerUserId: text('owner_user_id').references(() => users.id, { onDelete: 'cascade' }),
+  kind: text('kind', { enum: ['open', 'closed', 'secret'] })
+    .notNull()
+    .default('secret'),
+  /** Whether its members may also change its bots; otherwise they talk with them. */
+  membersEdit: boolean('members_edit').notNull().default(false),
   createdAt: created(),
 });
+
+/** Who is in a team space. Those who look after the server reach every bot without being in one. */
+export const groupMembers = pgTable(
+  'group_members',
+  {
+    groupId: text('group_id')
+      .notNull()
+      .references(() => groups.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: created(),
+  },
+  (t) => [primaryKey({ columns: [t.groupId, t.userId] }), index('group_members_user_idx').on(t.userId)],
+);
 
 export const bots = pgTable('bots', {
   id: text('id').primaryKey(),

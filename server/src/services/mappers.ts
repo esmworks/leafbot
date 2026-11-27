@@ -24,10 +24,14 @@ import { snapshotSteps } from './routine-steps';
 
 type Row<T extends { $inferSelect: unknown }> = T['$inferSelect'];
 
-export const toGroup = (r: Row<typeof schema.groups>): Group => ({
+export const toGroup = (r: Row<typeof schema.groups>, memberIds: string[] = []): Group => ({
   id: r.id,
   name: r.name,
   pausedAt: iso(r.pausedAt),
+  ownerUserId: r.ownerUserId,
+  kind: r.kind,
+  membersEdit: r.membersEdit,
+  memberIds,
   createdAt: r.createdAt.toISOString(),
 });
 

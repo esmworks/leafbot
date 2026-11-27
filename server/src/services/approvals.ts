@@ -40,7 +40,7 @@ import { serverTranslator } from './settings';
 import type { ThreadService } from './threads';
 import type { VaultService } from './vault';
 import { OWNER_ID } from '../users';
-import { botLevel, managesServer } from './access';
+import { botLevel, managesServer, spaceMembers } from './access';
 import { commandParts, freePart } from './shell-parts';
 import { redactSecrets } from './secrets';
 
@@ -740,11 +740,17 @@ export class ApprovalService {
       .where(eq(schema.users.id, by))
       .limit(1);
     const [bot] = await this.ctx.db
-      .select({ ownerUserId: schema.bots.ownerUserId, access: schema.bots.access })
+      .select({
+        ownerUserId: schema.bots.ownerUserId,
+        access: schema.bots.access,
+        groupId: schema.bots.groupId,
+      })
       .from(schema.bots)
       .where(eq(schema.bots.id, botId))
       .limit(1);
-    return !!user && !user.disabledAt && !!bot && botLevel({ userId: by, role: user.role }, bot) === 'edit';
+    if (!user || user.disabledAt || !bot) return false;
+    const space = (await spaceMembers(this.ctx, bot.groupId)).get(by);
+    return botLevel({ userId: by, role: user.role }, bot, space) === 'edit';
   }
 
   private async row(id: string) {
@@ -982,14 +988,21 @@ export class ApprovalService {
     people ??= await this.signedIn();
     const [bot] = botId
       ? await this.ctx.db
-          .select({ ownerUserId: schema.bots.ownerUserId, access: schema.bots.access })
+          .select({
+            ownerUserId: schema.bots.ownerUserId,
+            access: schema.bots.access,
+            groupId: schema.bots.groupId,
+          })
           .from(schema.bots)
           .where(eq(schema.bots.id, botId))
           .limit(1)
       : [];
+    const members = await spaceMembers(this.ctx, bot?.groupId ?? null);
     return people
       .filter((u) =>
-        botId ? !!bot && botLevel({ userId: u.id, role: u.role }, bot) === 'edit' : managesServer(u.role),
+        botId
+          ? !!bot && botLevel({ userId: u.id, role: u.role }, bot, members.get(u.id)) === 'edit'
+          : managesServer(u.role),
       )
       .map((u) => ({ id: u.id, name: u.displayName || u.username || '' }));
   }

@@ -74,11 +74,24 @@ export type ShownMode = (typeof PERMISSION_MODES)[number];
 export const shownMode = (mode: PermissionMode): ShownMode => (mode === 'review' ? 'auto' : mode);
 export type PermissionMode = z.infer<typeof PermissionMode>;
 
+/** Who sees a team space: everyone, who may join (`open`) or ask to (`closed`), or only its members (`secret`). */
+export const SpaceKind = z.enum(['open', 'closed', 'secret']);
+export type SpaceKind = z.infer<typeof SpaceKind>;
 export const Group = z.object({
   id: Id,
   name: z.string(),
   /** Set while every bot of the group is paused. Missing from older servers. */
   pausedAt: z.string().nullable().optional(),
+  /**
+   * Whose Private folder it is; null for a team space, whose bots are open to its members.
+   * Missing from older servers, whose groups opened nothing.
+   */
+  ownerUserId: z.string().nullable().optional(),
+  kind: SpaceKind.optional(),
+  /** Whether a space's members may also change its bots. */
+  membersEdit: z.boolean().optional(),
+  /** The people in a team space; empty for a folder. */
+  memberIds: z.array(z.string()).optional(),
   createdAt: z.string(),
 });
 export type Group = z.infer<typeof Group>;
