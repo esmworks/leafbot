@@ -12,16 +12,29 @@ import {
   X,
   BellOff,
   CircleDot,
+  Check,
+  ChevronsUpDown,
+  UserRound,
+  Server,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { AppMascot } from '@/components/AppMascot';
 import { BotAvatar } from '@/components/BotAvatar';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { BotDragProvider, useBotDrag, useDragItem, useSectionOver } from '@/features/botDrag';
 import { RoomRail, RoomsSection } from '@/features/Rooms';
 import { BotMenu, GroupMenu, SidebarMenu } from '@/features/SidebarMenus';
 import { isRtl } from '@leafbot/shared';
-import { useLocale, useT } from '@/i18n';
+import { useLocale, useT, type MessageKey } from '@/i18n';
 import { botState, useBotActivity } from '@/lib/botActivity';
 import { PINNED, UNGROUPED, type SectionKey } from '@/lib/botLayout';
 import { initials, useFormat } from '@/lib/format';
@@ -34,6 +47,7 @@ import { useDensity } from '@/lib/density';
 import { isUnread, useSeen } from '@/lib/unread';
 import { usePaused } from '@/lib/paused';
 import { cn } from '@/lib/utils';
+import { useServerSwitch, type ServerRole } from '@/lib/serverSwitch';
 
 export function Sidebar() {
   const { data: bots = [] } = useBots();
@@ -96,7 +110,6 @@ function SidebarPanel({
   const { data: settings } = useSettings();
   const [searching, setSearching] = useState(false);
   const openBotPage = useUi((s) => s.openBotPage);
-  const openSettings = useUi((s) => s.openSettings);
   const openApps = useUi((s) => s.openApps);
   const connected = useUi((s) => s.connected);
   // While a bot is dragged, empty sections show up so it can be dropped into them.
@@ -235,35 +248,7 @@ function SidebarPanel({
           >
             <LayoutGrid />
           </RoundButton>
-          <RoundButton
-            label={t('settings.title')}
-            onClick={() => openSettings('general', true)}
-            variant="ghost"
-            side="right"
-          >
-            <Settings2 />
-          </RoundButton>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={() => openSettings('profile')}
-                aria-label={t('profile.open')}
-                className="relative flex size-9 items-center justify-center rounded-full bg-secondary text-sm font-semibold transition-colors hover:bg-accent"
-              >
-                {initials(userName, intl)}
-                <span
-                  className={cn(
-                    'absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-sidebar',
-                    connected ? 'bg-emerald-500' : 'bg-amber-500',
-                  )}
-                />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right">
-              {userName} · {connected ? t('sidebar.connected') : t('sidebar.connecting')}
-            </TooltipContent>
-          </Tooltip>
+          <AccountMenu connected={connected} userName={userName} compact />
         </div>
         {resizable && <ResizeHandle width={width} />}
       </aside>
@@ -279,7 +264,7 @@ function SidebarPanel({
       )}
       style={phone ? undefined : { width }}
     >
-      <div className="window-drag flex items-center gap-2 px-4 pt-1 pb-1 frameless:ps-[88px] phone:pt-2">
+      <div className="window-drag @container flex items-center gap-2 px-4 pt-1 pb-1 frameless:ps-[88px] phone:pt-2">
         {searching ? (
           <div className="relative flex-1">
             <Search className="absolute top-1/2 start-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -304,25 +289,36 @@ function SidebarPanel({
             {phone ? (
               <h1 className="flex-1 ps-1 text-xl font-semibold">Leaf Bot</h1>
             ) : (
-              <div className="flex-1" />
+              // In a browser the corner the desktop app gives to the window buttons names the app; where
+              // the name would be cut short beside the buttons, the logo stands alone.
+              <div className="flex min-w-0 flex-1 items-center gap-2 ps-1 frameless:invisible">
+                <AppMascot className="size-6 shrink-0" />
+                <span className="text-[15px] font-semibold whitespace-nowrap @max-[15.75rem]:hidden">
+                  Leaf Bot
+                </span>
+              </div>
             )}
-            <RoundButton label={t('sidebar.search')} onClick={() => setSearching(true)}>
+            <RoundButton label={t('sidebar.search')} variant="ghost" onClick={() => setSearching(true)}>
               <Search />
             </RoundButton>
             <RoundButton
               label={t(onlyUnread ? 'sidebar.showAll' : 'sidebar.onlyUnread')}
+              variant="ghost"
               pressed={onlyUnread}
               onClick={() => setOnlyUnread(!onlyUnread)}
             >
               <CircleDot />
             </RoundButton>
-            <RoundButton label={t('sidebar.newBot')} onClick={() => openBotPage({ mode: 'create' })}>
+            <RoundButton
+              label={t('sidebar.newBot')}
+              variant="ghost"
+              onClick={() => openBotPage({ mode: 'create' })}
+            >
               <Plus />
             </RoundButton>
           </>
         )}
       </div>
-
       <SidebarMenu>
         <div ref={scroller} className="scroll-thin flex-1 overflow-y-auto px-2 pb-4">
           {query.trim().length >= 2 && (
@@ -402,71 +398,25 @@ function SidebarPanel({
         </div>
       </SidebarMenu>
 
-      {/* Too narrow for the name beside the five buttons, the avatar stands alone and carries the
-          connection dot, as in the rail. Narrower still, not even the avatar fits beside them and a
-          button would be pushed out of sight, so the avatar takes a row of its own, with the name
-          now that it has the room, and the buttons spread across the row below. */}
-      <div className="@container border-t">
-        <div className="flex flex-wrap items-center gap-1 px-2 py-2 @xs:gap-2 @max-[17.5rem]:justify-between">
-          <button
-            type="button"
-            onClick={() => openSettings('profile')}
-            title={`${userName} · ${connected ? t('sidebar.connected') : t('sidebar.connecting')}`}
-            aria-label={t('profile.open')}
-            className="me-auto flex min-w-0 items-center gap-3 rounded-2xl p-0.5 text-start transition-colors hover:bg-accent @xs:me-0 @xs:flex-1 @xs:px-2 @xs:py-1.5 @max-[17.5rem]:me-0 @max-[17.5rem]:basis-full @max-[17.5rem]:px-2 @max-[17.5rem]:py-1.5"
-          >
-            <span className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold">
-              {initials(userName, intl)}
-              <span
-                className={cn(
-                  'absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-sidebar @xs:hidden @max-[17.5rem]:hidden',
-                  connected ? 'bg-emerald-500' : 'bg-amber-500',
-                )}
-              />
-            </span>
-            <span className="hidden min-w-0 flex-1 @xs:block @max-[17.5rem]:block">
-              <span className="block truncate text-sm font-medium">{userName}</span>
-              <span className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground">
-                <span
-                  className={cn(
-                    'size-1.5 shrink-0 rounded-full',
-                    connected ? 'bg-emerald-500' : 'bg-amber-500',
-                  )}
-                />
-                <span className="truncate">
-                  {connected ? t('sidebar.connected') : t('sidebar.connecting')}
-                </span>
-              </span>
-            </span>
-          </button>
-          <RoundButton
-            label={t('today.title')}
-            variant="ghost"
-            onClick={() => useUi.getState().setTodayOpen(true)}
-          >
+      {/* The views across all bots on a row of their own, and under them who and where: the person
+          and the server this window shows, whose menu holds the other servers, the profile and
+          Settings. */}
+      <div className="border-t px-2 pt-1.5 pb-2">
+        <div className="grid grid-cols-4 gap-0.5 pb-1">
+          <NavTile label={t('today.title')} onClick={() => useUi.getState().setTodayOpen(true)}>
             <Sun />
-          </RoundButton>
-          <RoundButton
-            label={t('board.title')}
-            variant="ghost"
-            onClick={() => useUi.getState().setBoardOpen(true)}
-          >
+          </NavTile>
+          <NavTile label={t('board.title')} onClick={() => useUi.getState().setBoardOpen(true)}>
             <ListTodo />
-          </RoundButton>
-          <RoundButton
-            label={t('dashboards.title')}
-            variant="ghost"
-            onClick={() => useUi.getState().setDashboardsOpen(true)}
-          >
+          </NavTile>
+          <NavTile label={t('dashboards.title')} onClick={() => useUi.getState().setDashboardsOpen(true)}>
             <ChartColumnBig />
-          </RoundButton>
-          <RoundButton label={t('apps.open')} variant="ghost" onClick={() => openApps({ botId: null })}>
+          </NavTile>
+          <NavTile label={t('apps.open')} onClick={() => openApps({ botId: null })}>
             <LayoutGrid />
-          </RoundButton>
-          <RoundButton label={t('settings.title')} onClick={() => openSettings('general', true)}>
-            <Settings2 />
-          </RoundButton>
+          </NavTile>
         </div>
+        <AccountMenu connected={connected} userName={userName} />
       </div>
       {resizable && <ResizeHandle width={width} />}
     </aside>
@@ -476,7 +426,7 @@ function SidebarPanel({
 /** The search's shortcut as this computer's keyboard writes it. */
 const SEARCH_KEYS = /mac|iphone|ipad/i.test(navigator.userAgent) ? '⌘K' : 'Ctrl K';
 
-const heading = 'px-4 pt-3 pb-1 text-[13px] font-semibold tracking-wide text-muted-foreground uppercase';
+const heading = 'px-4 pt-3 pb-1 text-[13px] font-semibold text-muted-foreground';
 
 /** Highlights a bot while its menu is open. */
 const menuOpen = 'data-[state=open]:[&>button]:bg-accent/60';
@@ -569,6 +519,154 @@ function ResizeHandle({ width }: { width: number }) {
       onKeyDown={onKeyDown}
       className="absolute inset-y-0 -end-1.5 z-20 w-3 cursor-col-resize outline-none [-webkit-app-region:no-drag] after:absolute after:inset-y-0 after:start-1/2 after:w-px after:bg-ring after:opacity-0 after:transition-opacity hover:after:opacity-60 focus-visible:after:opacity-100 active:after:opacity-100"
     />
+  );
+}
+
+const ROLE: Record<ServerRole, MessageKey> = {
+  owner: 'bots.role.owner',
+  admin: 'bots.role.admin',
+  member: 'bots.role.member',
+};
+
+/**
+ * Who and where in one place: the person, and the server this window shows with their role there.
+ * Its menu moves to another server where this page may list them, or asks the desktop app for its
+ * own menu of them, and holds the profile and Settings.
+ */
+function AccountMenu({
+  connected,
+  userName,
+  compact = false,
+}: {
+  connected: boolean;
+  userName: string;
+  compact?: boolean;
+}) {
+  const t = useT();
+  const intl = useLocale((s) => s.intl);
+  const openSettings = useUi((s) => s.openSettings);
+  const sw = useServerSwitch();
+  const status = connected ? t('sidebar.connected') : t('sidebar.connecting');
+  const where = sw.role ? `${sw.name} · ${t(ROLE[sw.role])}` : sw.name;
+  const avatar = (
+    <span className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold">
+      {initials(userName, intl)}
+      <span
+        className={cn(
+          'absolute -end-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-sidebar',
+          connected ? 'bg-emerald-500' : 'bg-amber-500',
+        )}
+      />
+    </span>
+  );
+  const trigger = compact ? (
+    <button
+      type="button"
+      aria-label={t('sidebar.account')}
+      className="flex size-9 items-center justify-center rounded-full"
+    >
+      {avatar}
+    </button>
+  ) : (
+    <button
+      type="button"
+      aria-label={t('sidebar.account')}
+      className="flex w-full min-w-0 items-center gap-2.5 rounded-2xl px-1.5 py-1.5 text-start transition-colors hover:bg-accent data-[state=open]:bg-accent"
+    >
+      {avatar}
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{userName}</span>
+        <span className="block truncate text-[13px] text-muted-foreground">{connected ? where : status}</span>
+      </span>
+      <ChevronsUpDown className="size-4 shrink-0 text-muted-foreground" />
+    </button>
+  );
+  const servers = sw.servers && (sw.servers.length > 1 || sw.add) ? sw.servers : null;
+  return (
+    <DropdownMenu>
+      {compact ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            {userName} · {connected ? where : status}
+          </TooltipContent>
+        </Tooltip>
+      ) : (
+        <DropdownMenuTrigger asChild>{trigger}</DropdownMenuTrigger>
+      )}
+      <DropdownMenuContent
+        side={compact ? 'right' : 'top'}
+        align={compact ? 'end' : 'start'}
+        className={compact ? 'min-w-56' : 'w-(--radix-dropdown-menu-trigger-width) min-w-56'}
+      >
+        {servers ? (
+          <>
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              {t('sidebar.servers')}
+            </DropdownMenuLabel>
+            {servers.map((s) => (
+              <DropdownMenuItem key={s.id} onSelect={() => !s.current && sw.choose?.(s.id)} className="gap-2">
+                <Server className="text-muted-foreground" />
+                <span className="min-w-0 flex-1 truncate">{s.name}</span>
+                {s.role && <span className="text-xs text-muted-foreground">{t(ROLE[s.role])}</span>}
+                {s.current && <Check aria-label={t('connection.shownHere')} />}
+              </DropdownMenuItem>
+            ))}
+            {sw.add && (
+              <DropdownMenuItem onSelect={sw.add} className="gap-2">
+                <Plus className="text-muted-foreground" />
+                {t('connection.addServer')}
+              </DropdownMenuItem>
+            )}
+          </>
+        ) : sw.shellMenu ? (
+          <DropdownMenuItem onSelect={sw.shellMenu} className="gap-2">
+            <Server className="text-muted-foreground" />
+            <span className="min-w-0 flex-1 truncate">{sw.name}</span>
+            <span className="text-xs text-muted-foreground">{t('sidebar.switchServer')}</span>
+          </DropdownMenuItem>
+        ) : (
+          <DropdownMenuLabel className="flex items-center gap-2 font-normal text-muted-foreground">
+            <Server className="size-4" />
+            <span className="min-w-0 truncate">{sw.name}</span>
+          </DropdownMenuLabel>
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => openSettings('profile')} className="gap-2">
+          <UserRound className="text-muted-foreground" />
+          {t('profile.open')}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => openSettings('general', true)} className="gap-2">
+          <Settings2 className="text-muted-foreground" />
+          {t('settings.title')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+/** A view across all bots, named under its icon so the row reads without hovering. */
+function NavTile({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick(): void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={label}
+      className="flex min-w-0 flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:size-5"
+    >
+      {children}
+      <span className="w-full truncate text-center text-[11px] leading-none">{label}</span>
+    </button>
   );
 }
 
