@@ -504,6 +504,32 @@ Environment="HOST_PORTS=udp/3478 tcp/3478 udp/49152:65535"
 sudo systemctl restart leafbot-firewall-<uygulama>.service
 ```
 
+##### Hazır imajlarla
+
+Panel her yayında `leafbot` ve `computer` imajlarını indirdiği daldan derler: bu 10-20 dakika sürer ve
+sunucuya dalın en son commit'ini koyar. Otomatik yayın açıksa her push sunucuyu günceller. Sunucunun
+yalnızca yayımlanmış sürümle çalışması ve siz yayınlayınca güncellenmesi için `docker/compose.images.yml`
+eklenir. Bu dosya derlemeyi kaldırır, her yayında sürümün imajlarını yeniden indirir:
+
+1. Dokploy'da uygulamanın Advanced sekmesindeki Run Command'da `-f ./docker/compose.yml`'nin hemen arkasına
+   `-f ./docker/compose.images.yml` ekleyin. Komutun geri kalanı panelin gösterdiği gibi kalır, yalnız
+   `compose` ile başlar: panel başına `docker` kendisi ekler. Ör.:
+
+   ```text
+   compose -p <uygulama> --env-file docker/.env -f ./docker/compose.yml -f ./docker/compose.images.yml up -d --build --remove-orphans
+   ```
+
+2. Otomatik yayını (Autodeploy) kapatın; push'lar artık sunucuya ulaşmaz.
+3. Yeni bir sürüm yayımlandığında panelde Deploy'a basın.
+
+`LEAFBOT_VERSION` boşken en son sürüm (`latest`) kullanılır; ortam değişkenlerine `LEAFBOT_VERSION=0.10.0`
+gibi bir sürüm yazarak (başında `v` olmadan) o sürüme sabitlenir. Panel compose dosyalarını yine kendi
+dalından alır; dal genelde sürümden yenidir, yani dosyalar sunucudan biraz ileride olabilir.
+
+Sunucu daldan derlenmiş, en son sürümden yeni bir kodla çalışıyorsa bu dosyayı en az o kadar yeni bir sürüm
+çıkana kadar eklemeyin. Yeni kod veritabanının yapısını ilerletmiştir; eski bir sürüm o veritabanıyla
+çalışmayabilir. Geçmeden önce veritabanını yedekleyin.
+
 ## Botların bilgisayarı
 
 Her botun kendi Linux masaüstü oturumu vardır: panel, tarayıcı, terminal, dosya yöneticisi, LibreOffice ve
