@@ -330,6 +330,9 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- `docker/firewall.sh` removes the YUMAKBOT-EGRESS and YUMAKBOT-INPUT chains an install from before 0.7.0
+  left on a host that has not restarted since. They held the same rules as the new chains, but undid the ports
+  `HOST_PORTS` opens. They go only after the new chains are in place.
 - Deleting a bot first stops any work it still had going, such as a run queued after it was archived, so
   nothing writes to a bot whose rows are being removed.
 

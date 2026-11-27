@@ -81,4 +81,18 @@ done
 iptables -A LEAFBOT-INPUT -j REJECT
 ip6tables -A LEAFBOT-INPUT -j REJECT
 
+# Before 0.7.0 the chains were named YUMAKBOT-EGRESS and YUMAKBOT-INPUT, and an upgraded host keeps them
+# until it restarts. They hold the same rules as the chains above, so they protect nothing more, but a
+# packet for the host passes them after LEAFBOT-INPUT and their REJECT undoes HOST_PORTS. They go only
+# now that the new chains are in place, so the bridge is never left without rules; a chain another bridge
+# still uses stays until that bridge's own run removes its link.
+for cmd in iptables ip6tables; do
+  while $cmd -D DOCKER-USER -i "$BRIDGE" -j YUMAKBOT-EGRESS 2>/dev/null; do :; done
+  while $cmd -D INPUT -i "$BRIDGE" -j YUMAKBOT-INPUT 2>/dev/null; do :; done
+  for old in YUMAKBOT-EGRESS YUMAKBOT-INPUT; do
+    $cmd -S "$old" >/dev/null 2>&1 || continue
+    $cmd -S | grep -q -- "-j $old\$" || { $cmd -F "$old" && $cmd -X "$old"; }
+  done
+done
+
 echo "Leaf Bot çıkış kuralları kuruldu ($BRIDGE)."
