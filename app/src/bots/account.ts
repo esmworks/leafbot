@@ -63,7 +63,7 @@ export const account = {
     ),
 };
 
-/** The website's sign-in, coming back here afterwards. */
+/** The website's sign-in, coming back here afterwards, to the server the address named if any. */
 export function signInUrl(): string {
-  return `/login?next=${encodeURIComponent(import.meta.env.BASE_URL.replace(/\/$/, ''))}`;
+  return `/login?next=${encodeURIComponent(import.meta.env.BASE_URL.replace(/\/$/, '') + location.search)}`;
 }

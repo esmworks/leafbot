@@ -78,12 +78,29 @@ async function discover(): Promise<Start> {
   try {
     await account.session();
     const servers = await account.servers();
-    const last = servers.find((s) => s.id === remembered());
-    const pick = last ?? (servers.length === 1 ? servers[0] : undefined);
+    const named = namedServer();
+    forgetNamed();
+    // A link that names a server opens that one; one the account cannot reach shows the list.
+    const pick = named
+      ? servers.find((s) => s.id === named)
+      : (servers.find((s) => s.id === remembered()) ?? (servers.length === 1 ? servers[0] : undefined));
     return { at: 'servers', servers, ...(pick ? { pick } : {}) };
   } catch (err) {
     return { at: err instanceof AccountError && err.status === 401 ? 'signIn' : 'accountDown' };
   }
+}
+
+/** The server a link named, as the account page's Open does: `/bots/?server=<id>`. */
+function namedServer(): string | null {
+  return new URLSearchParams(location.search).get('server') || null;
+}
+
+/** Takes the server out of the address once read, so a reload opens the one chosen since. */
+function forgetNamed() {
+  const url = new URL(location.href);
+  if (!url.searchParams.has('server')) return;
+  url.searchParams.delete('server');
+  history.replaceState(history.state, '', url);
 }
 
 function remembered(): string | null {
