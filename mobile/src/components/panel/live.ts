@@ -1,18 +1,7 @@
-import type {
-  BrowserAck,
-  BrowserInput,
-  BrowserState,
-  ClientToServerEvents,
-  ComputerAck,
-  ComputerState,
-  ServerToClientEvents,
-} from '@leafbot/shared';
+import type { BrowserAck, BrowserInput, BrowserState, ComputerAck, ComputerState } from '@leafbot/shared';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { io, type Socket } from 'socket.io-client';
-import { locale } from '@/i18n';
+import { tunnelSocket, type AppSocket } from '@/lib/tunnelSocket';
 import { useServer } from '@/lib/server';
-
-type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 export interface Frame {
   /** A data: address of the latest JPEG picture. */
@@ -40,16 +29,6 @@ function base64(bytes: Uint8Array): string {
 const OFF = (botId: string): BrowserState => ({ botId, status: 'off', url: null, title: null, tabs: 0 });
 const ASLEEP = (botId: string): ComputerState => ({ botId, status: 'off', user: false, busy: false });
 
-/** A socket of its own to the server; the screens close it when they leave. */
-function openSocket(origin: string): AppSocket {
-  return io(origin, {
-    path: '/socket.io',
-    transports: ['websocket'],
-    withCredentials: true,
-    extraHeaders: { 'accept-language': locale },
-  });
-}
-
 /** Closes a socket after a last message (giving control back) has had time to leave. */
 function closeLater(s: AppSocket) {
   s.removeAllListeners();
@@ -70,7 +49,7 @@ export function useBrowserLive(botId: string, enabled = true) {
 
   useEffect(() => {
     if (!origin || !enabled) return;
-    const s = openSocket(origin);
+    const s = tunnelSocket();
     sock.current = s;
     s.on('browser:state', (e) => e.botId === botId && setState(e));
     s.on('browser:frame', (f) => {
@@ -128,7 +107,7 @@ export function useDesktopLive(botId: string, enabled = true) {
 
   useEffect(() => {
     if (!origin || !enabled) return;
-    const s = openSocket(origin);
+    const s = tunnelSocket();
     sock.current = s;
     s.on('computer:state', (e) => e.botId === botId && setState(e));
     s.on('connect', () => {

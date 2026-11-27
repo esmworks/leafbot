@@ -31,10 +31,5 @@ export function replyExcerpt(m: Message): string {
   return excerpt(m.text || files.map((f) => f.name ?? '').join(', '));
 }
 
-/** The address that opens one conversation in the web app of this server. */
-export function threadLink(origin: string, threadId: string): string {
-  return `${origin.replace(/\/+$/, '')}/?thread=${encodeURIComponent(threadId)}`;
-}
-
 /** Emoji a person can mark a conversation with, to find it again at a glance. */
 export const THREAD_ICONS = ['📌', '💼', '🏠', '💡', '📊', '🧾', '✈️', '🛒', '📚', '🔧', '❤️', '⭐'];

@@ -5,6 +5,7 @@ import { tr as panel } from './parts/panel';
 import { tr as dialogs } from './parts/dialogs';
 import { tr as settings } from './parts/settings';
 import { tr as apps } from './parts/apps';
+import { tr as link } from './parts/link';
 
 /** Turkish words only the phone app uses; the rest come from the web app's catalog. */
 export const tr = {
@@ -15,31 +16,9 @@ export const tr = {
   ...dialogs,
   ...settings,
   ...apps,
+  ...link,
   'common.retry': 'Tekrar dene',
   'common.ok': 'Tamam',
-
-  'connect.title': 'Sunucuna bağlan',
-  'connect.intro':
-    'Botlar kendi sunucunda çalışır; bu telefon yalnızca pencere olur. Bilgisayarındaki ya da sunucundaki Leaf Bot’un adresini yaz.',
-  'connect.url': 'Sunucu adresi',
-  'connect.urlPlaceholder': '192.168.1.20:4319',
-  'connect.submit': 'Bağlan',
-  'connect.invalid': 'Bu bir adres değil',
-  'connect.notLeafBot': 'Bu adreste bir Leaf Bot sunucusu yanıt vermedi',
-  'connect.httpsOnly':
-    'Bu adreste HTTPS ile yanıt veren bir Leaf Bot sunucusu yok. İnternetteki bir sunucu HTTPS ister; yine de düz http kullanmak için başına http:// yaz.',
-  'connect.insecureTitle': 'Şifrelemeden bağlanılsın mı?',
-  'connect.insecureText':
-    '{host} internette ama düz http ile yanıt veriyor. Aradaki herkes erişim anahtarını, şifreni ve konuşmalarını okuyabilir. Neden gerektiğini bilmiyorsan https ile başlayan bir adres kullan.',
-  'connect.insecureConfirm': 'Yine de bağlan',
-
-  'offline.title': 'Sunucuya ulaşılamadı',
-  'offline.text':
-    '{host} yanıt vermiyor. Sunucunun açık olduğunu ve telefonun aynı ağda ya da VPN’de olduğunu denetle.',
-  'offline.change': 'Başka sunucu',
-
-  'login.key': 'Erişim anahtarı',
-  'login.server': 'Sunucu: {host}',
 
   'bots.logout': 'Çıkış',
   'bots.loadFailed': 'Botlar yüklenemedi',

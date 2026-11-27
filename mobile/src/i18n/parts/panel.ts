@@ -16,7 +16,7 @@ export const tr = {
   'panel.filesFailed': 'Dosyalar yüklenemedi',
   'preview.more': 'Diğer işlemler',
   'computer.desktopNoScreen':
-    'Bu sunucu botun bilgisayarının canlı ekranını telefona göstermiyor. Sunucu güncellenince burada görünür; o zamana kadar bilgisayardaki uygulamadan izleyebilirsin.',
+    'Botun bilgisayarının canlı ekranı telefonda değil, bilgisayardaki uygulamada gösterilir. Burada durumunu görür, uyandırabilirsin.',
   'computer.unavailable': 'Bu sunucuda bota ait bir tarayıcı ya da bilgisayar yok.',
   'computer.windowHint': 'Bilgisayarında ayrı pencerede açık; bot bekliyor.',
   'instructionsDoc.nothingWaits': 'Talimat belgesinde bekleyen bir değişiklik yok.',
@@ -40,7 +40,7 @@ export const en: Record<keyof typeof tr, string> = {
   'panel.filesFailed': 'The files could not be loaded',
   'preview.more': 'More actions',
   'computer.desktopNoScreen':
-    "This server does not show the live screen of the bot's computer on the phone. It shows here once the server is updated; until then, watch it in the desktop app.",
+    "The live screen of the bot's computer is shown in the desktop app, not on the phone. Here you can see its state and wake it.",
   'computer.unavailable': 'This server has no browser or computer for the bot.',
   'computer.windowHint': 'Open in its own window on your computer; the bot waits.',
   'instructionsDoc.nothingWaits': 'No change waits in the instructions document.',

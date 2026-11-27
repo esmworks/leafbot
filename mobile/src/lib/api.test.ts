@@ -1,93 +1,110 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NoAnswerError } from '@leafbot/client';
 import { apiFor, ApiError } from './api';
+import type { ServerRequest, ServerResponse } from './connection';
 
 // The real catalogs read the phone's language through a native module.
 vi.mock('@/i18n', () => ({ locale: 'tr', t: (key: string) => key }));
 
-const ORIGIN = 'https://bot.example';
-const fetchMock = vi.fn<typeof fetch>();
+type Fetch = (path: string, init?: ServerRequest) => Promise<ServerResponse>;
+const calls: [string, ServerRequest | undefined][] = [];
+let impl: Fetch = () => Promise.reject(new Error('no answer set'));
+const serverFetch = {
+  /** Answers every call from now on with this, and forgets the calls so far. */
+  use(next: Fetch) {
+    calls.length = 0;
+    impl = next;
+  },
+  once(next: Fetch) {
+    const rest = impl;
+    impl = (path, init) => {
+      impl = rest;
+      return next(path, init);
+    };
+  },
+};
+vi.mock('./connection', () => ({
+  serverFetch: (path: string, init?: ServerRequest) => {
+    calls.push([path, init]);
+    return impl(path, init);
+  },
+  blobBytes: async (blob: Blob) => new Uint8Array(await blob.arrayBuffer()),
+}));
 
 /** An answer with this status and body, as the server or a proxy in front of it gives it. */
-const answer = (status: number, body: string) => Promise.resolve(new Response(body, { status }));
+const answer = (status: number, body: string) =>
+  Promise.resolve<ServerResponse>({
+    ok: status >= 200 && status < 300,
+    status,
+    headers: new Headers(),
+    bytes: async () => new TextEncoder().encode(body),
+    text: async () => body,
+    cancel: () => undefined,
+  });
 
-/** What the app asked fetch for in its nth call. */
+/** What the app asked the tunnel for in its nth call. */
 const call = (n = 0) => {
-  const [url, init] = fetchMock.mock.calls[n] ?? [];
-  return { url, init: init ?? {}, headers: (init?.headers ?? {}) as Record<string, string> };
+  const [path, init] = calls[n] ?? [];
+  return { path, init: init ?? {}, headers: init?.headers ?? {} };
 };
 
-beforeEach(() => {
-  fetchMock.mockReset();
-  vi.stubGlobal('fetch', fetchMock);
-});
-afterEach(() => vi.unstubAllGlobals());
+beforeEach(() => serverFetch.use(() => Promise.reject(new Error('no answer set'))));
 
 describe('apiFor', () => {
-  it('sends a write to the server address, saying which origin it comes from', async () => {
-    fetchMock.mockImplementation(() => answer(200, '{"id":"b1"}'));
-    expect(await apiFor(ORIGIN).updateBot('b1', { name: 'x' })).toEqual({ id: 'b1' });
-    const { url, init, headers } = call();
-    expect(url).toBe(`${ORIGIN}/api/bots/b1`);
-    expect(init).toMatchObject({ method: 'PATCH', credentials: 'include', body: '{"name":"x"}' });
+  it('sends a write as JSON to a path on the server, with no origin or cookie', async () => {
+    serverFetch.use(() => answer(200, '{"id":"b1"}'));
+    expect(await apiFor().updateBot('b1', { name: 'x' })).toEqual({ id: 'b1' });
+    const { path, init, headers } = call();
+    expect(path).toBe('/api/bots/b1');
+    expect(init.method).toBe('PATCH');
+    expect(new TextDecoder().decode(init.body ?? new Uint8Array())).toBe('{"name":"x"}');
     expect(headers).toMatchObject({
-      origin: ORIGIN,
       'content-type': 'application/json',
       'accept-language': 'tr',
       accept: 'application/json',
     });
+    expect(headers).not.toHaveProperty('origin');
   });
 
-  it('leaves the origin out of a read', async () => {
-    fetchMock.mockImplementation(() => answer(200, '[]'));
-    await apiFor(ORIGIN).bots();
-    expect(call().headers.origin).toBeUndefined();
+  it('sends no body or content type with a read', async () => {
+    serverFetch.use(() => answer(200, '[]'));
+    await apiFor().bots();
+    expect(call().init.body).toBeNull();
     expect(call().headers['content-type']).toBeUndefined();
   });
 
-  it('sends a recording with its own type, not as a plain file', async () => {
-    fetchMock.mockImplementation(() => answer(200, '{"text":"merhaba"}'));
+  it('sends a recording as the bytes it is, with the longer wait of a file', async () => {
+    serverFetch.use(() => answer(200, '{"text":"merhaba"}'));
     const audio = new Blob(['x'], { type: 'audio/mp4' });
-    expect(await apiFor(ORIGIN).transcribe(audio, 'tr')).toEqual({ text: 'merhaba' });
-    expect(call().init.body).toBe(audio);
-    expect(call().headers['content-type']).toBe('audio/mp4');
-  });
-
-  it('gives addresses handed to a viewer the server address', () => {
-    expect(apiFor(ORIGIN).fileUrl('b1', 'a b.png', { inline: true })).toBe(
-      `${ORIGIN}/api/bots/b1/library/file?path=a%20b.png&inline=1`,
-    );
+    expect(await apiFor().transcribe(audio, 'tr')).toEqual({ text: 'merhaba' });
+    expect(call().init.body).toEqual(new Uint8Array([120]));
+    expect(call().init.timeoutMs).toBeGreaterThan(60_000);
   });
 
   it("tells the server's own refusal apart from a proxy's error page", async () => {
-    fetchMock.mockImplementationOnce(() => answer(409, '{"error":"arşivde"}'));
-    await expect(apiFor(ORIGIN).bots()).rejects.toMatchObject({
+    serverFetch.once(() => answer(409, '{"error":"arşivde"}'));
+    await expect(apiFor().bots()).rejects.toMatchObject({
       status: 409,
       message: 'arşivde',
       fromServer: true,
     });
-    fetchMock.mockImplementationOnce(() => answer(502, '<html>Bad gateway</html>'));
-    const err = await apiFor(ORIGIN)
+    serverFetch.once(() => answer(502, '<html>Bad gateway</html>'));
+    const err = await apiFor()
       .bots()
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect(err).toMatchObject({ status: 502, message: 'error.requestFailed', fromServer: false });
   });
 
-  it('gives up on a server that never answers', async () => {
-    vi.useFakeTimers();
+  it('lets a missing answer through as NoAnswerError', async () => {
+    const down = new NoAnswerError('no tunnel');
+    serverFetch.use(() => Promise.reject(down));
+    let err: unknown = null;
     try {
-      fetchMock.mockImplementation(
-        (_url, init) =>
-          new Promise((_resolve, reject) =>
-            init?.signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError'))),
-          ),
-      );
-      const pending = apiFor(ORIGIN).bots();
-      const caught = pending.catch((e: unknown) => e);
-      await vi.advanceTimersByTimeAsync(15_000);
-      expect(await caught).toMatchObject({ name: 'AbortError' });
-    } finally {
-      vi.useRealTimers();
+      await apiFor().bots();
+    } catch (e) {
+      err = e;
     }
+    expect(err).toBe(down);
   });
 });

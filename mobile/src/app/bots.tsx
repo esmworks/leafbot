@@ -25,13 +25,12 @@ import { nav } from '@/lib/nav';
 import { useBots, useGroups, useRooms, useSummaries } from '@/lib/queries';
 import { setUnread, syncSeen, unreadBots, useSeen } from '@/lib/seen';
 import { useOpenTappedNotice } from '@/lib/push';
-import { useApi, useServer } from '@/lib/server';
+import { useServer } from '@/lib/server';
 import { useColors } from '@/lib/theme';
 
 /** The bot list, laid out as the web app's phone view lays out its sidebar. */
 export default function Bots() {
-  const { origin } = useServer();
-  const api = useApi();
+  const { origin, signOut } = useServer();
   const c = useColors();
   const queryClient = useQueryClient();
   const bots = useBots();
@@ -62,14 +61,9 @@ export default function Bots() {
   const logout = async () => {
     if (leaving) return;
     setLeaving(true);
-    try {
-      await api.logout();
-    } catch {
-      // Signed out here even if the server did not hear it; its session ends on its own.
-    }
-    await queryClient.resetQueries();
+    await signOut();
     setLeaving(false);
-    router.replace('/login');
+    router.replace('/');
   };
 
   const menus = useSidebarMenus({
@@ -90,7 +84,7 @@ export default function Bots() {
     setSearching(false);
   };
 
-  if (signedOut) return <Redirect href="/login" />;
+  if (signedOut) return <Redirect href="/" />;
 
   return (
     <SafeAreaView style={[styles.screen, { backgroundColor: c.sidebar }]} edges={['top', 'left', 'right']}>

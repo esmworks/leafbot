@@ -1,16 +1,14 @@
 import { cardPlace, FULL_PAGE, type Bot, type Message, type Thread } from '@leafbot/shared';
 import { conversationMarkdown } from '@leafbot/app/src/lib/exportChat';
 import { useQueryClient } from '@tanstack/react-query';
-import * as Clipboard from 'expo-clipboard';
 import { useMemo } from 'react';
 import { Share } from 'react-native';
-import { askText, confirm, toast, toastError } from '@/components/overlay';
+import { askText, confirm, toastError } from '@/components/overlay';
 import { locale, t } from '@/i18n';
 import { formatters } from '@/lib/format';
 import { nav } from '@/lib/nav';
 import { useApprovals, useBots, useMainThread, useSettings, useThreads } from '@/lib/queries';
 import { useApi, useServer } from '@/lib/server';
-import { threadLink } from './text';
 
 const fmt = formatters(locale, t);
 
@@ -130,14 +128,6 @@ export function useThreadActions(bot: Bot) {
           return refresh();
         })
         .catch(toastError);
-    },
-    copyLink: async (th: Thread) => {
-      try {
-        await Clipboard.setStringAsync(threadLink(origin ?? '', th.id));
-        toast(t('chat.linkCopied'));
-      } catch {
-        toast(t('message.copyFailed'), { tone: 'error' });
-      }
     },
     /** Hands the whole conversation, also what is not loaded on screen, to the share sheet as Markdown. */
     exportConversation: async (threadId: string) => {

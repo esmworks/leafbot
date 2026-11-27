@@ -46,6 +46,7 @@ const ALLOWED = new Map<string, string>([
   ['mobile/src/i18n/en.ts', 'English catalog of the phone app'],
   ['mobile/src/i18n/de.ts', 'German catalog of the phone app'],
   ['mobile/src/i18n/parts/sidebar.ts', 'part of the phone app catalogs'],
+  ['mobile/src/i18n/parts/link.ts', 'part of the phone app catalogs'],
   ['mobile/src/i18n/parts/chat.ts', 'part of the phone app catalogs'],
   ['mobile/src/i18n/parts/message.ts', 'part of the phone app catalogs'],
   ['mobile/src/i18n/parts/panel.ts', 'part of the phone app catalogs'],

@@ -1,7 +1,7 @@
 import type { MessageFile } from '@leafbot/shared';
 import Feather from '@expo/vector-icons/Feather';
-import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ServerImage } from '@/components/ServerImage';
 import { t } from '@/i18n';
 import { nav } from '@/lib/nav';
 import { useApi } from '@/lib/server';
@@ -34,8 +34,8 @@ export function MessageFiles({
         if (botId && f.path && isImage(f.name)) {
           return (
             <Pressable key={f.path} accessibilityRole="imagebutton" accessibilityLabel={label} onPress={open}>
-              <Image
-                source={{ uri: api.fileUrl(botId, f.path, { inline: true, thumb: true }) }}
+              <ServerImage
+                path={api.fileUrl(botId, f.path, { inline: true, thumb: true })}
                 accessibilityLabel={f.name}
                 contentFit="cover"
                 style={[styles.image, { borderColor: c.border }]}

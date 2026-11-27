@@ -24,7 +24,8 @@ export function EmailPage({ summary }: { summary?: Summary }) {
   const put = (s: EmailSettings) => qc.setQueryData(['email', origin], s);
   const renew = useMutation({ mutationFn: api.renewEmailSecret, onSuccess: put, onError: toastError });
   if (!email || !settings) return <PageHead id="email" summary={summary} />;
-  const endpoint = `${info?.publicUrl ?? origin}/api/email/inbound?to=<address>`;
+  // Mail reaches the server from the internet, so only a public address can take it; the tunnel is the phone's own.
+  const endpoint = info?.publicUrl ? `${info.publicUrl}/api/email/inbound?to=<address>` : null;
   return (
     <>
       <PageHead id="email" summary={summary} />
@@ -55,14 +56,16 @@ export function EmailPage({ summary }: { summary?: Summary }) {
               <Pad>
                 <Hint>{t('email.relayHint')}</Hint>
               </Pad>
-              <Row
-                icon="copy"
-                label={t('message.copy')}
-                detail={`POST ${endpoint}`}
-                detailLines={0}
-                onPress={() => void copy(endpoint, 'email.copied')}
-                chevron={false}
-              />
+              {endpoint ? (
+                <Row
+                  icon="copy"
+                  label={t('message.copy')}
+                  detail={`POST ${endpoint}`}
+                  detailLines={0}
+                  onPress={() => void copy(endpoint, 'email.copied')}
+                  chevron={false}
+                />
+              ) : null}
               {email.secret ? (
                 <Row
                   icon="copy"

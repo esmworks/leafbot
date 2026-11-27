@@ -3,41 +3,28 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { toast, toastError } from '@/components/overlay';
+import { StyleSheet, View } from 'react-native';
+import { toastError } from '@/components/overlay';
 import { PillButton, Row, Section } from '@/components/page';
 import { Field } from '@/components/ui';
 import { Pad, Rows, Status } from './common/controls';
-import { deviceName } from './common/text';
-import { AccountForm } from './connect/AccountSetup';
-import { locale, t } from '@/i18n';
-import { formatters } from '@/lib/format';
+import { t } from '@/i18n';
 import { useInfo, useManagesServer } from '@/lib/queries';
 import { useApi, useServer } from '@/lib/server';
-import { useColors } from '@/lib/theme';
-
-const fmt = formatters(locale, t);
 
 /** The "connection" settings section's content, under the section's own title bar. */
 export function ConnectionSection() {
-  const api = useApi();
-  const { origin } = useServer();
+  const { server, servers, user, signOut } = useServer();
   const { data: info } = useInfo();
   // The server's environment and the push key are for those who look after the server.
   const manages = useManagesServer();
-  const qc = useQueryClient();
   const [leaving, setLeaving] = useState(false);
-  // As the bot list signs out: the server may not hear it, and this phone is signed out anyway.
+  // Signs out of the Leaf Bot account on this phone: the service ends the session, and the phone forgets it.
   const logout = async () => {
     setLeaving(true);
-    try {
-      await api.logout();
-    } catch {
-      // The server's session ends on its own.
-    }
-    await qc.resetQueries();
+    await signOut();
     setLeaving(false);
-    router.replace('/login');
+    router.replace('/');
   };
   return (
     <>
@@ -51,10 +38,16 @@ export function ConnectionSection() {
       ) : null}
       <Section title={t('connection.server')}>
         <Rows>
-          <Row label={t('connection.address')} detail={origin} />
+          <Row label={t('link.connectedTo')} value={server?.name ?? '…'} />
           <Row label={t('connection.version')} value={info?.version ?? '…'} />
-          <AccountRow />
-          <Row icon="repeat" label={t('connection.connectOther')} onPress={() => router.push('/connect')} />
+          <Row
+            label={t('link.account')}
+            value={user?.name || user?.email || null}
+            detail={user?.name ? user.email : null}
+          />
+          {servers.length > 1 ? (
+            <Row icon="repeat" label={t('link.otherServer')} onPress={() => router.push('/servers')} />
+          ) : null}
           <Row
             icon="log-out"
             label={t('connection.logoutHere')}
@@ -65,7 +58,6 @@ export function ConnectionSection() {
           />
         </Rows>
       </Section>
-      <Devices />
       {manages ? <ApnsCard /> : null}
     </>
   );
@@ -104,95 +96,6 @@ function BrowserRow({ browser }: { browser: ServerInfo['browser'] | undefined })
         <Status state={ok ? 'ok' : 'problem'} label={ok ? t('browserInfo.ok') : t('browserInfo.missing')} />
       }
     />
-  );
-}
-
-/** The username and password browsers sign in with; hidden on servers older than accounts. */
-function AccountRow() {
-  const api = useApi();
-  const { origin } = useServer();
-  const { data, isError } = useQuery({ queryKey: ['account', origin], queryFn: api.account, retry: false });
-  const [open, setOpen] = useState(false);
-  if (isError || !data) return null;
-  return (
-    <View>
-      <Row
-        label={t('account.title')}
-        value={data.username}
-        detail={data.username ? null : t('account.none')}
-        onPress={() => setOpen((v) => !v)}
-      />
-      {open ? (
-        <Pad>
-          <AccountForm
-            username={data.username ?? ''}
-            change={data.username !== null}
-            onDone={() => {
-              setOpen(false);
-              toast(t('account.saved'));
-            }}
-          />
-        </Pad>
-      ) : null}
-    </View>
-  );
-}
-
-/** The browsers and apps signed in to this server, each of which can be signed out from here. */
-function Devices() {
-  const c = useColors();
-  const api = useApi();
-  const { origin } = useServer();
-  const qc = useQueryClient();
-  const { data: sessions } = useQuery({ queryKey: ['sessions', origin], queryFn: api.sessions });
-  const end = useMutation({
-    mutationFn: api.endSession,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['sessions', origin] }),
-    onError: toastError,
-  });
-  if (!sessions?.length) return null;
-  const others = sessions.filter((s) => !s.current).length;
-  return (
-    <Section title={t('devices.title')} footer={t('devices.othersHint')}>
-      <Rows>
-        {sessions.map((s) => {
-          const { app, os } = deviceName(s.userAgent);
-          const name = app && os ? t('devices.appOnOs', { app, os }) : (app ?? os ?? t('devices.unknown'));
-          return (
-            <Row
-              key={s.id}
-              label={name}
-              detail={t('devices.lastSeen', { when: fmt.dayLabel(s.lastSeenAt) })}
-              right={
-                s.current ? (
-                  <Text style={[styles.small, { color: c.mutedForeground }]}>{t('devices.this')}</Text>
-                ) : (
-                  <Pressable
-                    accessibilityRole="button"
-                    hitSlop={10}
-                    onPress={() => end.mutate(s.id)}
-                    disabled={end.isPending}
-                    style={({ pressed }) => pressed && { opacity: 0.6 }}
-                  >
-                    <Text style={[styles.small, { color: c.destructive }]}>{t('devices.signOut')}</Text>
-                  </Pressable>
-                )
-              }
-            />
-          );
-        })}
-        {others > 1 ? (
-          <Row
-            icon="log-out"
-            label={t('devices.signOutOthers')}
-            destructive
-            chevron={false}
-            disabled={end.isPending}
-            onPress={() => end.mutate('others')}
-          />
-        ) : null}
-      </Rows>
-    </Section>
   );
 }
 

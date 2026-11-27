@@ -19,7 +19,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AreaBox, FormField, SaveButton, TextBox } from '@/components/dialogs/common';
 import { Rehearsal } from '@/components/dialogs/Rehearsal';
 import { RoutineHealthSection } from '@/components/dialogs/RoutineHealthSection';
-import { isLoopback, runCommand, TIME, tomorrow } from '@/components/dialogs/model';
+import { isLoopback, TIME, tomorrow } from '@/components/dialogs/model';
 import { confirm, toast, toastError } from '@/components/overlay';
 import { Empty, Loading, Note, PillButton, Page, Row, Section, SwitchRow, back } from '@/components/page';
 import { Chip, ChipRow, ChoiceRow, Hint, Pad, Rows } from '@/components/settings/common/controls';
@@ -692,7 +692,7 @@ function RoutinePage({
       ) : null}
 
       {routine ? (
-        <Section footer={t('routine.runCommandHint')}>
+        <Section>
           <Rows>
             <Row
               icon="play"
@@ -729,17 +729,6 @@ function RoutinePage({
                 </View>
               </Pad>
             ) : null}
-            <Row
-              icon="terminal"
-              label={t('routine.copyRunCommand')}
-              chevron={false}
-              onPress={() => {
-                void Clipboard.setStringAsync(runCommand(origin ?? '', routine.id)).then(
-                  () => toast(t('routine.runCommandCopied')),
-                  () => toast(t('message.copyFailed'), { tone: 'error' }),
-                );
-              }}
-            />
           </Rows>
         </Section>
       ) : null}
@@ -976,16 +965,17 @@ function Webhook({ routine: given }: { routine: Routine }) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['routines', origin] }),
     onError: toastError,
   });
-  const base = info?.publicUrl ?? origin ?? '';
-  const url = routine.webhookToken
-    ? `${base}/api/hooks/routines/${routine.id}/${routine.webhookToken}`
-    : null;
+  // The phone reaches the server only through the tunnel, which no other service can use: an
+  // address another service calls exists only when the server has a public one.
+  const base = info?.publicUrl ?? null;
+  const url =
+    base && routine.webhookToken ? `${base}/api/hooks/routines/${routine.id}/${routine.webhookToken}` : null;
   // An address on this computer only cannot be reached by a service on the internet; say so.
-  let localOnly = false;
+  let localOnly = !base;
   try {
-    localOnly = !!url && isLoopback(new URL(base).hostname);
+    localOnly = !base || isLoopback(new URL(base).hostname);
   } catch {
-    localOnly = false;
+    localOnly = true;
   }
   return (
     <Section footer={localOnly ? t('routine.webhookLocalOnly') : undefined}>
@@ -1016,7 +1006,7 @@ function Webhook({ routine: given }: { routine: Routine }) {
                   }}
                 />
               </>
-            ) : (
+            ) : !base ? null : (
               <PillButton
                 icon="link"
                 label={t('routine.webhookCreate')}

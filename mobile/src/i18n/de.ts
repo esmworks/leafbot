@@ -22,7 +22,7 @@ export const de: Partial<Record<OwnKey, string>> = {
   'panel.filesFailed': 'Die Dateien konnten nicht geladen werden',
   'preview.more': 'Weitere Aktionen',
   'computer.desktopNoScreen':
-    'Dieser Server zeigt den Live-Bildschirm des Computers des Bots nicht auf dem Handy. Nach einem Server-Update erscheint er hier; bis dahin sieh ihn dir in der Desktop-App an.',
+    'Der Live-Bildschirm des Computers des Bots wird in der Desktop-App gezeigt, nicht auf dem Handy. Hier siehst du seinen Zustand und kannst ihn wecken.',
   'computer.unavailable': 'Dieser Server hat keinen Browser und keinen Computer für den Bot.',
   'computer.windowHint': 'In einem eigenen Fenster auf deinem Computer öffnen; der Bot wartet.',
   'dialogs.discard': 'Änderungen verwerfen',
@@ -64,26 +64,6 @@ export const de: Partial<Record<OwnKey, string>> = {
   'apps.catalogUnknown': 'Diese App steht nicht in der Liste.',
   'common.retry': 'Erneut versuchen',
   'common.ok': 'OK',
-  'connect.title': 'Mit deinem Server verbinden',
-  'connect.intro':
-    'Die Bots laufen auf deinem eigenen Server; dieses Handy ist nur das Fenster. Gib die Adresse von Leaf Bot auf deinem Computer oder Server ein.',
-  'connect.url': 'Serveradresse',
-  'connect.urlPlaceholder': '192.168.1.20:4319',
-  'connect.submit': 'Verbinden',
-  'connect.invalid': 'Das ist keine Adresse',
-  'connect.notLeafBot': 'Unter dieser Adresse hat kein Leaf-Bot-Server geantwortet',
-  'connect.httpsOnly':
-    'Unter dieser Adresse hat kein Leaf-Bot-Server über HTTPS geantwortet. Ein Server im Internet braucht HTTPS; um trotzdem einfaches http zu nutzen, gib http:// davor ein.',
-  'connect.insecureTitle': 'Ohne Verschlüsselung verbinden?',
-  'connect.insecureText':
-    '{host} ist im Internet, antwortet aber über einfaches http. Jeder auf dem Weg kann deinen Zugangsschlüssel, dein Passwort und deine Chats lesen. Nutze eine https-Adresse, außer du weißt, warum du das brauchst.',
-  'connect.insecureConfirm': 'Trotzdem verbinden',
-  'offline.title': 'Server nicht erreichbar',
-  'offline.text':
-    '{host} antwortet nicht. Prüfe, ob der Server an ist und ob dieses Handy im selben Netzwerk oder VPN ist.',
-  'offline.change': 'Anderer Server',
-  'login.key': 'Zugangsschlüssel',
-  'login.server': 'Server: {host}',
   'bots.logout': 'Abmelden',
   'bots.loadFailed': 'Die Bots konnten nicht geladen werden',
   'chat.back': 'Zurück',

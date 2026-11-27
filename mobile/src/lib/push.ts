@@ -171,7 +171,7 @@ export function usePush(origin: string | null, signedIn: boolean) {
   useEffect(() => {
     if (!active || !token || !levelLoaded || !mutesLoaded) return;
     const ids = unreadKey === undefined ? undefined : unreadKey ? unreadKey.split(',') : [];
-    apiFor(origin)
+    apiFor()
       .pushDevice({ token, platform: 'ios', locale, level, mutes, ...(ids ? { unread: ids } : {}) })
       .catch((err: unknown) => console.warn('push register', err));
   }, [active, origin, token, level, mutes, levelLoaded, mutesLoaded, unreadKey]);

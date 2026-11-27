@@ -5,11 +5,9 @@ import { shareFile } from '@/components/panel/files';
 import { Hint, Pad, Rows } from '../common/controls';
 import { t } from '@/i18n';
 import { useBots } from '@/lib/queries';
-import { useServer } from '@/lib/server';
 
 /** Bots written to an import file, to move them to another LeafBot or keep a copy. */
 export function ExportBots() {
-  const { origin } = useServer();
   const { data: bots = [] } = useBots();
   const [off, setOff] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
@@ -17,10 +15,7 @@ export function ExportBots() {
   if (!bots.length) return null;
   const share = async () => {
     setBusy(true);
-    await shareFile(
-      `${origin}/api/export/bots?ids=${picked.map((b) => b.id).join(',')}`,
-      'leafbot-bots.json',
-    );
+    await shareFile(`/api/export/bots?ids=${picked.map((b) => b.id).join(',')}`, 'leafbot-bots.json');
     setBusy(false);
   };
   return (

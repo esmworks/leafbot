@@ -1,13 +1,15 @@
 import { INTL_LOCALE } from '@leafbot/shared/i18n';
 import type { Message } from '@leafbot/shared';
 import Feather from '@expo/vector-icons/Feather';
+import Constants from 'expo-constants';
 import * as WebBrowser from 'expo-web-browser';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 import { shareFile } from '@/components/panel/files';
 import { locale, t } from '@/i18n';
-import { useApi, useServer } from '@/lib/server';
+import { serverFetch } from '@/lib/connection';
+import { useApi } from '@/lib/server';
 import { useColors, useIsDark } from '@/lib/theme';
 
 export interface FrameMessage {
@@ -58,7 +60,8 @@ const BRIDGE = `(function(){window.postMessage=function(m){window.ReactNativeWeb
 /**
  * A page that runs its own scripts inside the conversation (see shared/frame). Requests from the
  * page (messages with an id) go to `onRequest`, whose answer or error goes back; other messages to
- * `onNotify`. The session cookie goes along, so the server can serve the page.
+ * `onNotify`. The page is read through the tunnel and shown as a document of its own: it cannot load
+ * anything else from the server, only what it carries.
  */
 export function LiveFrame({
   src,
@@ -68,7 +71,7 @@ export function LiveFrame({
   onNotify,
   postRef,
 }: {
-  /** The frame document's absolute address on the server. */
+  /** The frame document's path on the server; it is read through the tunnel and shown from the page's own text. */
   src: string;
   initialHeight?: number;
   maxHeight?: number;
@@ -80,6 +83,24 @@ export function LiveFrame({
   const c = useColors();
   const view = useRef<WebView<object>>(null);
   const [height, setHeight] = useState(initialHeight);
+  // What came for one `src`; an answer for an earlier `src` counts as none.
+  const [answer, setAnswer] = useState<{ src: string; html: string | null } | null>(null);
+  const html = answer?.src === src ? answer.html : null;
+  const failed = answer?.src === src && answer.html === null;
+  useEffect(() => {
+    const ctrl = new AbortController();
+    serverFetch(src, { signal: ctrl.signal })
+      .then(async (res) => {
+        if (!res.ok) {
+          res.cancel();
+          throw new Error(String(res.status));
+        }
+        const text = await res.text();
+        if (!ctrl.signal.aborted) setAnswer({ src, html: text });
+      })
+      .catch(() => !ctrl.signal.aborted && setAnswer({ src, html: null }));
+    return () => ctrl.abort();
+  }, [src]);
   const handlers = useRef({ onRequest, onNotify });
   useEffect(() => {
     handlers.current = { onRequest, onNotify };
@@ -130,25 +151,28 @@ export function LiveFrame({
 
   return (
     <View style={[styles.frame, { height, borderColor: c.border }]}>
-      <WebView<object>
-        ref={view}
-        source={{ uri: src }}
-        originWhitelist={['*']}
-        sharedCookiesEnabled
-        thirdPartyCookiesEnabled
-        injectedJavaScriptBeforeContentLoaded={BRIDGE}
-        onMessage={onMessage}
-        scrollEnabled={false}
-        nestedScrollEnabled
-        // Links the page offers open in the browser, after asking, so the conversation never
-        // navigates away.
-        onShouldStartLoadWithRequest={(req) => {
-          if (req.url === src || req.url.startsWith('about:') || req.isTopFrame === false) return true;
-          openAfterAsking(req.url);
-          return false;
-        }}
-        style={styles.web}
-      />
+      {failed ? (
+        <Text style={[styles.caption, { color: c.mutedForeground }]}>{t('preview.failed')}</Text>
+      ) : null}
+      {html === null ? null : (
+        <WebView<object>
+          ref={view}
+          source={{ html }}
+          originWhitelist={['about:*']}
+          injectedJavaScriptBeforeContentLoaded={BRIDGE}
+          onMessage={onMessage}
+          scrollEnabled={false}
+          nestedScrollEnabled
+          // Links the page offers open in the browser, after asking, so the conversation never
+          // navigates away.
+          onShouldStartLoadWithRequest={(req) => {
+            if (req.url.startsWith('about:') || req.isTopFrame === false) return true;
+            openAfterAsking(req.url);
+            return false;
+          }}
+          style={styles.web}
+        />
+      )}
     </View>
   );
 }
@@ -212,7 +236,6 @@ const PROTOCOL = '2026-01-26';
  */
 export function McpAppView({ m }: { m: Message }) {
   const api = useApi();
-  const { origin } = useServer();
   const c = useColors();
   const app = m.props.app as AppProps;
   const post = useRef<((msg: FrameMessage) => void) | null>(null);
@@ -225,7 +248,7 @@ export function McpAppView({ m }: { m: Message }) {
       case 'ui/initialize':
         return {
           protocolVersion: typeof params.protocolVersion === 'string' ? params.protocolVersion : PROTOCOL,
-          hostInfo: { name: 'LeafBot', version: '0.9.0' },
+          hostInfo: { name: 'LeafBot', version: Constants.expoConfig?.version ?? '0' },
           hostCapabilities: { openLinks: {}, serverTools: {} },
           hostContext: {
             theme,
@@ -264,7 +287,7 @@ export function McpAppView({ m }: { m: Message }) {
     <View style={styles.card}>
       <Text style={[styles.caption, { color: c.mutedForeground }]}>{m.text}</Text>
       <LiveFrame
-        src={`${origin}/api/apps/${m.id}/frame`}
+        src={`/api/apps/${m.id}/frame`}
         initialHeight={320}
         postRef={post}
         onRequest={onRequest}

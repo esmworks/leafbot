@@ -161,7 +161,6 @@ function ThreadMenu({
         label: t('actionLog.title'),
         onPress: () => nav.actionLog(thread.id),
       },
-      { icon: 'link', label: t('chat.copyLink'), onPress: () => void actions.copyLink(thread) },
       { icon: 'edit-2', label: t('chat.renameThread'), onPress: () => void actions.rename(thread) },
       { icon: 'rotate-ccw', label: t('chat.resetThread'), onPress: () => void actions.reset(thread) },
       { icon: 'smile', label: t('chat.threadIcon'), onPress: () => onOpen('icon') },
