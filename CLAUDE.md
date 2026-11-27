@@ -21,20 +21,30 @@ Notes for people and coding agents working on this repository.
 
 ## Checks
 
+Coding agents check only what they changed and never run the whole suite (`pnpm test`, `pnpm typecheck`,
+`pnpm lint`, `pnpm format:check` over the whole repository): a run over everything is slow and loads the machine for a
+change of a few lines. When a full run looks necessary, they say so and leave it to the person.
+
+Tests of the changed code, by file path; a change with no test runs none:
+
 ```bash
-pnpm typecheck
+pnpm vitest run shared/src/example.test.ts
+```
+
+Types of the package that changed:
+
+```bash
+pnpm --filter ./app typecheck
+```
+
+Lint and format of the changed files:
+
+```bash
+pnpm eslint app/src/example.ts
 ```
 
 ```bash
-pnpm lint
-```
-
-```bash
-pnpm format:check
-```
-
-```bash
-pnpm test
+pnpm prettier --check app/src/example.ts
 ```
 
 The `*.real.test.ts` files run against a real Claude account and are skipped unless `LEAFBOT_REAL_CLAUDE=1` is set.
