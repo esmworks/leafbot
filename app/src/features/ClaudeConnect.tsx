@@ -203,7 +203,7 @@ export function ClaudeConnect({ checking = false }: { checking?: boolean }) {
                 }}
                 aria-label={t('claude.gateway')}
                 placeholder={t('claude.gatewayPlaceholder')}
-                className="h-10 rounded-full px-4 font-mono text-sm"
+                className="h-10 rounded-full px-4 text-sm"
               />
             </div>
           )}
@@ -219,7 +219,7 @@ export function ClaudeConnect({ checking = false }: { checking?: boolean }) {
               }}
               aria-label={t(`claude.method.${method}`)}
               placeholder={t(method === 'token' ? 'claude.tokenPlaceholder' : 'claude.apiKeyPlaceholder')}
-              className="h-10 min-w-56 flex-1 rounded-full px-4 font-mono"
+              className="h-10 min-w-56 flex-1 rounded-full px-4"
             />
             <Button type="submit" className="h-10 rounded-full" disabled={!value.trim() || save.isPending}>
               {save.isPending && <Loader2 className="animate-spin" />}
@@ -333,7 +333,7 @@ function ClaudeSignIn({ onDone }: { onDone(): void }) {
               onChange={(e) => setPasted(e.target.value)}
               placeholder={t('claude.signInPastePlaceholder')}
               aria-label={t('claude.signInPastePlaceholder')}
-              className="h-10 min-w-56 flex-1 rounded-full px-4 font-mono"
+              className="h-10 min-w-56 flex-1 rounded-full px-4"
             />
             <Button type="submit" className="h-10 rounded-full" disabled={!pasted.trim() || paste.isPending}>
               {t('common.save')}
