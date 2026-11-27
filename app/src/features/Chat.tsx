@@ -1,9 +1,12 @@
 import {
   cardPlace,
+  awayMark,
   CHAT_PAGE,
+  firstNewReply,
   FULL_PAGE,
   hasSecretShape,
   quoteExcerpt,
+  repliesSince,
   withOlder,
   type Bot,
   type Message,
@@ -783,6 +786,12 @@ function ThreadGroup({
   );
 }
 
+/** Scrolls the conversation itself and keeps where to, so its scroll is not taken for the person's. */
+function placeScroll(placed: React.RefObject<number | null>, el: HTMLElement, top: number) {
+  el.scrollTop = top;
+  placed.current = el.scrollTop;
+}
+
 function Conversation({
   bot,
   threadId,
@@ -804,9 +813,11 @@ function Conversation({
   const qc = useQueryClient();
   const { dayLabel } = useFormat();
   const { data: messages = [], isLoading } = useChatMessages(threadId);
-  // Left with older pages on screen, the conversation opens again at its latest page.
+  // Left with older pages on screen, the conversation opens again at its latest page. A read
+  // still on its way would bring them all back, so it is dropped first.
   useEffect(
     () => () => {
+      void qc.cancelQueries({ queryKey: ['messages', threadId] });
       qc.setQueryData<Message[]>(['messages', threadId], (list) =>
         list && list.length > CHAT_PAGE ? list.slice(-CHAT_PAGE) : list,
       );
@@ -830,6 +841,8 @@ function Conversation({
   const draggingBar = useRef(false);
   const lastTop = useRef(0);
   const lastTouchY = useRef<number | null>(null);
+  // Where the conversation last put itself, as the browser stores it.
+  const placed = useRef<number | null>(null);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const at = e.target;
@@ -838,14 +851,19 @@ function Conversation({
       const up = keyIntent(e.key, e.shiftKey);
       if (up !== null) intent.current = { up, at: performance.now() };
     };
+    // A drag that ends outside the window or is taken over by the browser sends no pointerup.
     const onUp = () => {
       draggingBar.current = false;
     };
     window.addEventListener('keydown', onKey);
     window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+    window.addEventListener('blur', onUp);
     return () => {
       window.removeEventListener('keydown', onKey);
       window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+      window.removeEventListener('blur', onUp);
     };
   }, []);
   const loadOlder = useMutation({
@@ -861,7 +879,7 @@ function Conversation({
       if (page.length < size) setFirstId(merged?.[0]?.id ?? null);
       // Keep the message the person was looking at in place as the older ones go in above.
       requestAnimationFrame(() => {
-        if (box) box.scrollTop = box.scrollHeight - from;
+        if (box) placeScroll(placed, box, box.scrollHeight - from);
       });
     },
     onError: (e) => {
@@ -889,15 +907,12 @@ function Conversation({
     watch.observe(edge);
     return () => watch.disconnect();
   }, [hasOlder, loadingOlder, fetchOlder]);
-  // How many messages there were when the person scrolled up; null while at the bottom.
-  const [awayAt, setAwayAt] = useState<number | null>(null);
+  // When the person scrolled up (see `awayMark`); null while at the bottom.
+  const [awayAt, setAwayAt] = useState<string | null>(null);
   const attachments = useAttachments(threadId);
   const firstNew = useMemo(
-    () =>
-      readUntil === null
-        ? null
-        : (messages.find((m, i) => i > 0 && m.role === 'assistant' && m.createdAt > readUntil)?.id ?? null),
-    [messages, readUntil],
+    () => firstNewReply(messages, readUntil, hasOlder),
+    [messages, readUntil, hasOlder],
   );
   const [dragging, setDragging] = useState(false);
   // Quick replies are not messages to read: the latest set shows as buttons at the end, and only
@@ -1017,7 +1032,7 @@ function Conversation({
       released.current = key;
       stick.current = false;
     }
-    el.scrollTop = target.top;
+    placeScroll(placed, el, target.top);
   };
   const followNow = useRef(follow);
   useLayoutEffect(() => {
@@ -1054,7 +1069,11 @@ function Conversation({
     // Only the conversation scrolls; scrollIntoView would move the whole page too.
     const at = el.getBoundingClientRect();
     const view = box.getBoundingClientRect();
-    box.scrollTop += at.top - view.top - (view.height - Math.min(at.height, view.height)) / 2;
+    placeScroll(
+      placed,
+      box,
+      box.scrollTop + at.top - view.top - (view.height - Math.min(at.height, view.height)) / 2,
+    );
     el.classList.add('message-found');
     const id = setTimeout(() => el.classList.remove('message-found'), 2000);
     useUi.getState().focusMessage(null);
@@ -1131,8 +1150,10 @@ function Conversation({
         // On a touch screen a tap on the conversation puts the keyboard away, as messaging apps do;
         // a tap on a link, button or field does what it always does.
         onPointerDown={(e) => {
-          // The scroll bar is the conversation's own box, not a row in it.
-          if (e.button === 0 && e.target === e.currentTarget) draggingBar.current = true;
+          // The scroll bar is the conversation's own box, not a row in it; a finger on the box
+          // itself scrolls by touch, which is told apart by its own movement.
+          if (e.pointerType === 'mouse' && e.button === 0 && e.target === e.currentTarget)
+            draggingBar.current = true;
           const typing = document.activeElement;
           if (
             e.pointerType === 'touch' &&
@@ -1165,11 +1186,12 @@ function Conversation({
             fromEnd: el.scrollHeight - el.scrollTop - el.clientHeight,
             intent: intent.current,
             dragging: draggingBar.current,
+            self: placed.current !== null && Math.abs(el.scrollTop - placed.current) < 1,
             now: performance.now(),
           });
           if (stick.current) {
             if (awayAt !== null) setAwayAt(null);
-          } else if (awayAt === null) setAwayAt(messages.length);
+          } else if (awayAt === null) setAwayAt(awayMark(messages));
         }}
         className="scroll-thin flex-1 overflow-y-auto"
       >
@@ -1267,7 +1289,7 @@ function Conversation({
       <QuoteSelection scroller={scroller} />
       {awayAt !== null && (
         <ToBottom
-          unread={messages.slice(awayAt).filter((m) => m.author !== 'user').length}
+          unread={repliesSince(messages, awayAt)}
           onClick={() => {
             const el = scroller.current;
             if (!el) return;

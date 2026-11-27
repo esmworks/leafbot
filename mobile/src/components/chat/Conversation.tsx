@@ -1,9 +1,12 @@
 import type { SlashCommand } from '@leafbot/app/src/lib/slash';
 import {
+  awayMark,
   CHAT_PAGE,
+  firstNewReply,
   cardPlace,
   FULL_PAGE,
   streamParts,
+  repliesSince,
   withOlder,
   type Bot,
   type Message,
@@ -101,9 +104,11 @@ export function Conversation({
   const { origin } = useServer();
   const messagesQ = useChatMessages(threadId);
   const messages = messagesQ.data ?? NONE;
-  // Left with older pages on screen, the conversation opens again at its latest page.
+  // Left with older pages on screen, the conversation opens again at its latest page. A read
+  // still on its way would bring them all back, so it is dropped first.
   useEffect(
     () => () => {
+      void qc.cancelQueries({ queryKey: ['messages', origin, threadId] });
       qc.setQueryData<Message[]>(['messages', origin, threadId], (list) =>
         list && list.length > CHAT_PAGE ? list.slice(-CHAT_PAGE) : list,
       );
@@ -265,10 +270,7 @@ export function Conversation({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [approvals, bot.id, mainId, threadId, rooms, threads]);
   const rows = useMemo(() => {
-    const firstNew =
-      readUntil == null
-        ? null
-        : (messages.find((m, i) => i > 0 && m.role === 'assistant' && m.createdAt > readUntil)?.id ?? null);
+    const firstNew = firstNewReply(messages, readUntil, hasOlder);
     const out: Row[] = [];
     // Finished runs of a routine that follow each other fold into one line.
     const folded = foldRoutineRuns(shown, firstNew);
@@ -306,6 +308,7 @@ export function Conversation({
     tail,
     messages,
     readUntil,
+    hasOlder,
     streamDone,
     hasText,
     working,
@@ -415,18 +418,14 @@ export function Conversation({
   };
 
   // --- Scrolling --------------------------------------------------------------------------
-  // How many messages there were when the person scrolled up; null while at the bottom.
-  const [awayAt, setAwayAt] = useState<number | null>(null);
+  // When the person scrolled up (see `awayMark`); null while at the bottom.
+  const [awayAt, setAwayAt] = useState<string | null>(null);
   const away = useRef(false);
-  const count = useRef(0);
-  useEffect(() => {
-    count.current = messages.length;
-  }, [messages.length]);
   const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const isAway = e.nativeEvent.contentOffset.y > 120;
     if (isAway === away.current) return;
     away.current = isAway;
-    setAwayAt(isAway ? count.current : null);
+    setAwayAt(isAway ? awayMark(messagesRef.current) : null);
   }, []);
 
   // Tells a screen reader about each reply once it has arrived whole; the history that loaded
@@ -607,7 +606,7 @@ export function Conversation({
         )}
         {awayAt !== null ? (
           <ToBottom
-            unread={messages.slice(awayAt).filter((m) => m.author !== 'user').length}
+            unread={repliesSince(messages, awayAt)}
             onPress={() => listRef.current?.scrollToOffset({ offset: 0, animated: true })}
           />
         ) : null}
