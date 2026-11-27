@@ -269,6 +269,8 @@ export function outsideSource(tool: AppTool, apps: ReadonlyMap<string, string>, 
   if (tool.name.startsWith('person_command_')) return t('outside.command');
   // The person's calendar and contacts hold what others wrote: invitations, names, notes.
   if (tool.name.startsWith('person_phone_')) return t('outside.phone');
+  // A page open in the person's Chrome: anyone may have written it.
+  if (tool.name.startsWith('person_browser_')) return t('outside.chrome');
   // What the people in a call said, written out.
   if (tool.name === 'call_status' || tool.name === 'call_stop') return t('outside.call');
   if (tool.name === 'api_request' || tool.name === 'api_call') return t('outside.api');

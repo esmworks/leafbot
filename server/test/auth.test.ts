@@ -2,6 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { CHROME_EXTENSION_ORIGIN } from '@leafbot/shared';
 import { checkHostOrigin, clientAddress, needsSignIn, routedPath, SESSION_IDLE_MS } from '../src/auth';
 import { loadConfig, publicUrl } from '../src/config';
 import { OWNER_ID } from '../src/users';
@@ -264,6 +265,11 @@ describe('checkHostOrigin', () => {
     expect(check('attacker.com')).not.toBeNull();
     expect(check('localhost', 'https://attacker.com')).not.toBeNull();
     expect(check('localhost', 'null')).not.toBeNull();
+  });
+  it('yalnız Leaf Bot uzantısının kendi sayfaları', () => {
+    expect(check('localhost:4319', CHROME_EXTENSION_ORIGIN)).toBeNull();
+    expect(check('localhost:4319', 'chrome-extension://abcdefghijklmnopabcdefghijklmnop')).not.toBeNull();
+    expect(check('attacker.com', CHROME_EXTENSION_ORIGIN)).not.toBeNull();
   });
 });
 

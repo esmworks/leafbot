@@ -127,6 +127,9 @@ cannot turn right to left without a restart. [docs/i18n.md](docs/i18n.md) covers
   one folder for you, at most four run at once, a job card shows the last lines with a Stop button, and the bot is
   woken in the same conversation when a long one ends. Commands that touch places where keys are kept ask on the
   computer itself every time.
+- **Your own Chrome** (extension, early) — talk to your bots from Chrome's side panel beside any page, and let them
+  see your open tabs and read the pages of the sites you allow, signed in as you. Only messages written in that panel
+  while sharing is on reach Chrome, and the first read in each piece of work asks on a card.
 - **Sandboxed shell** — Claude's Bash commands run in a bubblewrap sandbox that only sees the bot's own folders, and a
   few catastrophic commands are refused whatever is allowed.
 - **Import and backup** — bring in bots exported from other assistants, and keep everything in one password-sealed
@@ -139,6 +142,7 @@ app/        React + Vite web UI, served by the server or loaded by the desktop a
 server/     Fastify API, Socket.IO events, bot runtime, Drizzle ORM (PostgreSQL or embedded PGlite)
 desktop/    Electron shell: starts a local server or connects to a remote one
 mobile/     Expo app for iOS and Android that draws the phone layout natively
+extension/  Chrome extension: a side panel to talk to the bots, which can let them read your tabs
 computer/   Optional service that gives each bot its own sandboxed Linux desktop
 shared/     Schemas, events and translations used by every package
 client/     The server's endpoints for the web and phone apps; each app brings its own way of sending a request
@@ -318,6 +322,31 @@ under App Information), so it asks nothing and also runs with `--non-interactive
 A server on the internet is reached over HTTPS: an address typed without `http://` or `https://` falls back to plain
 http only for this device, the local network (private addresses, `.local`, single-word names) and a Tailscale tailnet,
 and an `http://` address on the internet is used only after a warning. iOS allows plain http only on the local network.
+
+## Chrome extension (early)
+
+`extension/` holds a Chrome extension (Manifest V3, Chrome 116 or later). Its side panel lists your bots and holds
+each bot's main conversation, with live replies and the bots' approval cards. Build it and load it into Chrome:
+
+```bash
+pnpm --filter @leafbot/extension build
+```
+
+Then open `chrome://extensions`, turn on Developer mode, choose "Load unpacked" and pick `extension/dist`. Click the
+extension's button to open the panel, enter the server's address and a pairing code from Settings → Connection →
+Connect another device. If this Chrome is already signed in to Leaf Bot at that address, no code is needed: the
+panel uses the same sign-in.
+
+With "Share this Chrome with my bots" on, a message written in the panel lets the bot list your open tabs and read
+the text of one (`person_browser_tabs`, `person_browser_read`). Nothing reaches Chrome from a routine, a mail,
+another bot, or a message written in the app or the phone; after a server restart, only messages written in the
+panel again do. The first read in each piece of work asks on a card, with no "always allow", and what a page says
+reaches the bot marked as outside text. The extension can reach no site at install: Chrome asks before it connects to
+your server, and again, on a card in the panel, before it reads each new site. Bots only read; they do not click or
+type in your tabs.
+
+The manifest's `key` fixes the extension's id, and the server lets requests from exactly that id in
+(`CHROME_EXTENSION_ID` in `shared/src/chrome.ts`). Keep the two together if the key is ever replaced.
 
 ## Development
 

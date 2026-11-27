@@ -1,0 +1,7 @@
+{
+  "name": { "message": "Leaf Bot" },
+  "description": {
+    "message": "Talk to your Leaf Bot bots beside any page, and let them read the tabs you choose."
+  },
+  "open": { "message": "Open Leaf Bot" }
+}
