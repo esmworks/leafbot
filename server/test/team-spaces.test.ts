@@ -145,10 +145,14 @@ describe('ekip alanları', () => {
     // Back to Private: the space's people lose it.
     expect((await move(mert, null)).status).toBe(200);
     expect(await levelOf(ayse, made.body.id)).toBe('none');
-    // Someone in the space may not move another's bot there; those who look after the server may.
+    // Someone in the space may not move another's bot there, nor may those who look after the
+    // server while it is in its owner's Private: they do not see it.
     expect((await move(ayse, space.id)).status).toBe(404);
-    expect((await move(admin, space.id)).status).toBe(200);
-    expect(await levelOf(ayse, made.body.id)).toBe('chat');
+    expect((await move(admin, space.id)).status).toBe(404);
+    // Once in a space, they may move it to another one.
+    expect((await move(mert, space.id)).status).toBe(200);
+    const other = (await t.api<Group>('POST', '/api/groups', { name: 'Başka proje', space: true })).body;
+    expect((await move(admin, other.id)).status).toBe(200);
   });
 
   it('alan silinince botlar sahiplerinin Özel’ine döner, alandakiler erişimi kaybeder', async () => {
@@ -160,5 +164,36 @@ describe('ekip alanları', () => {
     expect((await ayse.api('DELETE', `/api/groups/${space.id}`)).status).toBe(403);
     expect((await t.api('DELETE', `/api/groups/${space.id}`)).status).toBe(200);
     expect(await levelOf(ayse, bot.id)).toBe('none');
+  });
+
+  it('yönetici başkasının Özel botunu görmez; yalnızca sayısını görür, duraklatır ve arşivler', async () => {
+    const admin = await t.person('yonetici3', 'admin');
+    const made = await mert.api<Bot>('POST', '/api/bots', {
+      name: 'Mertin özeli',
+      description: '',
+      instructions: '',
+    });
+    expect((await admin.api('GET', `/api/bots/${made.body.id}`)).status).toBe(404);
+
+    const count = await admin.api<{ count: number; paused: number }>('GET', '/api/people/mert/private-bots');
+    expect(count.body.count).toBeGreaterThan(0);
+    expect(count.body.paused).toBe(0);
+    const paused = await admin.api<{ count: number; paused: number }>(
+      'POST',
+      '/api/people/mert/private-bots/pause',
+      {
+        paused: true,
+      },
+    );
+    expect(paused.body.paused).toBe(paused.body.count);
+    expect((await mert.api<Bot>('GET', `/api/bots/${made.body.id}`)).body.pausedAt).toBeTruthy();
+    // Still not opened by doing so.
+    expect((await admin.api('GET', `/api/bots/${made.body.id}`)).status).toBe(404);
+
+    await admin.api('POST', '/api/people/mert/private-bots/archive', {});
+    expect((await admin.api<{ count: number }>('GET', '/api/people/mert/private-bots')).body.count).toBe(0);
+    expect((await mert.api<Bot>('GET', `/api/bots/${made.body.id}`)).body.archivedAt).toBeTruthy();
+    // Someone who is not looking after the server may not.
+    expect((await ayse.api('GET', '/api/people/mert/private-bots')).status).toBe(403);
   });
 });

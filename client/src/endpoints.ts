@@ -112,6 +112,7 @@ import type {
   GroupCreate,
   GroupUpdate,
   SpaceMembersChange,
+  PrivateBots,
   ProfileFocus,
   ProfileHelp,
   ClaudeAuthSet,
@@ -474,6 +475,11 @@ export function endpoints(send: Transport, base = '') {
       http.post<Group>('/api/groups', { name, ...opts }),
     renameGroup: (id: string, name: string) => http.patch<Group>(`/api/groups/${id}`, { name }),
     updateGroup: (id: string, patch: GroupUpdate) => http.patch<Group>(`/api/groups/${id}`, patch),
+    privateBots: (personId: string) => http.get<PrivateBots>(`/api/people/${personId}/private-bots`),
+    pausePrivateBots: (personId: string, paused: boolean) =>
+      http.post<PrivateBots>(`/api/people/${personId}/private-bots/pause`, { paused }),
+    archivePrivateBots: (personId: string) =>
+      http.post<PrivateBots>(`/api/people/${personId}/private-bots/archive`, {}),
     setSpaceMembers: (id: string, change: SpaceMembersChange) =>
       http.put<Group>(`/api/groups/${id}/members`, change),
     moveGroup: (id: string, to: GroupMove) => http.post<Group>(`/api/groups/${id}/move`, to),

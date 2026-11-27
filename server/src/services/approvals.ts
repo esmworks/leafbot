@@ -40,7 +40,7 @@ import { serverTranslator } from './settings';
 import type { ThreadService } from './threads';
 import type { VaultService } from './vault';
 import { OWNER_ID } from '../users';
-import { botLevel, managesServer, spaceMembers } from './access';
+import { botLevel, managesServer, spaceOf } from './access';
 import { commandParts, freePart } from './shell-parts';
 import { redactSecrets } from './secrets';
 
@@ -749,8 +749,11 @@ export class ApprovalService {
       .where(eq(schema.bots.id, botId))
       .limit(1);
     if (!user || user.disabledAt || !bot) return false;
-    const space = (await spaceMembers(this.ctx, bot.groupId)).get(by);
-    return botLevel({ userId: by, role: user.role }, bot, space) === 'edit';
+    const place = await spaceOf(this.ctx, bot.groupId);
+    return (
+      botLevel({ userId: by, role: user.role }, { ...bot, inSpace: place.inSpace }, place.members.get(by)) ===
+      'edit'
+    );
   }
 
   private async row(id: string) {
@@ -997,11 +1000,16 @@ export class ApprovalService {
           .where(eq(schema.bots.id, botId))
           .limit(1)
       : [];
-    const members = await spaceMembers(this.ctx, bot?.groupId ?? null);
+    const place = await spaceOf(this.ctx, bot?.groupId ?? null);
     return people
       .filter((u) =>
         botId
-          ? !!bot && botLevel({ userId: u.id, role: u.role }, bot, members.get(u.id)) === 'edit'
+          ? !!bot &&
+            botLevel(
+              { userId: u.id, role: u.role },
+              { ...bot, inSpace: place.inSpace },
+              place.members.get(u.id),
+            ) === 'edit'
           : managesServer(u.role),
       )
       .map((u) => ({ id: u.id, name: u.displayName || u.username || '' }));

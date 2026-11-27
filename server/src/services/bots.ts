@@ -346,6 +346,16 @@ export class BotService {
     return rows.map((r) => r.id);
   }
 
+  /** A person's active bots in their Private: owned by them and in no team space. */
+  async privateBotIds(userId: string): Promise<string[]> {
+    const rows = await this.ctx.db
+      .select({ id: schema.bots.id, groupId: schema.bots.groupId, folderOwner: schema.groups.ownerUserId })
+      .from(schema.bots)
+      .leftJoin(schema.groups, eq(schema.groups.id, schema.bots.groupId))
+      .where(and(eq(schema.bots.ownerUserId, userId), isNull(schema.bots.archivedAt)));
+    return rows.filter((r) => !r.groupId || r.folderOwner).map((r) => r.id);
+  }
+
   /** Who may message whom: any bot any other active bot. Groups only share a folder. */
   canMessage(from: Bot, to: Bot): boolean {
     return from.id !== to.id && !to.archivedAt;

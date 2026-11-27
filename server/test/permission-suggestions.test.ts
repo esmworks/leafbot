@@ -148,7 +148,10 @@ describe('ways to ask less, from real cards', () => {
     const bot = await t.bot();
     await answerCards(bot.id, SUGGEST_RULE_MIN);
     expect((await suggestions(bot.id)).rules).toHaveLength(1);
-    // An admin may change every bot, and still does not learn from the owner's cards.
+    // An admin may change a team space's bots, and still does not learn from the owner's cards.
+    // In a team space, where those who look after the server may change it.
+    const space = (await t.api<{ id: string }>('POST', '/api/groups', { name: 'Ekip', space: true })).body;
+    await t.api('POST', `/api/bots/${bot.id}/move`, { pinned: false, groupId: space.id, beforeId: null });
     const admin = await t.person('yonetici', 'admin');
     const theirs = await admin.api<PermissionSuggestions>('GET', `/api/bots/${bot.id}/suggestions`);
     expect(theirs.status).toBe(200);

@@ -357,6 +357,11 @@ export const GroupUpdate = z.object({
   membersEdit: z.boolean().optional(),
 });
 export type GroupUpdate = z.infer<typeof GroupUpdate>;
+/** How many bots someone keeps in their Private, as those who look after the server see it. */
+export interface PrivateBots {
+  count: number;
+  paused: number;
+}
 /** People put in a team space or taken out of it. */
 export const SpaceMembersChange = z.object({
   add: z.array(z.string().min(1).max(100)).max(500).optional(),

@@ -28,8 +28,8 @@ const created = () => ts('created_at').notNull().defaultNow();
  * A team space, whose bots are open to its members, or with an owner, a folder in that person's
  * Private, which opens nothing to anyone. A bot in neither is its owner's alone. A space is `open`
  * (everyone sees it and may join), `closed` (everyone sees it and asks to join) or `secret` (only
- * its members know of it). Groups made before spaces became the server owner's folders, so nobody
- * reaches a bot through one they did not reach it through before.
+ * its members know of it). Groups made before spaces are secret spaces with nobody in them, so
+ * nobody reaches a bot through one until someone is put in it.
  */
 export const groups = pgTable('groups', {
   id: text('id').primaryKey(),

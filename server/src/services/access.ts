@@ -46,16 +46,18 @@ export async function refusePrivate(ctx: Ctx, url: string, owner: string | null)
 }
 
 /**
- * What a person may do with a bot: the server's owner and admins and the bot's own owner may
- * change it; anyone else gets the highest of what everyone gets, what they were given and what
- * the team space the bot is in gives its members (`space`, 'none' when they are not in it).
+ * What a person may do with a bot. Its owner may change it, and so may those who look after the
+ * server while it is in a team space (`inSpace`); a bot in someone's Private is theirs alone, the
+ * server's owner and admins included. Anyone else gets the highest of what everyone gets, what
+ * they were given and what the bot's team space gives its members (`space`, none when not in it).
  */
 export function botLevel(
   viewer: Viewer,
-  bot: { ownerUserId: string; access: BotAccess },
+  bot: { ownerUserId: string; access: BotAccess; inSpace?: boolean },
   space: BotLevel = 'none',
 ): BotLevel {
-  if (managesServer(viewer.role) || bot.ownerUserId === viewer.userId) return 'edit';
+  if (bot.ownerUserId === viewer.userId) return 'edit';
+  if (bot.inSpace && managesServer(viewer.role)) return 'edit';
   let level = bot.access.everyone;
   for (const l of [bot.access.people[viewer.userId], space]) if (l && RANK[l] > RANK[level]) level = l;
   return level;
@@ -64,15 +66,27 @@ export function botLevel(
 /** What being in a team space gives: talking with its bots, or changing them too when it says so. */
 const spaceLevel = (membersEdit: boolean): BotLevel => (membersEdit ? 'edit' : 'chat');
 
-/** The members of one team space, with what it gives each of them; empty for none. */
-export async function spaceMembers(ctx: Ctx, groupId: string | null): Promise<Map<string, BotLevel>> {
-  if (!groupId) return new Map();
+/**
+ * The place a bot is in: whether it is a team space, and its members with what it gives each of
+ * them. A Private folder, or none, is no space and has no members.
+ */
+export async function spaceOf(
+  ctx: Ctx,
+  groupId: string | null,
+): Promise<{ inSpace: boolean; members: Map<string, BotLevel> }> {
+  if (!groupId) return { inSpace: false, members: new Map() };
+  const [group] = await ctx.db
+    .select({ ownerUserId: schema.groups.ownerUserId, membersEdit: schema.groups.membersEdit })
+    .from(schema.groups)
+    .where(eq(schema.groups.id, groupId))
+    .limit(1);
+  if (!group || group.ownerUserId) return { inSpace: false, members: new Map() };
   const rows = await ctx.db
-    .select({ userId: schema.groupMembers.userId, membersEdit: schema.groups.membersEdit })
+    .select({ userId: schema.groupMembers.userId })
     .from(schema.groupMembers)
-    .innerJoin(schema.groups, eq(schema.groups.id, schema.groupMembers.groupId))
     .where(eq(schema.groupMembers.groupId, groupId));
-  return new Map(rows.map((r) => [r.userId, spaceLevel(r.membersEdit)]));
+  const level = spaceLevel(group.membersEdit);
+  return { inSpace: true, members: new Map(rows.map((r) => [r.userId, level])) };
 }
 
 /** The team spaces one person is in, with what each gives them. */
@@ -95,13 +109,17 @@ export function seesGroup(viewer: Viewer, group: Group): boolean {
   return managesServer(viewer.role) || !!group.memberIds?.includes(viewer.userId);
 }
 
-/** The columns of a bot its level is worked out from. */
+/** The columns of a bot its level is worked out from, with its group's owner (a folder's). */
 const LEVEL_COLUMNS = {
   id: schema.bots.id,
   ownerUserId: schema.bots.ownerUserId,
   access: schema.bots.access,
   groupId: schema.bots.groupId,
+  folderOwner: schema.groups.ownerUserId,
 };
+type LevelRow = { groupId: string | null; folderOwner: string | null };
+/** Whether a bot is in a team space: in a group that is nobody's folder. */
+const inSpace = (b: LevelRow) => !!b.groupId && !b.folderOwner;
 
 type ThreadRow = typeof schema.threads.$inferSelect;
 
@@ -126,26 +144,33 @@ export class AccessService {
     const [row] = await this.ctx.db
       .select(LEVEL_COLUMNS)
       .from(schema.bots)
+      .leftJoin(schema.groups, eq(schema.groups.id, schema.bots.groupId))
       .where(eq(schema.bots.id, botId))
       .limit(1);
-    return row ?? null;
+    return row ? { ...row, inSpace: inSpace(row) } : null;
   }
 
   async level(viewer: Viewer, botId: string): Promise<BotLevel> {
     const bot = await this.bot(botId);
     if (!bot) return 'none';
-    const space = (await spaceMembers(this.ctx, bot.groupId)).get(viewer.userId);
+    const space = (await spaceOf(this.ctx, bot.groupId)).members.get(viewer.userId);
     return botLevel(viewer, bot, space);
   }
 
   /** Every bot's level for one person, in one read. */
   async levels(viewer: Viewer): Promise<Map<string, BotLevel>> {
     const [rows, spaces] = await Promise.all([
-      this.ctx.db.select(LEVEL_COLUMNS).from(schema.bots),
+      this.ctx.db
+        .select(LEVEL_COLUMNS)
+        .from(schema.bots)
+        .leftJoin(schema.groups, eq(schema.groups.id, schema.bots.groupId)),
       spacesOf(this.ctx, viewer.userId),
     ]);
     return new Map(
-      rows.map((b) => [b.id, botLevel(viewer, b, b.groupId ? spaces.get(b.groupId) : undefined)]),
+      rows.map((b) => [
+        b.id,
+        botLevel(viewer, { ...b, inSpace: inSpace(b) }, b.groupId ? spaces.get(b.groupId) : undefined),
+      ]),
     );
   }
 
@@ -233,7 +258,7 @@ export class AccessService {
   async sharedWithAnyone(bot: { access?: BotAccess; groupId: string | null }): Promise<boolean> {
     const access = bot.access ?? { everyone: 'none', people: {} };
     if (access.everyone !== 'none' || Object.keys(access.people).length) return true;
-    return (await spaceMembers(this.ctx, bot.groupId)).size > 0;
+    return (await spaceOf(this.ctx, bot.groupId)).members.size > 0;
   }
 
   /**
@@ -264,7 +289,7 @@ export class AccessService {
     }
     if (creating) throw new HttpError(400, 'error.newBotPrivate');
     if (managesServer(viewer.role)) return;
-    if (owner !== viewer.userId || !(await spaceMembers(this.ctx, groupId)).has(viewer.userId)) {
+    if (owner !== viewer.userId || !(await spaceOf(this.ctx, groupId)).members.has(viewer.userId)) {
       throw new HttpError(403, 'error.spaceNotYours');
     }
   }
@@ -342,7 +367,7 @@ export class AccessService {
     const kept = this.audiences.get(key);
     if (kept && now - kept.at < AUDIENCE_MS) return kept.users;
     const bot = await this.bot(botId);
-    const members = await spaceMembers(this.ctx, bot?.groupId ?? null);
+    const { members } = await spaceOf(this.ctx, bot?.groupId ?? null);
     const users = bot
       ? (await this.people())
           .filter((p) => atLeast(botLevel(p, bot, members.get(p.userId)), wanted))

@@ -413,6 +413,34 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     return { ok: true };
   });
 
+  // Someone's Private is theirs alone; to keep the server well those who look after it see only how
+  // many bots are there and may pause or archive them all, never open one.
+  app.get('/api/people/:id/private-bots', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    await changeable(req, id);
+    const ids = await s.bots.privateBotIds(id);
+    const paused = await s.bots.pausedIds();
+    return { count: ids.length, paused: ids.filter((b) => paused.has(b)).length };
+  });
+  app.post('/api/people/:id/private-bots/pause', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    await changeable(req, id);
+    const { paused } = PauseBody.parse(req.body);
+    const ids = await s.bots.privateBotIds(id);
+    for (const botId of ids) await s.bots.setPaused(botId, paused);
+    if (paused) await s.turns.stopBots(ids);
+    else s.turns.schedule();
+    return { count: ids.length, paused: paused ? ids.length : 0 };
+  });
+  app.post('/api/people/:id/private-bots/archive', async (req) => {
+    const { id } = IdParams.parse(req.params);
+    await changeable(req, id);
+    const ids = await s.bots.privateBotIds(id);
+    for (const botId of ids) await s.bots.archive(botId);
+    await s.turns.stopBots(ids, 'archived');
+    return { count: 0, paused: 0 };
+  });
+
   app.get('/api/sessions', async (req) => d.auth.listSessions(req.cookies[SESSION_COOKIE], me(req).userId));
   app.delete('/api/sessions/:id', async (req) => {
     const id = z.object({ id: z.string().min(1).max(64) }).parse(req.params).id;
