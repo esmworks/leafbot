@@ -679,6 +679,11 @@ export class TurnManager {
      * a turn that starts at once, or is joined to one already waiting (`gather`), takes it along.
      */
     messageId?: string;
+    /**
+     * The Chrome side panel the person wrote from, while it shares their Chrome: the turn may read
+     * that Chrome. Noted before the turn can start, so its first step already has the tools.
+     */
+    chromePanel?: string;
   }): Promise<TurnRow> {
     const userId =
       t.userId !== undefined ? t.userId : await this.actingPerson(t.jobId ?? null, t.threadId, t.botId);
@@ -701,6 +706,7 @@ export class TurnManager {
       })
       .returning();
     if (t.messageId) await this.services.threads.updateMessage(t.messageId, { turnId: row!.id });
+    if (t.chromePanel) this.ctx.chromes?.noteTurn(row!.id, t.chromePanel);
     this.emitState(t.threadId, t.botId);
     this.schedule();
     return row!;
@@ -788,6 +794,7 @@ export class TurnManager {
     const guest = turn.guest || later.some((t) => t.guest);
     const modeCap = guest ? cappedMode('ask', turn.modeCap) : turn.modeCap;
     const ids = later.map((t) => t.id);
+    this.ctx.chromes?.carry(ids, turn.id);
     await this.ctx.db
       .update(schema.messages)
       .set({ turnId: turn.id })

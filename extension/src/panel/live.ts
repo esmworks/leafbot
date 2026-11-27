@@ -24,9 +24,11 @@ export class Live {
   private socket: Socket<ServerToClientEvents, ClientToServerEvents>;
   private sharing: boolean;
   private browser: Browser;
+  private origin: string;
 
   constructor(origin: string, sharing: boolean, askToRead: Browser['askToRead'], h: LiveHandlers) {
     this.sharing = sharing;
+    this.origin = origin;
     this.browser = chromeBrowser(askToRead);
     this.socket = io(origin, { path: '/socket.io', withCredentials: true });
     this.socket.on('connect', () => {
@@ -39,8 +41,16 @@ export class Live {
     this.socket.on('refresh', h.onRefresh);
     // Answered with what sharing is at the moment of the question, not when the panel opened.
     this.socket.on('chrome:ask', (ask, ack) => {
-      void answerAsk(ask, this.sharing, this.browser).then(ack);
+      void answerAsk(ask, this.sharing, this.browser, this.origin).then(ack);
     });
+  }
+
+  /**
+   * This panel's socket while it is connected and shares Chrome; a message sent with it lets its turn
+   * read this Chrome, and no other the person has.
+   */
+  get panelId(): string | undefined {
+    return this.sharing && this.socket.connected ? this.socket.id : undefined;
   }
 
   setSharing(sharing: boolean) {

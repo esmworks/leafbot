@@ -4,11 +4,15 @@ import { describe, expect, it } from 'vitest';
 import { EXTENSION_KEY, manifest } from '../manifest';
 import { answerAsk, type Browser, type OpenTab } from './share';
 
+/** The Leaf Bot server the panel is connected to. */
+const SERVER = 'http://localhost:4319';
+
 const TABS: OpenTab[] = [
   { id: 1, url: 'https://ornek.com/a', title: 'A' },
   { id: 2, url: 'chrome://settings', title: 'Ayarlar' },
   { id: 3, url: 'https://haber.com/', title: 'Haber' },
   { id: 4, url: 'file:///Users/ali/not.txt', title: 'not' },
+  { id: 5, url: 'http://localhost:4319/settings', title: 'Leaf Bot' },
 ];
 
 function browser(opts: { allowed?: string[]; answer?: boolean; text?: string } = {}) {
@@ -34,26 +38,27 @@ function browser(opts: { allowed?: string[]; answer?: boolean; text?: string } =
 describe('Chrome’un cevabı', () => {
   it('paylaşma kapalıyken hiçbir şeye bakmaz', async () => {
     const { b, asked, read } = browser({ allowed: ['https://haber.com'] });
-    expect(await answerAsk({ kind: 'read' }, false, b)).toEqual({ ok: false, reason: 'off' });
+    expect(await answerAsk({ kind: 'read' }, false, b, SERVER)).toEqual({ ok: false, reason: 'off' });
     expect(asked).toEqual([]);
     expect(read).toEqual([]);
   });
 
   it('yalnız web sekmelerini, öndekini başta listeler', async () => {
     const { b } = browser();
-    expect(await answerAsk({ kind: 'tabs' }, true, b)).toEqual({
+    expect(await answerAsk({ kind: 'tabs' }, true, b, SERVER)).toEqual({
       ok: true,
       kind: 'tabs',
       tabs: [
         { id: 3, url: 'https://haber.com/', title: 'Haber', active: true },
         { id: 1, url: 'https://ornek.com/a', title: 'A', active: false },
+        { id: 5, url: 'http://localhost:4319/settings', title: 'Leaf Bot', active: false },
       ],
     });
   });
 
   it('izinli sitenin sayfasını sormadan okur', async () => {
     const { b, asked } = browser({ allowed: ['https://haber.com'] });
-    expect(await answerAsk({ kind: 'read' }, true, b)).toEqual({
+    expect(await answerAsk({ kind: 'read' }, true, b, SERVER)).toEqual({
       ok: true,
       kind: 'read',
       tab: { id: 3, url: 'https://haber.com/', title: 'Haber', active: true },
@@ -65,7 +70,7 @@ describe('Chrome’un cevabı', () => {
 
   it('yeni bir siteyi kişiye sorar; izin vermezse okumaz', async () => {
     const no = browser();
-    expect(await answerAsk({ kind: 'read', tabId: 1, bot: 'Araştırmacı' }, true, no.b)).toEqual({
+    expect(await answerAsk({ kind: 'read', tabId: 1, bot: 'Araştırmacı' }, true, no.b, SERVER)).toEqual({
       ok: false,
       reason: 'denied',
     });
@@ -73,23 +78,42 @@ describe('Chrome’un cevabı', () => {
     expect(no.read).toEqual([]);
 
     const yes = browser({ answer: true });
-    const r = await answerAsk({ kind: 'read', tabId: 1 }, true, yes.b);
+    const r = await answerAsk({ kind: 'read', tabId: 1 }, true, yes.b, SERVER);
     expect(r.ok && r.kind === 'read' && r.tab.id).toBe(1);
     expect(yes.read).toEqual([1]);
   });
 
+  it('sunucunun kendi sayfalarını, erişim izni olsa da kişiye sorar', async () => {
+    const no = browser({ allowed: [SERVER] });
+    expect(await answerAsk({ kind: 'read', tabId: 5 }, true, no.b, SERVER)).toEqual({
+      ok: false,
+      reason: 'denied',
+    });
+    expect(no.asked).toEqual([{ origin: SERVER, bot: null }]);
+    expect(no.read).toEqual([]);
+  });
+
   it('web sayfası olmayan ya da olmayan sekmeyi okumaz', async () => {
     const { b, asked } = browser({ answer: true });
-    expect(await answerAsk({ kind: 'read', tabId: 2 }, true, b)).toEqual({ ok: false, reason: 'notWeb' });
-    expect(await answerAsk({ kind: 'read', tabId: 4 }, true, b)).toEqual({ ok: false, reason: 'notWeb' });
-    expect(await answerAsk({ kind: 'read', tabId: 99 }, true, b)).toEqual({ ok: false, reason: 'notFound' });
-    expect(await answerAsk({ kind: 'yaz' }, true, b)).toEqual({ ok: false, reason: 'failed' });
+    expect(await answerAsk({ kind: 'read', tabId: 2 }, true, b, SERVER)).toEqual({
+      ok: false,
+      reason: 'notWeb',
+    });
+    expect(await answerAsk({ kind: 'read', tabId: 4 }, true, b, SERVER)).toEqual({
+      ok: false,
+      reason: 'notWeb',
+    });
+    expect(await answerAsk({ kind: 'read', tabId: 99 }, true, b, SERVER)).toEqual({
+      ok: false,
+      reason: 'notFound',
+    });
+    expect(await answerAsk({ kind: 'yaz' }, true, b, SERVER)).toEqual({ ok: false, reason: 'failed' });
     expect(asked).toEqual([]);
   });
 
   it('uzun sayfayı keser ve bunu söyler', async () => {
     const { b } = browser({ allowed: ['https://haber.com'], text: 'a'.repeat(CHROME_MAX_TEXT + 5) });
-    const r = await answerAsk({ kind: 'read' }, true, b);
+    const r = await answerAsk({ kind: 'read' }, true, b, SERVER);
     expect(r.ok && r.kind === 'read' && [r.text.length, r.cut]).toEqual([CHROME_MAX_TEXT, true]);
   });
 
@@ -98,7 +122,7 @@ describe('Chrome’un cevabı', () => {
     b.text = async () => {
       throw new Error('Cannot access contents of the page');
     };
-    expect(await answerAsk({ kind: 'read' }, true, b)).toEqual({ ok: false, reason: 'failed' });
+    expect(await answerAsk({ kind: 'read' }, true, b, SERVER)).toEqual({ ok: false, reason: 'failed' });
   });
 });
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { END_MARGIN, followsEnd, keyIntent, READER_INPUT_MS } from './readerScroll';
 
-const at = { following: true, moved: 0, fromEnd: 0, intent: null, dragging: false, now: 1000 };
+const at = { following: true, moved: 0, fromEnd: 0, intent: null, dragging: false, self: true, now: 1000 };
 
 describe('sohbetin sonunu izleme', () => {
   it('yukarıya çizilen satırlar sohbeti sondan uzaklaştırınca izlemeyi bırakmaz', () => {
@@ -32,6 +32,15 @@ describe('sohbetin sonunu izleme', () => {
 
   it('bırakılmışken sondan uzakta kalır', () => {
     expect(followsEnd({ ...at, following: false, moved: 0, fromEnd: 900 })).toBe(false);
+  });
+
+  it('kişinin ya da sohbetin olmayan bir kaydırma sondan uzakta bırakınca izlemeyi bırakır', () => {
+    expect(followsEnd({ ...at, moved: -300, fromEnd: 300, self: false })).toBe(false);
+    expect(followsEnd({ ...at, moved: 30, fromEnd: 300, self: false })).toBe(false);
+  });
+
+  it('sohbetin olmayan bir kaydırma sonda kalınca izlemeyi sürdürür', () => {
+    expect(followsEnd({ ...at, moved: 40, fromEnd: 10, self: false })).toBe(true);
   });
 
   it('tuşların kaydırma yönü', () => {

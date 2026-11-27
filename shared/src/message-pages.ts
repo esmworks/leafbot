@@ -35,3 +35,29 @@ export function withOlder(page: readonly Message[], held: readonly Message[]): M
   const ids = new Set(held.map((m) => m.id));
   return [...page.filter((m) => !ids.has(m.id)), ...held];
 }
+
+/** Where the person left the end of the conversation: the time of its latest message then. */
+export const awayMark = (messages: readonly Message[]) => messages.at(-1)?.createdAt ?? '';
+
+/**
+ * The replies that came after the person left the end. Counted by time, not by place in the
+ * list: an older page loaded above since then holds no reply the person has not seen.
+ */
+export const repliesSince = (messages: readonly Message[], mark: string) =>
+  messages.filter((m) => m.createdAt > mark && m.author !== 'user').length;
+
+/**
+ * The first reply the person had not seen when the conversation opened, marked with a line above
+ * it. When every message on screen came after `readUntil` and older ones are not loaded yet, that
+ * reply is further back: a line here would call the messages above it read, so there is none.
+ */
+export function firstNewReply(
+  messages: readonly Message[],
+  readUntil: string | null | undefined,
+  hasOlder: boolean,
+): string | null {
+  if (readUntil == null) return null;
+  const first = messages[0];
+  if (hasOlder && first && first.createdAt > readUntil) return null;
+  return messages.find((m, i) => i > 0 && m.role === 'assistant' && m.createdAt > readUntil)?.id ?? null;
+}
