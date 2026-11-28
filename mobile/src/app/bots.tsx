@@ -128,7 +128,7 @@ export default function Bots() {
         <View style={styles.center}>
           <ActivityIndicator color={c.mutedForeground} />
         </View>
-      ) : bots.isError ? (
+      ) : bots.isError && !bots.data ? (
         <View style={styles.center}>
           <Text style={[styles.message, { color: c.foreground }]}>{t('bots.loadFailed')}</Text>
           <Text style={[styles.detail, { color: c.mutedForeground }]}>{bots.error.message}</Text>

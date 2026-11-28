@@ -95,18 +95,51 @@ export class Link {
   /** The open tunnel, or the next one if it comes within `waitMs`. */
   tunnel(waitMs = 20_000): Promise<LiveTunnel> {
     if (this.live) return Promise.resolve(this.live);
+    return this.next(waitMs);
+  }
+
+  /**
+   * The tunnel to send a request on again after it failed on `stale`. Back from the background a
+   * tunnel is often dead before the link has heard so, and the first request finds out: this waits
+   * for the one opened after it. When the link still holds `stale` after `graceMs`, the request failed
+   * and the tunnel did not, so it is `stale` again.
+   */
+  tunnelAfter(stale: LiveTunnel, waitMs = 20_000, graceMs = 1_500): Promise<LiveTunnel> {
+    if (this.live && this.live !== stale) return Promise.resolve(this.live);
+    return this.next(waitMs, () => (this.live === stale ? stale : null), graceMs);
+  }
+
+  /** The next tunnel to open within `waitMs`, or what `early` gives after `earlyMs`. */
+  private next(waitMs: number, early?: () => LiveTunnel | null, earlyMs = 0): Promise<LiveTunnel> {
     if (this.state.at === 'refused' || this.state.at === 'idle')
       return Promise.reject(new NoTunnelError(this.state));
     return new Promise((done, fail) => {
-      const w = { done, fail };
-      this.waiting.push(w);
-      setTimeout(() => {
+      const timers: ReturnType<typeof setTimeout>[] = [];
+      const leave = () => {
+        for (const t of timers) clearTimeout(t);
         const i = this.waiting.indexOf(w);
-        if (i >= 0) {
-          this.waiting.splice(i, 1);
-          fail(new NoTunnelError(this.state));
-        }
-      }, waitMs);
+        if (i >= 0) this.waiting.splice(i, 1);
+      };
+      const w = {
+        done: (t: LiveTunnel) => {
+          leave();
+          done(t);
+        },
+        fail: (e: NoTunnelError) => {
+          leave();
+          fail(e);
+        },
+      };
+      this.waiting.push(w);
+      if (early) {
+        timers.push(
+          setTimeout(() => {
+            const t = early();
+            if (t) w.done(t);
+          }, earlyMs),
+        );
+      }
+      timers.push(setTimeout(() => w.fail(new NoTunnelError(this.state)), waitMs));
     });
   }
 

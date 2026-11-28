@@ -189,6 +189,13 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     if (refusedSignedOut) void forget();
   }, [refusedSignedOut, forget]);
 
+  // What failed to load while the link was down loads again once it is back, so a screen that
+  // showed the failure mends itself instead of waiting for a tap.
+  const online = linkState.at === 'online';
+  useEffect(() => {
+    if (online) void qc.refetchQueries({ type: 'active', predicate: (q) => q.state.status === 'error' });
+  }, [online, qc]);
+
   // Back in the front the connection is likely gone: try now instead of after the wait.
   useEffect(() => {
     const sub = AppState.addEventListener('change', (s) => {

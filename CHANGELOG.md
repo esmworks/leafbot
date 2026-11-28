@@ -17,6 +17,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 - The phone and the browser take the server's ICE candidates in the standard form (`candidate:…` with the media
   section's index), and one candidate a device cannot use no longer ends the whole connection. When a connection
   still cannot be made, the phone shows what its WebRTC stack said under the reason.
+- Back from another app, the phone no longer shows "Could not load" with "closed" while it opens the connection
+  again: a read that failed on the dead connection waits for the new one and goes again, a screen keeps what it had
+  instead of the failure, and what failed loads again once the connection is back. The line over the screen shows
+  only when the connection stays down for five seconds; until then the status under the name says it is connecting.
 
 ## 0.10.0 — 2026-11-28
 

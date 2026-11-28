@@ -1,5 +1,6 @@
 import { NoAnswerError } from '@leafbot/client';
-import type { Link } from './tunnelLink';
+import { sendAgain } from './reconnect';
+import type { Link, LiveTunnel } from './tunnelLink';
 
 /**
  * The phone's one link to the chosen server, set by the provider while a server is chosen. Requests
@@ -60,20 +61,37 @@ async function collect(body: ReadableStream<Uint8Array>): Promise<Uint8Array> {
 
 /**
  * A request to a path on the server, through the tunnel that is open (waiting a little for one that
- * is being opened again). Only a path is sent; the server decides what it is at. No answer, no
- * tunnel and a head that takes too long all come out as `NoAnswerError`; a call-off by `signal`
- * stays an abort.
+ * is being opened again). Only a path is sent; the server decides what it is at. A request the
+ * tunnel failed under, as when the app comes back from the background on a dead one, goes once
+ * more on the next tunnel when that cannot make a change twice (`sendAgain`). No answer, no tunnel
+ * and a head that takes too long all come out as `NoAnswerError`; a call-off by `signal` stays an
+ * abort.
  */
 export async function serverFetch(path: string, init: ServerRequest = {}): Promise<ServerResponse> {
   const link = current;
   if (!link) throw new NoAnswerError('no server');
+  try {
+    const tunnel = await link.tunnel();
+    try {
+      return await requestOn(tunnel, path, init);
+    } catch (err) {
+      if (init.signal?.aborted || !sendAgain(err, init.method)) throw err;
+      return await requestOn(await link.tunnelAfter(tunnel), path, init);
+    }
+  } catch (err) {
+    if (init.signal?.aborted) throw err;
+    throw new NoAnswerError(err instanceof Error ? err.message : String(err));
+  }
+}
+
+/** One request on one tunnel, given `timeoutMs` for the head of the answer. */
+async function requestOn(tunnel: LiveTunnel, path: string, init: ServerRequest): Promise<ServerResponse> {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), init.timeoutMs ?? HEAD_TIMEOUT_MS);
   const stop = () => ctrl.abort();
   if (init.signal?.aborted) stop();
   else init.signal?.addEventListener('abort', stop, { once: true });
   try {
-    const tunnel = await link.tunnel();
     const res = await tunnel.request(path, {
       ...(init.method ? { method: init.method } : {}),
       ...(init.headers ? { headers: init.headers } : {}),
@@ -88,9 +106,6 @@ export async function serverFetch(path: string, init: ServerRequest = {}): Promi
       text: async () => new TextDecoder().decode(await collect(res.body)),
       cancel: () => void res.body.cancel().catch(() => undefined),
     };
-  } catch (err) {
-    if (init.signal?.aborted) throw err;
-    throw new NoAnswerError(err instanceof Error ? err.message : String(err));
   } finally {
     clearTimeout(timer);
     init.signal?.removeEventListener('abort', stop);

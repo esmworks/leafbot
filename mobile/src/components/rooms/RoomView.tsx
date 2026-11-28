@@ -291,7 +291,7 @@ export function RoomView({ room }: { room: Room }) {
             <View style={styles.center}>
               <ActivityIndicator color={c.mutedForeground} />
             </View>
-          ) : messagesQ.isError ? (
+          ) : messagesQ.isError && !messagesQ.data ? (
             <View style={styles.center}>
               <Text style={[styles.message, { color: c.foreground }]}>{t('chat.loadFailed')}</Text>
               <Text style={[styles.hint, { color: c.mutedForeground }]}>{messagesQ.error.message}</Text>

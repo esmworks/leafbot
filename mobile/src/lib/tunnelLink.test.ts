@@ -167,4 +167,40 @@ describe('Link', () => {
     second.stop();
     expect(await waiting).toBeInstanceOf(NoTunnelError);
   });
+
+  it('gives a request that failed on a dead tunnel the one opened after it', async () => {
+    const ends: ((c: string) => void)[] = [];
+    const opened: LiveTunnel[] = [];
+    const link = new Link({
+      sleep: async () => undefined,
+      open: async (onEnd) => {
+        ends.push(onEnd);
+        const t = tunnel();
+        opened.push(t);
+        return t;
+      },
+    });
+    link.start();
+    await settle();
+    const stale = opened[0]!;
+    // The request finds the tunnel dead before the link hears it end.
+    const after = link.tunnelAfter(stale, 1000, 500);
+    ends[0]!('closed');
+    const next = await after;
+    expect(next).toBe(opened[1]);
+    expect(next).not.toBe(stale);
+    // Asked once the newer one is open, it is given at once.
+    expect(await link.tunnelAfter(stale)).toBe(next);
+    link.stop();
+  });
+
+  it('gives the same tunnel again when the link still holds it after the grace', async () => {
+    const t = tunnel();
+    const link = new Link({ open: async () => t });
+    link.start();
+    await settle();
+    expect(await link.tunnelAfter(t, 1000, 10)).toBe(t);
+    link.stop();
+    expect(await link.tunnelAfter(t, 1000, 10).catch((e: unknown) => e)).toBeInstanceOf(NoTunnelError);
+  });
 });
