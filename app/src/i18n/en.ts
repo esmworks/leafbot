@@ -2193,7 +2193,7 @@ export const en: Catalog<MessageKey> = {
   'bot.personComputerHint':
     'In work you ask for, it can look at your screen and use the mouse and keyboard. It asks before its first step each time. With “Bots may run commands” on in the desktop app, it can also run commands there, each asked on a card.',
   'bot.personComputerRemote':
-    'Your computer is not connected. In the Leaf Bot app on your Mac or Windows computer, open this server and press “Turn this computer on” in Settings → Computer use.',
+    'Your computer is not connected. In the Leaf Bot app on your Mac or Windows computer, open this server and press “Turn this computer on” in Settings → Computer use. In older versions: in the Leaf Bot icon’s menu, choose this server under “Account server for this computer”, then turn on “Bots may use this computer”.',
   'bot.personComputerDevice':
     'Connected: {device}. That computer asks on its own screen before a bot first uses it.',
   'bot.personComputerMissing': 'macOS has not allowed it yet: {what}',

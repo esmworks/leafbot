@@ -153,6 +153,8 @@ function OfferThisComputer({ again }: { again: React.ReactNode }) {
     onError: (e) => toast.error((e as Error).message),
   });
 
+  // While the app answers, nothing: the hint below would name a button that is not there.
+  if (here === undefined) return null;
   if (!here || !current) {
     return (
       <Card>
