@@ -1241,9 +1241,10 @@ export interface StoredConnectionTool {
   appOnly?: boolean;
   /**
    * A tool this server adds and runs itself, not one the connection's server listed. `gmailSend`
-   * is how rows stored before the other Gmail tools came name it, until their next refresh.
+   * is how rows stored before the other Gmail tools came name it, until their next refresh; `mail`
+   * is a mail account's over IMAP and SMTP, which has no server of its own.
    */
-  local?: 'gmail' | 'gmailSend';
+  local?: 'gmail' | 'gmailSend' | 'mail';
 }
 
 /** Which bots may use a connection that is not open to every bot. */

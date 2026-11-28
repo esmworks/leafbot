@@ -37,6 +37,7 @@ import {
   ConnectionCreate,
   ConnectionToolPatch,
   ConnectionUpdate,
+  type MailSettings,
   CustomEndpointCreate,
   CustomEndpointUpdate,
   FileName,
@@ -2099,9 +2100,12 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
    * The server calls a connection's address itself: only those who look after it may point one
    * at this machine or the private network it sits in.
    */
-  const checkConnectionUrl = async (req: FastifyRequest, url: string | undefined) => {
-    if (!url || managesServer(me(req).role)) return;
-    if (await privateHost(new URL(url).hostname)) throw new HttpError(400, 'error.connectionPrivate');
+  const checkConnectionUrl = async (req: FastifyRequest, url: string | undefined, mail?: MailSettings) => {
+    if (managesServer(me(req).role)) return;
+    // A mail account reaches two servers, neither by the address it is kept under.
+    const hosts = mail ? [mail.imap.host, mail.smtp.host] : url ? [new URL(url).hostname] : [];
+    for (const host of hosts)
+      if (await privateHost(host)) throw new HttpError(400, 'error.connectionPrivate');
   };
   /** Whose a new connection or sign-in is: the team's when asked for, otherwise the person's. */
   const ownerOrSelf = (req: FastifyRequest, team: boolean | undefined): string | null => {
@@ -2116,7 +2120,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.get('/api/connections/redirect-url', async (req) => ({ url: redirectUrl(req) }));
   app.post('/api/connections', async (req) => {
     const body = ConnectionCreate.parse(req.body);
-    await checkConnectionUrl(req, body.url);
+    await checkConnectionUrl(req, body.url, body.mail);
     const owner = ownerOrSelf(req, body.team);
     if (owner) await checkOwnBots(req, body.botIds);
     return s.connections.create(body, owner);
@@ -2126,7 +2130,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     const { id } = IdParams.parse(req.params);
     await connectionFor(req, id, true);
     const { team, ...patch } = ConnectionUpdate.parse(req.body);
-    await checkConnectionUrl(req, patch.url);
+    await checkConnectionUrl(req, patch.url, patch.mail);
     const owner = ownerFor(req, team);
     const changed = await s.connections.update(id, patch);
     return owner === undefined ? changed : s.connections.setOwner(id, owner);

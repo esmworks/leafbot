@@ -1,4 +1,4 @@
-import { addressKey, catalogEntry, type Connection } from '@leafbot/shared';
+import { addressKey, catalogEntry, isMailUrl, type Connection } from '@leafbot/shared';
 import Feather from '@expo/vector-icons/Feather';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { router } from 'expo-router';
@@ -73,7 +73,9 @@ export function Detail({ id }: { id: string }) {
     onError: toastError,
   });
   const saveToken = useMutation({
-    mutationFn: () => api.updateConnection(id, { token: token.trim() }),
+    // A mail account's password goes as typed: a space at either end may be part of it.
+    mutationFn: () =>
+      api.updateConnection(id, conn && isMailUrl(conn.url) ? { password: token } : { token: token.trim() }),
     onSuccess: () => {
       setToken('');
       void done();

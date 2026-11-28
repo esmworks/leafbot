@@ -26,7 +26,7 @@ import {
   TooManyRequestsError,
 } from '@modelcontextprotocol/sdk/server/auth/errors.js';
 import type { ElicitForm } from './elicit';
-import { MAX_CONNECTION_TOOLS } from '@leafbot/shared';
+import { MAX_CONNECTION_TOOLS, type MailSettings } from '@leafbot/shared';
 import type { StoredConnectionTool } from '../db/schema';
 import { Agent } from 'undici';
 import { privateHost, publicLookup } from '../services/skill-link';
@@ -56,6 +56,8 @@ export interface ConnectionSecrets {
   ownClient?: OwnClient;
   /** What the person called `ownClient`, so accounts can pick it by name. */
   ownClientName?: string;
+  /** A mail account's servers and address (see `MailSettings`); its password is `token`. */
+  mail?: MailSettings;
   oauth?: {
     client?: OAuthClientInformationMixed;
     tokens?: OAuthTokens;

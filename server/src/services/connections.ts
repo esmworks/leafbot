@@ -1,10 +1,13 @@
 import { createHash } from 'node:crypto';
 import {
   MAX_CONNECTIONS,
+  MailSettings,
   botToolArgs,
   catalogEntry,
   connectionSlug,
   headerNameAllowed,
+  isMailUrl,
+  mailUrl,
   serviceText,
   sharesApp,
   type Connection,
@@ -34,7 +37,16 @@ import {
 } from '../connections/client';
 import type { CallToolResult, ElicitResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ElicitForm } from '../connections/elicit';
-import { gmailSender, isGmailMcp, runGmailTool, toolKind, withGmailTools } from '../connections/gmail';
+import { gmailSender, isGmailMcp, runGmailTool, withGmailTools } from '../connections/gmail';
+import {
+  MailAccountError,
+  checkMailAccount,
+  mailSender as mailSenderOf,
+  mailTools,
+  runMailTool,
+  toolKind,
+  type MailTarget,
+} from '../connections/mail';
 import { inlinePictures } from '../connections/mail-signature';
 import type { Ctx } from '../context';
 import { schema } from '../db';
@@ -66,6 +78,20 @@ const GITHUB_CATALOG_ID = 'github';
 const LOOPBACK_NAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
 /** How long who a mail account sends as is kept before it is read again: a signature changes rarely. */
 const SENDER_TTL_MS = 10 * 60_000;
+/** How long checking a mail account may take: signing in to its IMAP and its SMTP server. */
+const MAIL_CHECK_MS = 60_000;
+
+/**
+ * A change a mail account cannot take: its address, sign-in kind and app come from its settings,
+ * and its password comes untrimmed as `password`, never as a token.
+ */
+const mailOnlyFields = (patch: ConnectionUpdate) =>
+  patch.url !== undefined ||
+  patch.token !== undefined ||
+  patch.auth !== undefined ||
+  patch.headers !== undefined ||
+  patch.clientId !== undefined ||
+  patch.clientSecret !== undefined;
 
 /**
  * The OAuth callback as the app reaches this server. `host` is the already checked Host header.
@@ -293,6 +319,9 @@ export class ConnectionService {
   async mailSender(id: string): Promise<MailSender> {
     const none: MailSender = { address: null, signature: null };
     const row = await this.row(id);
+    // A mail account's address and signature are its own settings: nothing to ask a server.
+    const mail = isMailUrl(row.url) ? this.secretsOf(row).mail : undefined;
+    if (mail) return mailSenderOf(mail);
     if (!isGmailMcp(row.url) || row.status !== 'connected') return none;
     const hit = this.senders.get(id);
     if (hit && Date.now() - hit.at < SENDER_TTL_MS) return hit.value;
@@ -356,6 +385,7 @@ export class ConnectionService {
       userId: row.userId,
       showApps: row.showApps,
       needsScope: !!secrets.oauth?.scopePending,
+      ...(isMailUrl(row.url) && secrets.mail && { mail: secrets.mail }),
       botIds: row.allBots ? [] : botIds,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
@@ -444,6 +474,23 @@ export class ConnectionService {
   }
 
   /**
+   * How a mail account's tools reach its servers: its settings and password, and whether it must
+   * stay on public addresses. Throws when the settings are gone (sealed with a key this server no
+   * longer has), which only setting the account up again mends.
+   */
+  private mailTarget(row: Row): MailTarget {
+    const s = this.secretsOf(row);
+    if (!s.mail || !s.token)
+      throw new MailAccountError('settingsMissing', '', 'the mail account settings are missing');
+    let publicOnly: Promise<boolean> | undefined;
+    return {
+      settings: s.mail,
+      password: s.token,
+      publicOnly: () => (publicOnly ??= this.mustStayPublic(row)),
+    };
+  }
+
+  /**
    * The request headers to keep for a connection: the list the person gave, each with the value
    * given or, when that is empty, the one saved under the same name (values never come back to be
    * shown, so an unchanged one is sent empty). Refuses a name the transport or the sign-in owns.
@@ -497,9 +544,14 @@ export class ConnectionService {
       throw new HttpError(400, 'error.connectionLimit', { max: MAX_CONNECTIONS });
     const secrets: ConnectionSecrets = {};
     if (input.auth === 'token') {
-      if (!input.token) throw new HttpError(400, 'error.connectionToken');
-      secrets.token = input.token;
+      // A mail account's password comes as typed; a token is trimmed.
+      const token = input.mail ? input.password : input.token;
+      if (!token) throw new HttpError(400, 'error.connectionToken');
+      secrets.token = token;
     }
+    // A mail account is kept under its IMAP server, whatever address the request gave.
+    const mail = input.mail ? MailSettings.parse(input.mail) : undefined;
+    if (mail) secrets.mail = mail;
     if (input.headers?.length) secrets.headers = this.headersOf(input.headers, {}, input.auth);
     if (input.auth === 'oauth' && input.clientId) {
       secrets.ownClient = {
@@ -525,8 +577,8 @@ export class ConnectionService {
         all.map((r) => r.slug),
       ),
       name: input.name,
-      catalogId: catalogEntry(input.catalogId) ? input.catalogId : null,
-      url: input.url,
+      catalogId: !mail && catalogEntry(input.catalogId) ? input.catalogId : null,
+      url: mail ? mailUrl(mail) : input.url,
       auth: input.auth,
       status: 'signed-out',
       secrets: this.sealed(secrets),
@@ -543,6 +595,10 @@ export class ConnectionService {
   async update(id: string, patch: ConnectionUpdate): Promise<Connection> {
     const row = await this.row(id);
     const secrets = this.secretsOf(row);
+    // A mail account changes through its settings and password alone; an MCP server has no settings.
+    const mailRow = isMailUrl(row.url);
+    if (mailRow ? mailOnlyFields(patch) : patch.mail || patch.password !== undefined)
+      throw new HttpError(400, 'error.mailConnectionFields');
     const urlMoved = patch.url !== undefined && patch.url !== row.url;
     const moved = urlMoved || (patch.auth && patch.auth !== row.auth);
     // Another server, or another way in: nothing of the old sign-in goes to it. The headers belong
@@ -577,12 +633,21 @@ export class ConnectionService {
       if (kept.length) next.headers = Object.fromEntries(kept);
       else delete next.headers;
     }
+    if (mailRow && patch.password) next.token = patch.password;
     if (auth === 'token' && !next.token) throw new HttpError(400, 'error.connectionToken');
+    const mail = mailRow && patch.mail ? MailSettings.parse(patch.mail) : undefined;
+    if (mail) next.mail = mail;
+    // Another address or another server is another mailbox: what the bot was let do without asking
+    // in the old one does not carry over. Settings that were lost count as another mailbox.
+    const otherMailbox =
+      !!mail &&
+      (mailUrl(mail) !== row.url || mail.address.toLowerCase() !== secrets.mail?.address.toLowerCase());
     await this.ctx.db
       .update(schema.connections)
       .set({
         ...(patch.name !== undefined && { name: patch.name }),
         ...(patch.url !== undefined && { url: patch.url }),
+        ...(mail && { url: mailUrl(mail) }),
         ...(patch.showApps !== undefined && { showApps: patch.showApps }),
         auth,
         secrets: this.sealed(next),
@@ -593,9 +658,15 @@ export class ConnectionService {
       .where(eq(schema.connections.id, id));
     dropClient(id);
     // Another server's tools, not the same server reached another way: the rules go only then.
-    if (patch.url !== undefined && patch.url !== row.url) await this.dropAllowRules(row.slug);
+    if ((patch.url !== undefined && patch.url !== row.url) || otherMailbox)
+      await this.dropAllowRules(row.slug);
     const changedAccess =
-      moved || patch.token !== undefined || patch.clientId !== undefined || patch.headers !== undefined;
+      moved ||
+      patch.token !== undefined ||
+      patch.password !== undefined ||
+      patch.clientId !== undefined ||
+      patch.headers !== undefined ||
+      patch.mail !== undefined;
     if (changedAccess && auth !== 'oauth') await this.refresh(id);
     else if (changedAccess && auth === 'oauth') await this.setStatus(id, 'signed-out', null);
     this.changed();
@@ -718,6 +789,7 @@ export class ConnectionService {
     row: Pick<Row, 'id' | 'url' | 'catalogId'>,
     e: ConnectionClientError,
   ): Promise<string> {
+    if (e instanceof MailAccountError) return this.mailErrorText(e);
     const message = await this.masked(row.id, e.message);
     if (e.code !== 'forbidden') return truncate(message, 500);
     const t = await serverTranslator(this.ctx);
@@ -727,6 +799,12 @@ export class ConnectionService {
         : 'connection.forbidden';
     const said = message.replace(/^HTTP 403:?\s*/, '');
     return truncate(`${t(key, { host: new URL(row.url).host })}${said ? `\n${said}` : ''}`, 500);
+  }
+
+  /** A mail account's own trouble in the person's language. */
+  private async mailErrorText(e: MailAccountError): Promise<string> {
+    const t = await serverTranslator(this.ctx);
+    return t(`connection.mail.${e.reason}`, { host: e.host });
   }
 
   private async setStatus(id: string, status: Row['status'], error: string | null) {
@@ -743,15 +821,29 @@ export class ConnectionService {
    */
   async refresh(id: string, { quiet = false }: { quiet?: boolean } = {}): Promise<Connection> {
     const row = await this.row(id);
+    const mailRow = isMailUrl(row.url);
     try {
-      const tools = withGmailTools(row.url, await listTools(this.target(row), row.tools), row.tools);
+      // A mail account has no server to list tools: signing in to both of its servers is the check.
+      if (mailRow) await checkMailAccount(this.mailTarget(row), AbortSignal.timeout(MAIL_CHECK_MS));
+      const tools = mailRow
+        ? mailTools(row.tools)
+        : withGmailTools(row.url, await listTools(this.target(row), row.tools), row.tools);
       await this.ctx.db
         .update(schema.connections)
         .set({ tools, status: 'connected', error: null, updatedAt: new Date() })
         .where(eq(schema.connections.id, id));
     } catch (err) {
       const e = classify(err);
-      if (e.code === 'unauthorized') await this.signInNeeded(row, e);
+      // The server's own words say which server refused the password.
+      if (e.code === 'unauthorized' && mailRow)
+        await this.setStatus(
+          id,
+          'signed-out',
+          e instanceof MailAccountError
+            ? await this.mailErrorText(e)
+            : truncate(await this.masked(id, e.message), 500),
+        );
+      else if (e.code === 'unauthorized') await this.signInNeeded(row, e);
       else if (e.code === 'scope') await this.scopeNeeded(row);
       else if (quiet && row.status === 'connected') console.warn('connection refresh', e.code);
       else await this.setStatus(id, 'error', await this.failureText(row, e));
@@ -774,9 +866,12 @@ export class ConnectionService {
       await this.ctx.db.update(schema.connections).set({ auth }).where(eq(schema.connections.id, row.id));
     }
     const keyNeeded = auth === 'token' && row.auth === 'none';
-    const reason = keyNeeded
-      ? (await serverTranslator(this.ctx))('connection.needsKey', { host: new URL(row.url).host })
-      : await this.signOutReason({ ...row, auth }, e);
+    const reason =
+      e instanceof MailAccountError
+        ? await this.mailErrorText(e)
+        : keyNeeded
+          ? (await serverTranslator(this.ctx))('connection.needsKey', { host: new URL(row.url).host })
+          : await this.signOutReason({ ...row, auth }, e);
     await this.setStatus(row.id, 'signed-out', reason);
     return auth;
   }
@@ -1372,18 +1467,21 @@ export class ConnectionService {
         // A call the service would hand to a form in its view goes out as already sent from it.
         const sent = tool.local ? args : botToolArgs(current, tool.name, args);
         try {
-          const result = tool.local
-            ? await runGmailTool(this.target(current), tool.name, args, signal, { saveFile: keepFile })
-            : serviceText(
-                current,
-                await callTool(
-                  this.target(current),
-                  tool.name,
-                  sent,
-                  signal,
-                  elicit && ((form) => elicit(form, row.name)),
-                ),
-              );
+          const result =
+            tool.local === 'mail'
+              ? await runMailTool(this.mailTarget(current), tool.name, args, signal, { saveFile: keepFile })
+              : tool.local
+                ? await runGmailTool(this.target(current), tool.name, args, signal, { saveFile: keepFile })
+                : serviceText(
+                    current,
+                    await callTool(
+                      this.target(current),
+                      tool.name,
+                      sent,
+                      signal,
+                      elicit && ((form) => elicit(form, row.name)),
+                    ),
+                  );
           // That view is the form itself: shown after the call, sending it would make the change twice.
           if (tool.ui && current.showApps && showApp && !result.isError && sent === args) {
             // The tool's own view joins the conversation; the bot's answer does not wait on it.

@@ -7,6 +7,7 @@ import {
   catalogLogo,
   formHeaders,
   headerNameAllowed,
+  isMailUrl,
   parseMcpSetup,
   searchCatalog,
   sharesApp,
@@ -28,6 +29,7 @@ import {
   Loader2,
   LogIn,
   LogOut,
+  Mail,
   Pencil,
   Plug,
   Plus,
@@ -46,6 +48,7 @@ import { useT, type MessageKey } from '@/i18n';
 import { api } from '@/lib/api';
 import { copyText } from '@/lib/clipboard';
 import { useBots, useConnections, useManagesServer } from '@/lib/queries';
+import { MailForm, MailSettingsPanel } from './MailAccount';
 import { PageAppView, SavedApps } from './PageApps';
 import { TeamChoice } from './VaultTab';
 import { useUi } from '@/lib/store';
@@ -55,6 +58,7 @@ type Filter = 'all' | 'connected' | CatalogGroup;
 type View =
   | { kind: 'browse' }
   | { kind: 'setup'; entry: CatalogEntry | null; sibling?: Connection }
+  | { kind: 'mail' }
   | { kind: 'connection'; id: string; signInUrl?: string };
 
 const STATUS_KEY: Record<Connection['status'], MessageKey> = {
@@ -163,6 +167,7 @@ export function useToggleBot() {
  * covers the main area while open; what was there stays as it was under it.
  */
 export function AppsPage() {
+  const t = useT();
   const apps = useUi((s) => s.apps);
   const openApps = useUi((s) => s.openApps);
   const [chosen, setView] = useState<View>({ kind: 'browse' });
@@ -203,6 +208,22 @@ export function AppsPage() {
             }
             onDone={(id, signInUrl) => setView({ kind: 'connection', id, signInUrl })}
           />
+        )}
+        {view.kind === 'mail' && (
+          <>
+            <Header
+              onBack={() => setView({ kind: 'browse' })}
+              logo={null}
+              title={t('apps.mail.title')}
+              sub={t('apps.mail.subtitle')}
+            />
+            <div className="scroll-thin relative flex-1 overflow-y-auto px-5 sm:px-8 py-6">
+              <MailForm
+                onCancel={() => setView({ kind: 'browse' })}
+                onSaved={(c) => setView({ kind: 'connection', id: c.id })}
+              />
+            </div>
+          </>
         )}
         {view.kind === 'connection' && (
           <Detail
@@ -362,6 +383,9 @@ function Browse({
           onClick={() => onView({ kind: 'setup', entry: null })}
         >
           <Plus /> {t('apps.custom')}
+        </Button>
+        <Button variant="outline" className="h-10 rounded-full" onClick={() => onView({ kind: 'mail' })}>
+          <Mail /> {t('apps.mail.add')}
         </Button>
       </div>
       {!q && (
@@ -958,6 +982,8 @@ function Detail({
     );
   }
   const entry = catalogEntry(c.catalogId);
+  // Kept under its IMAP server, a mail account is one even when its settings could not be read.
+  const mailAccount = isMailUrl(c.url);
   const live = bots.filter((b) => !b.archivedAt);
   // Every account of a catalog service that signs in, this one among them.
   const accounts =
@@ -972,7 +998,7 @@ function Detail({
         onBack={onBack}
         logo={c.catalogId}
         title={entry && accounts.length ? entry.name : c.name}
-        sub={c.url}
+        sub={c.mail?.address ?? c.url}
       />
       <div className="scroll-thin relative flex-1 space-y-6 overflow-y-auto px-5 sm:px-8 py-6">
         {entry && accounts.length > 0 && (
@@ -1055,7 +1081,8 @@ function Detail({
           </p>
         )}
 
-        {c.auth === 'token' && (
+        {mailAccount && <MailSettingsPanel connection={c} />}
+        {c.auth === 'token' && !mailAccount && (
           <form
             className="flex items-end gap-2"
             onSubmit={(e) => {
@@ -1081,10 +1108,11 @@ function Detail({
         {c.auth === 'oauth' && (c.clientId || c.status !== 'connected') && (
           <OwnApp key={c.clientId ?? ''} connection={c} onSaved={() => signIn.mutate()} />
         )}
-        <RequestHeaders connection={c} onSaved={done} />
+        {/* A mail account has no MCP server to send headers to or to show views of its own. */}
+        {!mailAccount && <RequestHeaders connection={c} onSaved={done} />}
         <Owned connection={c} />
         <BotAccess connection={c} bots={live} />
-        <AppViews connection={c} />
+        {!mailAccount && <AppViews connection={c} />}
         <Tools connection={c} />
       </div>
     </>

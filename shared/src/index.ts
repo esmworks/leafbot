@@ -27,6 +27,7 @@ export * from './tables';
 export * from './live-stream';
 export * from './stream-parts';
 export * from './email-preview';
+export * from './mail-account';
 export * from './secret-shapes';
 export * from './upload-retry';
 export * from './storage';

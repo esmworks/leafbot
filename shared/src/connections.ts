@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Id } from './schemas.js';
+import { MailSettings, isMailUrl } from './mail-account.js';
 
 /**
  * Connections: remote MCP servers (Streamable HTTP) whose tools bots may use. The server is the
@@ -68,6 +69,11 @@ export const Connection = z.object({
   showApps: z.boolean().optional(),
   /** A call was refused for lack of scope: signing in again asks for it. */
   needsScope: z.boolean().optional(),
+  /**
+   * A mail account reached over IMAP and SMTP, with its settings (the password stays sealed as
+   * its token); absent for an MCP server.
+   */
+  mail: MailSettings.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -158,31 +164,52 @@ const ConnectionHeaders = z
     message: 'error.connectionHeaderName',
   });
 
-export const ConnectionCreate = z.object({
-  name: z.string().trim().min(1).max(80),
-  url: ConnectionUrl,
-  auth: ConnectionAuth,
-  catalogId: z.string().max(80).nullable().default(null),
-  token: z.string().trim().max(10_000).optional(),
-  /** Request headers sent with every call to the server; set by the person only, never by a bot. */
-  headers: ConnectionHeaders.optional(),
-  clientId: z.string().trim().max(500).optional(),
-  clientSecret: z.string().trim().max(2000).optional(),
-  /** A name for the app `clientId` names, so further accounts can pick it. */
-  clientName: z.string().trim().max(80).optional(),
-  /**
-   * Another account of a service already connected, or another service of the same provider
-   * (`client.family`): signs in through that connection's registered app, secret included, so it
-   * is not asked for again.
-   */
-  sameAppAs: Id.optional(),
-  /** Open to every bot; off limits it to `botIds`. */
-  allBots: z.boolean().default(true),
-  /** The bots that may use it when `allBots` is off. */
-  botIds: z.array(Id).max(500).default([]),
-  /** For the whole team rather than the person setting it up; only those who look after the server. */
-  team: z.boolean().optional(),
-});
+/** Untrimmed, unlike a token: a password may start or end with a space. */
+const MailPassword = z.string().min(1).max(1000);
+
+export const ConnectionCreate = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    /** The MCP server; for a mail account, its IMAP server as `mailUrl` names it. */
+    url: z.string().trim().max(2000),
+    auth: ConnectionAuth,
+    catalogId: z.string().max(80).nullable().default(null),
+    token: z.string().trim().max(10_000).optional(),
+    /** Request headers sent with every call to the server; set by the person only, never by a bot. */
+    headers: ConnectionHeaders.optional(),
+    clientId: z.string().trim().max(500).optional(),
+    clientSecret: z.string().trim().max(2000).optional(),
+    /** A name for the app `clientId` names, so further accounts can pick it. */
+    clientName: z.string().trim().max(80).optional(),
+    /**
+     * Another account of a service already connected, or another service of the same provider
+     * (`client.family`): signs in through that connection's registered app, secret included, so it
+     * is not asked for again.
+     */
+    sameAppAs: Id.optional(),
+    /** Open to every bot; off limits it to `botIds`. */
+    allBots: z.boolean().default(true),
+    /** The bots that may use it when `allBots` is off. */
+    botIds: z.array(Id).max(500).default([]),
+    /** For the whole team rather than the person setting it up; only those who look after the server. */
+    team: z.boolean().optional(),
+    /** A mail account over IMAP and SMTP rather than an MCP server; its password goes as `password`. */
+    mail: MailSettings.optional(),
+    /** A mail account's password, as typed: a space at either end may be part of it. */
+    password: MailPassword.optional(),
+  })
+  .superRefine((c, ctx) => {
+    // A mail account is kept under its IMAP server; anything else is an MCP server on the web.
+    if (c.mail) {
+      if (!isMailUrl(c.url)) ctx.addIssue({ code: 'custom', path: ['url'], message: 'error.connectionUrl' });
+      if (c.auth !== 'token' || !c.password)
+        ctx.addIssue({ code: 'custom', path: ['password'], message: 'error.mailPassword' });
+    } else if (c.password !== undefined) {
+      ctx.addIssue({ code: 'custom', path: ['password'], message: 'error.mailConnectionFields' });
+    } else if (!ConnectionUrl.safeParse(c.url).success) {
+      ctx.addIssue({ code: 'custom', path: ['url'], message: 'error.connectionUrl' });
+    }
+  });
 export type ConnectionCreate = z.input<typeof ConnectionCreate>;
 
 export const ConnectionUpdate = z.object({
@@ -198,6 +225,10 @@ export const ConnectionUpdate = z.object({
   showApps: z.boolean().optional(),
   /** Moves it to the team, or back to the person changing it; only those who look after the server. */
   team: z.boolean().optional(),
+  /** A mail account's settings, whole. */
+  mail: MailSettings.optional(),
+  /** A mail account's new password, as typed. */
+  password: MailPassword.optional(),
 });
 export type ConnectionUpdate = z.input<typeof ConnectionUpdate>;
 

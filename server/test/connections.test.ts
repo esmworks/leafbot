@@ -1228,6 +1228,52 @@ describe('bağlantılar', () => {
     ]);
   });
 
+  it('a mail account takes its password as typed, and its "always allow" rules go with another mailbox', async () => {
+    // Nothing listens on port 1: the check fails at once, which is all this needs.
+    const servers = {
+      imap: { host: '127.0.0.1', port: 1, security: 'tls' },
+      smtp: { host: '127.0.0.1', port: 1, security: 'tls' },
+    };
+    const mail = { address: 'deniz@example.com', ...servers };
+    const r = await t.api<Connection>('POST', '/api/connections', {
+      name: mail.address,
+      url: 'imaps://127.0.0.1:1',
+      auth: 'token',
+      password: ' spaced pw ',
+      mail,
+    });
+    expect(r.status).toBe(200);
+    expect(r.body.mail?.address).toBe('deniz@example.com');
+    const id = r.body.id;
+    const slug = r.body.slug;
+    const secrets = async () => {
+      const [row] = await t.services.ctx.db
+        .select()
+        .from(schema.connections)
+        .where(eq(schema.connections.id, id));
+      return JSON.parse(t.services.vault.open(row!.secrets!)) as Record<string, unknown>;
+    };
+    expect(await secrets()).toMatchObject({ token: ' spaced pw ' });
+    // A trimmed token would change the password; an MCP server has no password.
+    expect((await t.api('PATCH', `/api/connections/${id}`, { token: 'pw' })).status).toBe(400);
+    const other = await fixture();
+    const mcp = (
+      await t.api<Connection>('POST', '/api/connections', { name: 'N', url: other.url, auth: 'none' })
+    ).body;
+    expect((await t.api('PATCH', `/api/connections/${mcp.id}`, { password: 'pw' })).status).toBe(400);
+
+    await t.api('POST', '/api/rules', { list: 'allow', pattern: `mcp__${slug}__send_message` });
+    const rules = async () => (await t.api<PermissionRule[]>('GET', '/api/rules')).body.length;
+    await t.api('PATCH', `/api/connections/${id}`, {
+      mail: { ...mail, signature: 'Deniz' },
+      password: ' new pw ',
+    });
+    expect(await rules()).toBe(1);
+    expect(await secrets()).toMatchObject({ token: ' new pw ' });
+    await t.api('PATCH', `/api/connections/${id}`, { mail: { ...mail, address: 'ali@example.com' } });
+    expect(await rules()).toBe(0);
+  });
+
   it('ulaşılamayan sunucu hata olarak görünür; silinen bağlantının araçları gider', async () => {
     const f = await fixture();
     await f.close();

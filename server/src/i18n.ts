@@ -198,6 +198,12 @@ const tr = {
   'error.notFound.connectionTool': 'Bu bağlantıda böyle bir araç yok',
   'error.connectionUrl': 'Geçerli bir http(s) adresi girin',
   'error.connectionToken': 'Bu bağlantı için bir anahtar (token) gerekli',
+  'error.mailHost': 'Sunucu adı geçerli bir alan adı ya da IP adresi olmalı',
+  'error.mailAddress': 'Geçerli bir e-posta adresi girin (ör. ad@alanadi.com)',
+  'error.mailDisplayName': 'Görünen ad satır sonu ya da " < > \\ içeremez',
+  'error.mailPassword': 'Posta hesabının şifresi gerekli',
+  'error.mailConnectionFields':
+    'Posta hesabı yalnızca kendi ayarları ve şifresiyle değiştirilir; diğer bağlantılarda posta ayarı olmaz',
   'error.connectionHeaderName':
     'Başlık adı yalnızca harf, rakam ve - _ . gibi işaretlerden oluşmalı ve her ad bir kez geçmeli',
   'error.connectionHeaderValue': 'Başlık değeri boş olamaz ve yalnızca yazdırılabilir karakterler içerebilir',
@@ -224,6 +230,12 @@ const tr = {
   'connection.needsKey':
     '{host} oturum açma sunmuyor, her istekte bir anahtar (API key) istiyor. Ayarlar → Bağlantılar bölümünden anahtarı girin.',
   'connection.callFailed': '{name} servisine ulaşılamadı: {message}',
+  'connection.mail.hostNotFound':
+    '{host} adında bir sunucu bulunamadı. Posta hesabının ayarlarındaki sunucu adını denetleyin.',
+  'connection.mail.hostPrivate':
+    '{host} bu bilgisayarda ya da özel bir ağda. Böyle bir sunucuyu yalnızca sunucuyu yöneten biri ekleyebilir.',
+  'connection.mail.settingsMissing':
+    'Bu posta hesabının ayarları okunamıyor. Hesabın sayfasında ayarları ve şifreyi yeniden girin.',
   'connection.needsScopeCall':
     '{name} bu iş için daha fazla izin istiyor. Kullanıcıdan Ayarlar → Bağlantılar bölümünde yeniden oturum açıp izni vermesini iste.',
   'connection.needsScope':
@@ -2751,6 +2763,12 @@ const en: Catalog<ServerKey> = {
   'error.notFound.connectionTool': 'This connection has no such tool',
   'error.connectionUrl': 'Enter a valid http(s) address',
   'error.connectionToken': 'This connection needs a token',
+  'error.mailHost': 'The server name must be a valid domain name or IP address',
+  'error.mailAddress': 'Enter a valid email address (e.g. name@example.com)',
+  'error.mailDisplayName': 'The display name cannot hold a line break or " < > \\',
+  'error.mailPassword': 'The mail account needs its password',
+  'error.mailConnectionFields':
+    'A mail account changes only through its own settings and password; other connections have no mail settings',
   'error.connectionHeaderName':
     'A header name may hold only letters, digits and marks such as - _ . and each name may appear once',
   'error.connectionHeaderValue': 'A header value cannot be empty and may hold only printable characters',
@@ -2777,6 +2795,12 @@ const en: Catalog<ServerKey> = {
   'connection.needsKey':
     '{host} offers no sign-in and wants an API key on every request. Enter the key in Settings → Connections.',
   'connection.callFailed': 'Could not reach {name}: {message}',
+  'connection.mail.hostNotFound':
+    'No server named {host} was found. Check the server name in the mail account’s settings.',
+  'connection.mail.hostPrivate':
+    '{host} is on this computer or a private network. Only someone who looks after the server can add such a server.',
+  'connection.mail.settingsMissing':
+    'This mail account’s settings cannot be read. Enter the settings and the password again on the account’s page.',
   'connection.needsScopeCall':
     'The {name} connection needs more access for this. Ask the person to sign in again in Settings → Connections and allow it.',
   'connection.needsScope':

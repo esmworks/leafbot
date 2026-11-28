@@ -48,8 +48,8 @@ const address = z
   .max(320)
   // A plain address: no name part, no line break that would start another header.
   .regex(/^[^\s@<>,;"]+@[^\s@<>,;"]+\.[^\s@<>,;"]+$/, 'a plain email address, e.g. user@example.com');
-const recipients = z.array(address).max(MAX_RECIPIENTS);
-const oneLine = (max: number) =>
+export const recipients = z.array(address).max(MAX_RECIPIENTS);
+export const oneLine = (max: number) =>
   z
     .string()
     .max(max)
@@ -61,7 +61,7 @@ const gmailId = z
   .min(1)
   .max(256)
   .regex(/^[A-Za-z0-9_-]+$/, 'an id as Gmail gave it');
-const text = z.string().max(MAX_BODY);
+export const text = z.string().max(MAX_BODY);
 
 const attachment = z
   .object({
@@ -79,7 +79,7 @@ const attachment = z
   })
   .strict();
 type Attachment = z.infer<typeof attachment>;
-const attachments = z.array(attachment).max(100);
+export const attachments = z.array(attachment).max(100);
 
 /** What `send_message` takes. Unknown keys are refused: the card shows every field that goes out. */
 export const GmailSendInput = z
@@ -369,7 +369,7 @@ async function step<T>(name: string, run: () => Promise<T>): Promise<T> {
 // Building a mail
 
 /** The bot's files, each inline one named `attN` by its place among them all, as the tools say. */
-function filesOf(list: Attachment[] | undefined): MailFile[] {
+export function filesOf(list: Attachment[] | undefined): MailFile[] {
   return (list ?? []).map((a, i) => ({
     ...(a.filename && { filename: a.filename }),
     mimeType: a.mimeType ?? 'application/octet-stream',
@@ -391,7 +391,7 @@ function checkSize(files: MailFile[]) {
 class InputError extends Error {}
 
 /** A header's value from someone else's mail, as one line. */
-const oneLineOf = (s: string | undefined) => (s ?? '').replace(/[\r\n\0]+/g, ' ').trim();
+export const oneLineOf = (s: string | undefined) => (s ?? '').replace(/[\r\n\0]+/g, ' ').trim();
 
 /** The reply headers that keep a mail in the conversation it answers. */
 function threading(original: GmailPart | undefined) {
@@ -401,7 +401,7 @@ function threading(original: GmailPart | undefined) {
   return { inReplyTo: id, references: chain.slice(-20).join(' ') };
 }
 
-const unique = (list: string[], drop: Set<string>) => {
+export const unique = (list: string[], drop: Set<string>) => {
   const seen = new Set(drop);
   return list.filter((a) => {
     const k = a.toLowerCase();
@@ -734,7 +734,7 @@ const getDraft: Run = async (gmail, args) => {
 };
 
 /** A name for a file the mail gives none, from its media type: `attachment-2.png`. */
-function nameFor(f: { filename?: string; mimeType: string }, index: number) {
+export function nameFor(f: { filename?: string; mimeType: string }, index: number) {
   if (f.filename) return f.filename;
   const sub = f.mimeType.split('/')[1] ?? '';
   return `attachment-${index}${/^[a-z0-9]{1,10}$/.test(sub) ? `.${sub}` : ''}`;
