@@ -2210,6 +2210,24 @@ export const TurnChanges = z.object({
 });
 export type TurnChanges = z.infer<typeof TurnChanges>;
 
+/**
+ * What one file a turn changed looks like next to how it was, line by line, for reading before
+ * taking the turn back. `ok`: as the turn left it, compared; `changedSince`: it changed again after
+ * the turn, so the comparison would show more than the turn did; `binary`: not text; `notKept`: its
+ * earlier content was too large to keep; `undone`: the turn was taken back; `tooLong`: the parts
+ * that differ are too long to compare here.
+ */
+export const TurnFileDiff = z.object({
+  state: z.enum(['ok', 'changedSince', 'binary', 'notKept', 'undone', 'tooLong']),
+  /** The changed lines with a few around them, one list per stretch of change. */
+  hunks: z.array(z.array(z.object({ type: z.enum(['same', 'added', 'removed']), text: z.string() }))),
+  added: z.number().int(),
+  removed: z.number().int(),
+  /** Lines were left out at the end: the change is longer than is shown. */
+  more: z.boolean(),
+});
+export type TurnFileDiff = z.infer<typeof TurnFileDiff>;
+
 /** One turn in a conversation's action log: what it changed and reached, and when it was asked. */
 export const TurnLogEntry = TurnChanges.extend({
   at: z.string(),

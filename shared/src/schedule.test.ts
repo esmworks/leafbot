@@ -5,7 +5,9 @@ import {
   describeSchedule,
   localStamp,
   nextRun,
+  nextRunBefore,
   occurrenceKey,
+  routineEnded,
   RoutineUpdate,
   Schedule,
   zonedTime,
@@ -170,5 +172,69 @@ describe('localStamp', () => {
     );
     expect(localStamp(new Date('2026-07-01T10:00:00Z'), 'Asia/Kolkata')).toBe('2026-07-01T15:30:00+05:30');
     expect(localStamp(new Date('2026-07-01T10:00:00Z'), 'UTC')).toBe('2026-07-01T10:00:00+00:00');
+  });
+});
+
+describe('every few weeks', () => {
+  const tz = 'Europe/Istanbul';
+  const fortnightly = (anchor: string, days = [5]): Schedule => ({
+    type: 'weekly',
+    days,
+    time: '09:00',
+    weeks: 2,
+    anchor,
+  });
+
+  it('runs in the anchor week and skips the week between', () => {
+    expect(next(fortnightly('2026-11-23'), tz, '2026-11-25T00:00:00Z')).toBe('2026-11-27T06:00:00.000Z');
+    expect(next(fortnightly('2026-11-23'), tz, '2026-11-27T07:00:00Z')).toBe('2026-12-11T06:00:00.000Z');
+  });
+
+  it('counts the weeks both ways from the anchor', () => {
+    expect(next(fortnightly('2026-12-07'), tz, '2026-11-25T00:00:00Z')).toBe('2026-11-27T06:00:00.000Z');
+    expect(next(fortnightly('2026-11-30'), tz, '2026-11-25T00:00:00Z')).toBe('2026-12-04T06:00:00.000Z');
+  });
+
+  it('takes a week from Monday to Sunday', () => {
+    expect(next(fortnightly('2026-11-23', [0]), tz, '2026-11-28T00:00:00Z')).toBe('2026-11-29T06:00:00.000Z');
+    expect(next(fortnightly('2026-11-23', [0]), tz, '2026-11-29T07:00:00Z')).toBe('2026-12-13T06:00:00.000Z');
+  });
+
+  it('needs a day to count from, and at most four weeks apart', () => {
+    expect(Schedule.safeParse({ type: 'weekly', days: [5], time: '09:00', weeks: 2 }).success).toBe(false);
+    expect(Schedule.safeParse({ ...fortnightly('2026-11-23'), weeks: 5 }).success).toBe(false);
+    expect(Schedule.safeParse({ type: 'weekly', days: [5], time: '09:00', weeks: 1 }).success).toBe(true);
+  });
+
+  it('says how many weeks apart', () => {
+    expect(describeSchedule(fortnightly('2026-11-23'), 'en')).toMatch(/^Every 2 weeks: .*09:00$/);
+    expect(describeSchedule({ type: 'weekly', days: [5], time: '09:00' }, 'en')).not.toMatch(/weeks/);
+  });
+});
+
+describe('last day', () => {
+  const tz = 'Europe/Istanbul';
+  const daily: Schedule = { type: 'daily', time: '09:00' };
+
+  it('has no slot after its last day', () => {
+    const before = (after: string) =>
+      nextRunBefore(daily, tz, at(after), null, '2026-11-28')?.toISOString() ?? null;
+    expect(before('2026-11-27T07:00:00Z')).toBe('2026-11-28T06:00:00.000Z');
+    expect(before('2026-11-28T07:00:00Z')).toBeNull();
+    expect(nextRunBefore(daily, tz, at('2026-11-28T07:00:00Z'), null, null)?.toISOString()).toBe(
+      '2026-11-29T06:00:00.000Z',
+    );
+  });
+
+  it('ends at midnight after the day, in its time zone', () => {
+    expect(routineEnded('2026-11-28', tz, at('2026-11-28T20:59:00Z'))).toBe(false);
+    expect(routineEnded('2026-11-28', tz, at('2026-11-28T21:00:00Z'))).toBe(true);
+    expect(routineEnded(null, tz, at('2030-01-01T00:00:00Z'))).toBe(false);
+  });
+
+  it('can be set and removed', () => {
+    expect(RoutineUpdate.parse({ endsOn: '2026-12-15' })).toEqual({ endsOn: '2026-12-15' });
+    expect(RoutineUpdate.parse({ endsOn: null })).toEqual({ endsOn: null });
+    expect(RoutineUpdate.safeParse({ endsOn: '15.12.2026' }).success).toBe(false);
   });
 });

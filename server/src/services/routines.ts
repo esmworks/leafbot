@@ -14,6 +14,8 @@ import {
   ROUTINE_VAR_MAX,
   ROUTINE_VARS_MAX,
   nextRun,
+  nextRunBefore,
+  routineEnded,
   parseFields,
   valueAt,
   zonedTime,
@@ -274,6 +276,8 @@ export class RoutineService {
 
   /** Runs each enabled routine set to run when the server starts, once for this start. */
   async runStartup() {
+    // One whose last day went by while the server was off does not run once more now.
+    await this.endPastLastDay(this.clock());
     const due = await this.ctx.db
       .select()
       .from(schema.routines)
@@ -334,6 +338,7 @@ export class RoutineService {
     if (input.tableTrigger) await this.checkTable(input.botId, input.tableTrigger, input.tableFilter);
     const now = this.clock();
     this.checkOnce(input.schedule, input.timezone, now);
+    if (input.enabled) checkEnd(input.endsOn, input.timezone, now);
     // The routine and the first line of its history are written together, or neither is.
     const row = await this.ctx.db.transaction(async (tx) => {
       const [made] = await tx
@@ -344,7 +349,9 @@ export class RoutineService {
           // A routine brought back from an older record has no such field.
           reportOnly: input.reportOnly ?? false,
           createdByUserId: userId,
-          nextRunAt: input.enabled ? nextRun(input.schedule, input.timezone, now) : null,
+          nextRunAt: input.enabled
+            ? nextRunBefore(input.schedule, input.timezone, now, null, input.endsOn)
+            : null,
         })
         .returning();
       await tx
@@ -404,7 +411,11 @@ export class RoutineService {
     const timezone = patch.timezone ?? current.timezone;
     const enabled = patch.enabled ?? current.enabled;
     const last = current.lastRunAt ? new Date(current.lastRunAt) : null;
+    const endsOn = patch.endsOn !== undefined ? patch.endsOn : (current.endsOn ?? null);
     if (patch.schedule) this.checkOnce(schedule, timezone, this.clock());
+    // Turned on, or its last day changed while on: a day gone by would switch it off at once.
+    if (enabled && (!current.enabled || patch.endsOn !== undefined || patch.timezone !== undefined))
+      checkEnd(endsOn, timezone, this.clock());
     if (patch.steps) checkRoutes(patch.steps);
     // Also when one is turned on: an imported routine comes paused, its schedule never checked.
     if (patch.schedule || (enabled && !current.enabled)) this.checkOften(schedule);
@@ -450,7 +461,7 @@ export class RoutineService {
           ...(person !== was && { createdByUserId: person }),
           // A new check starts from its own first answer, not from what the old one returned.
           ...(patch.check !== undefined && { checkHash: null }),
-          nextRunAt: enabled ? nextRun(schedule, timezone, this.clock(), last) : null,
+          nextRunAt: enabled ? nextRunBefore(schedule, timezone, this.clock(), last, endsOn) : null,
           // A retry waiting is dropped with the slot it stood in front of.
           resumeAt: null,
           // Turning it on or off by hand ends the self-switch-off, and a routine turned on starts
@@ -893,6 +904,7 @@ export class RoutineService {
     let t: T;
     try {
       await this.expireOverdue(now);
+      await this.endPastLastDay(now);
       // Answers a refresh did not bring (another server's, one given while a pass was failing).
       await this.settleSteps();
       due = await this.ctx.db
@@ -1091,7 +1103,7 @@ export class RoutineService {
       const regular =
         schedule.type === 'once'
           ? null
-          : (row.resumeAt ?? nextRun(schedule, row.timezone, now, row.nextRunAt));
+          : (row.resumeAt ?? nextRunBefore(schedule, row.timezone, now, row.nextRunAt, row.endsOn));
       if (again.getTime() <= until.getTime() && (!regular || again.getTime() < regular.getTime())) {
         // `advance` then leaves the slot alone: it moves on only from the slot it was due at.
         await this.ctx.db
@@ -1217,7 +1229,8 @@ export class RoutineService {
         schedule.type === 'once'
           ? { nextRunAt: null, enabled: false, resumeAt: null }
           : {
-              nextRunAt: r.resumeAt ?? nextRun(schedule, r.timezone, this.clock(), r.nextRunAt),
+              nextRunAt:
+                r.resumeAt ?? nextRunBefore(schedule, r.timezone, this.clock(), r.nextRunAt, r.endsOn),
               resumeAt: null,
             },
       )
@@ -3581,6 +3594,25 @@ export class RoutineService {
   }
 
   /** Approval steps past their time close their card; `settleSteps` then ends their run. */
+  /**
+   * Switches off the routines whose last day went by, before any of them is found due: after it
+   * neither its schedule nor an event starts it. It stays as it was, paused, so it can be set to run
+   * again with a later last day.
+   */
+  private async endPastLastDay(now: Date) {
+    const rows = await this.ctx.db
+      .select({ id: schema.routines.id, endsOn: schema.routines.endsOn, timezone: schema.routines.timezone })
+      .from(schema.routines)
+      .where(and(eq(schema.routines.enabled, true), isNotNull(schema.routines.endsOn)));
+    const ended = rows.filter((r) => routineEnded(r.endsOn, r.timezone, now)).map((r) => r.id);
+    if (!ended.length) return;
+    await this.ctx.db
+      .update(schema.routines)
+      .set({ enabled: false, nextRunAt: null, resumeAt: null, pausedReason: 'ended' })
+      .where(and(inArray(schema.routines.id, ended), eq(schema.routines.enabled, true)));
+    this.ctx.bus.refresh({ scope: 'routines' });
+  }
+
   private async expireOverdue(now: Date) {
     const due = await this.ctx.db
       .select({ approvalId: schema.routineStepRuns.approvalId })
@@ -4273,6 +4305,7 @@ export class RoutineService {
         occurrence: schema.routineRuns.occurrence,
         schedule: schema.routines.schedule,
         timezone: schema.routines.timezone,
+        endsOn: schema.routines.endsOn,
         threadId: schema.routineRuns.threadId,
         botId: schema.routines.botId,
       })
@@ -4384,6 +4417,7 @@ export class RoutineService {
       occurrence: string;
       schedule: unknown;
       timezone: string;
+      endsOn: string | null;
     },
     retryAt: Date,
   ) {
@@ -4414,7 +4448,10 @@ export class RoutineService {
     if (pending) {
       await this.ctx.db
         .update(schema.routines)
-        .set({ nextRunAt: retryAt, resumeAt: nextRun(schedule, run.timezone, this.clock(), slot) })
+        .set({
+          nextRunAt: retryAt,
+          resumeAt: nextRunBefore(schedule, run.timezone, this.clock(), slot, run.endsOn),
+        })
         .where(and(eq(schema.routines.id, run.routineId), eq(schema.routines.nextRunAt, slot)));
       return;
     }
@@ -4562,6 +4599,11 @@ function checkUnscheduled(
   if (s.type === 'unscheduled' && (r.watchUrl || r.check || r.condition)) {
     throw new HttpError(400, 'validation.unscheduledChecks');
   }
+}
+
+/** A routine turned on must have its last day ahead: one gone by would switch it off at once. */
+function checkEnd(endsOn: string | null | undefined, tz: string, now: Date) {
+  if (routineEnded(endsOn, tz, now)) throw new HttpError(400, 'validation.endsPast');
 }
 
 const resumeFrom = sql`coalesce(${schema.routines.resumeAt}, ${schema.routines.nextRunAt})`;

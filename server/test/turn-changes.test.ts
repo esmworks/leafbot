@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Thread, TurnChanges, TurnLogEntry } from '@leafbot/shared';
+import type { Thread, TurnChanges, TurnFileDiff, TurnLogEntry } from '@leafbot/shared';
 import { desc, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
@@ -68,6 +68,37 @@ describe('taking back what one turn changed', () => {
     expect(said).toHaveLength(1);
     expect(said[0]!.role).toBe('system');
     expect(said[0]!.text).toContain('notes.txt');
+  });
+
+  it('shows a file’s change line by line while it is as the turn left it', async () => {
+    const { thread, dir } = await setup();
+    const file = join(dir, 'plan.txt');
+    await say(thread.id, write(file, 'one\ntwo\nthree\nfour\nfive\nsix\nseven\neight\nnine'));
+    await say(thread.id, edit(file, 'two', 'TWO'));
+    const turn = await lastTurn(thread.id);
+    const [item] = (await preview(turn)).items;
+    const diff = async () => (await t.api<TurnFileDiff>('GET', `/api/turn-changes/${item!.id}/diff`)).body;
+    expect(await diff()).toEqual({
+      state: 'ok',
+      hunks: [
+        [
+          { type: 'same', text: 'one' },
+          { type: 'removed', text: 'two' },
+          { type: 'added', text: 'TWO' },
+          { type: 'same', text: 'three' },
+          { type: 'same', text: 'four' },
+          { type: 'same', text: 'five' },
+        ],
+      ],
+      added: 1,
+      removed: 1,
+      more: false,
+    });
+    // Changed again after the turn: the comparison would show more than the turn did.
+    writeFileSync(file, 'something else');
+    expect((await diff()).state).toBe('changedSince');
+    const other = await t.person('someone-else', 'admin');
+    expect((await other.api('GET', `/api/turn-changes/${item!.id}/diff`)).status).toBeGreaterThanOrEqual(400);
   });
 
   it('removes a file the turn created', async () => {
@@ -157,6 +188,7 @@ describe('taking back what one turn changed', () => {
       schedule: { type: 'daily', time: '12:00' },
       timezone: 'UTC',
       enabled: true,
+      endsOn: null,
       missed: 'run',
       carryReport: false,
       reportOnly: false,

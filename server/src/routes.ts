@@ -990,6 +990,9 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
   app.get('/api/turns/:id/changes', async (req) =>
     s.changes.preview(IdParams.parse(req.params).id, me(req).userId),
   );
+  app.get('/api/turn-changes/:id/diff', async (req) =>
+    s.changes.fileDiff(IdParams.parse(req.params).id, me(req).userId),
+  );
   app.post('/api/turns/:id/undo', async (req) =>
     s.changes.undo(IdParams.parse(req.params).id, me(req).userId, await s.settings.translator()),
   );

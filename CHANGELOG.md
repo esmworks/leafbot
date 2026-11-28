@@ -11,6 +11,13 @@ version is 0.x, a minor release may change the data format or the API; the serve
   browser, and after signing in there one tap brings the phone back signed in, with no code to scan or type. The
   code the website hands back is bound to that sign-in (PKCE), so it is of no use to anything that catches it on its
   way. leafbot.app/connect also shows a QR code for the phone on any computer signed in to the account.
+- A routine can have a last day. It runs through that day, then switches itself off, so neither its time nor an
+  event starts it after; its panel says it is past its last day. It can be turned on again only with a later last day
+  or none. A bot setting up a routine can give it one too (`ends_on`).
+- A weekly routine can run every two, three or four weeks, counted from the week of a day you pick (Monday to
+  Sunday): a fortnightly meeting or a report every other Friday. A cron expression cannot say this.
+- Before taking a turn back, a file it changed can be opened line by line: the lines it added and took out, with a few
+  around them. A file that changed again after the turn says so instead of showing more than the turn did.
 
 ### Changed
 

@@ -33,7 +33,12 @@ export const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 /** Tomorrow on the local calendar, as YYYY-MM-DD: where a one-time date starts. */
 export function tomorrow(): string {
-  const d = new Date(Date.now() + 86_400_000);
+  return daysAhead(1);
+}
+
+/** A day this many days from today on the local calendar, as YYYY-MM-DD. */
+export function daysAhead(n: number): string {
+  const d = new Date(Date.now() + n * 86_400_000);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 

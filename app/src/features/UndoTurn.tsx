@@ -1,6 +1,7 @@
-import type { TurnChangeItem } from '@leafbot/shared';
+import type { TurnChangeItem, TurnFileDiff } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,18 +13,86 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { useT, type T } from '@/i18n';
+import { useT, type MessageKey, type T } from '@/i18n';
 import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
-/** One change, named by what it is and what taking the turn back does to it. */
+/**
+ * One change, named by what it is and what taking the turn back does to it. A file's change can be
+ * opened, line by line, so the person sees what the bot wrote before deciding to put it back.
+ */
 function Line({ item, t, note }: { item: TurnChangeItem; t: T; note?: string }) {
+  const [open, setOpen] = useState(false);
+  const file = item.kind === 'file' && !item.reason;
   return (
-    <li className="flex flex-wrap items-baseline gap-x-2 text-sm">
-      <span className="min-w-0 break-words">
-        {t(`undo.kind.${item.kind}`)}: <span className="font-medium">{item.label}</span>
-      </span>
-      <span className="text-xs text-muted-foreground">{note ?? t(`undo.will.${item.op}`)}</span>
+    <li className="space-y-1.5 text-sm">
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <span className="min-w-0 break-words">
+          {t(`undo.kind.${item.kind}`)}: <span className="font-medium">{item.label}</span>
+        </span>
+        <span className="text-xs text-muted-foreground">{note ?? t(`undo.will.${item.op}`)}</span>
+        {file && (
+          <button
+            type="button"
+            className="text-xs text-primary underline-offset-2 hover:underline"
+            aria-expanded={open}
+            onClick={() => setOpen((v) => !v)}
+          >
+            {t(open ? 'undo.hideDiff' : 'undo.showDiff')}
+          </button>
+        )}
+      </div>
+      {file && open && <FileDiff changeId={item.id} t={t} />}
     </li>
+  );
+}
+
+const DIFF_NOTE: Record<Exclude<TurnFileDiff['state'], 'ok'>, MessageKey> = {
+  changedSince: 'undo.diff.changedSince',
+  binary: 'undo.diff.binary',
+  notKept: 'undo.diff.notKept',
+  undone: 'undo.diff.undone',
+  tooLong: 'undo.diff.tooLong',
+};
+
+/** A file as the turn left it next to how it was: the changed lines, with a few around them. */
+function FileDiff({ changeId, t }: { changeId: string; t: T }) {
+  const { data, isPending, error } = useQuery({
+    queryKey: ['turn-file-diff', changeId],
+    queryFn: () => api.turnFileDiff(changeId),
+  });
+  if (isPending) return <Loader2 className="size-4 animate-spin text-muted-foreground" />;
+  if (error) return <p className="text-xs text-destructive">{(error as Error).message}</p>;
+  if (data.state !== 'ok') return <p className="text-xs text-muted-foreground">{t(DIFF_NOTE[data.state])}</p>;
+  if (!data.hunks.length) return <p className="text-xs text-muted-foreground">{t('undo.diff.none')}</p>;
+  return (
+    <div className="space-y-1">
+      <p className="text-xs text-muted-foreground">
+        {t('undo.diffLines', { added: data.added, removed: data.removed })}
+      </p>
+      <div className="scroll-thin max-h-72 overflow-auto rounded-xl bg-muted/40 py-1.5 font-mono text-xs">
+        {data.hunks.map((hunk, h) => (
+          <div key={h} className={cn(h > 0 && 'mt-1.5 border-t border-border/60 pt-1.5')}>
+            {hunk.map((line, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'px-2.5 break-all whitespace-pre-wrap',
+                  line.type === 'added' && 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300',
+                  line.type === 'removed' && 'bg-red-500/15 text-red-700 dark:text-red-300',
+                )}
+              >
+                <span aria-hidden className="me-2 inline-block w-2 select-none text-muted-foreground">
+                  {line.type === 'added' ? '+' : line.type === 'removed' ? '−' : ' '}
+                </span>
+                {line.text || ' '}
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+      {data.more && <p className="text-xs text-muted-foreground">{t('undo.diff.more')}</p>}
+    </div>
   );
 }
 

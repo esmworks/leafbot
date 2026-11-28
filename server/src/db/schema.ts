@@ -760,11 +760,17 @@ export const routines = pgTable('routines', {
    */
   failureStreak: integer('failure_streak').notNull().default(0),
   /**
-   * Why the routine was switched off by itself (`failures`: too many failed runs in a row); null
-   * when the person paused it, or when it is on. A routine comes in paused from an import as well,
-   * and `enabled` alone cannot say which. Cleared when the routine is turned on or off by hand.
+   * Why the routine was switched off by itself (`failures`: too many failed runs in a row;
+   * `ended`: its last day went by); null when the person paused it, or when it is on. A routine
+   * comes in paused from an import as well, and `enabled` alone cannot say which. Cleared when the
+   * routine is turned on or off by hand.
    */
-  pausedReason: text('paused_reason', { enum: ['failures'] }),
+  pausedReason: text('paused_reason', { enum: ['failures', 'ended'] }),
+  /**
+   * The last day it may run (`YYYY-MM-DD` in `timezone`, that day included); null for no end. The
+   * scheduler switches it off once the day is over, so no schedule or event starts it after.
+   */
+  endsOn: text('ends_on'),
 });
 
 export const routineRuns = pgTable(

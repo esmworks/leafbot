@@ -1442,6 +1442,11 @@ export class ToolFactory {
           bot: z.string().min(1).max(200).optional(),
           prompt: z.string().min(1).max(20_000),
           schedule: Schedule,
+          /** Its last day (`YYYY-MM-DD`, the person's time zone, that day included); it switches off after. */
+          ends_on: z
+            .string()
+            .regex(/^\d{4}-\d{2}-\d{2}$/)
+            .optional(),
           missed: z.enum(['run', 'skip']).default('run'),
           /** Give each run the previous run's report, for "what changed since last time" routines. */
           carry_report: z.boolean().default(false),
@@ -1522,6 +1527,7 @@ export class ToolFactory {
               schedule: a.schedule,
               timezone: settings.timezone,
               enabled: true,
+              endsOn: a.ends_on ?? null,
               missed: a.missed,
               carryReport: a.carry_report,
               inMain: a.in_main,
@@ -1598,6 +1604,7 @@ export class ToolFactory {
             ...(r.model && { model: r.model }),
             in_main: r.inMain,
             on_startup: r.onStartup,
+            ...(r.endsOn && { ends_on: r.endsOn }),
             ...(r.watchUrl && { watch_url: r.watchUrl }),
             ...(r.check && { check_tool: r.check.tool, check_args: r.check.args }),
             ...(r.condition && { condition: await conditionOut(r.condition, r.botId) }),
@@ -1679,6 +1686,8 @@ export class ToolFactory {
           name: z.string().min(1).max(80).optional(),
           prompt: z.string().min(1).max(20_000).optional(),
           schedule: Schedule.optional(),
+          /** An empty string removes the last day. */
+          ends_on: z.union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.literal('')]).optional(),
           missed: z.enum(['run', 'skip']).optional(),
           carry_report: z.boolean().optional(),
           in_main: z.boolean().optional(),
@@ -1799,6 +1808,7 @@ export class ToolFactory {
             ...(a.name !== undefined && { name: a.name.trim() }),
             ...(a.prompt !== undefined && { prompt: a.prompt.trim() }),
             ...(a.schedule !== undefined && { schedule: a.schedule }),
+            ...(a.ends_on !== undefined && { endsOn: a.ends_on || null }),
             ...(a.missed !== undefined && { missed: a.missed }),
             ...(a.carry_report !== undefined && { carryReport: a.carry_report }),
             ...(a.in_main !== undefined && { inMain: a.in_main }),
