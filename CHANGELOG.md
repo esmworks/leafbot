@@ -466,6 +466,10 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Fixed
 
+- Removing a bot, unlinking a person, taking back an invite and every other request with no body work through the
+  tunnel. They were refused with 415, as the server read the missing body as one still to come.
+- A person changed, unlinked or removed loses the tunnel they had open at once, not when it next renews its ticket,
+  up to ten minutes later.
 - The usage export (Settings → Usage) and a bot's list of steps as CSV start with a UTF-8 byte order mark, as
   a table's export already did, so Excel no longer garbles bot names with letters such as İ, ğ or ş.
 - A browser that reaches the relay while its server is restarting connects as soon as the server is back,
