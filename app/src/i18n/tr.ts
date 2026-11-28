@@ -2115,6 +2115,7 @@ export const tr = {
   'routine.everyWeeks': 'Ne sıklıkla',
   'routine.weeksCount': { one: 'Her hafta', other: '{count} haftada bir' },
   'routine.weeksFrom': 'Haftalar şu tarihin haftasından sayılır',
+  'routine.weeksFromHint': 'Bir gün seçmezsen haftalar sıradaki çalışmanın haftasından sayılır.',
   'routine.ends': 'Bir son günden sonra dursun',
   'routine.endsOn': 'Son gün',
   'routine.endsOnHint':

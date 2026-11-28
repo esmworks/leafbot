@@ -7,6 +7,7 @@ import {
   fillInputs,
   MAX_WEEKS_APART,
   nextRunBefore,
+  nextWeekAnchor,
   parseCron,
   parseFields,
   ROUTINE_APPROVAL_MAX_DAYS,
@@ -179,7 +180,8 @@ export const Form = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'routine.dateFormat'),
   /** A weekly routine runs every this many weeks, counted from the week of `anchor`. */
   weeks: z.number().int().min(1).max(MAX_WEEKS_APART),
-  anchor: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'routine.dateFormat'),
+  /** Empty until weeks are counted: then the day of the next run, unless the person picks one. */
+  anchor: z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'routine.dateFormat')]),
   /** The routine has a last day, `endsOn`, after which it switches itself off. */
   ends: z.boolean(),
   endsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'routine.dateFormat'),
@@ -330,7 +332,7 @@ export function fromRoutine(r?: Routine): Form {
     to: s?.type === 'interval' && s.to ? s.to : '18:00',
     date: s?.type === 'once' ? s.date : tomorrow(),
     weeks: s?.type === 'weekly' ? (s.weeks ?? 1) : 1,
-    anchor: s?.type === 'weekly' && s.anchor ? s.anchor : daysAhead(0),
+    anchor: s?.type === 'weekly' && s.anchor ? s.anchor : '',
     ends: !!r?.endsOn,
     // Four weeks ahead: a last day picked for a routine is seldom tomorrow.
     endsOn: r?.endsOn ?? daysAhead(28),
@@ -1017,6 +1019,22 @@ function ScheduleFields({ form, values }: { form: UseFormReturn<Form>; values: F
   const { data: settings } = useSettings();
   const err = form.formState.errors;
   const type = values.type;
+  const tz = settings?.timezone ?? 'Europe/Istanbul';
+  // Weeks counted for a routine that had no day to count from: from the week of its next run, kept
+  // in step with its days and time until the person picks a day of their own.
+  const counted = type === 'weekly' && (values.weeks ?? 1) > 1;
+  const ownAnchor = !!form.formState.defaultValues?.anchor || form.getFieldState('anchor').isDirty;
+  const days = (values.days ?? []).join(',');
+  useEffect(() => {
+    if (!counted || ownAnchor) return;
+    const next = nextWeekAnchor(
+      days ? days.split(',').map(Number) : [],
+      values.time ?? '09:00',
+      tz,
+      new Date(),
+    );
+    if (form.getValues('anchor') !== next) form.setValue('anchor', next);
+  }, [counted, ownAnchor, days, values.time, tz, form]);
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
@@ -1153,6 +1171,7 @@ function ScheduleFields({ form, values }: { form: UseFormReturn<Form>; values: F
           {(values.weeks ?? 1) > 1 && (
             <Field label={t('routine.weeksFrom')} error={err.anchor?.message}>
               <Input type="date" {...form.register('anchor')} className="rounded-xl" />
+              <p className="mt-1 text-xs text-muted-foreground">{t('routine.weeksFromHint')}</p>
             </Field>
           )}
         </div>

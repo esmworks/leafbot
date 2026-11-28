@@ -75,6 +75,18 @@ describe('a routine with a last day', () => {
     expect(removed.body.endsOn).toBeNull();
   });
 
+  it('is only paused, no longer past its last day, once the day is moved while it is off', async () => {
+    const bot = await t.bot();
+    const id = (
+      await create({ botId: bot.id, schedule: { type: 'daily', time: '09:00' }, endsOn: '2026-11-16' })
+    ).body.id;
+    await tick('2026-11-16T21:00:00.000Z');
+    const moved = await t.api<Routine>('PATCH', `/api/routines/${id}`, { endsOn: '2026-11-30' });
+    expect(moved.status).toBe(200);
+    expect(moved.body.enabled).toBe(false);
+    expect(moved.body.pausedReason).toBeNull();
+  });
+
   it('refuses a new routine whose last day has gone by', async () => {
     const bot = await t.bot();
     const res = await create({

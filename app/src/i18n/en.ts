@@ -2146,6 +2146,7 @@ export const en: Catalog<MessageKey> = {
   'routine.everyWeeks': 'How often',
   'routine.weeksCount': { one: 'Every week', other: 'Every {count} weeks' },
   'routine.weeksFrom': 'Counting the weeks from the week of',
+  'routine.weeksFromHint': 'Unless you pick a day, the weeks count from the week of the next run.',
   'routine.ends': 'Stop after a last day',
   'routine.endsOn': 'Last day',
   'routine.endsOnHint':

@@ -6,6 +6,7 @@ import {
   localStamp,
   nextRun,
   nextRunBefore,
+  nextWeekAnchor,
   occurrenceKey,
   routineEnded,
   RoutineUpdate,
@@ -198,6 +199,16 @@ describe('every few weeks', () => {
   it('takes a week from Monday to Sunday', () => {
     expect(next(fortnightly('2026-11-23', [0]), tz, '2026-11-28T00:00:00Z')).toBe('2026-11-29T06:00:00.000Z');
     expect(next(fortnightly('2026-11-23', [0]), tz, '2026-11-29T07:00:00Z')).toBe('2026-12-13T06:00:00.000Z');
+  });
+
+  it('counts from the week of the next run when no day is picked', () => {
+    // Saturday 28 November: this week's Friday has gone by, so the first run is next Friday.
+    const now = at('2026-11-28T10:00:00Z');
+    const anchor = nextWeekAnchor([5], '09:00', tz, now);
+    expect(anchor).toBe('2026-12-04');
+    expect(nextRun(fortnightly(anchor), tz, now)?.toISOString()).toBe('2026-12-04T06:00:00.000Z');
+    // Wednesday: this week's Friday is still ahead.
+    expect(nextWeekAnchor([5], '09:00', tz, at('2026-11-25T10:00:00Z'))).toBe('2026-11-27');
   });
 
   it('needs a day to count from, and at most four weeks apart', () => {

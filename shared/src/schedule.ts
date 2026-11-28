@@ -1096,6 +1096,21 @@ export function nextRun(s: Schedule, tz: string, after: Date, lastRun?: Date | n
   return null;
 }
 
+/**
+ * The day a weekly schedule that runs every few weeks is best counted from when nobody picked one:
+ * the day of its next run, so the first run is the next one its days and time name rather than one
+ * a week or more later.
+ */
+export function nextWeekAnchor(days: readonly number[], time: string, tz: string, now: Date): string {
+  let at: Date | null = null;
+  try {
+    at = nextRun({ type: 'weekly', days: days.length ? [...days] : [1], time }, tz, now);
+  } catch {
+    at = null;
+  }
+  return localStamp(at ?? now, tz).slice(0, 10);
+}
+
 /** The first moment after a routine's last day (`endsOn`, a local date in `tz`). */
 export function endOfLastDay(endsOn: string, tz: string): Date {
   const [y, m, d] = endsOn.split('-').map(Number) as [number, number, number];

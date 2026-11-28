@@ -467,6 +467,10 @@ export class RoutineService {
           // Turning it on or off by hand ends the self-switch-off, and a routine turned on starts
           // counting failures from none: it would otherwise be switched off again by its next one.
           ...(patch.enabled !== undefined && { pausedReason: null }),
+          // A new last day ends "past its last day": the routine is then only paused.
+          ...(patch.endsOn !== undefined &&
+            patch.endsOn !== current.endsOn &&
+            current.pausedReason === 'ended' && { pausedReason: null }),
           ...(enabled && !current.enabled && { failureStreak: 0 }),
         })
         .where(eq(schema.routines.id, id))

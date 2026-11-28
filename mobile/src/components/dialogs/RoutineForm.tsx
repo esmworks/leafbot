@@ -3,6 +3,7 @@ import {
   fillInputs,
   filterVars,
   MAX_WEEKS_APART,
+  nextWeekAnchor,
   parseCron,
   parseFields,
   ROUTINE_VAR_MAX,
@@ -98,7 +99,9 @@ const int = (s: string, min: number, max: number, fallback: number) => {
   return Number.isFinite(n) && s.trim() ? Math.min(max, Math.max(min, n)) : fallback;
 };
 
-function toSchedule(f: Form): Schedule {
+const DEVICE_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+function toSchedule(f: Form, tz?: string): Schedule {
   switch (f.type) {
     case 'hourly':
       return { type: 'hourly', minute: int(f.minute, 0, 59, 0) };
@@ -107,8 +110,10 @@ function toSchedule(f: Form): Schedule {
       return { type: f.type, time: f.time };
     case 'weekly': {
       const days = f.days.length ? f.days : [1];
+      // Left empty, the weeks are counted from the week of the next run, so that run is the first.
+      const anchor = f.anchor || nextWeekAnchor(days, f.time, tz ?? DEVICE_TZ, new Date());
       return f.weeks > 1
-        ? { type: 'weekly', days, time: f.time, weeks: f.weeks, anchor: f.anchor }
+        ? { type: 'weekly', days, time: f.time, weeks: f.weeks, anchor }
         : { type: 'weekly', days, time: f.time };
     }
     case 'monthly':
@@ -146,7 +151,7 @@ function fromRoutine(r?: Routine): Form {
     to: s?.type === 'interval' && s.to ? s.to : '18:00',
     date: s?.type === 'once' ? s.date : tomorrow(),
     weeks: s?.type === 'weekly' ? (s.weeks ?? 1) : 1,
-    anchor: s?.type === 'weekly' && s.anchor ? s.anchor : daysAhead(0),
+    anchor: s?.type === 'weekly' && s.anchor ? s.anchor : '',
     ends: !!r?.endsOn,
     // Four weeks ahead: a last day picked for a routine is seldom tomorrow.
     endsOn: r?.endsOn ?? daysAhead(28),
@@ -223,7 +228,7 @@ function validate(f: Form): Errors {
   if (timed && !TIME.test(f.time)) e.time = 'routine.timeFormat';
   if (f.type === 'cron' && parseCron(f.expr.trim()) === null) e.expr = 'routine.cronInvalid';
   if (f.type === 'once' && !/^\d{4}-\d{2}-\d{2}$/.test(f.date)) e.date = 'routine.dateFormat';
-  if (f.type === 'weekly' && f.weeks > 1 && !/^\d{4}-\d{2}-\d{2}$/.test(f.anchor))
+  if (f.type === 'weekly' && f.weeks > 1 && f.anchor && !/^\d{4}-\d{2}-\d{2}$/.test(f.anchor))
     e.anchor = 'routine.dateFormat';
   if (f.ends && f.type !== 'once' && !/^\d{4}-\d{2}-\d{2}$/.test(f.endsOn)) e.endsOn = 'routine.dateFormat';
   if (f.type === 'interval' && f.limited) {
@@ -329,7 +334,7 @@ function RoutinePage({
       const body = {
         name: v.name.trim(),
         prompt: v.prompt.trim(),
-        schedule: toSchedule(v),
+        schedule: toSchedule(v, timezone),
         enabled,
         // An older server has no last day; it is sent one only when there is one to keep or remove.
         ...(routine?.endsOn || v.ends ? { endsOn: v.ends && v.type !== 'once' ? v.endsOn : null } : {}),
@@ -596,7 +601,11 @@ function RoutinePage({
           ) : null}
           {type === 'weekly' && v.weeks > 1 ? (
             <Pad>
-              <FormField label={t('routine.weeksFrom')} error={err('anchor')} hint={t('dialogs.dateHint')}>
+              <FormField
+                label={t('routine.weeksFrom')}
+                error={err('anchor')}
+                hint={t('routine.weeksFromHint')}
+              >
                 <TextBox
                   value={v.anchor}
                   onChangeText={(x) => set('anchor', x.trim())}
