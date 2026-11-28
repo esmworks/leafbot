@@ -209,3 +209,50 @@ describe('bot ve uygulama sayfaları', () => {
     expect(useUi.getState()).toMatchObject({ apps: null, botPage: { mode: 'edit', botId: 'b1' } });
   });
 });
+
+describe('görev panosu', () => {
+  beforeEach(() => {
+    askBeforeLeavingPage(null);
+    useUi.setState({
+      routine: null,
+      botPage: null,
+      apps: null,
+      boardOpen: false,
+      botId: 'b1',
+      threadId: null,
+      roomId: null,
+      phonePane: 'list',
+    });
+  });
+
+  it('botlar yanında kalsın diye sohbetin yerinde açılır; bir sohbet açmak panoyu kapatır', () => {
+    useUi.getState().openApps({ botId: null });
+    useUi.getState().setBoardOpen(true);
+    expect(useUi.getState()).toMatchObject({ boardOpen: true, apps: null });
+    useUi.getState().openChat('b2');
+    expect(useUi.getState()).toMatchObject({ boardOpen: false, botId: 'b2' });
+    useUi.getState().setBoardOpen(true);
+    useUi.getState().openApps({ botId: null });
+    expect(useUi.getState().boardOpen).toBe(false);
+  });
+
+  it('kimse istemeden ana konuşmaya ya da ilk bota dönmek panoyu kapatmaz, bir konuşma açmak kapatır', () => {
+    useUi.getState().setBoardOpen(true);
+    useUi.getState().selectThread(null);
+    useUi.getState().selectBot('b2');
+    expect(useUi.getState()).toMatchObject({ boardOpen: true, botId: 'b2' });
+    useUi.getState().selectThread('t2');
+    expect(useUi.getState()).toMatchObject({ boardOpen: false, threadId: 't2' });
+  });
+
+  it('telefonda kapanınca açıldığı ekrana döner', () => {
+    useUi.getState().setBoardOpen(true);
+    expect(useUi.getState().phonePane).toBe('chat');
+    useUi.getState().setBoardOpen(false);
+    expect(useUi.getState().phonePane).toBe('list');
+    useUi.setState({ phonePane: 'chat' });
+    useUi.getState().setBoardOpen(true);
+    useUi.getState().setBoardOpen(false);
+    expect(useUi.getState().phonePane).toBe('chat');
+  });
+});

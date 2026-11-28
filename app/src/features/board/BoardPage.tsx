@@ -1,14 +1,13 @@
 import { TICKET_PRIORITIES, type Ticket, type TicketPriority, type TicketStatus } from '@leafbot/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronRight, ListFilter, Plus, Search, X } from 'lucide-react';
-import { Fragment, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { BotAvatar } from '@/components/BotAvatar';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -58,8 +57,12 @@ interface Move {
  * to a bot starts it on the work; what it reports comes back as a comment, and the ticket moves to
  * review for the person to close or send back with a comment. A ticket's details open beside the
  * columns, so the board stays in view while one is read.
+ *
+ * It fills the main area beside the sidebar rather than covering the window, since every ticket
+ * belongs to a bot: the bots stay in reach, and opening one leaves the board for its chat. Kept
+ * mounted once opened, so the filters and the ticket being read are there again on coming back.
  */
-export function BoardDialog() {
+export function BoardPage() {
   const t = useT();
   const qc = useQueryClient();
   const open = useUi((s) => s.boardOpen);
@@ -79,6 +82,7 @@ export function BoardDialog() {
   const [asking, setAsking] = useState<Move | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
+  const root = useRef<HTMLElement>(null);
   const current = tickets.find((k) => k.id === openId) ?? null;
 
   const commit = ({ ticket, status, position }: Move) => {
@@ -178,248 +182,274 @@ export function BoardDialog() {
   const openCount = tickets.filter((k) => !CLOSED.includes(k.status)).length;
   const reviewCount = tickets.filter((k) => k.status === 'in_review').length;
 
-  const close = (o: boolean) => {
-    setOpen(o);
-    if (!o) {
-      setOpenId(null);
-      setAdding(false);
-    }
+  const close = () => {
+    setOpen(false);
+    setOpenId(null);
+    setAdding(false);
   };
 
+  /** Escape steps back one level: out of a ticket, then off the board. */
+  const stepBack = () => {
+    if (openId) setOpenId(null);
+    else close();
+  };
+  // The keys below answer only while focus is on the board, so it takes the focus when it opens.
+  useEffect(() => {
+    if (open) root.current?.focus({ preventScroll: true });
+  }, [open]);
+  // A click on a bare part of the window leaves the focus nowhere; Escape still steps back then,
+  // as it did when the board was a dialog that kept the focus.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return;
+      if (document.activeElement && document.activeElement !== document.body) return;
+      e.preventDefault();
+      if (openId) return setOpenId(null);
+      setOpen(false);
+      setAdding(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, openId, setOpen]);
+
   return (
-    <Dialog open={open} onOpenChange={close}>
-      <DialogContent
-        showCloseButton={false}
-        onEscapeKeyDown={(e) => {
+    <section
+      ref={root}
+      tabIndex={-1}
+      aria-labelledby="board-title"
+      aria-describedby="board-description"
+      onKeyDown={(e) => {
+        const el = e.target as HTMLElement;
+        // Keys from a menu or dialog opened over the board bubble here through React too.
+        if (e.defaultPrevented || !e.currentTarget.contains(el)) return;
+        if (e.key === 'Escape') {
           // Escape steps back one level: out of an edit, then out of a ticket, then off the board.
-          if (document.activeElement?.closest('[data-own-escape]')) e.preventDefault();
-          else if (openId) {
-            e.preventDefault();
-            setOpenId(null);
-          }
-        }}
-        onKeyDown={(e) => {
-          const el = e.target as HTMLElement;
-          // Keys from a menu or dialog opened over the board bubble here through React too.
-          if (!e.currentTarget.contains(el)) return;
-          if (
-            e.metaKey ||
-            e.ctrlKey ||
-            e.altKey ||
-            el.closest('input, textarea, [role="combobox"], [role="menu"]')
-          )
-            return;
-          if (e.key === 'c' || e.key === 'n') {
-            e.preventDefault();
-            setAdding(true);
-          } else if (e.key === '/') {
-            e.preventDefault();
-            search.current?.focus();
-          }
-        }}
-        className="screen-edges flex h-[calc(100dvh-7rem)] w-[calc(100vw-2rem)] max-w-[1600px] flex-col gap-0 overflow-hidden rounded-3xl p-0 sm:max-w-[1600px] phone:h-dvh phone:max-h-none phone:w-full phone:max-w-full phone:rounded-none"
-      >
-        <DialogDescription className="sr-only">{t('board.description')}</DialogDescription>
-        <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-5 py-3.5 phone:px-4">
-          <div className="flex min-w-0 items-baseline gap-2.5 phone:flex-1">
-            <DialogTitle className="text-lg font-semibold">{t('board.title')}</DialogTitle>
-            {tickets.length > 0 && (
-              <span className="truncate text-sm text-muted-foreground tabular-nums">
-                {t('board.openCount', { count: openCount })}
-                {reviewCount > 0 && ` · ${t('board.reviewCount', { count: reviewCount })}`}
-              </span>
+          if (el.closest('[data-own-escape]')) return;
+          e.preventDefault();
+          stepBack();
+          return;
+        }
+        if (
+          e.metaKey ||
+          e.ctrlKey ||
+          e.altKey ||
+          el.closest('input, textarea, [role="combobox"], [role="menu"]')
+        )
+          return;
+        if (e.key === 'c' || e.key === 'n') {
+          e.preventDefault();
+          setAdding(true);
+        } else if (e.key === '/') {
+          e.preventDefault();
+          search.current?.focus();
+        }
+      }}
+      className={cn('flex min-h-0 min-w-0 flex-1 flex-col outline-none', !open && 'hidden')}
+    >
+      <p id="board-description" className="sr-only">
+        {t('board.description')}
+      </p>
+      <header className="window-drag flex flex-wrap items-center gap-x-3 gap-y-2 border-b px-5 py-3.5 phone:px-4">
+        <div className="flex min-w-0 items-baseline gap-2.5 phone:flex-1">
+          <h1 id="board-title" className="text-lg font-semibold">
+            {t('board.title')}
+          </h1>
+          {tickets.length > 0 && (
+            <span className="truncate text-sm text-muted-foreground tabular-nums">
+              {t('board.openCount', { count: openCount })}
+              {reviewCount > 0 && ` · ${t('board.reviewCount', { count: reviewCount })}`}
+            </span>
+          )}
+        </div>
+        {(assignees.length > 0 || hasUnassigned) && (
+          <div
+            className="flex items-center gap-1 phone:order-last phone:w-full phone:overflow-x-auto"
+            role="group"
+            aria-label={t('board.filterAssignee')}
+          >
+            {assignees.map((b) => (
+              <FaceButton
+                key={b.id}
+                label={b.name}
+                active={people.includes(b.id)}
+                dimmed={people.length > 0 && !people.includes(b.id)}
+                onClick={() => togglePerson(b.id)}
+              >
+                <BotAvatar avatar={b.avatar} material={b.material} color={b.color} seed={b.id} size={26} />
+              </FaceButton>
+            ))}
+            {hasUnassigned && (
+              <FaceButton
+                label={t('board.nobody')}
+                active={people.includes(NOBODY)}
+                dimmed={people.length > 0 && !people.includes(NOBODY)}
+                onClick={() => togglePerson(NOBODY)}
+              >
+                <Unassigned size={26} />
+              </FaceButton>
             )}
           </div>
-          {(assignees.length > 0 || hasUnassigned) && (
-            <div
-              className="flex items-center gap-1 phone:order-last phone:w-full phone:overflow-x-auto"
-              role="group"
-              aria-label={t('board.filterAssignee')}
-            >
-              {assignees.map((b) => (
-                <FaceButton
-                  key={b.id}
-                  label={b.name}
-                  active={people.includes(b.id)}
-                  dimmed={people.length > 0 && !people.includes(b.id)}
-                  onClick={() => togglePerson(b.id)}
-                >
-                  <BotAvatar avatar={b.avatar} material={b.material} color={b.color} seed={b.id} size={26} />
-                </FaceButton>
-              ))}
-              {hasUnassigned && (
-                <FaceButton
-                  label={t('board.nobody')}
-                  active={people.includes(NOBODY)}
-                  dimmed={people.length > 0 && !people.includes(NOBODY)}
-                  onClick={() => togglePerson(NOBODY)}
-                >
-                  <Unassigned size={26} />
-                </FaceButton>
-              )}
-            </div>
-          )}
-          <span className="flex-1 phone:hidden" />
-          {filtering && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="rounded-xl text-muted-foreground phone:order-5"
-              onClick={clearFilters}
-            >
-              <X /> {t('board.clearFilters')}
-            </Button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                className={cn('rounded-xl phone:order-4', priorities.length && 'bg-accent text-foreground')}
-                aria-label={t('board.filterPriority')}
-                title={t('board.filterPriority')}
-              >
-                <ListFilter />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
-              <DropdownMenuLabel className="text-xs text-muted-foreground">
-                {t('board.priority')}
-              </DropdownMenuLabel>
-              {[...TICKET_PRIORITIES].reverse().map((p) => (
-                <DropdownMenuCheckboxItem
-                  key={p}
-                  checked={priorities.includes(p)}
-                  onSelect={(e) => e.preventDefault()}
-                  onCheckedChange={(on) =>
-                    setPriorities((all) => (on ? [...all, p] : all.filter((x) => x !== p)))
-                  }
-                >
-                  <PriorityIcon priority={p} />
-                  {t(`board.priority.${p}`)}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <label className="relative flex items-center phone:order-3 phone:min-w-0 phone:flex-1 phone:basis-48">
-            <Search className="pointer-events-none absolute start-2.5 size-4 text-muted-foreground" />
-            <input
-              ref={search}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape' && query) {
-                  e.stopPropagation();
-                  setQuery('');
-                }
-              }}
-              data-own-escape={query ? '' : undefined}
-              placeholder={t('board.search')}
-              aria-label={t('board.search')}
-              className="h-8 w-56 rounded-xl border bg-transparent pe-3 ps-8 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 phone:w-full"
-            />
-          </label>
-          <Button size="sm" className="rounded-xl phone:order-1" onClick={() => setAdding(true)}>
-            <Plus /> {t('board.new')}
+        )}
+        <span className="flex-1 phone:hidden" />
+        {filtering && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="rounded-xl text-muted-foreground phone:order-5"
+            onClick={clearFilters}
+          >
+            <X /> {t('board.clearFilters')}
           </Button>
-          <DialogClose asChild>
+        )}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
               size="icon-sm"
-              className="rounded-xl phone:order-2"
-              aria-label={t('common.close')}
+              className={cn('rounded-xl phone:order-4', priorities.length && 'bg-accent text-foreground')}
+              aria-label={t('board.filterPriority')}
+              title={t('board.filterPriority')}
             >
-              <X />
+              <ListFilter />
             </Button>
-          </DialogClose>
-        </header>
-
-        <div className="relative min-h-0 flex-1">
-          {!isPending && !tickets.length ? (
-            <EmptyBoard onAdd={() => setAdding(true)} />
-          ) : (
-            <div
-              ref={scroller}
-              className="scroll-thin flex h-full gap-2.5 overflow-x-auto p-4 phone:flex-col phone:overflow-x-hidden phone:overflow-y-auto phone:p-3"
-            >
-              {COLUMNS.map((status) => (
-                <Column
-                  key={status}
-                  status={status}
-                  tickets={shown.filter((k) => k.status === status)}
-                  wontDo={status === 'done' ? shown.filter((k) => k.status === 'wont_do') : undefined}
-                  showWontDo={showWontDo}
-                  onToggleWontDo={() => setShowWontDo((v) => !v)}
-                  dragging={drag}
-                  selectedId={openId}
-                  filtering={filtering}
-                  onOpen={openTicket}
-                  onGrab={grab}
-                  onAdd={status === 'todo' ? () => setAdding(true) : undefined}
-                />
-              ))}
-            </div>
-          )}
-          {current && (
-            <TicketPanel
-              key={current.id}
-              ticket={current}
-              onStatus={(status) => move({ ticket: current, status })}
-              onClose={() => setOpenId(null)}
-            />
-          )}
-        </div>
-
-        <NewTicketDialog
-          open={adding}
-          onOpenChange={setAdding}
-          assignee={people.length === 1 && people[0] !== NOBODY ? people[0]! : null}
-          onCreated={(id) => setOpenId(id)}
-        />
-        <Dialog open={!!asking} onOpenChange={(o) => !o && setAsking(null)}>
-          <DialogContent className="rounded-2xl sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle>{t('board.startTitle', { name: askedBot?.name ?? '' })}</DialogTitle>
-              <DialogDescription>
-                {asking &&
-                  t('board.startBody', {
-                    number: asking.ticket.number,
-                    name: askedBot?.name ?? '',
-                  })}
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="ghost" className="rounded-xl" onClick={() => setAsking(null)}>
-                {t('common.cancel')}
-              </Button>
-              <Button
-                autoFocus
-                className="rounded-xl"
-                onClick={() => {
-                  if (asking) commit(asking);
-                  setAsking(null);
-                }}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              {t('board.priority')}
+            </DropdownMenuLabel>
+            {[...TICKET_PRIORITIES].reverse().map((p) => (
+              <DropdownMenuCheckboxItem
+                key={p}
+                checked={priorities.includes(p)}
+                onSelect={(e) => e.preventDefault()}
+                onCheckedChange={(on) =>
+                  setPriorities((all) => (on ? [...all, p] : all.filter((x) => x !== p)))
+                }
               >
-                {t('board.startConfirm')}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-        {drag &&
-          createPortal(
-            <div
-              className="pointer-events-none fixed top-0 start-0 z-[100]"
-              style={{
-                width: drag.width,
-                transform: `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px)`,
+                <PriorityIcon priority={p} />
+                {t(`board.priority.${p}`)}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <label className="relative flex items-center phone:order-3 phone:min-w-0 phone:flex-1 phone:basis-48">
+          <Search className="pointer-events-none absolute start-2.5 size-4 text-muted-foreground" />
+          <input
+            ref={search}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape' && query) {
+                e.stopPropagation();
+                setQuery('');
+              }
+            }}
+            data-own-escape={query ? '' : undefined}
+            placeholder={t('board.search')}
+            aria-label={t('board.search')}
+            className="h-8 w-56 rounded-xl border bg-transparent pe-3 ps-8 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 phone:w-full"
+          />
+        </label>
+        <Button size="sm" className="rounded-xl phone:order-1" onClick={() => setAdding(true)}>
+          <Plus /> {t('board.new')}
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="rounded-xl phone:order-2"
+          aria-label={t('common.close')}
+          onClick={close}
+        >
+          <X />
+        </Button>
+      </header>
+
+      <div className="relative min-h-0 flex-1">
+        {!isPending && !tickets.length ? (
+          <EmptyBoard onAdd={() => setAdding(true)} />
+        ) : (
+          <div
+            ref={scroller}
+            className="scroll-thin flex h-full gap-2.5 overflow-x-auto p-4 phone:flex-col phone:overflow-x-hidden phone:overflow-y-auto phone:p-3"
+          >
+            {COLUMNS.map((status) => (
+              <Column
+                key={status}
+                status={status}
+                tickets={shown.filter((k) => k.status === status)}
+                wontDo={status === 'done' ? shown.filter((k) => k.status === 'wont_do') : undefined}
+                showWontDo={showWontDo}
+                onToggleWontDo={() => setShowWontDo((v) => !v)}
+                dragging={drag}
+                selectedId={openId}
+                filtering={filtering}
+                onOpen={openTicket}
+                onGrab={grab}
+                onAdd={status === 'todo' ? () => setAdding(true) : undefined}
+              />
+            ))}
+          </div>
+        )}
+        {current && (
+          <TicketPanel
+            key={current.id}
+            ticket={current}
+            onStatus={(status) => move({ ticket: current, status })}
+            onClose={() => setOpenId(null)}
+          />
+        )}
+      </div>
+
+      <NewTicketDialog
+        open={adding}
+        onOpenChange={setAdding}
+        assignee={people.length === 1 && people[0] !== NOBODY ? people[0]! : null}
+        onCreated={(id) => setOpenId(id)}
+      />
+      <Dialog open={!!asking} onOpenChange={(o) => !o && setAsking(null)}>
+        <DialogContent className="rounded-2xl sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t('board.startTitle', { name: askedBot?.name ?? '' })}</DialogTitle>
+            <DialogDescription>
+              {asking &&
+                t('board.startBody', {
+                  number: asking.ticket.number,
+                  name: askedBot?.name ?? '',
+                })}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" className="rounded-xl" onClick={() => setAsking(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button
+              autoFocus
+              className="rounded-xl"
+              onClick={() => {
+                if (asking) commit(asking);
+                setAsking(null);
               }}
             >
-              <TicketCard ticket={drag.ticket} lifted />
-            </div>,
-            document.body,
-          )}
-      </DialogContent>
-    </Dialog>
+              {t('board.startConfirm')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {drag &&
+        createPortal(
+          <div
+            className="pointer-events-none fixed top-0 start-0 z-[100]"
+            style={{
+              width: drag.width,
+              transform: `translate(${drag.x - drag.dx}px, ${drag.y - drag.dy}px)`,
+            }}
+          >
+            <TicketCard ticket={drag.ticket} lifted />
+          </div>,
+          document.body,
+        )}
+    </section>
   );
 }
 
