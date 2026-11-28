@@ -188,3 +188,25 @@ export async function waitFor<T>(
     await new Promise((r) => setTimeout(r, 20));
   }
 }
+
+/**
+ * Starts the browser once and closes it, for a block of tests that each start their own. The first
+ * start in a test process reads the whole browser from disk, and on a CI runner that is starting
+ * every other test file at the same moment it can take most of the 20 seconds a test gives its
+ * turns. Paid here, under the hook's own longer timeout, it stays out of the first test's.
+ */
+export async function warmBrowser(executablePath: string, sandbox: boolean): Promise<void> {
+  const { chromium } = await import('playwright-core');
+  const browser = await chromium.launch({
+    executablePath,
+    headless: true,
+    chromiumSandbox: sandbox,
+    args: ['--disable-dev-shm-usage'],
+    timeout: 50_000,
+  });
+  try {
+    await (await browser.newPage()).goto('about:blank');
+  } finally {
+    await browser.close();
+  }
+}

@@ -7,7 +7,7 @@ import type { Message, MessageFile, Thread } from '@leafbot/shared';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { findBrowser } from '../src/browser/find';
 import { bundlePage } from '../src/tools/page-bundle';
-import { testServer, type TestServer } from './helpers';
+import { testServer, warmBrowser, type TestServer } from './helpers';
 
 const BROWSER = process.env.LEAFBOT_TEST_BROWSER ?? findBrowser();
 
@@ -68,6 +68,7 @@ describe.skipIf(!BROWSER)('sayfayı resme çevirme (tarayıcıyla)', () => {
   let t: TestServer;
 
   beforeAll(async () => {
+    await warmBrowser(BROWSER!, process.getuid?.() !== 0);
     site = httpServer((req, res) => {
       hits.push(req.url ?? '');
       res.end('x');
