@@ -123,6 +123,7 @@ export interface UiState {
   shortcutsOpen: boolean;
   /** The day's summary. */
   todayOpen: boolean;
+  /** The board of tickets, open in the main area in place of the chat. */
   boardOpen: boolean;
   dashboardsOpen: boolean;
   /**
@@ -250,6 +251,8 @@ const saved = (() => {
 export const WRITING_PAUSE_MS = 1200;
 const writingTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+/** On a phone, the screen the board was opened from, shown again when it is closed. */
+let boardCameFrom: UiState['phonePane'] = 'list';
 /** The open page's question before its changes are dropped; it says whether to go on. */
 let pageLeaveAsk: (() => boolean) | null = null;
 /** Set by a page in place of the chat while it is open, so leaving it from anywhere asks the same. */
@@ -305,8 +308,15 @@ export const useUi = create<UiState>((set, get) => ({
     if (!get().leavePage()) return;
     set(
       botId
-        ? { botId, threadId: null, roomId: null, findOpen: false, apps: null }
-        : { botId, threadId: null, roomId: null, phonePane: 'list', findOpen: false, apps: null },
+        ? { botId, threadId: null, roomId: null, findOpen: false, apps: null, boardOpen: false }
+        : {
+            botId,
+            threadId: null,
+            roomId: null,
+            phonePane: 'list',
+            findOpen: false,
+            apps: null,
+          },
     );
   },
   openChat: (botId) => {
@@ -319,18 +329,25 @@ export const useUi = create<UiState>((set, get) => ({
       panelSheet: false,
       findOpen: false,
       apps: null,
+      boardOpen: false,
     });
   },
   showList: () => set({ phonePane: 'list', panelSheet: false }),
   selectThread: (threadId) => {
     if (!get().leavePage()) return;
-    set({ threadId, roomId: null, apps: null });
+    // Going back to the main conversation is tidying up (a thread archived, a bot cleared), often
+    // with no one asking; only opening a conversation takes the place of a page over the chat.
+    set(
+      threadId
+        ? { threadId, roomId: null, apps: null, boardOpen: false }
+        : { threadId, roomId: null, apps: null },
+    );
   },
   openRoom: (roomId) => {
     if (!roomId) return set({ roomId });
     if (!offers('rooms')) return;
     if (!get().leavePage()) return;
-    set({ roomId, phonePane: 'chat', panelSheet: false, findOpen: false, apps: null });
+    set({ roomId, phonePane: 'chat', panelSheet: false, findOpen: false, apps: null, boardOpen: false });
   },
   openRoomDialog: (roomDialog) => {
     if (!roomDialog || offers('rooms')) set({ roomDialog });
@@ -345,7 +362,15 @@ export const useUi = create<UiState>((set, get) => ({
   setFindOpen: (findOpen, seed) => set({ findOpen, findSeed: findOpen ? (seed ?? null) : null }),
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
   setTodayOpen: (todayOpen) => set({ todayOpen }),
-  setBoardOpen: (boardOpen) => set({ boardOpen }),
+  // The board takes the main area as the apps page does: in place of it, and shown on a phone,
+  // where closing it goes back to the list or the chat it was opened from.
+  setBoardOpen: (boardOpen) => {
+    const s = get();
+    if (boardOpen === s.boardOpen) return;
+    if (!boardOpen) return set({ boardOpen, phonePane: boardCameFrom });
+    boardCameFrom = s.phonePane;
+    set({ boardOpen, apps: null, phonePane: 'chat', panelSheet: false, findOpen: false });
+  },
   setDashboardsOpen: (dashboardsOpen) => {
     if (!dashboardsOpen || offers('dashboards')) set({ dashboardsOpen });
   },
@@ -365,6 +390,7 @@ export const useUi = create<UiState>((set, get) => ({
       panelSheet: false,
       findOpen: false,
       apps: null,
+      boardOpen: false,
     });
   },
   leavePage: () => {
@@ -381,7 +407,7 @@ export const useUi = create<UiState>((set, get) => ({
   quote: (pendingQuote) => set({ pendingQuote }),
   draft: (pendingDraft) => set({ pendingDraft }),
   // The page under it is kept as it is, typed changes too, for when the apps page closes.
-  openApps: (apps) => set(apps ? { apps, phonePane: 'chat', panelSheet: false } : { apps }),
+  openApps: (apps) => set(apps ? { apps, phonePane: 'chat', panelSheet: false, boardOpen: false } : { apps }),
   openBotPage: (page) => {
     if (!page) return void get().leavePage();
     const s = get();
@@ -390,7 +416,7 @@ export const useUi = create<UiState>((set, get) => ({
     const same =
       open?.mode === page.mode &&
       (page.mode === 'create' || (open.mode === 'edit' && open.botId === page.botId));
-    if (same) return set({ apps: null });
+    if (same) return set({ apps: null, boardOpen: false });
     if (!s.leavePage()) return;
     set({
       botPage: page,
@@ -403,6 +429,7 @@ export const useUi = create<UiState>((set, get) => ({
       panelSheet: false,
       findOpen: false,
       apps: null,
+      boardOpen: false,
     });
   },
   openComputer: (computerBotId) => {

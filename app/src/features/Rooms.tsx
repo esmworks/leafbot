@@ -254,7 +254,7 @@ function RoomRow({ room }: { room: Room }) {
   const t = useT();
   const { shortTime } = useFormat();
   const members = useMembers(room);
-  const selected = useUi((s) => s.roomId === room.id);
+  const selected = useUi((s) => s.roomId === room.id && !s.boardOpen);
   const openRoom = useUi((s) => s.openRoom);
   const live = useUi((s) => s.states[room.id]);
   const busy = (live ?? room.state) !== 'idle';

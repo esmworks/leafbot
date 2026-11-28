@@ -116,6 +116,7 @@ function SidebarPanel({
   const [searching, setSearching] = useState(false);
   const openBotPage = useUi((s) => s.openBotPage);
   const openApps = useUi((s) => s.openApps);
+  const boardOpen = useUi((s) => s.boardOpen);
   const connection = useUi((s) => s.connection);
   // While a bot is dragged, empty sections show up so it can be dropped into them.
   const dragging = !!useBotDrag().drag;
@@ -433,7 +434,11 @@ function SidebarPanel({
           <NavTile label={t('today.title')} onClick={() => useUi.getState().setTodayOpen(true)}>
             <Sun />
           </NavTile>
-          <NavTile label={t('board.title')} onClick={() => useUi.getState().setBoardOpen(true)}>
+          <NavTile
+            label={t('board.title')}
+            active={boardOpen}
+            onClick={() => useUi.getState().setBoardOpen(true)}
+          >
             <ListTodo />
           </NavTile>
           <NavTile label={t('dashboards.title')} onClick={() => useUi.getState().setDashboardsOpen(true)}>
@@ -682,10 +687,13 @@ function AccountMenu({
 /** A view across all bots, named under its icon so the row reads without hovering. */
 function NavTile({
   label,
+  active = false,
   onClick,
   children,
 }: {
   label: string;
+  /** The view this opens is the one in the main area now. */
+  active?: boolean;
   onClick(): void;
   children: React.ReactNode;
 }) {
@@ -694,7 +702,11 @@ function NavTile({
       type="button"
       onClick={onClick}
       title={label}
-      className="flex min-w-0 flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:size-5"
+      aria-current={active ? 'page' : undefined}
+      className={cn(
+        'flex min-w-0 flex-col items-center gap-1 rounded-xl px-0.5 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:size-5',
+        active && 'bg-accent text-foreground',
+      )}
     >
       {children}
       <span className="w-full truncate text-center text-[11px] leading-none">{label}</span>
@@ -853,7 +865,7 @@ function PausedBadge({ bot, small = false }: { bot: Bot; small?: boolean }) {
 /** A bot in the folded sidebar: the avatar alone, the name in a tooltip. */
 function RailItem({ bot, summary, section }: { bot: Bot; summary?: BotSummary; section?: SectionKey }) {
   const activity = useBotActivity(bot.id, summary);
-  const selected = useUi((s) => s.botId === bot.id && !s.roomId);
+  const selected = useUi((s) => s.botId === bot.id && !s.roomId && !s.boardOpen);
   const select = useUi((s) => s.openChat);
   const d = useDragItem(bot, 'y', section);
   return (
@@ -893,7 +905,7 @@ function RailItem({ bot, summary, section }: { bot: Bot; summary?: BotSummary; s
 /** A pinned bot at the top of the sidebar: a large avatar with the name below. */
 function PinnedTile({ bot, summary }: { bot: Bot; summary?: BotSummary }) {
   const activity = useBotActivity(bot.id, summary);
-  const selected = useUi((s) => s.botId === bot.id && !s.roomId);
+  const selected = useUi((s) => s.botId === bot.id && !s.roomId && !s.boardOpen);
   const select = useUi((s) => s.openChat);
   const d = useDragItem(bot, 'x');
   return (
@@ -931,7 +943,7 @@ function BotRow({ bot, summary, section }: { bot: Bot; summary?: BotSummary; sec
   const { data: rooms } = useRooms();
   const t = useT();
   const { shortTime } = useFormat();
-  const selected = useUi((s) => s.botId === bot.id && !s.roomId);
+  const selected = useUi((s) => s.botId === bot.id && !s.roomId && !s.boardOpen);
   const select = useUi((s) => s.openChat);
   const selectThread = useUi((s) => s.selectThread);
   const muted = useNotify((s) => isMuted(s.mutes, bot.id));

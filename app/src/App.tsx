@@ -52,7 +52,7 @@ const RoutinePage = lazyScreen(() => import('@/features/RoutinePage').then((m) =
 const FilePreview = lazyScreen(() => import('@/features/FilePreview').then((m) => m.FilePreview));
 const SettingsPage = lazyScreen(() => import('@/features/SettingsPage').then((m) => m.SettingsPage));
 const TodayDialog = lazyScreen(() => import('@/features/TodayDialog').then((m) => m.TodayDialog));
-const BoardDialog = lazyScreen(() => import('@/features/board/BoardDialog').then((m) => m.BoardDialog));
+const BoardPage = lazyScreen(() => import('@/features/board/BoardPage').then((m) => m.BoardPage));
 const DashboardsDialog = lazyScreen(() =>
   import('@/features/DashboardsDialog').then((m) => m.DashboardsDialog),
 );
@@ -60,7 +60,7 @@ const LAZY_SCREENS = [
   SettingsPage,
   BotFormPage,
   TodayDialog,
-  BoardDialog,
+  BoardPage,
   DashboardsDialog,
   Onboarding,
   AccountGate,
@@ -267,7 +267,8 @@ function Workspace() {
   // Mounted from the first opening on, so closing still plays its animation.
   const settingsMounted = useOpenedOnce(settingsOpen);
   const todayMounted = useOpenedOnce(useUi((s) => s.todayOpen));
-  const boardMounted = useOpenedOnce(useUi((s) => s.boardOpen));
+  const board = useUi((s) => s.boardOpen);
+  const boardMounted = useOpenedOnce(board);
   const dashboardsMounted = useOpenedOnce(useUi((s) => s.dashboardsOpen));
   const previewMounted = useOpenedOnce(usePreview((s) => s.file !== null));
   // The desktop app's menu bar holds Settings (⌘,) too.
@@ -315,8 +316,8 @@ function Workspace() {
   }, [bot?.color]);
 
   // A phone shows the list or the chat, never both; the chat needs a bot to show.
-  const pane = phone ? (bot || room || routine || botPage || apps ? phonePane : 'list') : null;
-  const seeThrough = !apps && !botPage && !routine && !!(room || bot);
+  const pane = phone ? (bot || room || routine || botPage || apps || board ? phonePane : 'list') : null;
+  const seeThrough = !apps && !board && !botPage && !routine && !!(room || bot);
 
   return (
     <>
@@ -333,7 +334,9 @@ function Workspace() {
         >
           {/* The apps page covers the rest, which stays as it was (typed changes too) under it. */}
           {apps && <AppsPage />}
-          <div className={cn('flex min-w-0 flex-1', apps && 'hidden')}>
+          {/* The board likewise, kept once opened so its filters wait for the next visit. */}
+          {boardMounted && <BoardPage />}
+          <div className={cn('flex min-w-0 flex-1', (apps || board) && 'hidden')}>
             {botPage ? (
               <BotFormPage key={botPage.mode === 'edit' ? botPage.botId : 'new'} page={botPage} />
             ) : routine ? (
@@ -395,7 +398,6 @@ function Workspace() {
         <ShortcutsDialog />
         {todayMounted && <TodayDialog />}
         <ActionCards />
-        {boardMounted && <BoardDialog />}
         {dashboardsMounted && <DashboardsDialog />}
         <PageCallQuestion />
         <GrokMoveOffer />
