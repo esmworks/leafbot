@@ -5,9 +5,13 @@ import { createRoot } from 'react-dom/client';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { PageBroken } from '@/components/PageBroken';
 import { TooltipProvider } from '@/components/ui/tooltip';
+import { desktop } from '@/lib/desktop';
 import '@/lib/zoom';
 import '../index.css';
 import { BotsApp } from './BotsApp';
+
+// In the desktop app's window: the `frameless:` styles and the window drag areas.
+if (desktop?.framelessTitleBar) document.documentElement.classList.add('frameless');
 
 const queryClient = new QueryClient({
   defaultOptions: {

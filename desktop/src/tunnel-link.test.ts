@@ -24,7 +24,7 @@ describe('hangi hatalar tekrar denenir', () => {
 });
 
 describe('sunucuya açık tünel', () => {
-  let cookie: string | null;
+  let session: string | null;
   let listed: ServerEntry[];
   let opens: { onEnd: (code: string) => void; live: Live & { closed: boolean } }[];
   let failures: unknown[];
@@ -33,7 +33,7 @@ describe('sunucuya açık tünel', () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    cookie = 'c=1';
+    session = 'c=1';
     listed = [server];
     opens = [];
     failures = [];
@@ -41,7 +41,7 @@ describe('sunucuya açık tünel', () => {
     link = new ServerLink({
       serverId: 's1',
       account: { servers: async () => listed } as unknown as AccountClient,
-      cookie: async () => cookie,
+      session: async () => session,
       open: async (_s, onEnd) => {
         const failure = failures.shift();
         if (failure) throw failure;
@@ -120,12 +120,12 @@ describe('sunucuya açık tünel', () => {
   it('çıkış yapılınca tüneli kapatır ve başka biri girince yeniden açar', async () => {
     link.start();
     await settle();
-    cookie = null;
+    session = null;
     await link.signInChanged();
     await settle();
     expect(opens[0]!.live.closed).toBe(true);
     expect(opens).toHaveLength(1);
-    cookie = 'c=2';
+    session = 'c=2';
     await link.signInChanged();
     await settle();
     expect(opens).toHaveLength(2);

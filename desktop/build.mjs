@@ -20,6 +20,8 @@ await build({
   external: [...common.external, './main.cjs'],
 });
 await build({ ...common, entryPoints: ['src/preload.ts'], outfile: 'dist/preload.cjs' });
+// The bridge of the page of the account's servers (see src/bots-page.ts).
+await build({ ...common, entryPoints: ['src/preload-bots.ts'], outfile: 'dist/preload-bots.cjs' });
 
 // On macOS, the small helper that moves the mouse and types for a bot allowed to use this Mac.
 // Swift ships with Xcode's command-line tools; without them the app builds anyway and the feature

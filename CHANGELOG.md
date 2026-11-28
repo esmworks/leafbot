@@ -14,6 +14,14 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Changed
 
+- The desktop app no longer shows the website in its window. Signed out, the window shows the app's own sign-in;
+  "Sign in with your browser" opens leafbot.app in the person's browser, and approving there brings them back to
+  the app, signed in, to their servers. The code the website hands back is bound to that sign-in (PKCE), as on the
+  phone. The page of the account's servers now ships inside the app, and the app keeps its own session, encrypted
+  with the system's keychain; the menu bar has "Sign in to Leaf Bot" and "Sign out of Leaf Bot". Google and Apple
+  sign-in now happen in the browser, where they always ended up. Anyone signed in through the window before signs
+  in once more.
+
 - The phone app opens faster. It shows the bots, the summaries and the latest messages of the last conversations
   from its previous launch at once, while the connection to the server opens, and reads them again as soon as it is
   open. It opens the connection without waiting for the account's server list, asks for both of the connection's

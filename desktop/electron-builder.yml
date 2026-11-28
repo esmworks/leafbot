@@ -59,6 +59,9 @@ afterPack: ./after-pack.cjs
 extraResources:
   - from: ../app/dist
     to: app
+  # The page of the account's servers, served from these files under the app's own scheme.
+  - from: ../app/dist-bots/bots
+    to: bots
   - from: assets
     to: assets
   # The license and its notices travel with every copy.

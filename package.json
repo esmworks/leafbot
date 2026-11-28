@@ -10,7 +10,7 @@
   "scripts": {
     "dev:server": "pnpm --filter @leafbot/server dev",
     "dev:app": "pnpm --filter @leafbot/app dev",
-    "build": "pnpm --filter @leafbot/app build && pnpm --filter @leafbot/server build && pnpm --filter @leafbot/desktop build",
+    "build": "pnpm --filter @leafbot/app build && pnpm --filter @leafbot/app build:bots && pnpm --filter @leafbot/server build && pnpm --filter @leafbot/desktop build",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "lint": "eslint .",

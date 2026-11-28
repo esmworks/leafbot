@@ -2,8 +2,8 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 /**
- * What the window shows: this computer's own server, or the website's page of the person's
- * account servers (`https://www.leafbot.app/bots/`), where they sign in as in a browser.
+ * What the window shows: this computer's own server, or the page of the person's account servers
+ * (see `bots-page.ts`), which this app serves itself and signs in to through the person's browser.
  */
 export type ServerId = 'local' | 'account';
 

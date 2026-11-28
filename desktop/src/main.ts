@@ -14,23 +14,31 @@ import {
   Menu,
   nativeImage,
   nativeTheme,
+  net,
   powerSaveBlocker,
+  protocol,
+  safeStorage,
   screen,
   session,
   shell,
   Tray,
   type IpcMainInvokeEvent,
 } from 'electron';
+import { pathToFileURL } from 'node:url';
 import log from 'electron-log/main';
 import { autoUpdater } from 'electron-updater';
+import { accountClient, AccountError, isConnectLink, WEBSITE, type ServerEntry } from './account';
 import {
-  accountClient,
-  accountUrl,
-  AccountError,
-  SESSION_COOKIE,
-  WEBSITE,
-  type ServerEntry,
-} from './account';
+  BOTS_HOST,
+  BOTS_ORIGIN,
+  BOTS_SCHEME,
+  botsFile,
+  botsPolicy,
+  botsUrl,
+  contentType,
+  pageOrigin,
+} from './bots-page';
+import { BrowserSignIn, readSession, writeSession, type SessionFile } from './sign-in';
 import {
   chooseServer,
   LOCAL_ONLY,
@@ -138,6 +146,15 @@ log.initialize();
 log.transports.file.resolvePathFn = () => join(app.getPath('userData'), 'logs', 'main.log');
 log.transports.file.level = 'info';
 
+// The page of the account's servers is served from this app's files under its own scheme; it is a
+// secure origin of its own, so its device key (WebCrypto, IndexedDB) and WebRTC work as on the web.
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: BOTS_SCHEME,
+    privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, codeCache: true },
+  },
+]);
+
 const DEFAULT_PORT = 4319;
 const userData = app.getPath('userData');
 const dataDir = join(userData, 'data');
@@ -155,11 +172,13 @@ let localOrigin: string | null = null;
 let localKey: string | null = null;
 let config: DesktopConfig = LOCAL_ONLY;
 /**
- * Origin of the page the main window shows: this computer's own server, or the website. Only the
- * first gets the bridge to this app (the preload script and its calls); the website's page is
- * remote content and gets none.
+ * Origin of the page the main window shows: this computer's own server, or the page of the
+ * account's servers this app serves itself. Each gets a bridge of its own (see `preload.ts` and
+ * `preload-bots.ts`).
  */
 let origin: string | null = null;
+/** This app's session at the account service; null while the person is signed out. */
+let accountToken: string | null = null;
 /** The account server this computer is offered to, once the offers were started for it. */
 let offeredTo: string | null = null;
 /** The tunnel to that server, shared by the offers made through it. */
@@ -243,6 +262,9 @@ const serverEntry = () => {
   return existsSync(start) ? start : join(resources(), 'server', 'dist', 'index.mjs');
 };
 const appDir = () => (app.isPackaged ? join(resources(), 'app') : join(resources(), 'app', 'dist'));
+/** The web app's `bots` build: the page of the account's servers. */
+const botsDir = () =>
+  app.isPackaged ? join(resources(), 'bots') : join(resources(), 'app', 'dist-bots', 'bots');
 const assets = () => (app.isPackaged ? join(resources(), 'assets') : join(app.getAppPath(), 'assets'));
 /**
  * The helper that moves the mouse and types for a bot the person allowed to use this computer: a
@@ -289,10 +311,18 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   // Windows and Linux start a second copy with the link among its arguments; it hands them here.
-  app.on('second-instance', (_e, argv) => openLink(linkInArgs(argv)));
+  app.on('second-instance', (_e, argv) => {
+    const back = argv.find((a) => isConnectLink(a));
+    if (back) return void signInReturned(back);
+    openLink(linkInArgs(argv));
+  });
   // macOS hands a link to the running app, or to the app it is starting, as an event.
   app.on('open-url', (e, url) => {
     e.preventDefault();
+    if (isConnectLink(url)) {
+      if (app.isReady()) void signInReturned(url);
+      return;
+    }
     const link = parseLink(url);
     if (!link) return;
     if (app.isReady()) openLink(link);
@@ -329,16 +359,17 @@ async function boot() {
   if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(join(assets(), 'icon.png'));
   loadLocale(userData, app.getPreferredSystemLanguages());
   config = readDesktopConfig(userData);
+  accountToken = readSession(userData, sessionFile);
   launchMark('config');
   // This computer's server takes the longest to come up, so it starts before the rest is set up
   // and before the window, which it does not need; the window is ready long before it is.
   const local = config.local ? startLocal() : undefined;
   hardenSessions();
+  serveBotsPage();
   setUpSpelling();
   registerIpc();
   registerLinks();
   createTray();
-  watchSignIn();
   registerQuickKey();
   watchForUpdates();
   await connect(local);
@@ -435,24 +466,24 @@ async function connect(started?: Promise<void>) {
 
 /** Points the window's origin at what it shows; no origin while this computer's server is not up. */
 function pointAtShown() {
-  origin = config.shown === 'account' ? new URL(WEBSITE).origin : localOrigin;
+  origin = config.shown === 'account' ? BOTS_ORIGIN : localOrigin;
 }
 
 /** The page the window loads: the account's servers, at the chosen one when there is one. */
-const windowUrl = () => (config.shown === 'account' ? accountUrl(config.server) : origin);
+const windowUrl = () => (config.shown === 'account' ? botsUrl(config.server) : origin);
 
 /** The device key and WebRTC for the tunnels; made when the first one is needed, once per run. */
 let device: ReturnType<typeof newDevice> | null = null;
 let rtc: ReturnType<typeof nodeRtc> | null = null;
 
-/** What the account service says for the window's sign-in; this app holds no sign-in of its own. */
-const account = accountClient({ fetch: (input, init) => fetch(input, init), cookie: sessionCookie });
+/** The account service, with this app's own session. */
+const account = accountClient({ fetch: (input, init) => fetch(input, init), token: () => accountToken });
 
 /**
  * Offers this computer to the account server the person chose: as the bots' way out to the web,
  * and the Mac when the person turned that on. Only that server gets it. It is reached through a
- * tunnel the person's own account opens, with the website's sign-in from the window, so no address
- * or key is kept here.
+ * tunnel the person's own account opens, with this app's session at the account, so no address or
+ * key is kept here.
  */
 function startOffers() {
   const id = config.server;
@@ -467,7 +498,7 @@ function startOffers() {
   const mine = new ServerLink({
     serverId: id,
     account,
-    cookie: sessionCookie,
+    session: async () => accountToken,
     open: async (server, onEnd) => {
       device ??= newDevice();
       rtc ??= nodeRtc();
@@ -506,7 +537,7 @@ function serverLabel(): string {
   );
 }
 
-/** The account's servers, for the menu; empty while the person is signed out of the website. */
+/** The account's servers, for the menu; empty while the person is signed out of the account. */
 async function refreshAccountServers() {
   try {
     accountServers = await account.servers();
@@ -756,7 +787,7 @@ function showWindow() {
   if (win && !win.isDestroyed()) {
     // The window opened before its server was up, or shows a server that moved to another port.
     const shown = win.webContents.getURL();
-    if (isLoadingPage(shown) || (shown && new URL(shown).origin !== new URL(target).origin)) {
+    if (isLoadingPage(shown) || (shown && pageOrigin(shown) !== pageOrigin(target))) {
       void win.loadURL(target);
     }
     win.show();
@@ -804,8 +835,9 @@ function createMainWindow() {
       trafficLightPosition: { x: 20, y: 17 },
     }),
     webPreferences: {
-      // The website's page is remote content: no bridge to this app, whatever it asks for.
-      ...(config.shown === 'local' && { preload: join(__dirname, 'preload.cjs') }),
+      // The page of the account's servers gets its own bridge: the account calls, nothing of this
+      // computer's server.
+      preload: join(__dirname, config.shown === 'local' ? 'preload.cjs' : 'preload-bots.cjs'),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
@@ -1131,19 +1163,27 @@ function closeQuick() {
   quickWin = null;
 }
 
-/** The pages that may ask for the microphone: this computer's own server's, and the website's. */
+/** The pages this app shows: this computer's own server's, and the page of the account's servers. */
 function isAppOrigin(url: string) {
-  try {
-    const at = new URL(url).origin;
-    return at === new URL(WEBSITE).origin || (!!localOrigin && at === localOrigin);
-  } catch {
-    return false;
-  }
+  const at = pageOrigin(url);
+  return !!at && (at === BOTS_ORIGIN || (!!localOrigin && at === localOrigin));
+}
+
+/** From the page of the account's servers, shown in the main window. */
+function fromBotsPage(e: IpcMainInvokeEvent) {
+  return (
+    !!win &&
+    !win.isDestroyed() &&
+    e.sender === win.webContents &&
+    config.shown === 'account' &&
+    pageOrigin(e.senderFrame?.url ?? '') === BOTS_ORIGIN
+  );
 }
 
 /**
  * From the page of this computer's own server, shown in the main window: the only page that may
- * use the bridge to this app. The website's page, shown in the same window, has none.
+ * use the bridge to this app. The page of the account's servers, shown in the same window, has a
+ * bridge of its own (`preload-bots.ts`).
  */
 function fromMainPage(e: IpcMainInvokeEvent) {
   try {
@@ -1209,14 +1249,53 @@ function registerIpc() {
     openLink({ kind: 'thread', id });
   });
   ipcMain.handle('leafbot:quick-key', (e) => (fromMainPage(e) ? quickKey : null));
-  // The page of this computer's server offers the way to the account's servers; the website's page
-  // it opens is remote content and has no calls of its own.
+  // The page of this computer's server offers the way to the account's servers, which the window
+  // then shows.
   ipcMain.handle('leafbot:open-account', async (e) => {
     if (fromMainPage(e)) await apply((c) => show(c, 'account'));
   });
+  // The page of the account's servers: the account calls, made here with this app's session, and
+  // the sign-in in the person's browser. Answers are plain objects, so the page keeps the status.
+  // `ends` is for the calls whose 401 says the service no longer takes this session (signed out
+  // elsewhere, or expired); another call's 401 may be about that call alone.
+  const answer = async <T>(e: IpcMainInvokeEvent, call: () => Promise<T>, ends = true) => {
+    if (!fromBotsPage(e)) return { ok: false, status: 403, code: 'forbidden' };
+    try {
+      return { ok: true, data: await call() };
+    } catch (err) {
+      if (err instanceof AccountError) {
+        if (ends && err.status === 401) setAccountSession(null);
+        return { ok: false, status: err.status, code: err.code };
+      }
+      return { ok: false, status: 0, code: 'failed' };
+    }
+  };
+  ipcMain.handle('leafbot:account-servers', (e) =>
+    answer(e, async () => {
+      const servers = await account.servers();
+      accountServers = servers;
+      rebuildMenu();
+      return servers;
+    }),
+  );
+  ipcMain.handle('leafbot:account-ticket', (e, serverId: unknown, jkt: unknown) =>
+    typeof serverId === 'string' && typeof jkt === 'string' && serverId.length <= 200 && jkt.length <= 200
+      ? answer(e, () => account.ticket(serverId, jkt))
+      : { ok: false, status: 400, code: 'invalid' },
+  );
+  ipcMain.handle('leafbot:account-connect-code', (e) => answer(e, () => account.connectCode(), false));
+  ipcMain.handle('leafbot:account-sign-in', (e) =>
+    fromBotsPage(e) ? browserSignIn.start() : { ok: false, reason: 'failed' },
+  );
+  // Adding a server and the rest of the account's pages are the website's, in the person's browser.
+  ipcMain.handle('leafbot:account-website', (e, path: unknown) => {
+    if (!fromBotsPage(e) || typeof path !== 'string' || !/^\/[a-z0-9/_-]*$/i.test(path)) return;
+    const prefix = locale() === 'tr' ? '/tr' : '';
+    void shell.openExternal(`${WEBSITE}${prefix}${path}`);
+  });
   // The app reports its language so the menu and windows match it.
   ipcMain.handle('leafbot:set-locale', (e, next: unknown) => {
-    if (!fromMainPage(e) || !isLocale(next) || next === locale()) return;
+    if (!(fromMainPage(e) || fromBotsPage(e)) || !isLocale(next) || next === locale()) return;
     setLocale(next);
     try {
       saveLocale(userData, next);
@@ -1226,7 +1305,7 @@ function registerIpc() {
     rebuildMenu();
   });
   ipcMain.handle('leafbot:set-unread', (e, count: unknown) => {
-    if (!fromMainPage(e)) return;
+    if (!(fromMainPage(e) || fromBotsPage(e))) return;
     const n =
       typeof count === 'number' && Number.isFinite(count) ? Math.min(999, Math.max(0, Math.trunc(count))) : 0;
     if (n === unread) return;
@@ -1351,18 +1430,14 @@ function hardenSessions() {
       if (/^https?:\/\//.test(url)) void shell.openExternal(url);
       return { action: 'deny' };
     });
-    // A page stays on its own origin, which is this computer's server or the website and nothing
-    // else: the origin is compared whole, as a prefix would also let https://www.leafbot.app.evil.net
-    // or https://www.leafbot.app@evil.net through. Anything else opens in the person's browser,
-    // which a redirect (the sign-in of another provider, say) is held to as well.
+    // A page stays on its own origin, which is this computer's server or the page of the account's
+    // servers and nothing else: the origin is compared whole, as a prefix would also let
+    // http://127.0.0.1:4319.evil.net through. Anything else (the website, a link in a reply) opens in
+    // the person's browser, which a redirect is held to as well.
     const stay = (e: { preventDefault(): void }, url: string) => {
-      let same = false;
-      try {
-        same = isAppOrigin(url) && new URL(url).origin === new URL(contents.getURL()).origin;
-      } catch {
-        // A page not loaded yet has no origin to stay on.
-      }
-      if (same) return;
+      // A page not loaded yet has no origin to stay on.
+      const here = pageOrigin(contents.getURL());
+      if (isAppOrigin(url) && here !== null && pageOrigin(url) === here) return;
       e.preventDefault();
       if (/^https?:\/\//.test(url)) void shell.openExternal(url);
     };
@@ -1379,8 +1454,8 @@ const canOfferMac = () => helperSystem() && !!link && existsSync(personComputer(
 
 /**
  * Offers this Mac to the bots of the account server, when the person turned it on in the menu bar.
- * The Mac is the one of the person signed in on the website in the window: the tunnel is made with
- * that account, so the server sees who it belongs to.
+ * The Mac is the one of the person signed in to this app's account: the tunnel is made with that
+ * account, so the server sees who it belongs to.
  */
 function startMac() {
   stopMacOffer();
@@ -1417,41 +1492,77 @@ function commandJobs(host: string): CommandJobs {
   return jobs;
 }
 
-let signInTimer: ReturnType<typeof setTimeout> | null = null;
-/** The website's sign-in as the app last saw it, to tell a change of person from a renewed cookie. */
-let lastSignIn: string | null = null;
+/** The session file is encrypted with the system's keychain; without one nothing is kept. */
+const sessionFile: SessionFile = {
+  encrypt: (text) => {
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('no keychain');
+    return safeStorage.encryptString(text);
+  },
+  decrypt: (data) => safeStorage.decryptString(data),
+};
 
-/** The window's sign-in cookie for the website, as a Cookie header value; null while signed out. */
-async function sessionCookie(): Promise<string | null> {
-  const [c] = await session.defaultSession.cookies.get({ url: WEBSITE, name: SESSION_COOKIE });
-  return c ? `${c.name}=${c.value}` : null;
+/** The sign-in in the person's browser, waiting for the website to send them back. */
+const browserSignIn = new BrowserSignIn({
+  account,
+  openBrowser: (url) => shell.openExternal(url),
+  locale: () => locale(),
+  signedIn: (token) => setAccountSession(token),
+});
+
+/** The website sent the person back with a `leafbot://connect` link: the waiting sign-in spends it. */
+async function signInReturned(url: string) {
+  showWindow();
+  const result = await browserSignIn.finish(url);
+  if (result && !result.ok) log.warn(`account: sign-in did not finish (${result.reason})`);
 }
 
 /**
- * A sign-in that changed in the window (another person, or signed out) changes whose computer this
- * is: the tunnel is made again with the new sign-in, or not at all when there is none, and what
- * the previous one allowed ends with it. The website sets the same cookie again on each visit to
- * keep it from running out; that is no change.
+ * Keeps a new session, or none (signed out). It changes whose computer this is: the tunnel is made
+ * again with the new session, or not at all without one, and what the previous one allowed ends
+ * with it. The page hears of it and starts again from its servers or its sign-in.
  */
-function watchSignIn() {
-  void sessionCookie().then((now) => (lastSignIn = now));
-  session.defaultSession.cookies.on('changed', (_e, cookie) => {
-    if (cookie.name !== SESSION_COOKIE || cookie.domain?.replace(/^\./, '') !== new URL(WEBSITE).hostname) {
-      return;
+function setAccountSession(token: string | null) {
+  if (token === accountToken) return;
+  accountToken = token;
+  try {
+    writeSession(userData, sessionFile, token);
+  } catch (err) {
+    log.warn('account: the session is not kept for the next start', err);
+  }
+  // Commands started for the one signed in before are theirs: they stop with the change.
+  jobs?.stopAll();
+  void link?.signInChanged();
+  void refreshAccountServers();
+  if (win && !win.isDestroyed()) win.webContents.send('leafbot:account-changed');
+}
+
+/** Ends this app's session, at the service too when it can be reached. */
+async function signOut() {
+  browserSignIn.cancel();
+  await account.signOut().catch((err: unknown) => log.warn('account: sign-out at the service failed', err));
+  setAccountSession(null);
+}
+
+/** Serves the page of the account's servers from this app's files; nothing outside its folder. */
+function serveBotsPage() {
+  const dir = botsDir();
+  const policy = botsPolicy(RELAY_URL);
+  protocol.handle(BOTS_SCHEME, async (req) => {
+    const file = botsFile(dir, req.url);
+    if (!file || !existsSync(file)) return new Response('Not found', { status: 404 });
+    const res = await net.fetch(pathToFileURL(file).toString());
+    const headers = new Headers({
+      'content-type': contentType(file),
+      'x-content-type-options': 'nosniff',
+      'referrer-policy': 'no-referrer',
+    });
+    if (file.endsWith('.html')) {
+      headers.set('content-security-policy', policy);
+      headers.set('cache-control', 'no-cache');
     }
-    if (signInTimer) clearTimeout(signInTimer);
-    signInTimer = setTimeout(() => {
-      signInTimer = null;
-      void sessionCookie().then((now) => {
-        if (now === lastSignIn) return;
-        lastSignIn = now;
-        // Commands started for the one signed in before are theirs: they stop with the change.
-        jobs?.stopAll();
-        void link?.signInChanged();
-        void refreshAccountServers();
-      });
-    }, 1_000);
+    return new Response(res.body, { status: 200, headers });
   });
+  log.info(`bots page: ${BOTS_SCHEME}://${BOTS_HOST} from ${dir}`);
 }
 
 function stopMacOffer() {
@@ -1562,8 +1673,8 @@ function macMenu(): Electron.MenuItemConstructorOptions[] {
 
 /**
  * The menu bar's part for the servers: what the window shows (this computer's own server, or the
- * website's page of the account's servers), this computer's own server on or off, and the account
- * server the window opens and this computer is offered to.
+ * page of the account's servers), this computer's own server on or off, the account server the
+ * window opens and this computer is offered to, and signing in to the account or out of it.
  */
 function serverMenu(): Electron.MenuItemConstructorOptions[] {
   return [
@@ -1607,6 +1718,16 @@ function serverMenu(): Electron.MenuItemConstructorOptions[] {
       checked: config.local,
       click: (item) => void turnLocal(item.checked),
     },
+    accountToken
+      ? { label: t('menu.signOut'), click: () => void signOut() }
+      : {
+          label: t('menu.signIn'),
+          click: () => {
+            // The window's own sign-in screen says what happens; the browser opens from there too.
+            if (config.shown !== 'account') void apply((c) => show(c, 'account'));
+            void browserSignIn.start();
+          },
+        },
   ];
 }
 
@@ -1669,7 +1790,7 @@ function buildAppMenu() {
             label: t('menu.settings'),
             accelerator: 'CommandOrControl+,',
             click: openSettings,
-            // Settings are a page of this computer's own server; the website's page has its own.
+            // Settings are a page of this computer's own server; an account server's are in its page.
             enabled: !!origin && config.shown === 'local',
           },
           { type: 'separator' },

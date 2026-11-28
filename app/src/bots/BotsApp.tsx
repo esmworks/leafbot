@@ -1,7 +1,7 @@
 import { deviceKeysSupported, TunnelError, type Tunnel, type TunnelEndCode } from '@leafbot/client/tunnel';
 import { ConnectError } from '@leafbot/client/webrtc';
 import { useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, Loader2, Server } from 'lucide-react';
+import { ChevronRight, ExternalLink, Loader2, Server } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { App } from '@/App';
@@ -12,16 +12,20 @@ import { useUi } from '@/lib/store';
 import { catchServerLinks, dropServerFiles } from '@/lib/server-files';
 import { useServerHost } from '@/lib/serverSwitch';
 import { setMissingFeatureHandler, setTunnel } from '@/lib/transport';
-import { account, AccountError, signInUrl, type ServerEntry } from './account';
+import { account, AccountError, desktopAccount, openWebsite, signInUrl, type ServerEntry } from './account';
 import { openServer } from './connect';
 import { passing, reconnect } from './reconnect';
 
 const LAST = 'leafbot.web.server';
 
+/** Why a sign-in in the browser did not finish, as the desktop app says it. */
+type SignInFailure = 'expired' | 'rejected' | 'unreachable' | 'failed';
+
 type Problem = 'offline' | 'outdated' | 'access' | 'revoked' | 'busy' | 'failed' | 'hostProof' | 'closed';
 
 type View =
   | { at: 'checking' }
+  | { at: 'signIn'; waiting: boolean; failed: SignInFailure | null }
   | { at: 'accountDown' }
   | { at: 'unsupported' }
   | { at: 'servers'; servers: ServerEntry[] }
@@ -146,7 +150,7 @@ export function BotsApp() {
         if (!current()) return;
         if (opened) leave();
         const p = problemOf(err, opened);
-        if (p === 'signIn') location.assign(signInUrl());
+        if (p === 'signIn') toSignIn(setView);
         else if (p === 'accountDown') setView({ at: 'accountDown' });
         else setView({ at: 'problem', servers, server, problem: p });
       };
@@ -191,7 +195,7 @@ export function BotsApp() {
 
   const start = useCallback(
     (s: Start) => {
-      if (s.at === 'signIn') location.assign(signInUrl());
+      if (s.at === 'signIn') toSignIn(setView);
       else if (s.at !== 'servers') setView({ at: s.at });
       else if (s.pick) open(s.servers, s.pick);
       else setView({ at: 'servers', servers: s.servers });
@@ -207,6 +211,31 @@ export function BotsApp() {
       attempt.current++;
     };
   }, [start]);
+
+  // In the desktop app the person may sign in or out from the menu bar: the page starts again.
+  useEffect(
+    () =>
+      desktopAccount?.onChange(() => {
+        attempt.current++;
+        leave();
+        setView({ at: 'checking' });
+        void discover().then(start);
+      }),
+    [leave, start],
+  );
+
+  /** Signs in in the person's browser; the desktop app brings them back here. */
+  const signIn = async () => {
+    if (!desktopAccount) return;
+    setView({ at: 'signIn', waiting: true, failed: null });
+    const r = await desktopAccount.signIn().catch(() => ({ ok: false as const, reason: 'failed' }));
+    // Signed in: the app says so (onChange) and the page starts again from there.
+    if (r.ok) return;
+    // Another sign-in took this one's place (the menu bar's, or a second press): it goes on waiting.
+    if (r.reason === 'replaced') return;
+    const failed = (['expired', 'rejected', 'unreachable'] as const).find((f) => f === r.reason) ?? 'failed';
+    setView((v) => (v.at === 'signIn' ? { at: 'signIn', waiting: false, failed } : v));
+  };
 
   const isOpen = view.at === 'open';
   useEffect(() => {
@@ -235,7 +264,7 @@ export function BotsApp() {
           open(servers, next);
           tunnel.close();
         },
-        add: () => location.assign('/setup'),
+        add: () => openWebsite('/setup'),
       },
     });
     return () => useServerHost.setState({ host: null });
@@ -256,38 +285,91 @@ export function BotsApp() {
     return <App key={view.server.id} signedOut={<NoAccess onChoose={() => choose(view.servers)} />} />;
 
   return (
-    <div className="flex min-h-full flex-col items-center justify-center p-6">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="flex flex-col items-center gap-3 text-center">
-          <AppMascot className="size-14" />
-          {view.at === 'servers' && <h1 className="text-xl font-semibold">{t('bots.title')}</h1>}
-        </div>
-        {view.at === 'checking' && <Waiting text={t('bots.checking')} />}
-        {view.at === 'connecting' && <Waiting text={t('bots.connecting', { name: view.server.name })} />}
-        {view.at === 'accountDown' && (
-          <Notice text={t('bots.accountDown')}>
-            <Button
-              onClick={() => {
-                setView({ at: 'checking' });
-                void load();
-              }}
-            >
-              {t('bots.retry')}
-            </Button>
-          </Notice>
-        )}
-        {view.at === 'unsupported' && <Notice text={t('bots.unsupported')} />}
-        {view.at === 'problem' && (
-          <Notice text={t(`bots.error.${view.problem}`, { name: view.server.name })}>
-            <Button onClick={() => open(view.servers, view.server)}>{t('bots.retry')}</Button>
-            {view.servers.length > 1 && (
-              <Button variant="secondary" onClick={() => choose(view.servers)}>
-                {t('bots.otherServer')}
+    <div className="flex min-h-full flex-col">
+      {/* In the desktop app's window without a title bar, the top edge moves the window. */}
+      <div className="window-drag hidden h-10 shrink-0 frameless:block" />
+      <div className="flex flex-1 flex-col items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-6">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <AppMascot className="size-14" />
+            {view.at === 'servers' && <h1 className="text-xl font-semibold">{t('bots.title')}</h1>}
+            {view.at === 'signIn' && <h1 className="text-xl font-semibold">{t('bots.signIn.title')}</h1>}
+          </div>
+          {view.at === 'signIn' && (
+            <SignIn waiting={view.waiting} failed={view.failed} onSignIn={() => void signIn()} />
+          )}
+          {view.at === 'checking' && <Waiting text={t('bots.checking')} />}
+          {view.at === 'connecting' && <Waiting text={t('bots.connecting', { name: view.server.name })} />}
+          {view.at === 'accountDown' && (
+            <Notice text={t('bots.accountDown')}>
+              <Button
+                onClick={() => {
+                  setView({ at: 'checking' });
+                  void load();
+                }}
+              >
+                {t('bots.retry')}
               </Button>
-            )}
-          </Notice>
-        )}
-        {view.at === 'servers' && <ServerList servers={view.servers} onOpen={(s) => open(view.servers, s)} />}
+            </Notice>
+          )}
+          {view.at === 'unsupported' && <Notice text={t('bots.unsupported')} />}
+          {view.at === 'problem' && (
+            <Notice text={t(`bots.error.${view.problem}`, { name: view.server.name })}>
+              <Button onClick={() => open(view.servers, view.server)}>{t('bots.retry')}</Button>
+              {view.servers.length > 1 && (
+                <Button variant="secondary" onClick={() => choose(view.servers)}>
+                  {t('bots.otherServer')}
+                </Button>
+              )}
+            </Notice>
+          )}
+          {view.at === 'servers' && (
+            <ServerList servers={view.servers} onOpen={(s) => open(view.servers, s)} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Signed out: the website's sign-in on the website; in the desktop app, its own screen. */
+function toSignIn(setView: (v: View) => void) {
+  if (desktopAccount) setView({ at: 'signIn', waiting: false, failed: null });
+  else location.assign(signInUrl());
+}
+
+/**
+ * The desktop app's sign-in: the person signs in in their browser, where their passwords and their
+ * Google or Apple sign-in are, and the browser sends them back to the app.
+ */
+function SignIn({
+  waiting,
+  failed,
+  onSignIn,
+}: {
+  waiting: boolean;
+  failed: SignInFailure | null;
+  onSignIn: () => void;
+}) {
+  const t = useT();
+  return (
+    <div className="space-y-4 text-center">
+      <p className="text-sm text-muted-foreground">
+        {waiting ? t('bots.signIn.waiting') : t('bots.signIn.lead')}
+      </p>
+      {failed && (
+        <p className="text-sm text-destructive" role="alert">
+          {t(`bots.signIn.failed.${failed}`)}
+        </p>
+      )}
+      <div className="flex flex-col gap-2">
+        <Button onClick={onSignIn}>
+          <ExternalLink />
+          {waiting ? t('bots.signIn.again') : t('bots.signIn.button')}
+        </Button>
+        <Button variant="ghost" onClick={() => openWebsite('/setup')}>
+          {t('bots.signIn.create')}
+        </Button>
       </div>
     </div>
   );
@@ -316,9 +398,7 @@ function ServerList({ servers, onOpen }: { servers: ServerEntry[]; onOpen: (s: S
   if (servers.length === 0) {
     return (
       <Notice text={t('bots.none')}>
-        <Button asChild>
-          <a href="/setup">{t('bots.addServer')}</a>
-        </Button>
+        <Button onClick={() => openWebsite('/setup')}>{t('bots.addServer')}</Button>
       </Notice>
     );
   }

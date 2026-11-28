@@ -1,12 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
-// Only the page of this computer's own server gets these calls (the window that shows the website
-// is made without this script); no Node or Electron objects cross the bridge.
+// Only the page of this computer's own server gets these calls (the page of the account's servers
+// has its own, `preload-bots.ts`); no Node or Electron objects cross the bridge.
 const bridge = {
   /** True when the window has no title bar and the page must leave room for the window buttons. */
   framelessTitleBar: process.platform === 'darwin',
   accessKey: (): Promise<string | null> => ipcRenderer.invoke('leafbot:access-key'),
-  /** Shows the website's page of the person's account servers in the window. */
+  /** Shows the page of the person's account servers in the window. */
   openAccount: (): Promise<void> => ipcRenderer.invoke('leafbot:open-account'),
   setLocale: (locale: string): Promise<void> => ipcRenderer.invoke('leafbot:set-locale', locale),
   setUnread: (count: number): Promise<void> => ipcRenderer.invoke('leafbot:set-unread', count),

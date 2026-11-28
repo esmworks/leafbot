@@ -2,8 +2,8 @@
 interface DesktopBridge {
   accessKey(): Promise<string | null>;
   /**
-   * Shows the servers of the person's Leaf Bot account in the window (the website's own page),
-   * where they sign in to their account. Missing in older shells.
+   * Shows the servers of the person's Leaf Bot account in the window, where they sign in to their
+   * account through their browser. Missing in older shells.
    */
   openAccount?(): Promise<void>;
   /** Tells the shell the app's language, for its menu and windows. Missing in older shells. */
@@ -49,6 +49,26 @@ interface DesktopBridge {
   ): Promise<void>;
   /** The window has no title bar; the page leaves room for the window buttons. Missing in older shells. */
   framelessTitleBar?: boolean;
+  /**
+   * On the page of the account's servers only: the account, reached by the desktop app with its own
+   * session, and the sign-in in the person's browser.
+   */
+  account?: DesktopAccount;
+}
+
+/** An account call's answer as the desktop app hands it over: the status stays with an error. */
+export type DesktopAnswer<T> = { ok: true; data: T } | { ok: false; status: number; code: string };
+
+export interface DesktopAccount {
+  servers(): Promise<DesktopAnswer<unknown>>;
+  ticket(serverId: string, jkt: string): Promise<DesktopAnswer<unknown>>;
+  connectCode(): Promise<DesktopAnswer<unknown>>;
+  /** Opens the sign-in in the browser; resolves once the browser sent the person back, or it ended. */
+  signIn(): Promise<{ ok: true } | { ok: false; reason: string }>;
+  /** Opens a page of the website in the person's browser. */
+  openWebsite(path: string): Promise<void>;
+  /** Calls `fn` when the person signs in or out from the menu bar; returns a function that stops it. */
+  onChange(fn: () => void): () => void;
 }
 
 /** Shells made before the rename offer the bridge under its old name only. */
