@@ -3,7 +3,7 @@
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
-  "version": "0.10.0",
+  "version": "0.10.1",
   "description": "Your own team of AI bots",
   "author": "esmworks",
   "homepage": "https://github.com/esmworks/leafbot",

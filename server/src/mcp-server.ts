@@ -19,7 +19,7 @@ const answer = (r: AskResult) =>
 
 /** The tools an outside agent gets: the bots, and a way to ask one and read its reply. */
 function server(s: Services): McpServer {
-  const mcp = new McpServer({ name: 'leafbot', version: '0.10.0' });
+  const mcp = new McpServer({ name: 'leafbot', version: '0.10.1' });
   mcp.registerTool(
     'list_bots',
     { description: 'List the bots in Leaf Bot: their ids, names and what each is for.', inputSchema: {} },
