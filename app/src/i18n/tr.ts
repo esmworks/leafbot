@@ -530,6 +530,17 @@ export const tr = {
   'undo.ownerNote': 'bu botu değiştirme yetkin yok; sahibinin geri alması gerekir',
   'undo.cannotTitle': 'Geri alınamayanlar',
   'undo.tooBig': 'eski hali saklanamayacak kadar büyük',
+  'undo.showDiff': 'Değişikliği göster',
+  'undo.hideDiff': 'Değişikliği gizle',
+  'undo.diffLines': '{added} satır eklendi, {removed} satır çıktı',
+  'undo.diff.changedSince':
+    'Dosya bu turdan sonra yine değişti; turun kendi değişikliği ayrıca gösterilemiyor.',
+  'undo.diff.binary': 'Metin dosyası değil: geri konabilir ama satır satır gösterilemez.',
+  'undo.diff.notKept': 'Önceki içeriği saklanamayacak kadar büyüktü.',
+  'undo.diff.undone': 'Bu tur geri alındı.',
+  'undo.diff.tooLong': 'Değişiklik burada gösterilemeyecek kadar uzun.',
+  'undo.diff.more': 'Değişiklik devam ediyor; yalnız başı gösteriliyor.',
+  'undo.diff.none': 'Hiçbir satır değişmedi.',
   'undo.deleted': 'silinen sözler saklanmaz',
   'undo.confirm': 'Bu turu geri al',
   'undo.done': '{total} değişikliğin {done} tanesi geri konuldu',
@@ -1657,6 +1668,7 @@ export const tr = {
   'panel.lastRunFailed': 'son çalışma başarısız',
   'panel.signInWait': 'oturum açılmasını bekliyor',
   'panel.ranOnce': 'Bir kez çalıştı',
+  'panel.ended': 'Son günü geçti',
   'panel.switchedOffFailures': 'art arda hatalar yüzünden kapatıldı',
   'panel.runNow': 'Şimdi çalıştır',
   'panel.toggle': 'Aç/kapat',
@@ -1942,6 +1954,7 @@ export const tr = {
   'flow.paused': 'Duraklatıldı; zamanında çalışmaz.',
   'flow.switchedOffFailures':
     'Çalışmaları art arda birkaç kez başarısız olduğu için kapatıldı. Düzelttikten sonra yeniden aç; sayım baştan başlar.',
+  'flow.ended': 'Son günü {date} geçti; kendini kapattı',
   'flow.saveFirst': 'Çalıştırmadan önce değişiklikleri kaydet.',
   'flow.started': 'Rutin başladı.',
   'flow.result': 'Sonuç',
@@ -2110,6 +2123,14 @@ export const tr = {
   'routine.everyMinutes': 'Kaç dakikada bir',
   'routine.dayOfMonth': 'Ayın günü',
 
+  'routine.everyWeeks': 'Ne sıklıkla',
+  'routine.weeksCount': { one: 'Her hafta', other: '{count} haftada bir' },
+  'routine.weeksFrom': 'Haftalar şu tarihin haftasından sayılır',
+  'routine.weeksFromHint': 'Bir gün seçmezsen haftalar sıradaki çalışmanın haftasından sayılır.',
+  'routine.ends': 'Bir son günden sonra dursun',
+  'routine.endsOn': 'Son gün',
+  'routine.endsOnHint':
+    'Bu gün dahil çalışır, sonra kendini kapatır; ondan sonra ne zamanı ne de bir olay onu başlatır.',
   // Bot dialog
   'bot.new': 'Yeni bot',
   'bot.starters': 'Hazır bir botla başla',

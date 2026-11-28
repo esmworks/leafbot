@@ -171,6 +171,7 @@ export const toRoutine = (r: Row<typeof schema.routines>): Routine => ({
   schedule: r.schedule as Schedule,
   timezone: r.timezone,
   enabled: r.enabled,
+  endsOn: r.endsOn,
   nextRunAt: iso(r.nextRunAt),
   lastRunAt: iso(r.lastRunAt),
   createdAt: r.createdAt.toISOString(),

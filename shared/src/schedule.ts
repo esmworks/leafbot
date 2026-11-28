@@ -4,20 +4,32 @@ import { cronDay, parseCron } from './cron';
 import { patchOf } from './patch';
 
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'validation.time');
+const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'validation.date');
 
 /** The shortest time between two runs of a routine, as `interval` allows it. */
 export const MIN_RUN_GAP_MINUTES = 5;
+/** The longest gap a weekly schedule may leave between the weeks it runs in. */
+export const MAX_WEEKS_APART = 4;
 
 export const Schedule = z.discriminatedUnion('type', [
   z.object({ type: z.literal('hourly'), minute: z.number().int().min(0).max(59) }),
   z.object({ type: z.literal('daily'), time }),
   z.object({ type: z.literal('weekdays'), time }),
-  z.object({
-    type: z.literal('weekly'),
-    /** 0 = Sunday ... 6 = Saturday */
-    days: z.array(z.number().int().min(0).max(6)).min(1),
-    time,
-  }),
+  z
+    .object({
+      type: z.literal('weekly'),
+      /** 0 = Sunday ... 6 = Saturday */
+      days: z.array(z.number().int().min(0).max(6)).min(1),
+      time,
+      /**
+       * Runs only every this many weeks (a fortnightly meeting, a report every other Friday); every
+       * week when left out. A cron expression cannot say this, so it has a field of its own.
+       */
+      weeks: z.number().int().min(1).max(MAX_WEEKS_APART).optional(),
+      /** A day in one of the weeks it runs in; weeks are counted from that one, Monday to Sunday. */
+      anchor: date.optional(),
+    })
+    .refine((s) => (s.weeks ?? 1) < 2 || !!s.anchor, 'validation.weeksAnchor'),
   z.object({ type: z.literal('monthly'), day: z.number().int().min(1).max(31), time }),
   z
     .object({
@@ -46,7 +58,7 @@ export const Schedule = z.discriminatedUnion('type', [
   /** One run at a local date and time; the routine turns itself off after it. */
   z.object({
     type: z.literal('once'),
-    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'validation.date'),
+    date,
     time,
   }),
   /**
@@ -527,6 +539,8 @@ export const Routine = z.object({
   schedule: Schedule,
   timezone: z.string(),
   enabled: z.boolean(),
+  /** Its last day, a local date in `timezone`; it switches itself off after it. Missing on older servers. */
+  endsOn: z.string().nullable().optional(),
   nextRunAt: z.string().nullable(),
   lastRunAt: z.string().nullable(),
   createdAt: z.string(),
@@ -579,10 +593,11 @@ export const Routine = z.object({
    */
   signInWait: z.string().nullable().optional(),
   /**
-   * Why it was switched off by itself (`failures`: too many failed runs in a row); null when it
+   * Why it was switched off by itself (`failures`: too many failed runs in a row; `ended`: its
+   * last day went by); null when it
    * is on or the person paused it. Missing on older servers.
    */
-  pausedReason: z.enum(['failures']).nullable().optional(),
+  pausedReason: z.enum(['failures', 'ended']).nullable().optional(),
   /**
    * The secret part of the address that starts the routine from another service (a webhook);
    * null when it has none.
@@ -622,6 +637,12 @@ export const RoutineCreate = z.object({
   schedule: Schedule,
   timezone: z.string().refine(isValidTimeZone, 'validation.timezone').default('Europe/Istanbul'),
   enabled: z.boolean().default(true),
+  /**
+   * The last day it may run, a local date in its time zone, that day included; null for no end. After
+   * it the routine switches itself off, so neither its schedule nor an event starts it any more: a
+   * reminder that is only wanted until a trip, a campaign or a term is over.
+   */
+  endsOn: date.nullable().default(null),
   /**
    * What happens to a run that came due while the server was off: `run` runs it once when the
    * server is back, `skip` drops it and waits for the next one.
@@ -966,6 +987,21 @@ function parseTime(t: string): [number, number] {
   return [h ?? 0, m ?? 0];
 }
 
+const DAY = 86_400_000;
+/** The Monday of the week a calendar date falls in, as days since 1970-01-01. */
+function mondayOf(year: number, month: number, day: number): number {
+  const n = Date.UTC(year, month - 1, day) / DAY;
+  return n - ((new Date(n * DAY).getUTCDay() + 6) % 7);
+}
+
+/** Whether a weekly schedule's `weeks` count reaches the week this wall time falls in. */
+function inItsWeek(s: Extract<Schedule, { type: 'weekly' }>, w: WallClock): boolean {
+  if (!s.weeks || s.weeks < 2 || !s.anchor) return true;
+  const [y, m, d] = s.anchor.split('-').map(Number) as [number, number, number];
+  const apart = (mondayOf(w.year, w.month, w.day) - mondayOf(y, m, d)) / 7;
+  return ((apart % s.weeks) + s.weeks) % s.weeks === 0;
+}
+
 function matches(s: Schedule, w: WallClock): boolean {
   switch (s.type) {
     case 'hourly':
@@ -980,7 +1016,7 @@ function matches(s: Schedule, w: WallClock): boolean {
     }
     case 'weekly': {
       const [h, m] = parseTime(s.time);
-      return s.days.includes(w.weekday) && w.hour === h && w.minute === m;
+      return s.days.includes(w.weekday) && w.hour === h && w.minute === m && inItsWeek(s, w);
     }
     case 'monthly': {
       const [h, m] = parseTime(s.time);
@@ -1058,6 +1094,45 @@ export function nextRun(s: Schedule, tz: string, after: Date, lastRun?: Date | n
     t += MINUTE;
   }
   return null;
+}
+
+/**
+ * The day a weekly schedule that runs every few weeks is best counted from when nobody picked one:
+ * the day of its next run, so the first run is the next one its days and time name rather than one
+ * a week or more later.
+ */
+export function nextWeekAnchor(days: readonly number[], time: string, tz: string, now: Date): string {
+  let at: Date | null = null;
+  try {
+    at = nextRun({ type: 'weekly', days: days.length ? [...days] : [1], time }, tz, now);
+  } catch {
+    at = null;
+  }
+  return localStamp(at ?? now, tz).slice(0, 10);
+}
+
+/** The first moment after a routine's last day (`endsOn`, a local date in `tz`). */
+export function endOfLastDay(endsOn: string, tz: string): Date {
+  const [y, m, d] = endsOn.split('-').map(Number) as [number, number, number];
+  const next = new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+  return zonedTime(next, '00:00', tz);
+}
+
+/** Whether a routine's last day has gone by at `now`; never for one without an end. */
+export function routineEnded(endsOn: string | null | undefined, tz: string, now: Date): boolean {
+  return !!endsOn && now.getTime() >= endOfLastDay(endsOn, tz).getTime();
+}
+
+/** {@link nextRun}, but null for a slot after the routine's last day. */
+export function nextRunBefore(
+  s: Schedule,
+  tz: string,
+  after: Date,
+  lastRun: Date | null | undefined,
+  endsOn: string | null | undefined,
+): Date | null {
+  const next = nextRun(s, tz, after, lastRun);
+  return next && endsOn && next.getTime() >= endOfLastDay(endsOn, tz).getTime() ? null : next;
 }
 
 /**
@@ -1197,6 +1272,7 @@ const SCHEDULE_TEXT: Record<Locale, Catalog> = {
     once: '{date} {time} (bir kez)',
     unscheduled: 'Zamanlamasız: olayla ya da elle',
     hours: '{count} saatte bir',
+    weeks: { one: 'Her hafta', other: '{count} haftada bir' },
     minutes: '{count} dakikada bir',
     between: '{from}–{to} arası',
     cron: 'Cron: {expr}',
@@ -1210,6 +1286,7 @@ const SCHEDULE_TEXT: Record<Locale, Catalog> = {
     once: 'Once, on {date} at {time}',
     unscheduled: 'No schedule: by an event or by hand',
     hours: { one: 'Every hour', other: 'Every {count} hours' },
+    weeks: { one: 'Every week', other: 'Every {count} weeks' },
     minutes: { one: 'Every minute', other: 'Every {count} minutes' },
     between: 'between {from} and {to}',
     cron: 'Cron: {expr}',
@@ -1222,6 +1299,7 @@ const SCHEDULE_TEXT: Record<Locale, Catalog> = {
     monthly: 'Monatlich am {day}. um {time}',
     once: 'Einmal, am {date} um {time}',
     hours: { one: 'Jede Stunde', other: 'Alle {count} Stunden' },
+    weeks: { one: 'Jede Woche', other: 'Alle {count} Wochen' },
     minutes: { one: 'Jede Minute', other: 'Alle {count} Minuten' },
     between: 'zwischen {from} und {to}',
     cron: 'Cron: {expr}',
@@ -1426,7 +1504,8 @@ export function describeSchedule(s: Schedule, locale: Locale = DEFAULT_LOCALE): 
       return t(s.type, { time: s.time });
     case 'weekly': {
       const days = [...s.days].sort().map((d) => DAY_NAMES[locale][d]);
-      return t('weekly', { days: days.join(', '), time: s.time });
+      const text = t('weekly', { days: days.join(', '), time: s.time });
+      return s.weeks && s.weeks > 1 ? `${t('weeks', { count: s.weeks })}: ${text}` : text;
     }
     case 'monthly':
       return t('monthly', { day: s.day, time: s.time });

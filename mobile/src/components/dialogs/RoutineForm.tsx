@@ -2,6 +2,8 @@ import {
   describeSchedule,
   fillInputs,
   filterVars,
+  MAX_WEEKS_APART,
+  nextWeekAnchor,
   parseCron,
   parseFields,
   ROUTINE_VAR_MAX,
@@ -19,7 +21,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AreaBox, FormField, SaveButton, TextBox } from '@/components/dialogs/common';
 import { Rehearsal } from '@/components/dialogs/Rehearsal';
 import { RoutineHealthSection } from '@/components/dialogs/RoutineHealthSection';
-import { isLoopback, TIME, tomorrow } from '@/components/dialogs/model';
+import { daysAhead, isLoopback, TIME, tomorrow } from '@/components/dialogs/model';
 import { confirm, toast, toastError } from '@/components/overlay';
 import { Empty, Loading, Note, PillButton, Page, Row, Section, SwitchRow, back } from '@/components/page';
 import { Chip, ChipRow, ChoiceRow, Hint, Pad, Rows } from '@/components/settings/common/controls';
@@ -60,6 +62,12 @@ interface Form {
   type: Type;
   expr: string;
   date: string;
+  /** A weekly routine runs every this many weeks, counted from the week of `anchor`. */
+  weeks: number;
+  anchor: string;
+  /** The routine has a last day, `endsOn`, after which it switches itself off. */
+  ends: boolean;
+  endsOn: string;
   missed: 'run' | 'skip';
   carryReport: boolean;
   reportOnly: boolean;
@@ -91,15 +99,23 @@ const int = (s: string, min: number, max: number, fallback: number) => {
   return Number.isFinite(n) && s.trim() ? Math.min(max, Math.max(min, n)) : fallback;
 };
 
-function toSchedule(f: Form): Schedule {
+const DEVICE_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+function toSchedule(f: Form, tz?: string): Schedule {
   switch (f.type) {
     case 'hourly':
       return { type: 'hourly', minute: int(f.minute, 0, 59, 0) };
     case 'daily':
     case 'weekdays':
       return { type: f.type, time: f.time };
-    case 'weekly':
-      return { type: 'weekly', days: f.days.length ? f.days : [1], time: f.time };
+    case 'weekly': {
+      const days = f.days.length ? f.days : [1];
+      // Left empty, the weeks are counted from the week of the next run, so that run is the first.
+      const anchor = f.anchor || nextWeekAnchor(days, f.time, tz ?? DEVICE_TZ, new Date());
+      return f.weeks > 1
+        ? { type: 'weekly', days, time: f.time, weeks: f.weeks, anchor }
+        : { type: 'weekly', days, time: f.time };
+    }
     case 'monthly':
       return { type: 'monthly', day: int(f.day, 1, 31, 1), time: f.time };
     case 'interval': {
@@ -134,6 +150,11 @@ function fromRoutine(r?: Routine): Form {
     from: s?.type === 'interval' && s.from ? s.from : '09:00',
     to: s?.type === 'interval' && s.to ? s.to : '18:00',
     date: s?.type === 'once' ? s.date : tomorrow(),
+    weeks: s?.type === 'weekly' ? (s.weeks ?? 1) : 1,
+    anchor: s?.type === 'weekly' && s.anchor ? s.anchor : '',
+    ends: !!r?.endsOn,
+    // Four weeks ahead: a last day picked for a routine is seldom tomorrow.
+    endsOn: r?.endsOn ?? daysAhead(28),
     missed: r?.missed ?? 'run',
     carryReport: r?.carryReport ?? false,
     reportOnly: r?.reportOnly ?? false,
@@ -207,6 +228,9 @@ function validate(f: Form): Errors {
   if (timed && !TIME.test(f.time)) e.time = 'routine.timeFormat';
   if (f.type === 'cron' && parseCron(f.expr.trim()) === null) e.expr = 'routine.cronInvalid';
   if (f.type === 'once' && !/^\d{4}-\d{2}-\d{2}$/.test(f.date)) e.date = 'routine.dateFormat';
+  if (f.type === 'weekly' && f.weeks > 1 && f.anchor && !/^\d{4}-\d{2}-\d{2}$/.test(f.anchor))
+    e.anchor = 'routine.dateFormat';
+  if (f.ends && f.type !== 'once' && !/^\d{4}-\d{2}-\d{2}$/.test(f.endsOn)) e.endsOn = 'routine.dateFormat';
   if (f.type === 'interval' && f.limited) {
     if (!TIME.test(f.from)) e.from = 'routine.timeFormat';
     if (!TIME.test(f.to)) e.to = 'routine.timeFormat';
@@ -310,8 +334,10 @@ function RoutinePage({
       const body = {
         name: v.name.trim(),
         prompt: v.prompt.trim(),
-        schedule: toSchedule(v),
+        schedule: toSchedule(v, timezone),
         enabled,
+        // An older server has no last day; it is sent one only when there is one to keep or remove.
+        ...(routine?.endsOn || v.ends ? { endsOn: v.ends && v.type !== 'once' ? v.endsOn : null } : {}),
         missed: v.missed,
         carryReport: v.carryReport,
         reportOnly: v.reportOnly,
@@ -562,6 +588,34 @@ function RoutinePage({
               </ChipRow>
             </Pad>
           ) : null}
+          {type === 'weekly' ? (
+            <ChoiceRow
+              label={t('routine.everyWeeks')}
+              value={String(v.weeks)}
+              options={Array.from({ length: MAX_WEEKS_APART }, (_, i) => ({
+                value: String(i + 1),
+                label: t('routine.weeksCount', { count: i + 1 }),
+              }))}
+              onChange={(n) => set('weeks', Number(n))}
+            />
+          ) : null}
+          {type === 'weekly' && v.weeks > 1 ? (
+            <Pad>
+              <FormField
+                label={t('routine.weeksFrom')}
+                error={err('anchor')}
+                hint={t('routine.weeksFromHint')}
+              >
+                <TextBox
+                  value={v.anchor}
+                  onChangeText={(x) => set('anchor', x.trim())}
+                  maxLength={10}
+                  keyboardType="numbers-and-punctuation"
+                  invalid={!!err('anchor')}
+                />
+              </FormField>
+            </Pad>
+          ) : null}
           {type === 'monthly' ? (
             <Pad>
               <FormField label={t('routine.dayOfMonth')}>
@@ -570,6 +624,22 @@ function RoutinePage({
                   onChangeText={(x) => set('day', x.replace(/\D/g, ''))}
                   maxLength={2}
                   keyboardType="number-pad"
+                />
+              </FormField>
+            </Pad>
+          ) : null}
+          {type !== 'once' ? (
+            <SwitchRow label={t('routine.ends')} value={v.ends} onChange={(on) => set('ends', on)} />
+          ) : null}
+          {type !== 'once' && v.ends ? (
+            <Pad>
+              <FormField label={t('routine.endsOn')} error={err('endsOn')} hint={t('routine.endsOnHint')}>
+                <TextBox
+                  value={v.endsOn}
+                  onChangeText={(x) => set('endsOn', x.trim())}
+                  maxLength={10}
+                  keyboardType="numbers-and-punctuation"
+                  invalid={!!err('endsOn')}
                 />
               </FormField>
             </Pad>

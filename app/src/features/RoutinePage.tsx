@@ -5,7 +5,9 @@ import {
   appMakesSecret,
   describeSchedule,
   fillInputs,
-  nextRun,
+  MAX_WEEKS_APART,
+  nextRunBefore,
+  nextWeekAnchor,
   parseCron,
   parseFields,
   ROUTINE_APPROVAL_MAX_DAYS,
@@ -176,6 +178,13 @@ export const Form = z.object({
     .trim()
     .refine((e) => parseCron(e) !== null, 'routine.cronInvalid'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'routine.dateFormat'),
+  /** A weekly routine runs every this many weeks, counted from the week of `anchor`. */
+  weeks: z.number().int().min(1).max(MAX_WEEKS_APART),
+  /** Empty until weeks are counted: then the day of the next run, unless the person picks one. */
+  anchor: z.union([z.literal(''), z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'routine.dateFormat')]),
+  /** The routine has a last day, `endsOn`, after which it switches itself off. */
+  ends: z.boolean(),
+  endsOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'routine.dateFormat'),
   missed: z.enum(['run', 'skip']),
   carryReport: z.boolean(),
   reportOnly: z.boolean(),
@@ -246,8 +255,12 @@ function toSchedule(f: Form): Schedule {
     case 'daily':
     case 'weekdays':
       return { type: f.type, time: f.time };
-    case 'weekly':
-      return { type: 'weekly', days: f.days.length ? f.days : [1], time: f.time };
+    case 'weekly': {
+      const days = f.days.length ? f.days : [1];
+      return f.weeks > 1
+        ? { type: 'weekly', days, time: f.time, weeks: f.weeks, anchor: f.anchor }
+        : { type: 'weekly', days, time: f.time };
+    }
     case 'monthly':
       return { type: 'monthly', day: f.day, time: f.time };
     case 'interval': {
@@ -265,11 +278,13 @@ function toSchedule(f: Form): Schedule {
   }
 }
 
-/** Tomorrow on the local calendar, as YYYY-MM-DD: where a one-time date starts. */
-function tomorrow(): string {
-  const d = new Date(Date.now() + 86_400_000);
+/** A day this many days from today on the local calendar, as YYYY-MM-DD. */
+function daysAhead(n: number): string {
+  const d = new Date(Date.now() + n * 86_400_000);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+/** Tomorrow on the local calendar: where a one-time date starts. */
+const tomorrow = () => daysAhead(1);
 
 /** Input rows as the values a run takes, by name. */
 function inputValues(rows: readonly InputRow[] | undefined): Record<string, string> {
@@ -316,6 +331,11 @@ export function fromRoutine(r?: Routine): Form {
     from: s?.type === 'interval' && s.from ? s.from : '09:00',
     to: s?.type === 'interval' && s.to ? s.to : '18:00',
     date: s?.type === 'once' ? s.date : tomorrow(),
+    weeks: s?.type === 'weekly' ? (s.weeks ?? 1) : 1,
+    anchor: s?.type === 'weekly' && s.anchor ? s.anchor : '',
+    ends: !!r?.endsOn,
+    // Four weeks ahead: a last day picked for a routine is seldom tomorrow.
+    endsOn: r?.endsOn ?? daysAhead(28),
     missed: r?.missed ?? 'run',
     carryReport: r?.carryReport ?? false,
     reportOnly: r?.reportOnly ?? false,
@@ -354,7 +374,7 @@ export function RoutinePage({
 }) {
   const t = useT();
   const locale = useLocale((s) => s.locale);
-  const { dayLabel } = useFormat();
+  const { dayLabel, calendarDay } = useFormat();
   const qc = useQueryClient();
   const { data: settings } = useSettings();
   const { data: bots = [] } = useBots();
@@ -439,6 +459,8 @@ export function RoutinePage({
                     : { ...x, filter: x.filter.trim() },
         ),
         schedule: toSchedule(f),
+        // A one-time routine ends with its one run.
+        endsOn: f.ends && f.type !== 'once' ? f.endsOn : null,
         missed: f.missed,
         carryReport: f.carryReport,
         reportOnly: f.reportOnly,
@@ -522,15 +544,18 @@ export function RoutinePage({
   /** When it runs next: worked out from the schedule as it is in the form. */
   const when = (() => {
     if (routine && !routine.enabled)
-      return t(routine.pausedReason === 'failures' ? 'flow.switchedOffFailures' : 'flow.paused');
+      return routine.pausedReason === 'ended' && routine.endsOn
+        ? t('flow.ended', { date: calendarDay(routine.endsOn) })
+        : t(routine.pausedReason === 'failures' ? 'flow.switchedOffFailures' : 'flow.paused');
     if (values.type === 'unscheduled') return t('flow.unscheduled');
     let next: Date | null = null;
     try {
-      next = nextRun(
+      next = nextRunBefore(
         toSchedule({ ...fromRoutine(), ...values }),
         routine?.timezone ?? settings?.timezone ?? 'Europe/Istanbul',
         new Date(),
         routine?.lastRunAt ? new Date(routine.lastRunAt) : null,
+        values.ends && values.type !== 'once' ? values.endsOn : null,
       );
     } catch {
       next = null;
@@ -994,6 +1019,22 @@ function ScheduleFields({ form, values }: { form: UseFormReturn<Form>; values: F
   const { data: settings } = useSettings();
   const err = form.formState.errors;
   const type = values.type;
+  const tz = settings?.timezone ?? 'Europe/Istanbul';
+  // Weeks counted for a routine that had no day to count from: from the week of its next run, kept
+  // in step with its days and time until the person picks a day of their own.
+  const counted = type === 'weekly' && (values.weeks ?? 1) > 1;
+  const ownAnchor = !!form.formState.defaultValues?.anchor || form.getFieldState('anchor').isDirty;
+  const days = (values.days ?? []).join(',');
+  useEffect(() => {
+    if (!counted || ownAnchor) return;
+    const next = nextWeekAnchor(
+      days ? days.split(',').map(Number) : [],
+      values.time ?? '09:00',
+      tz,
+      new Date(),
+    );
+    if (form.getValues('anchor') !== next) form.setValue('anchor', next);
+  }, [counted, ownAnchor, days, values.time, tz, form]);
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
@@ -1108,6 +1149,33 @@ function ScheduleFields({ form, values }: { form: UseFormReturn<Form>; values: F
           })}
         </div>
       )}
+      {type === 'weekly' && (
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={t('routine.everyWeeks')}>
+            <Select
+              value={String(values.weeks ?? 1)}
+              onValueChange={(v) => form.setValue('weeks', Number(v), { shouldDirty: true })}
+            >
+              <SelectTrigger className="w-full rounded-xl">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: MAX_WEEKS_APART }, (_, i) => i + 1).map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {t('routine.weeksCount', { count: n })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          {(values.weeks ?? 1) > 1 && (
+            <Field label={t('routine.weeksFrom')} error={err.anchor?.message}>
+              <Input type="date" {...form.register('anchor')} className="rounded-xl" />
+              <p className="mt-1 text-xs text-muted-foreground">{t('routine.weeksFromHint')}</p>
+            </Field>
+          )}
+        </div>
+      )}
       {type === 'monthly' && (
         <Field label={t('routine.dayOfMonth')}>
           <Input
@@ -1117,6 +1185,21 @@ function ScheduleFields({ form, values }: { form: UseFormReturn<Form>; values: F
             {...form.register('day', { valueAsNumber: true })}
             className="rounded-xl"
           />
+        </Field>
+      )}
+      {type !== 'once' && (
+        <label className="flex items-center gap-3 rounded-2xl bg-secondary/60 px-3 py-2">
+          <span className="min-w-0 flex-1 text-sm">{t('routine.ends')}</span>
+          <Switch
+            checked={values.ends}
+            onCheckedChange={(v) => form.setValue('ends', v, { shouldDirty: true })}
+          />
+        </label>
+      )}
+      {type !== 'once' && values.ends && (
+        <Field label={t('routine.endsOn')} error={err.endsOn?.message}>
+          <Input type="date" {...form.register('endsOn')} className="rounded-xl" />
+          <p className="mt-1 text-xs text-muted-foreground">{t('routine.endsOnHint')}</p>
         </Field>
       )}
       <p className="text-sm text-muted-foreground">

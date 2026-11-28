@@ -109,6 +109,8 @@ function Upcoming({ bot }: { bot: Bot }) {
               <Text style={[styles.sub, { color: c.mutedForeground }]} numberOfLines={2}>
                 {r.pausedReason === 'failures' && !r.enabled ? (
                   <Text style={{ color: c.destructive }}>{`${t('panel.switchedOffFailures')} · `}</Text>
+                ) : r.pausedReason === 'ended' && !r.enabled ? (
+                  <Text>{`${t('panel.ended')} · `}</Text>
                 ) : r.signInWait ? (
                   <Text style={{ color: c.destructive }}>{`${t('panel.signInWait')} · `}</Text>
                 ) : failed.has(r.id) ? (

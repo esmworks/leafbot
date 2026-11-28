@@ -20,11 +20,44 @@ export function textDiff(before: string, after: string): DiffPart[] {
     a = lines(before);
     b = lines(after);
   }
-  return merge(diffTokens(a, b));
+  return merge(diffTokens(a, b)!);
 }
 
-/** The longest common subsequence, walked back into same/removed/added tokens. */
-function diffTokens(a: string[], b: string[]): DiffPart[] {
+/** Above this many line pairs, once equal starts and ends are set aside, two files are not compared. */
+export const LINE_PAIR_LIMIT = 4_000_000;
+
+/**
+ * The lines that changed from `before` to `after`, each change with up to `context` unchanged
+ * lines around it; changes closer together than that share one hunk. Null when the parts that
+ * differ are too long to compare: the table it takes grows with both their lengths.
+ */
+export function lineHunks(before: string, after: string, context = 3): DiffPart[][] | null {
+  const lines = (s: string) => (s === '' ? [] : s.replace(/\r?\n$/, '').split(/\r?\n/));
+  const parts = diffTokens(lines(before), lines(after), LINE_PAIR_LIMIT);
+  if (!parts) return null;
+  const near = new Uint8Array(parts.length);
+  parts.forEach((p, i) => {
+    if (p.type === 'same') return;
+    for (let j = Math.max(0, i - context); j <= Math.min(parts.length - 1, i + context); j++) near[j] = 1;
+  });
+  const hunks: DiffPart[][] = [];
+  let hunk: DiffPart[] | null = null;
+  parts.forEach((p, i) => {
+    if (!near[i]) {
+      hunk = null;
+      return;
+    }
+    if (!hunk) hunks.push((hunk = []));
+    hunk.push(p);
+  });
+  return hunks;
+}
+
+/**
+ * The longest common subsequence, walked back into same/removed/added tokens; null when the parts
+ * between equal starts and ends make more than `limit` pairs.
+ */
+function diffTokens(a: string[], b: string[], limit = Infinity): DiffPart[] | null {
   // Equal starts and ends need no table.
   let start = 0;
   while (start < a.length && start < b.length && a[start] === b[start]) start++;
@@ -38,6 +71,7 @@ function diffTokens(a: string[], b: string[]): DiffPart[] {
   const midB = b.slice(start, endB);
   const n = midA.length;
   const m = midB.length;
+  if (n * m > limit) return null;
   // lcs[i][j]: common length of midA[i..] and midB[j..].
   const lcs = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
   for (let i = n - 1; i >= 0; i--) {

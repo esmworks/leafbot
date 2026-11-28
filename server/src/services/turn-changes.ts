@@ -1,13 +1,15 @@
 import { createHash } from 'node:crypto';
 import { lstat, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, relative, resolve, basename } from 'node:path';
-import type {
-  Ticket,
-  TurnChangeItem,
-  TurnChanges,
-  TurnChangeOutcome,
-  TurnChangeKind,
-  TurnLogEntry,
+import {
+  lineHunks,
+  type Ticket,
+  type TurnChangeItem,
+  type TurnChanges,
+  type TurnChangeOutcome,
+  type TurnChangeKind,
+  type TurnFileDiff,
+  type TurnLogEntry,
 } from '@leafbot/shared';
 import { and, asc, desc, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 import type { Ctx } from '../context';
@@ -28,6 +30,8 @@ const LOG_TURNS = 30;
 const LOG_REQUEST = 200;
 /** A file larger than this is not read to tell whether it changed later. */
 const HASH_MAX = 64 * 1024 * 1024;
+/** The most lines a file's comparison sends; a longer change says that more is left out. */
+const DIFF_LINES_MAX = 2000;
 
 /** The built-in tools that write a file, as the permission steps name them. */
 export const FILE_TOOLS = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit']);
@@ -429,6 +433,74 @@ export class TurnChangeService {
   }
 
   /**
+   * One file a turn changed, compared line by line with how it was before the turn. It is compared
+   * only while the file is still as the turn left it: a later change would be shown as the turn's.
+   */
+  async fileDiff(changeId: string, userId: string): Promise<TurnFileDiff> {
+    const [row] = await this.ctx.db
+      .select()
+      .from(schema.turnChanges)
+      .where(eq(schema.turnChanges.id, changeId))
+      .limit(1);
+    // Read only by the person whose turn it was, as taking it back is.
+    if (!row || row.kind !== 'file' || row.userId !== userId) throw notFound('turn');
+    const empty = (state: TurnFileDiff['state']): TurnFileDiff => ({
+      state,
+      hunks: [],
+      added: 0,
+      removed: 0,
+      more: false,
+    });
+    if (row.undoneAt) return empty('undone');
+    const before = row.before as Json | null;
+    if (!before) return empty('notKept');
+    if (typeof before.base64 === 'string') return empty('binary');
+    const path = realPath(row.targetId);
+    if (!(await this.botRoots(row.botId)).some((r) => inside(path, r))) throw notFound('turn');
+    const left = (row.after as Json | null)?.sha ?? null;
+    const info = await lstat(path).catch(() => null);
+    let now = '';
+    if (info) {
+      if (!info.isFile() || info.size > HASH_MAX) return empty('changedSince');
+      const buf = await readFile(path);
+      if (sha(buf) !== left) return empty('changedSince');
+      now = buf.toString('utf8');
+      if (!Buffer.from(now, 'utf8').equals(buf)) return empty('binary');
+    } else if (left !== null) {
+      return empty('changedSince');
+    }
+    const hunks = lineHunks(before.exists === false ? '' : String(before.text ?? ''), now);
+    if (!hunks) return empty('tooLong');
+    const lines = hunks.flat();
+    let room = DIFF_LINES_MAX;
+    const shown: TurnFileDiff['hunks'] = [];
+    for (const h of hunks) {
+      if (room <= 0) break;
+      shown.push(h.slice(0, room));
+      room -= h.length;
+    }
+    return {
+      state: 'ok',
+      hunks: shown,
+      added: lines.filter((l) => l.type === 'added').length,
+      removed: lines.filter((l) => l.type === 'removed').length,
+      more: lines.length > DIFF_LINES_MAX,
+    };
+  }
+
+  /** The folders a bot's files live in: its own, its group's, and the project it works in. */
+  private async botRoots(botId: string): Promise<string[]> {
+    const bot = await this.services.bots.get(botId);
+    return [
+      resolve(this.ctx.config.dataDir, 'workspaces', 'bots', bot.id),
+      ...(bot.groupId
+        ? [resolve(this.ctx.config.dataDir, 'workspaces', 'groups', bot.groupId, 'files')]
+        : []),
+      ...(bot.projectDir ? [bot.projectDir] : []),
+    ].map(realPath);
+  }
+
+  /**
    * Puts back what the turn changed, newest first. A target that changed again since is left as it
    * is. A turn can be taken back once; one still working cannot. The result is said in the
    * conversation.
@@ -591,14 +663,7 @@ export class TurnChangeService {
   }
 
   private async restoreFile(row: Row, before: Json | null, after: Json | null): Promise<TurnChangeOutcome> {
-    const bot = await this.services.bots.get(row.botId);
-    const roots = [
-      resolve(this.ctx.config.dataDir, 'workspaces', 'bots', bot.id),
-      ...(bot.groupId
-        ? [resolve(this.ctx.config.dataDir, 'workspaces', 'groups', bot.groupId, 'files')]
-        : []),
-      ...(bot.projectDir ? [bot.projectDir] : []),
-    ].map(realPath);
+    const roots = await this.botRoots(row.botId);
     const path = realPath(row.targetId);
     if (!roots.some((r) => inside(path, r)) || !before) return 'failed';
     const info = await lstat(path).catch(() => null);
@@ -686,6 +751,7 @@ export const ROUTINE_KEYS = [
   'schedule',
   'timezone',
   'enabled',
+  'endsOn',
   'missed',
   'carryReport',
   'inMain',
