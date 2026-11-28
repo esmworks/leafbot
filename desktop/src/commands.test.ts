@@ -1,8 +1,8 @@
-import { mkdtempSync, realpathSync } from 'node:fs';
+import { mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { MacJobEvent } from '@leafbot/shared/mac';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { CommandJobs } from './commands';
 import { MacGate, readCommandsOn, readMacOn, writeCommandsOn, writeMacOn } from './mac-bridge';
 
@@ -15,6 +15,7 @@ describe.runIf(posix)('commands a bot runs on this computer', () => {
   let answer: boolean;
   let jobs: CommandJobs;
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'leafbot-cmd-')));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
   const run = (id: string, command: string, waitMs = 5_000, cwd = dir) =>
     jobs.handle({ op: 'run', id, command, cwd, bot: 'Yazar', waitMs });
   const until = async (fn: () => boolean) => {
@@ -132,12 +133,16 @@ describe('the gate in front of commands', () => {
 
   it('keeps the commands switch beside the Mac switch', () => {
     const dir = mkdtempSync(join(tmpdir(), 'leafbot-mac-'));
-    expect(readCommandsOn(dir)).toBe(false);
-    writeMacOn(dir, true);
-    writeCommandsOn(dir, true);
-    expect(readMacOn(dir)).toBe(true);
-    expect(readCommandsOn(dir)).toBe(true);
-    writeMacOn(dir, false);
-    expect(readCommandsOn(dir)).toBe(true);
+    try {
+      expect(readCommandsOn(dir)).toBe(false);
+      writeMacOn(dir, true);
+      writeCommandsOn(dir, true);
+      expect(readMacOn(dir)).toBe(true);
+      expect(readCommandsOn(dir)).toBe(true);
+      writeMacOn(dir, false);
+      expect(readCommandsOn(dir)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

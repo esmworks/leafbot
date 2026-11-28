@@ -1,11 +1,12 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { loadLocale, saveLocale, setLocale, t } from './i18n';
 
 describe('masaüstü dili', () => {
   const dir = mkdtempSync(join(tmpdir(), 'leafbot-desktop-'));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
   afterEach(() => setLocale('tr'));
 
   it('kayıt yoksa sistem dilini, varsa uygulamanın son dilini kullanır', () => {
@@ -18,6 +19,5 @@ describe('masaüstü dili', () => {
     saveLocale(dir, 'en');
     expect(loadLocale(dir, ['tr-TR'])).toBe('en');
     expect(t('status.account')).toBe('Leaf Bot account');
-    rmSync(dir, { recursive: true, force: true });
   });
 });

@@ -1,4 +1,4 @@
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
@@ -6,13 +6,18 @@ import type { Bot } from '@leafbot/shared';
 import { asc, sql } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/pglite';
 import { migrate } from 'drizzle-orm/pglite/migrator';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema, type Db } from '../src/db';
 import { testServer, type TestServer } from './helpers';
 
 const MIGRATIONS = resolve(import.meta.dirname, '../drizzle');
 
 /** The migrations folder as it was while bots could still take a plush shape. */
+const migrationDirs: string[] = [];
+afterAll(() => {
+  for (const d of migrationDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+});
+
 function migrationsBeforeRoundAvatars(): string {
   const journal = JSON.parse(readFileSync(join(MIGRATIONS, 'meta/_journal.json'), 'utf8')) as {
     entries: { tag: string }[];
@@ -20,6 +25,7 @@ function migrationsBeforeRoundAvatars(): string {
   const upTo = journal.entries.findIndex((e) => e.tag.endsWith('_round_avatars'));
   expect(upTo).toBeGreaterThan(0);
   const dir = mkdtempSync(join(tmpdir(), 'leafbot-migrations-'));
+  migrationDirs.push(dir);
   mkdirSync(join(dir, 'meta'));
   const entries = journal.entries.slice(0, upTo);
   for (const e of entries) copyFileSync(join(MIGRATIONS, `${e.tag}.sql`), join(dir, `${e.tag}.sql`));

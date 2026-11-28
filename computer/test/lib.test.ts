@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process';
-import { mkdtempSync, readdirSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, readdirSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { DesktopAction } from '@leafbot/shared';
 import {
   allocateDisplay,
@@ -214,8 +214,13 @@ describe('arka plan komutları', () => {
 });
 
 describe('Chromium profile lock', () => {
+  const made: string[] = [];
+  afterEach(() => {
+    for (const d of made.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
   const profile = () => {
     const dir = mkdtempSync(join(tmpdir(), 'leafbot-profile-'));
+    made.push(dir);
     symlinkSync('12345', join(dir, 'SingletonCookie'));
     symlinkSync('/tmp/org.chromium.Chromium.x/SingletonSocket', join(dir, 'SingletonSocket'));
     return dir;
@@ -234,6 +239,8 @@ describe('Chromium profile lock', () => {
     expect(left(own)).toEqual(['SingletonCookie', 'SingletonLock', 'SingletonSocket']);
 
     // No lock: nothing to do.
-    expect(clearForeignProfileLock(mkdtempSync(join(tmpdir(), 'leafbot-profile-')), 'h')).toBe(false);
+    const empty = mkdtempSync(join(tmpdir(), 'leafbot-profile-'));
+    made.push(empty);
+    expect(clearForeignProfileLock(empty, 'h')).toBe(false);
   });
 });

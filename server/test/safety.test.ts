@@ -1,6 +1,6 @@
 import type { Thread } from '@leafbot/shared';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs';
+import { afterAll, afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { catastrophic, readsOnlyLine, readsOnlyWithin } from '../src/runtime/safety';
@@ -72,6 +72,7 @@ describe('güvenlik tabanı turda', () => {
 
 describe('botun kendi klasörlerini okuması', () => {
   const root = mkdtempSync(join(tmpdir(), 'leafbot-own-'));
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
   const cwd = join(root, 'thread');
   const files = join(root, 'files');
   mkdirSync(cwd);
@@ -114,6 +115,7 @@ describe('botun kendi klasörlerini okuması', () => {
 describe('a read-only line in the bot folder', () => {
   // The bot folder as it lies on the data volume: its conversations, its files, the desktop home.
   const bot = mkdtempSync(join(tmpdir(), 'leafbot-line-'));
+  afterAll(() => rmSync(bot, { recursive: true, force: true }));
   const threads = join(bot, 'threads');
   const cwd = join(threads, 'bu');
   const other = join(threads, 'baska');

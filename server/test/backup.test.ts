@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Bot, Memory } from '@leafbot/shared';
@@ -18,7 +18,11 @@ describe('yedek', () => {
   beforeEach(async () => {
     t = await testServer();
   });
-  afterEach(() => t.dispose());
+  const oldBackups: string[] = [];
+  afterEach(async () => {
+    await t.dispose();
+    for (const d of oldBackups.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
 
   const download = async (password: string) => {
     const made = await t.api<{ id: string; size: number }>('POST', '/api/backup', { password });
@@ -127,6 +131,7 @@ describe('yedek', () => {
     const ownerSession = await t.auth.createSession(OWNER_ID);
     // What such a backup holds: no people, the single account in kv.
     const dir = mkdtempSync(join(tmpdir(), 'leafbot-old-backup-'));
+    oldBackups.push(dir);
     const kv = join(dir, 'kv.json');
     writeFileSync(
       kv,
@@ -148,6 +153,7 @@ describe('yedek', () => {
     const thread = (await t.api<{ id: string }>('GET', `/api/bots/${bot.id}/main-thread`)).body;
     // The same rows as such a backup holds them: no person on the bot or the conversation.
     const dir = mkdtempSync(join(tmpdir(), 'leafbot-old-backup-'));
+    oldBackups.push(dir);
     const write = (name: string, rows: Record<string, unknown>[]) => {
       writeFileSync(join(dir, `${name}.json`), JSON.stringify(rows));
       return join(dir, `${name}.json`);
@@ -174,6 +180,7 @@ describe('yedek', () => {
 
   it('yeniden adlandırmadan önceki yedekte uygulamanın araçlarını yeni adıyla geri yükler', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'leafbot-old-backup-'));
+    oldBackups.push(dir);
     const rules = join(dir, 'permission_rules.json');
     writeFileSync(
       rules,
