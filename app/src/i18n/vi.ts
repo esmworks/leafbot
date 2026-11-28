@@ -18,14 +18,9 @@ export const vi: Partial<Catalog<MessageKey>> = {
   'date.today': 'Hôm nay {time}',
   'date.yesterday': 'Hôm qua {time}',
   'date.yesterdayShort': 'Hôm qua',
-  'login.enterKey': 'Nhập khóa',
   'login.unreachable': 'Không kết nối được với máy chủ',
-  'login.hint':
-    'Nhập khóa truy cập của máy chủ. Máy chủ ghi khóa vào thư mục dữ liệu của nó trong lần chạy đầu tiên.',
-  'login.placeholder': 'Khóa truy cập',
-  'login.submit': 'Đăng nhập',
   'login.serverHere': 'Máy chủ trên máy tính này',
-  'login.savedKey': 'Đăng nhập không cần nhập khóa',
+  'login.savedKey': 'Đăng nhập trên máy tính này',
   'welcome.title': 'Chào mừng đến với Leaf Bot',
   'welcome.body':
     'Mỗi bot làm việc trong thư mục riêng, giữ bộ nhớ riêng và nói chuyện với các bot khác khi cần.',

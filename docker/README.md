@@ -182,7 +182,7 @@ docker compose -f docker/compose.yml --env-file docker/.env exec -e LANG=tr leaf
 Aynı kod, oturumu açık bir cihazda Ayarlar → Bağlantı → Başka bir cihaz bağla'dan da alınır.
 
 `.env` dosyasındaki `LEAFBOT_ACCESS_KEY` yalnızca sunucunun kendi bilgisayarından gelen isteklerde ve oradaki
-betiklerde geçer; hesap hizmetine ulaşılamadığında sahibin yerel girişidir.
+betiklerde geçer; giriş sayfası onu sormaz.
 
 ## Claude girişi
 

@@ -18,14 +18,9 @@ export const id: Partial<Catalog<MessageKey>> = {
   'date.today': 'Hari ini {time}',
   'date.yesterday': 'Kemarin {time}',
   'date.yesterdayShort': 'Kemarin',
-  'login.enterKey': 'Masukkan kunci',
   'login.unreachable': 'Tidak dapat menghubungi server',
-  'login.hint':
-    'Masukkan kunci akses server. Server menuliskannya ke folder datanya saat pertama kali dijalankan.',
-  'login.placeholder': 'Kunci akses',
-  'login.submit': 'Masuk',
   'login.serverHere': 'Server di komputer ini',
-  'login.savedKey': 'Masuk tanpa mengetik kunci',
+  'login.savedKey': 'Masuk di komputer ini',
   'welcome.title': 'Selamat datang di Leaf Bot',
   'welcome.body':
     'Setiap bot bekerja di foldernya sendiri, menyimpan memorinya sendiri, dan berbicara dengan bot lain saat perlu.',

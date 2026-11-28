@@ -294,7 +294,7 @@ curl -fsSL https://raw.githubusercontent.com/esmworks/leafbot/main/docker/instal
 The script installs Docker, fills in `docker/.env` with random secrets, sets up AppArmor and the egress firewall (kept
 across reboots), puts Caddy in front for HTTPS with a Let's Encrypt certificate, and prints the address and access key.
 People do not sign in at that address: they come through their Leaf Bot account (below). The access key works only
-from the server's own computer, as the owner's way in when the account cannot be reached and for local scripts. The
+from the server's own computer, for the desktop app there and for local scripts; no page asks for it. The
 command from your account's "Add a server" page also links the server at the end; see
 [Installing from scratch](#on-a-linux-server).
 Without a domain the server uses a name made from its IP address (`1-2-3-4.sslip.io`); an installed server keeps its
@@ -468,8 +468,9 @@ Then open http://localhost:5173. Vite proxies `/api` and `/socket.io` to the ser
 checks behave as in production.
 
 Without `LEAFBOT_ACCESS_KEY`, the server generates an access key on first start, saves it to `<data dir>/access-key` and
-prints the path; use it to sign in. The data folder defaults to `data/` in the server's working directory (`server/data`
-with `pnpm dev:server`).
+prints the path. The sign-in page does not ask for it: the desktop app on the same computer signs in with it, and
+scripts there send it as a bearer token. The data folder defaults to `data/` in the server's working directory
+(`server/data` with `pnpm dev:server`).
 
 The key works only from the server's own computer (a loopback address, or through a trusted proxy that forwards one);
 everyone else, the owner included, signs in with their Leaf Bot account and reaches the server through the tunnel.

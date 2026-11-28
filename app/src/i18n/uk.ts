@@ -18,14 +18,9 @@ export const uk: Partial<Catalog<MessageKey>> = {
   'date.today': 'Сьогодні, {time}',
   'date.yesterday': 'Учора, {time}',
   'date.yesterdayShort': 'Учора',
-  'login.enterKey': 'Введіть ключ',
   'login.unreachable': 'Не вдалося зв’язатися із сервером',
-  'login.hint':
-    'Введіть ключ доступу до сервера. Сервер записує його у свою теку даних під час першого запуску.',
-  'login.placeholder': 'Ключ доступу',
-  'login.submit': 'Увійти',
   'login.serverHere': 'Сервер на цьому комп’ютері',
-  'login.savedKey': 'Увійти без уведення ключа',
+  'login.savedKey': 'Увійти на цьому комп’ютері',
   'welcome.title': 'Вітаємо в Leaf Bot',
   'welcome.body':
     'Кожен бот працює у власній теці, зберігає власну пам’ять і за потреби говорить з іншими ботами.',

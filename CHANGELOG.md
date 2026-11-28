@@ -3,6 +3,14 @@
 All notable changes to Leaf Bot (called Yumak Bot before 0.7.0) are listed here. Versions follow [Semantic Versioning](https://semver.org/). While the
 version is 0.x, a minor release may change the data format or the API; the server migrates its database on start.
 
+## Unreleased
+
+### Removed
+
+- The sign-in page no longer has a box for the server's access key. People come in through their Leaf Bot account;
+  on the server's own computer the desktop app still signs in with the key it keeps, and scripts there still use the
+  key.
+
 ## 0.10.2 — 2026-11-28
 
 ### Added

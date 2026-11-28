@@ -18,14 +18,9 @@ export const es: Partial<Catalog<MessageKey>> = {
   'date.today': 'Hoy {time}',
   'date.yesterday': 'Ayer {time}',
   'date.yesterdayShort': 'Ayer',
-  'login.enterKey': 'Introduce la clave',
   'login.unreachable': 'No se pudo conectar con el servidor',
-  'login.hint':
-    'Introduce la clave de acceso del servidor. El servidor la escribe en su carpeta de datos la primera vez que se inicia.',
-  'login.placeholder': 'Clave de acceso',
-  'login.submit': 'Entrar',
   'login.serverHere': 'El servidor de este equipo',
-  'login.savedKey': 'Entrar sin escribir la clave',
+  'login.savedKey': 'Entrar en este equipo',
   'welcome.title': 'Te damos la bienvenida a Leaf Bot',
   'welcome.body':
     'Cada bot trabaja en su propia carpeta, mantiene su propia memoria y habla con otros bots cuando hace falta.',
