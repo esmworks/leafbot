@@ -57,8 +57,11 @@ export interface AccountDeps {
 }
 
 export interface AccountClient {
-  /** Spends a connect code for a session of this phone's own. */
-  redeem(code: string): Promise<Redeemed>;
+  /**
+   * Spends a connect code for a session of this phone's own; `verifier` for a code the phone asked for
+   * through the website, which only spends with it.
+   */
+  redeem(code: string, verifier?: string): Promise<Redeemed>;
   /** The servers the person may reach. */
   servers(): Promise<ServerEntry[]>;
   /** A client ticket for one server, bound to a device key's thumbprint. */
@@ -98,7 +101,8 @@ export function accountClient(d: AccountDeps): AccountClient {
     return data as T;
   }
   return {
-    redeem: (code) => call<Redeemed>('POST', '/connect-codes/redeem', { code }, false),
+    redeem: (code, verifier) =>
+      call<Redeemed>('POST', '/connect-codes/redeem', verifier ? { code, verifier } : { code }, false),
     servers: async () => (await call<{ servers: ServerEntry[] }>('GET', '/servers')).servers,
     ticket: (serverId, jkt) =>
       call<Ticket>('POST', `/servers/${encodeURIComponent(serverId)}/ticket`, { jkt }),

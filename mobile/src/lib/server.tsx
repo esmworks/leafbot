@@ -62,8 +62,11 @@ interface ServerState {
   server: ServerEntry | null;
   /** Why the tunnel is waiting or refused: a tunnel or connection code, or `account`. */
   reason: string | null;
-  /** Signs the phone in with a connect code; rejects with an `AccountError`. */
-  redeem: (code: string) => Promise<void>;
+  /**
+   * Signs the phone in with a connect code; `verifier` for one the phone asked for through the
+   * website. Rejects with an `AccountError`.
+   */
+  redeem: (code: string, verifier?: string) => Promise<void>;
   choose: (serverId: string) => Promise<void>;
   /** Asks the account for the servers again, and the tunnel for another try. */
   refresh: () => void;
@@ -225,8 +228,8 @@ export function ServerProvider({ children }: { children: ReactNode }) {
   }, [phase, qc]);
 
   const redeem = useCallback(
-    async (code: string) => {
-      const res = await account.redeem(code);
+    async (code: string, verifier?: string) => {
+      const res = await account.redeem(code, verifier);
       // A code for someone else (or the same person again) replaces the earlier sign-in.
       if (token.current) {
         try {

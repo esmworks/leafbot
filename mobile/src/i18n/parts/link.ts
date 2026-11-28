@@ -2,9 +2,10 @@
 export const tr = {
   'connect.title': 'Telefonunu bağla',
   'connect.intro':
-    'Botlar kendi sunucunda çalışır; bu telefon yalnızca pencere olur. Leaf Bot’ta oturumu açık bir cihazda Ayarlar → Bağlantı → “Başka bir cihaz bağla”yı seç (ya da sunucuda leafbot phone çalıştır); sonra QR kodu tara ya da kodu yaz.',
+    'Botlar kendi sunucunda çalışır; bu telefon yalnızca pencere olur. leafbot.app hesabınla giriş yap ya da oturumu açık bir cihazda leafbot.app/connect sayfasını (veya Leaf Bot’ta Ayarlar → Bağlantı → “Başka bir cihaz bağla”) aç; sonra QR kodu tara ya da kodu yaz.',
   'connect.switchAccount':
     'Bu telefon şu an bir hesapla açık. Bu kodla bağlanırsan o hesaptan çıkar ve kodu veren hesaba geçer; kodu sen almadıysan bağlanma.',
+  'connect.signIn': 'leafbot.app ile giriş yap',
   'connect.scan': 'QR kodu tara',
   'connect.scanHint': 'Kamerayı QR koda tut',
   'connect.typeCode': 'Kodu yaz',
@@ -51,9 +52,10 @@ export const tr = {
 export const en: Record<keyof typeof tr, string> = {
   'connect.title': 'Connect your phone',
   'connect.intro':
-    'The bots run on your own server; this phone is only the window. On a device signed in to Leaf Bot, choose Settings → Connection → “Connect another device” (or run leafbot phone on your server), then scan the QR code or type the code.',
+    'The bots run on your own server; this phone is only the window. Sign in with your leafbot.app account, or open leafbot.app/connect on a device signed in (or Settings → Connection → “Connect another device” in Leaf Bot), then scan the QR code or type the code.',
   'connect.switchAccount':
     'This phone is signed in to an account now. Connecting with this code signs it out and into the account the code came from; if you did not get the code yourself, do not connect.',
+  'connect.signIn': 'Sign in with leafbot.app',
   'connect.scan': 'Scan QR code',
   'connect.scanHint': 'Point the camera at the QR code',
   'connect.typeCode': 'Type the code',
