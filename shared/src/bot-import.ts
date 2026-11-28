@@ -48,6 +48,12 @@ export const BotImportRoutine = z.object({
   enabled: z.boolean().default(false),
   /** Only looks and reports; a file from before it existed has routines that act, as they did. */
   reportOnly: z.boolean().default(false),
+  /** Its last day, so a routine set to end does not run on for ever once it is turned on here. */
+  endsOn: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .default(null),
 });
 export type BotImportRoutine = z.infer<typeof BotImportRoutine>;
 
@@ -150,6 +156,7 @@ export interface BotImportPlan {
       timezone: string;
       enabledInSource: boolean;
       reportOnly: boolean;
+      endsOn: string | null;
     }[];
     memories: string[];
     /**

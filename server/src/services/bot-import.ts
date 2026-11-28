@@ -168,6 +168,7 @@ export class BotImportService {
                 timezone: r.timezone,
                 enabled: r.enabled,
                 reportOnly: r.reportOnly,
+                ...(r.endsOn && { endsOn: r.endsOn }),
               };
             }),
           memories: memories
@@ -284,6 +285,7 @@ export class BotImportService {
             schedule: r.schedule,
             timezone: r.timezone,
             reportOnly: r.reportOnly,
+            endsOn: r.endsOn,
             enabled: false,
             nextRunAt: null,
             ...(o.owner ? { createdByUserId: o.owner } : {}),
@@ -442,6 +444,7 @@ export class BotImportService {
           timezone: r.data.timezone,
           enabledInSource: r.data.enabled,
           reportOnly: r.data.reportOnly,
+          endsOn: r.data.endsOn,
         });
       }
       const memories: string[] = [];

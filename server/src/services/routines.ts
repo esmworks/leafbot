@@ -1874,7 +1874,7 @@ export class RoutineService {
     routineId: string,
     t: T,
     minAge: number,
-    reason: 'routine.staleWait' | 'routine.pausedWait',
+    reason: 'routine.staleWait' | 'routine.pausedWait' | 'routine.endedWait',
   ): Promise<boolean> {
     const [stuck] = await this.ctx.db
       .select({ runId: schema.routineRuns.id, turnId: schema.turns.id })
@@ -3610,10 +3610,19 @@ export class RoutineService {
       .where(and(eq(schema.routines.enabled, true), isNotNull(schema.routines.endsOn)));
     const ended = rows.filter((r) => routineEnded(r.endsOn, r.timezone, now)).map((r) => r.id);
     if (!ended.length) return;
-    await this.ctx.db
+    const off = await this.ctx.db
       .update(schema.routines)
       .set({ enabled: false, nextRunAt: null, resumeAt: null, pausedReason: 'ended' })
-      .where(and(inArray(schema.routines.id, ended), eq(schema.routines.enabled, true)));
+      .where(and(inArray(schema.routines.id, ended), eq(schema.routines.enabled, true)))
+      .returning({ id: schema.routines.id });
+    // As a pause does, a run of it waiting on the person ends, so nothing of it goes on past the
+    // last day; what waited for a run of it is not run either.
+    const t = await this.services.settings.translator();
+    for (const { id } of off) {
+      await this.endStaleWait(id, t, 0, 'routine.endedWait');
+      await this.endHeld(id, t('routine.endedWait'));
+      await this.startQueued(id);
+    }
     this.ctx.bus.refresh({ scope: 'routines' });
   }
 

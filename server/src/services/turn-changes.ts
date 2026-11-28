@@ -461,7 +461,9 @@ export class TurnChangeService {
     const info = await lstat(path).catch(() => null);
     let now = '';
     if (info) {
-      if (!info.isFile() || info.size > HASH_MAX) return empty('changedSince');
+      if (!info.isFile()) return empty('changedSince');
+      // Read, split and compared on the request: a file past what is kept is not shown.
+      if (info.size > FILE_KEEP_MAX) return empty('tooLong');
       const buf = await readFile(path);
       if (sha(buf) !== left) return empty('changedSince');
       now = buf.toString('utf8');
@@ -640,7 +642,7 @@ export class TurnChangeService {
           );
           return 'restored';
         }
-        if (!current || sig(routineShape(current)) !== after?.sig) return 'later';
+        if (!current || !routineAsLeft(current, after?.sig)) return 'later';
         if (row.op === 'create') await s.routines.remove(row.targetId);
         else await s.routines.update(row.targetId, before!.patch as never);
         return 'restored';
@@ -776,6 +778,17 @@ export const ROUTINE_KEYS = [
   'inputs',
 ];
 export const routineShape = (r: object) => pick(r as Json, ROUTINE_KEYS);
+/**
+ * Whether a routine is still as the turn left it. Changes kept before routines had a last day were
+ * signed without `endsOn`, so a routine with none also matches that older fingerprint.
+ */
+const routineAsLeft = (r: object, want: unknown) => {
+  const shape = routineShape(r);
+  if (sig(shape) === want) return true;
+  if (shape.endsOn !== null) return false;
+  const { endsOn: _none, ...older } = shape;
+  return sig(older) === want;
+};
 export const skillShape = (k: { description: string; body: string }) => ({
   description: k.description,
   body: k.body,
