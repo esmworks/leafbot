@@ -197,22 +197,29 @@ export async function waitFor<T>(
  */
 export async function warmBrowser(executablePath: string, sandbox: boolean): Promise<void> {
   const { chromium } = await import('playwright-core');
-  // Only a head start: a browser that fails here fails the tests themselves, one by one, with why.
-  const browser = await chromium
-    .launch({
+  const warm = (async () => {
+    const browser = await chromium.launch({
       executablePath,
       headless: true,
       chromiumSandbox: sandbox,
       args: ['--disable-dev-shm-usage'],
-      timeout: 50_000,
-    })
-    .catch(() => null);
-  if (!browser) return;
-  try {
-    await (await browser.newPage()).goto('about:blank');
-  } catch {
-    // As above.
-  } finally {
-    await browser.close().catch(() => {});
-  }
+      timeout: 35_000,
+    });
+    try {
+      await (await browser.newPage()).goto('about:blank', { timeout: 5_000 });
+    } finally {
+      await browser.close();
+    }
+  })();
+  // Only a head start: a browser that fails or is still starting by the deadline, well inside the
+  // hook's 60 seconds, is left to the tests, which each say why on their own. One still starting
+  // closes itself once it is up.
+  let timer: NodeJS.Timeout | undefined;
+  await Promise.race([
+    warm.catch(() => {}),
+    new Promise<void>((r) => {
+      timer = setTimeout(r, 45_000);
+    }),
+  ]);
+  clearTimeout(timer);
 }

@@ -410,7 +410,7 @@ export const en: Catalog<MessageKey> = {
   'usage.parallel.default': 'Default ({count})',
   'usage.steps': 'Steps per turn',
   'usage.steps.hint':
-    'How many steps a bot may take on one piece of work before it stops and waits, so a bot going round in circles cannot spend without end. Long jobs, such as a build or a change across many files, need more.',
+    "How many steps a bot may take on one piece of work before it stops and waits, so a bot going round in circles cannot spend without end. Long jobs, such as a build or a change across many files, need more. Bots that run on a coding agent on the computer keep that agent's own limit.",
   'archive.title': 'Archived bots',
   'archive.empty': 'No archived bots. A bot archived from the sidebar waits here.',
   'archive.since': 'Archived {when}',

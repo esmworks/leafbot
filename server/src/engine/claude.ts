@@ -9,7 +9,7 @@ import {
   type SDKMessage,
   type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
-import { EFFORTS, type ClaudeModel, type Effort, type PlanWindow } from '@leafbot/shared';
+import { EFFORTS, TURN_STEPS, type ClaudeModel, type Effort, type PlanWindow } from '@leafbot/shared';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { translator } from '../i18n';
@@ -61,8 +61,8 @@ export function contextOf(usage: unknown): number | null {
   return total > 0 ? total : null;
 }
 
-/** The most model steps one turn may take. */
-const MAX_TURNS = 50;
+/** The most model steps one turn may take, unless the team set another number. */
+const MAX_TURNS = TURN_STEPS;
 
 /** What the CLI says when asked to resume a session it has no transcript for. */
 const LOST_SESSION = /No conversation found with session ID/i;

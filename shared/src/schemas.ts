@@ -532,6 +532,12 @@ export interface ReplyQuote {
 export const ThreadCreate = z.object({ title: z.string().trim().max(120).optional() });
 
 /** Most bots in one room, and most rounds they may talk among themselves after answering. */
+/**
+ * Model calls one turn makes before it stops, unless the team set another number, and the most
+ * that number may be: each call spends, and a bot going round in circles would never stop.
+ */
+export const TURN_STEPS = 50;
+export const MAX_TURN_STEPS = 500;
 export const MAX_ROOM_MEMBERS = 12;
 export const MAX_ROOM_ROUNDS = 5;
 

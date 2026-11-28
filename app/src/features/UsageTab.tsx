@@ -2,6 +2,7 @@ import {
   planPace,
   planTone,
   ROUTINE_GATE_MODES,
+  TURN_STEPS,
   USAGE_RANGES,
   type Bot,
   type StorageReport,
@@ -19,6 +20,7 @@ import { useT } from '@/i18n';
 import { useFormat } from '@/lib/format';
 import { PLAN_TONE_BAR, planLabel } from '@/lib/planUsage';
 import { useBots, useSettings, useStorage, useUsage } from '@/lib/queries';
+import { withSaved } from '@/lib/savedChoice';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { Chip } from './onboarding/Chip';
@@ -377,6 +379,7 @@ function Parallel({ parallel }: { parallel?: UsageReport['parallel'] }) {
   // A server older than the setting does not offer it.
   if (!parallel || settings?.maxTurns === undefined) return null;
   const value = settings.maxTurns;
+  const choices = withSaved(PARALLEL_CHOICES, value);
   return (
     <Card title={t('usage.parallel')}>
       <Row label={t('usage.parallel')} hint={t('usage.parallel.hint')}>
@@ -385,7 +388,7 @@ function Parallel({ parallel }: { parallel?: UsageReport['parallel'] }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {PARALLEL_CHOICES.map((n) => (
+            {choices.map((n) => (
               <SelectItem key={n} value={String(n)}>
                 {n === 0 ? t('usage.parallel.default', { count: parallel.serverDefault }) : String(n)}
               </SelectItem>
@@ -407,6 +410,7 @@ function Steps() {
   const save = useSaveSettings();
   // A server older than the setting does not offer it.
   if (settings?.maxSteps === undefined) return null;
+  const choices = withSaved(STEP_CHOICES, settings.maxSteps);
   return (
     <Card title={t('usage.steps')}>
       <Row label={t('usage.steps')} hint={t('usage.steps.hint')}>
@@ -415,9 +419,9 @@ function Steps() {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {STEP_CHOICES.map((n) => (
+            {choices.map((n) => (
               <SelectItem key={n} value={String(n)}>
-                {n === 0 ? t('usage.parallel.default', { count: ENGINE_STEPS }) : String(n)}
+                {n === 0 ? t('usage.parallel.default', { count: TURN_STEPS }) : String(n)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -427,9 +431,7 @@ function Steps() {
   );
 }
 
-/** The engines' own number of steps per turn, which 0 leaves it to. */
-const ENGINE_STEPS = 50;
-/** 0 is the engines' own number; the server takes at most 500. */
+/** 0 is the engines' own number; the server takes up to `MAX_TURN_STEPS`. */
 const STEP_CHOICES = [0, 100, 200, 300, 500];
 
 /** The bot filter's value for every bot; bot ids never take this form. */

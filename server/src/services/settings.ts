@@ -10,6 +10,7 @@ import {
   isLocale,
   isValidTimeZone,
   LOCALES,
+  MAX_TURN_STEPS,
   MEMORY_REVIEW_STEPS,
   patchOf,
   PROFILE_FOCUS,
@@ -21,8 +22,6 @@ import { OWNER_ID } from '../users';
 
 /** The most turns the person may let run at the same time. */
 export const MAX_TURNS_LIMIT = 10;
-/** The most model calls the person may let one turn make; each one spends. */
-export const MAX_STEPS_LIMIT = 500;
 
 export const Settings = z.object({
   userName: z.string().max(80).default(''),
@@ -183,7 +182,7 @@ export const Settings = z.object({
    * end; 0 leaves it to the engine's own number. A long job (a build, a change across many files)
    * needs more than a question does.
    */
-  maxSteps: z.number().int().min(0).max(MAX_STEPS_LIMIT).default(0),
+  maxSteps: z.number().int().min(0).max(MAX_TURN_STEPS).default(0),
   /**
    * The bots' browsers reach the web through the person's own computer while its desktop app is
    * connected, so sites see that connection instead of the server's; otherwise from the server.

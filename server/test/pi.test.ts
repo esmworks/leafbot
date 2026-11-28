@@ -1229,6 +1229,26 @@ describe('Pi motoru', () => {
       expect(offered.find((o) => o.helper)!.tools).not.toContain('Agent');
     });
 
+    it("a helper stops at the turn's step limit when that is below its own", async () => {
+      let helperCalls = 0;
+      const reply = (ctx: Ctx) => {
+        if (isHelper(ctx)) {
+          helperCalls++;
+          return fauxAssistantMessage([fauxToolCall('list_files', {})], { stopReason: 'toolUse' });
+        }
+        return ctx.messages.some((m) => m.role === 'toolResult')
+          ? fauxAssistantMessage('Bitti.')
+          : helpers(1);
+      };
+      faux.setResponses(Array.from({ length: 20 }, () => reply));
+      const seen = track();
+      await engine().run(request({ maxSteps: 3, onSubagent: seen.onSubagent }).req);
+      // The abort lands while the next request starts; that one is cut off.
+      expect(helperCalls).toBeGreaterThanOrEqual(3);
+      expect(helperCalls).toBeLessThanOrEqual(4);
+      expect(seen.last.get('g1')?.state).not.toBe('done');
+    });
+
     it('araç seçiminden çıkarılan alt ajan aracı modele hiç sunulmaz', async () => {
       const offered: string[][] = [];
       faux.setResponses([
