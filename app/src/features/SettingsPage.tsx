@@ -999,8 +999,8 @@ function AccountServerRow() {
 
 /**
  * In the desktop app, signing out of the Leaf Bot account, which its menu bar offers too. On the
- * website the account's own pages sign out, so there is nothing here; ending the tunnel alone would
- * only leave the page signed out of this server.
+ * website the page has no account sign-out it can call, so there is nothing here; ending the tunnel
+ * alone would only leave the page signed out of this server.
  */
 function AccountSignOutRow() {
   const t = useT();

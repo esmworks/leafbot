@@ -1,4 +1,4 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { Loader2, Smartphone } from 'lucide-react';
 import QRCode from 'qrcode';
 import { useEffect, useState } from 'react';
@@ -35,13 +35,21 @@ export function ConnectPhone({ owner }: { owner: boolean }) {
     },
     onError: (e) => toast.error(e instanceof Error && e.message ? e.message : t('phone.failed')),
   });
+  // On the server's own page the code comes from the account the server is linked to, so until it
+  // is linked (the card below does that) there is none to make.
+  const { data: host } = useQuery({
+    queryKey: ['account-host'],
+    queryFn: api.accountHost,
+    enabled: owner && !tunnel,
+    staleTime: 30_000,
+  });
   const left = made ? Math.max(0, Math.round((made.expiresAt - now) / 1000)) : 0;
   useEffect(() => {
     if (!made || left <= 0) return;
     const timer = setTimeout(() => setNow(Date.now()), 1000);
     return () => clearTimeout(timer);
   }, [made, left]);
-  if (!tunnel && !owner) return null;
+  if (!tunnel && (!owner || !host?.linked)) return null;
   return (
     <Card title={t('phone.title')}>
       <Row label={t('phone.label')} hint={t('phone.signInHint')}>
