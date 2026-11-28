@@ -36,6 +36,13 @@ describe('accountClient', () => {
     expect((seen[0]!.init.headers as Record<string, string>).authorization).toBeUndefined();
   });
 
+  it('sends the verifier with a code the phone asked for through the website', async () => {
+    const out = { user: { id: 'u', email: 'a@b.c', name: null }, sessionId: 's', token: 'secret' };
+    const { seen, api } = client(200, out, null);
+    await api.redeem('ABCDE-FGHJK', 'v'.repeat(43));
+    expect(seen[0]!.init.body).toBe(`{"code":"ABCDE-FGHJK","verifier":"${'v'.repeat(43)}"}`);
+  });
+
   it('lists servers with the bearer token', async () => {
     const { seen, api } = client(200, { servers: [server('a')] });
     expect(await api.servers()).toEqual([server('a')]);

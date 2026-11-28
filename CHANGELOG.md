@@ -3,6 +3,15 @@
 All notable changes to Leaf Bot (called Yumak Bot before 0.7.0) are listed here. Versions follow [Semantic Versioning](https://semver.org/). While the
 version is 0.x, a minor release may change the data format or the API; the server migrates its database on start.
 
+## Unreleased
+
+### Added
+
+- The phone app signs in with leafbot.app: "Sign in with leafbot.app" opens the website in the system's sign-in
+  browser, and after signing in there one tap brings the phone back signed in, with no code to scan or type. The
+  code the website hands back is bound to that sign-in (PKCE), so it is of no use to anything that catches it on its
+  way. leafbot.app/connect also shows a QR code for the phone on any computer signed in to the account.
+
 ## 0.10.0 — 2026-11-28
 
 ### Added

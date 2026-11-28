@@ -1,13 +1,22 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as ExpoCrypto from 'expo-crypto';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
+import * as WebBrowser from 'expo-web-browser';
 import { Linking, StyleSheet, View } from 'react-native';
 import { Button, ErrorText, Field, FormScreen, Hint, Mark, Title } from '@/components/ui';
-import { t } from '@/i18n';
-import { AccountError } from '@/lib/account';
+import { locale, t } from '@/i18n';
+import { AccountError, WEBSITE_URL } from '@/lib/account';
 import { parseConnectCode } from '@/lib/connectCode';
 import { useServer } from '@/lib/server';
 import { useColors } from '@/lib/theme';
+import { RETURN_URL, codeOfReturn, connectPageUrl, newPkce } from '@/lib/webSignIn';
+
+/**
+ * A sign-in through the website is under way. On Android its code also comes in as an ordinary
+ * `leafbot://connect?code=…` link; that copy is the sign-in's own and is not filled in for a tap.
+ */
+let signingIn = false;
 
 /** What to tell the person when the account service did not take a code. */
 function failure(err: unknown) {
@@ -19,10 +28,12 @@ function failure(err: unknown) {
 }
 
 /**
- * Signs the phone in to the person's Leaf Bot account with a connect code, shown as a QR code by the
- * account's page (Settings, Connect your phone) or by `leafbot phone` on a server: scanned with the
- * camera, typed, or opened from the `leafbot://connect?code=…` link the QR code stands for. A code
- * works once, so one try runs at a time and a code that was tried is not tried again.
+ * Signs the phone in to the person's Leaf Bot account. The simplest way is signing in on the website
+ * in the system's sign-in browser: its page hands back a code made for this app's PKCE challenge,
+ * which is spent with the verifier right away. A connect code shown as a QR code (on
+ * leafbot.app/connect, in the app's Settings, or by `leafbot phone` on a server) works too: scanned
+ * with the camera, typed, or opened from the `leafbot://connect?code=…` link the QR code stands for. A
+ * code works once, so one try runs at a time and a code that was tried is not tried again.
  */
 export default function Connect() {
   const c = useColors();
@@ -34,14 +45,14 @@ export default function Connect() {
   // could sign this phone in to someone else's account without them knowing.
   const linkCode = link ? parseConnectCode(link) : null;
   const [scanning, setScanning] = useState(false);
-  const [typing, setTyping] = useState(!!linkCode);
-  const [value, setValue] = useState(linkCode ?? '');
+  const [typing, setTyping] = useState(!!linkCode && !signingIn);
+  const [value, setValue] = useState(signingIn ? '' : (linkCode ?? ''));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [denied, setDenied] = useState(false);
   // A link opened while this screen is already up fills its code in too.
   useEffect(() => {
-    if (!linkCode) return;
+    if (!linkCode || signingIn) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setValue(linkCode);
     setTyping(true);
@@ -68,6 +79,40 @@ export default function Connect() {
       // A code the service did not reach is worth another try; a refused one is spent or wrong.
       if (err instanceof AccountError && err.status === 0) tried.current.delete(code);
     } finally {
+      running.current = false;
+      setBusy(false);
+    }
+  };
+
+  /** Signs in on leafbot.app and spends the code its page hands back, with this sign-in's verifier. */
+  const signIn = async () => {
+    if (running.current) return;
+    running.current = true;
+    signingIn = true;
+    setBusy(true);
+    setError(null);
+    try {
+      const { verifier, challenge } = await newPkce(
+        (n) => ExpoCrypto.getRandomBytes(n),
+        async (data) =>
+          new Uint8Array(
+            await ExpoCrypto.digest(ExpoCrypto.CryptoDigestAlgorithm.SHA256, data as Uint8Array<ArrayBuffer>),
+          ),
+      );
+      const result = await WebBrowser.openAuthSessionAsync(
+        connectPageUrl(WEBSITE_URL, locale, challenge),
+        RETURN_URL,
+      );
+      // Closed without a code: the person changed their mind, nothing to say.
+      if (result.type !== 'success') return;
+      const code = codeOfReturn(result.url);
+      if (!code) return setError(t('connect.codeRejected'));
+      await redeem(code, verifier);
+      router.replace('/');
+    } catch (err) {
+      setError(failure(err));
+    } finally {
+      signingIn = false;
       running.current = false;
       setBusy(false);
     }
@@ -133,7 +178,8 @@ export default function Connect() {
       ) : (
         <>
           {error ? <ErrorText>{error}</ErrorText> : null}
-          <Button label={t('connect.scan')} busy={busy} onPress={() => void scan()} />
+          <Button label={t('connect.signIn')} busy={busy} onPress={() => void signIn()} />
+          <Button label={t('connect.scan')} variant="ghost" onPress={() => void scan()} />
           <Button label={t('connect.typeCode')} variant="ghost" onPress={() => setTyping(true)} />
         </>
       )}
