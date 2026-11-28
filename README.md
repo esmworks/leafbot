@@ -22,21 +22,29 @@ and approval sentences, are in English or Turkish. The phone app shows English f
 cannot turn right to left without a restart. [docs/i18n.md](docs/i18n.md) covers how a language is added.
 
 <p align="center">
-  <img src="docs/screenshots/chat.png" alt="Chatting with a research bot that compares standing desks in a table" width="900">
+  <img src="docs/screenshots/chat.png" alt="Chatting with a research bot that compares standing desks in a table, with the bot's panel and its daily price watch on the right" width="900">
 </p>
 
 <table>
   <tr>
-    <td><img src="docs/screenshots/today.png" alt="The Today page: what each bot did and what waits for you"></td>
-    <td><img src="docs/screenshots/usage.png" alt="The usage page: daily cost and spending by bot"></td>
+    <td><img src="docs/screenshots/dashboards.png" alt="A shop dashboard a bot keeps from its orders table: daily sales, the month's total, a goal and the best sellers"></td>
+    <td><img src="docs/screenshots/tasks.png" alt="The tasks board: work to do, in review, blocked and done, each card with the bot it is given to"></td>
   </tr>
   <tr>
-    <td align="center">What the bots did today</td>
-    <td align="center">Spending by day and by bot</td>
+    <td align="center">A dashboard a bot keeps from a table</td>
+    <td align="center">Tasks handed to the bots</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/routine.png" alt="A weekly routine drawn as a flow: a bot writes the report, waits for approval, then sends it"></td>
+    <td><img src="docs/screenshots/apps.png" alt="Connecting apps such as Google Drive, Gmail, Slack and GitHub for the bots to use"></td>
+  </tr>
+  <tr>
+    <td align="center">A routine with an approval step</td>
+    <td align="center">Apps the bots can use</td>
   </tr>
 </table>
 
-<sub>Screenshots use made-up bots and conversations.</sub>
+<sub>Screenshots use made-up bots, conversations and data; <code>node scripts/readme-shots.mjs</code> draws them again.</sub>
 
 ## Features
 
