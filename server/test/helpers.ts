@@ -197,16 +197,22 @@ export async function waitFor<T>(
  */
 export async function warmBrowser(executablePath: string, sandbox: boolean): Promise<void> {
   const { chromium } = await import('playwright-core');
-  const browser = await chromium.launch({
-    executablePath,
-    headless: true,
-    chromiumSandbox: sandbox,
-    args: ['--disable-dev-shm-usage'],
-    timeout: 50_000,
-  });
+  // Only a head start: a browser that fails here fails the tests themselves, one by one, with why.
+  const browser = await chromium
+    .launch({
+      executablePath,
+      headless: true,
+      chromiumSandbox: sandbox,
+      args: ['--disable-dev-shm-usage'],
+      timeout: 50_000,
+    })
+    .catch(() => null);
+  if (!browser) return;
   try {
     await (await browser.newPage()).goto('about:blank');
+  } catch {
+    // As above.
   } finally {
-    await browser.close();
+    await browser.close().catch(() => {});
   }
 }
