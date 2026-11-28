@@ -28,7 +28,11 @@ export default function RootLayout() {
   useAppUpdates();
   const c = useColors();
   const dark = useIsDark();
-  const [client] = useState(() => new QueryClient({ defaultOptions: { queries: { retry: false } } }));
+  // Live pushes say what changed, and everything is read again after the live channel was away, so
+  // a list read moments ago is not read again over the tunnel each time a screen opens.
+  const [client] = useState(
+    () => new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 30_000 } } }),
+  );
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={client}>
