@@ -1,5 +1,6 @@
 import { ApiError } from '@leafbot/client';
 import { AppState } from 'react-native';
+import { getLink } from './connection';
 
 /** What a proxy in front of the server answers while the server is away (a restart, a redeploy). */
 const AWAY = [502, 503, 504];
@@ -37,7 +38,24 @@ const appActive = () =>
         });
       });
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+/**
+ * Waits `ms`, or less when the link to the server opens again meanwhile: a message held back by a
+ * dropped tunnel goes as soon as there is one again, not after the rest of a wait of up to 45
+ * seconds. Only a link that opens after the wait began ends it, so a server that is away behind an
+ * open link is still given the whole wait.
+ */
+export function waitOrBack(ms: number, link = getLink()): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let off = () => undefined as void;
+    const done = () => {
+      clearTimeout(timer);
+      off();
+      resolve();
+    };
+    const timer = setTimeout(done, ms);
+    if (link) off = link.subscribe(() => link.state.at === 'online' && done());
+  });
+}
 
 /**
  * Runs `attempt`, and runs it again while it fails for want of a connection: only once the app is
@@ -49,7 +67,7 @@ export async function sendWithRetry<T>(attempt: () => Promise<T>, deps: Deps = {
   const {
     offline = isOffline,
     active = appActive,
-    wait = sleep,
+    wait = waitOrBack,
     now = Date.now,
     backoff = BACKOFF_MS,
   } = deps;
