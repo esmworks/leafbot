@@ -1,10 +1,12 @@
 import type { ComputerPermission } from '@leafbot/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, Monitor, MousePointer2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/i18n';
 import { api } from '@/lib/api';
+import { desktop } from '@/lib/desktop';
+import { useServerHost } from '@/lib/serverSwitch';
 import { usePersonComputer } from './PersonComputer';
 import { Card, Row } from './SettingsPage';
 
@@ -43,6 +45,7 @@ export function ComputerTab() {
   );
 
   if (!data.available) {
+    if (data.remote && desktop?.computer) return <OfferThisComputer again={again} />;
     return (
       <Card>
         <Row
@@ -110,5 +113,86 @@ export function ComputerTab() {
       )}
       <p className="mt-6 px-1 text-xs text-muted-foreground">{t('computerUse.botsHint')}</p>
     </>
+  );
+}
+
+/** How long the page waits for the server to see a computer the person just turned on. */
+const OFFER_WAIT_MS = 15_000;
+const OFFER_POLL_MS = 1_500;
+
+/**
+ * The desktop app's window showing an account server that sees no computer of the person's: the
+ * way to offer this one from here, rather than from a menu item that shows only once a server was
+ * chosen in the menu bar. The app asks on this computer before it turns the offer on.
+ */
+function OfferThisComputer({ again }: { again: React.ReactNode }) {
+  const t = useT();
+  const bridge = desktop?.computer;
+  const current = useServerHost((s) => s.host?.servers.find((x) => x.current)?.id ?? null);
+  const { data: here, refetch: refetchHere } = useQuery({
+    queryKey: ['desktop-computer'],
+    queryFn: () => bridge?.state() ?? Promise.resolve(null),
+    refetchOnWindowFocus: true,
+  });
+  const qc = useQueryClient();
+  const offer = useMutation({
+    mutationFn: async (serverId: string) => {
+      const after = await bridge?.offer(serverId);
+      await refetchHere();
+      if (!after?.on || after.server !== serverId) return;
+      // The offer reaches the server through the tunnel a moment later.
+      for (let waited = 0; waited < OFFER_WAIT_MS; waited += OFFER_POLL_MS) {
+        await new Promise((r) => setTimeout(r, OFFER_POLL_MS));
+        const st = await api.personComputer().catch(() => null);
+        if (st?.available) {
+          qc.setQueryData(['person-computer'], st);
+          return;
+        }
+      }
+    },
+    onError: (e) => toast.error((e as Error).message),
+  });
+
+  if (!here || !current) {
+    return (
+      <Card>
+        <Row label={t('computerUse.notConnected')} hint={t('bot.personComputerRemote')}>
+          {again}
+        </Row>
+      </Card>
+    );
+  }
+  if (!here.helper) {
+    return (
+      <Card>
+        <Row label={t('computerUse.notConnected')} hint={t('computerUse.noHelper')} />
+      </Card>
+    );
+  }
+  if (here.on && here.server === current) {
+    return (
+      <Card>
+        <Row label={t('computerUse.connecting')} hint={t('computerUse.connectingHint')}>
+          {again}
+        </Row>
+      </Card>
+    );
+  }
+  const hint =
+    here.server && here.server !== current ? t('computerUse.offerMove') : t('computerUse.offerHint');
+  return (
+    <Card>
+      <Row label={t('computerUse.notConnected')} hint={hint}>
+        <Button
+          size="sm"
+          className="rounded-full"
+          disabled={offer.isPending}
+          onClick={() => offer.mutate(current)}
+        >
+          {offer.isPending && <RefreshCw className="animate-spin" />}
+          {t('computerUse.offer')}
+        </Button>
+      </Row>
+    </Card>
   );
 }

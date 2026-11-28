@@ -526,9 +526,9 @@ function startOffers() {
 /** How this computer is named in the server's settings. */
 const deviceName = () => hostname().replace(/\.local$/, '');
 
-/** The chosen server's name as the account lists it, for a question on this computer. */
-function serverLabel(): string {
-  const name = accountServers.find((s) => s.id === config.server)?.name ?? '';
+/** A server's name as the account lists it (the chosen one by default), for a question on this computer. */
+function serverLabel(id = config.server): string {
+  const name = accountServers.find((s) => s.id === id)?.name ?? '';
   return (
     name
       .replace(/[\p{Cc}\p{Cf}]/gu, ' ')
@@ -671,23 +671,26 @@ async function stopLocal() {
  * Makes a new choice real: this computer's server starts or stops, the chosen account server is
  * offered this computer, and the window moves to what it now shows. The choice is kept.
  * Changes go one after another, each made from the choice the one before left, so a quick off and
- * on never starts a second server beside one still stopping.
+ * on never starts a second server beside one still stopping. `keepWindow` is for a choice the page
+ * in the window made about the server it already shows, which needs no new page.
  */
-function apply(change: (cfg: DesktopConfig) => DesktopConfig): Promise<void> {
+function apply(change: (cfg: DesktopConfig) => DesktopConfig, keepWindow = false): Promise<void> {
   applying = applying
-    .then(() => applyNow(change(config)))
+    .then(() => applyNow(change(config), keepWindow))
     .catch((err: unknown) => log.warn('could not change the servers', err));
   return applying;
 }
 let applying: Promise<void> = Promise.resolve();
 
-async function applyNow(next: DesktopConfig) {
+async function applyNow(next: DesktopConfig, keepWindow = false) {
   const before = config;
   config = next;
   saveConfig();
   startOffers();
   if (before.local && !next.local) await stopLocal();
-  const reshow = before.shown !== next.shown || (next.shown === 'account' && before.server !== next.server);
+  const reshow =
+    !keepWindow &&
+    (before.shown !== next.shown || (next.shown === 'account' && before.server !== next.server));
   if (reshow) {
     // The old page belongs to another origin; start fresh. Apps of this computer's server stay.
     closeQuick();
@@ -1283,6 +1286,20 @@ function registerIpc() {
       ? answer(e, () => account.ticket(serverId, jkt))
       : { ok: false, status: 400, code: 'invalid' },
   );
+  // This computer for the bots of the server the page shows: what the page needs to say why the
+  // server sees no computer, and the way to offer it from there. Turning it on asks on this computer
+  // first, in the app's own dialog, so the page alone cannot do it.
+  ipcMain.handle('leafbot:computer-state', (e) => (fromBotsPage(e) ? computerState() : null));
+  ipcMain.handle('leafbot:computer-offer', async (e, serverId: unknown) => {
+    if (!fromBotsPage(e) || typeof serverId !== 'string') return null;
+    if (!computerState().helper || !accountServers.some((s) => s.id === serverId)) return computerState();
+    if (!(await confirmOffer(serverId))) return computerState();
+    writeMacOn(userData, true);
+    if (config.server === serverId) startMac();
+    else await apply((c) => chooseServer(c, serverId), true);
+    rebuildMenu();
+    return computerState();
+  });
   ipcMain.handle('leafbot:account-connect-code', (e) => answer(e, () => account.connectCode(), false));
   ipcMain.handle('leafbot:account-sign-in', (e) =>
     fromBotsPage(e) ? browserSignIn.start() : { ok: false, reason: 'failed' },
@@ -1451,7 +1468,32 @@ function hardenSessions() {
  * This computer can be offered to the account server's bots: a Mac or a Windows computer, with its
  * helper in place, with an account server chosen.
  */
-const canOfferMac = () => helperSystem() && !!link && existsSync(personComputer());
+const canOfferMac = () => hasHelper() && !!link;
+const hasHelper = () => helperSystem() && existsSync(personComputer());
+
+/**
+ * What the page of the account's servers is told about this computer: whether it can be offered
+ * at all, the server it is offered to (null while none was chosen), and whether the person turned
+ * the offer on.
+ */
+const computerState = () => ({ helper: hasHelper(), server: config.server, on: readMacOn(userData) });
+
+/** Asks on this computer before it is offered to the bots of `serverId`; default is no. */
+async function confirmOffer(serverId: string): Promise<boolean> {
+  const previous = config.server && config.server !== serverId ? config.server : null;
+  app.focus({ steal: true });
+  const { response } = await dialog.showMessageBox({
+    type: 'question',
+    message: t('mac.offerAskTitle', { host: serverLabel(serverId) }),
+    detail: previous
+      ? `${t('mac.offerAskDetail')}\n\n${t('mac.offerAskMove', { previous: serverLabel(previous) })}`
+      : t('mac.offerAskDetail'),
+    buttons: [t('mac.offerYes'), t('mac.offerNo')],
+    defaultId: 1,
+    cancelId: 1,
+  });
+  return response === 0;
+}
 
 /**
  * Offers this Mac to the bots of the account server, when the person turned it on in the menu bar.
@@ -1631,7 +1673,16 @@ async function askForCommand(
 
 /** The menu bar's part for this Mac: the switch, and while a bot uses it, a way to stop that. */
 function macMenu(): Electron.MenuItemConstructorOptions[] {
-  if (!canOfferMac()) return [];
+  if (!hasHelper()) return [];
+  // Without a chosen server the switch would have no one to offer this computer to; it shows, off,
+  // with the step that is missing, so the person is not left looking for it.
+  if (!link) {
+    return [
+      { label: t('mac.offer'), type: 'checkbox', checked: false, enabled: false },
+      { label: t('mac.chooseServer'), enabled: false },
+      { type: 'separator' },
+    ];
+  }
   const running = jobs?.running().length ?? 0;
   return [
     {

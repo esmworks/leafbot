@@ -54,6 +54,20 @@ interface DesktopBridge {
    * session, and the sign-in in the person's browser.
    */
   account?: DesktopAccount;
+  /** On the page of the account's servers only: this computer, for the bots of the server shown. Missing in older shells. */
+  computer?: DesktopComputer;
+}
+
+/**
+ * This computer as the desktop app offers it to an account server's bots: whether it can be
+ * offered, the server it is offered to (null while none was chosen), and whether the offer is on.
+ */
+export type DesktopComputerState = { helper: boolean; server: string | null; on: boolean };
+
+export interface DesktopComputer {
+  state(): Promise<DesktopComputerState | null>;
+  /** Offers this computer to that server's bots, after the app asks on this computer. */
+  offer(serverId: string): Promise<DesktopComputerState | null>;
 }
 
 /** An account call's answer as the desktop app hands it over: the status stays with an error. */

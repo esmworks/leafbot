@@ -2161,7 +2161,7 @@ export const tr = {
   'bot.personComputerHint':
     'Senin istediğin işlerde ekranına bakabilir, fareyi ve klavyeyi kullanabilir. Her işte ilk adımdan önce sorar. Masaüstü uygulamasında "Botlar bu bilgisayarda komut çalıştırabilir" açıksa orada komut da çalıştırabilir; her komut kartla sorulur.',
   'bot.personComputerRemote':
-    'Bilgisayarın bağlı değil. Mac ya da Windows bilgisayarındaki Leaf Bot masaüstü uygulamasında, Leaf Bot simgesinin menüsünden "Botlar bu bilgisayarı kullanabilir"i aç.',
+    'Bilgisayarın bağlı değil. Mac ya da Windows bilgisayarındaki Leaf Bot uygulamasında bu sunucuyu aç ve Ayarlar → Bilgisayar kullanımı\'ndaki "Bu bilgisayarı aç" düğmesine bas.',
   'bot.personComputerDevice':
     'Bağlı: {device}. O bilgisayar, bir bot onu ilk kullanmadan önce kendi ekranında sorar.',
   'bot.personComputerMissing': 'macOS henüz izin vermedi: {what}',
@@ -2182,6 +2182,15 @@ export const tr = {
   'computerUse.botsHint':
     'Bir bot bu bilgisayarı yalnızca kendi ayarlarında “Bilgisayarımı kullanabilir” açıksa kullanır ve her işte ilk adımdan önce sorar.',
   'computerUse.notConnected': 'Botların kullanabileceği bir bilgisayar yok',
+  'computerUse.offer': 'Bu bilgisayarı aç',
+  'computerUse.offerHint':
+    'Bu bilgisayarı bu sunucunun botlarına açabilirsin. Leaf Bot önce burada, kendi penceresinde sorar.',
+  'computerUse.offerMove':
+    'Bu bilgisayar şu an başka bir sunucuya açık. Buraya açarsan o sunucu artık kullanamaz.',
+  'computerUse.connecting': 'Bu bilgisayar bu sunucuya açık; bağlantı kuruluyor.',
+  'computerUse.connectingHint': 'Birkaç saniye içinde görünmezse "Tekrar kontrol et"e bas.',
+  'computerUse.noHelper':
+    'Bu bilgisayar botlara açılamaz; bilgisayar kullanımı yalnızca Mac ve Windows için var.',
   'computerUse.unavailable': 'Bu sunucuda senin için bir bilgisayar yok.',
   'computerUse.device': 'Bağlı bilgisayar: {device}',
   'computerUse.deviceHint': "İzinler o bilgisayarda verilir; düğmeler Sistem Ayarları'nı orada açar.",

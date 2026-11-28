@@ -96,6 +96,13 @@ const tr = {
   'error.oldAppRunning':
     "Leaf Bot, {name} uygulamasının yeni adı. Botlarınız ve sohbetleriniz {name} açıkken taşınamıyor. {name} uygulamasını kapatıp Leaf Bot'u yeniden açın; hepsi buraya gelir.",
   'mac.offer': 'Botlar bu bilgisayarı kullanabilir',
+  'mac.chooseServer': 'Önce "Bu bilgisayar için hesap sunucusu"ndan bir sunucu seç',
+  'mac.offerAskTitle': '{host} sunucusunun botları bu bilgisayarı kullanabilsin mi?',
+  'mac.offerAskDetail':
+    'Açarsan botlar senin istediğin işlerde bu bilgisayarın ekranına bakabilir, fareyi ve klavyeyi kullanabilir; her bot ilk kullanımdan önce burada ayrıca sorar. Bu bilgisayar o sunucunun botlarına web çıkışı da olur. Leaf Bot simgesinin menüsünden istediğin an kapatabilirsin.',
+  'mac.offerAskMove': '{previous} sunucusu bu bilgisayarı artık kullanamaz.',
+  'mac.offerYes': 'Aç',
+  'mac.offerNo': 'Vazgeç',
   'mac.stop': 'Bilgisayarı kullanan botu durdur',
   'mac.inUse': 'Bot bilgisayarda',
   'mac.someBot': 'Bir bot',
@@ -200,6 +207,13 @@ const en: Catalog<DesktopKey> = {
   'error.oldAppRunning':
     'Leaf Bot is the new name of {name}. Your bots and chats cannot be moved over while {name} is open. Quit {name} and open Leaf Bot again; everything comes along.',
   'mac.offer': 'Bots may use this computer',
+  'mac.chooseServer': 'First choose a server under “Account server for this computer”',
+  'mac.offerAskTitle': 'Let the bots of {host} use this computer?',
+  'mac.offerAskDetail':
+    'If you turn it on, bots can look at this computer’s screen and use the mouse and keyboard in work you ask for; each bot asks here again before its first use. This computer also becomes that server’s bots’ way out to the web. You can turn it off any time in the menu of the Leaf Bot icon.',
+  'mac.offerAskMove': '{previous} will no longer be able to use this computer.',
+  'mac.offerYes': 'Turn on',
+  'mac.offerNo': 'Cancel',
   'mac.stop': 'Stop the bot using this computer',
   'mac.inUse': 'Bot at work here',
   'mac.someBot': 'A bot',
