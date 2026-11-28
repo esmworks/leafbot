@@ -13,6 +13,7 @@ import { ExportBots } from './more/ExportBots';
 import { PlanBots } from './more/PlanBots';
 import { t, type MessageKey } from '@/i18n';
 import type { PickedFile } from '@/lib/api';
+import { serverFetch } from '@/lib/connection';
 import { useApi, useServer } from '@/lib/server';
 
 /** The steps the person runs in the other app to write the file this section reads. */
@@ -52,8 +53,11 @@ export function ImportSection() {
   });
   const copyInstructions = async () => {
     try {
-      const res = await fetch(`${origin}${INSTRUCTIONS}`);
-      if (!res.ok) throw new Error(String(res.status));
+      const res = await serverFetch(INSTRUCTIONS);
+      if (!res.ok) {
+        res.cancel();
+        throw new Error(String(res.status));
+      }
       await Clipboard.setStringAsync(await res.text());
       toast(t('import.copied'));
     } catch {
@@ -92,7 +96,7 @@ export function ImportSection() {
             icon="download"
             label={t('import.download')}
             chevron={false}
-            onPress={() => void shareFile(`${origin}${INSTRUCTIONS}`, 'leafbot-export.md')}
+            onPress={() => void shareFile(INSTRUCTIONS, 'leafbot-export.md')}
           />
         </Rows>
       </Section>

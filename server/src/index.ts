@@ -2,6 +2,7 @@ import './old-env';
 import { pickLocale } from '@leafbot/shared';
 import { createServer } from './app';
 import { loginFromTerminal } from './cli/login';
+import { phone } from './cli/phone';
 import { loadConfig } from './config';
 import { translator } from './i18n';
 import { launchMark, launchSpan, launchTimingsLine } from './launch-timings';
@@ -24,6 +25,9 @@ const command = process.argv[2];
 if (command === 'login') {
   const withInstallCode = process.argv.slice(3).includes('--code');
   await exitAfterOutput(await loginFromTerminal(config, locale, { withInstallCode }));
+}
+if (command === 'phone') {
+  await exitAfterOutput(await phone({ config, locale, say: (line) => console.log(line) }));
 }
 if (command !== undefined) {
   console.error(t('cli.unknownCommand', { command }));

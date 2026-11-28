@@ -57,7 +57,8 @@ cannot turn right to left without a restart. [docs/i18n.md](docs/i18n.md) covers
 - **Cards and questions** — instead of a wall of text a bot can ask with a card: a pick from a few options, a day or
   time, a form filled in beforehand, or a status it updates in place. Pressing it answers as your next message. A
   question can take one option or several; in chat apps you answer with the option numbers, such as 1, 3.
-- **People** — the owner and admins add people, each with their own password and role (admin or member). A bot is
+- **People** — the owner and admins invite people to the server by email; each signs in with their own Leaf Bot
+  account and has a role (admin or member). A bot is
   shared with everyone or some people, to talk with or to change; each person's conversations, profile, notes,
   connections and vault entries are theirs alone, admins included, and a bot works with what belongs to the person it
   works for.
@@ -108,7 +109,7 @@ cannot turn right to left without a restart. [docs/i18n.md](docs/i18n.md) covers
   xAI key, and short videos with your xAI key.
 - **Board and tables** — bots put work that takes more than one reply on a shared board of tickets and hand
   follow-ups to each other there; a bot's table can serve as a list of jobs a routine picks up.
-- **A bot as an API** — call a bot from a script with the access key and get its reply.
+- **A bot as an API** — call a bot from a script on the server's computer with the access key and get its reply.
 - **Connections** — connect remote MCP servers (Notion, GitHub, Linear, Google Workspace, Slack and many more) once and
   choose which bots may use them.
 - **A browser per bot** — each bot drives its own Chromium profile; you can watch it live and take control for sign-ins
@@ -175,7 +176,8 @@ pnpm start
 starts its own server in the background and signs you in. On first launch, connect Claude in the setup screen (or later
 in Settings → Connection → Claude).
 
-The desktop app can also connect to a remote Leaf Bot server: enter its URL and access key in the connection settings.
+The desktop app also opens the servers of your Leaf Bot account (Settings → Connection): it signs in to the account in
+its window and reaches each server through the tunnel, never by address.
 
 Installers for macOS (`.dmg`, Apple silicon), Windows (`.exe`) and Linux (`.AppImage`, and a `.deb` for Debian and
 Ubuntu) are attached to each [release](https://github.com/esmworks/leafbot/releases). On Linux, install `bubblewrap`
@@ -272,8 +274,11 @@ without opening a port, add `--profile cloudflare` (a Cloudflare Tunnel, with `C
 `LEAFBOT_SECURE_COOKIES=1`; or put a TLS reverse proxy (Caddy, nginx) in front of it and set `LEAFBOT_ALLOWED_HOSTS`
 to your domain. Have such a proxy send `LEAFBOT_PROXY_SECRET` in an `X-Leafbot-Proxy` header and the client's
 address in `X-Forwarded-For`, so sign-in attempts are counted per person rather than all as the proxy's address
-(`docker/Caddyfile` shows how). To sign a phone or another computer in, get a one-time pairing code under Settings →
-Connection → Connect another device on a device already signed in.
+(`docker/Caddyfile` shows how). People reach the server through their Leaf Bot account and the
+tunnel, not by its address: link the server with the `login` command below, then invite people from Settings → People.
+To sign the phone app or the Chrome extension in, run `leafbot phone` on the server (or open Settings → Connection →
+Connect another device on a device already signed in) and scan the QR code or type the code; it works once, for two
+minutes.
 
 To link the server to your Leaf Bot account from the terminal, run the `login` command in its container:
 
@@ -356,9 +361,9 @@ pnpm --filter @leafbot/extension build
 ```
 
 Then open `chrome://extensions`, turn on Developer mode, choose "Load unpacked" and pick `extension/dist`. Click the
-extension's button to open the panel, enter the server's address and a pairing code from Settings → Connection →
-Connect another device. If this Chrome is already signed in to Leaf Bot at that address, no code is needed: the
-panel uses the same sign-in.
+extension's button to open the panel and type the code from Settings → Connection → Connect another device on a device
+signed in to your Leaf Bot account. The panel signs in to the account, lists its servers and reaches the one you pick
+through the tunnel.
 
 With "Share this Chrome with my bots" on, a message written in the panel lets the bot list your open tabs and read
 the text of one (`person_browser_tabs`, `person_browser_read`). Nothing reaches Chrome from a routine, a mail,
@@ -390,10 +395,9 @@ Without `LEAFBOT_ACCESS_KEY`, the server generates an access key on first start,
 prints the path; use it to sign in. The data folder defaults to `data/` in the server's working directory (`server/data`
 with `pnpm dev:server`).
 
-Right after the first sign-in with the key, the app asks for a username and password; later sign-ins use those. Only a
-scrypt hash of the password is stored. The account can be changed under Settings → Connection with the current password,
-or with the access key when the password is forgotten (the sign-in screen offers the key too). Ten wrong passwords from
-one address within 15 minutes make it wait. Scripts keep sending the key as `Authorization: Bearer`.
+The key works only from the server's own computer (a loopback address, or through a trusted proxy that forwards one);
+everyone else, the owner included, signs in with their Leaf Bot account and reaches the server through the tunnel.
+Scripts on that computer keep sending the key as `Authorization: Bearer`.
 
 Checks:
 
@@ -423,7 +427,7 @@ link, for a bookmark, a dashboard or a script. Opening one only shows the chat; 
 
 ## Calling a bot from a script
 
-Each bot can be called over HTTP with the server's access key. The message is answered in a
+Each bot can be called over HTTP with the server's access key, from the server's own computer. The message is answered in a
 conversation of its own ("Through the API" in the conversation menu), and the reply comes back when
 the turn ends:
 
@@ -451,7 +455,7 @@ The server reads these environment variables:
 | `LEAFBOT_PORT`                  | `4319`              | Port to listen on                                                       |
 | `LEAFBOT_DATA_DIR`              | `./data`            | Bot workspaces, access key, vault key and the embedded database         |
 | `DATABASE_URL`                  | —                   | `postgres://…` connection string; unset means embedded PGlite           |
-| `LEAFBOT_ACCESS_KEY`            | generated           | Key used to sign in to the server                                       |
+| `LEAFBOT_ACCESS_KEY`            | generated           | Key for signing in and scripts on the server's own computer             |
 | `LEAFBOT_ALLOWED_HOSTS`         | —                   | Comma-separated host names accepted besides loopback                    |
 | `LEAFBOT_ALLOWED_ORIGINS`       | —                   | Comma-separated extra browser origins                                   |
 | `LEAFBOT_SECURE_COOKIES`        | `0`                 | `1` when served over HTTPS                                              |

@@ -6,7 +6,7 @@ import { PillButton, Section } from '@/components/page';
 import { shareFile } from '@/components/panel/files';
 import { Hint, Pad, Rows } from '../common/controls';
 import { t } from '@/i18n';
-import { useApi, useServer } from '@/lib/server';
+import { useApi } from '@/lib/server';
 
 /** The smallest backup password the server takes. */
 const MIN_PASSWORD = 12;
@@ -17,7 +17,6 @@ const MIN_PASSWORD = 12;
  */
 export function Backup() {
   const api = useApi();
-  const { origin } = useServer();
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const save = async () => {
@@ -25,7 +24,7 @@ export function Backup() {
     try {
       const { id } = await api.createBackup(password);
       const day = new Date().toISOString().slice(0, 10);
-      await shareFile(`${origin}/api/backup/${id}`, `leafbot-backup-${day}.ybk`);
+      await shareFile(`/api/backup/${id}`, `leafbot-backup-${day}.ybk`);
       setPassword('');
     } catch (e) {
       toastError(e);

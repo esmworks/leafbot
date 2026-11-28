@@ -5,7 +5,8 @@ import type {
   ServerToClientEvents,
   TurnEvent,
 } from '@leafbot/shared';
-import { io, type Socket } from 'socket.io-client';
+import type { Tunnel } from '@leafbot/client/tunnel';
+import { io, type Socket, WebSocket as WebSocketTransport } from 'socket.io-client';
 import { answerAsk, chromeBrowser, type Browser } from '../share';
 
 export interface LiveHandlers {
@@ -24,13 +25,21 @@ export class Live {
   private socket: Socket<ServerToClientEvents, ClientToServerEvents>;
   private sharing: boolean;
   private browser: Browser;
-  private origin: string;
 
-  constructor(origin: string, sharing: boolean, askToRead: Browser['askToRead'], h: LiveHandlers) {
+  constructor(tunnel: Tunnel, sharing: boolean, askToRead: Browser['askToRead'], h: LiveHandlers) {
     this.sharing = sharing;
-    this.origin = origin;
     this.browser = chromeBrowser(askToRead);
-    this.socket = io(origin, { path: '/socket.io', withCredentials: true });
+    // Each connection is a channel of its own in the tunnel; the server never sees an address.
+    this.socket = io({
+      path: '/socket.io',
+      transports: [
+        class TunnelTransport extends WebSocketTransport {
+          override createSocket() {
+            return tunnel.realtime() as unknown as WebSocket;
+          }
+        },
+      ],
+    });
     this.socket.on('connect', () => {
       this.socket.emit('chrome:offer', this.sharing);
       h.onConnected(true);
@@ -41,7 +50,8 @@ export class Live {
     this.socket.on('refresh', h.onRefresh);
     // Answered with what sharing is at the moment of the question, not when the panel opened.
     this.socket.on('chrome:ask', (ask, ack) => {
-      void answerAsk(ask, this.sharing, this.browser, this.origin).then(ack);
+      // No page of the server is open in Chrome over the tunnel, so no site is the server's own.
+      void answerAsk(ask, this.sharing, this.browser, '').then(ack);
     });
   }
 

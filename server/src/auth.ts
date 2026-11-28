@@ -1,7 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CHROME_EXTENSION_ORIGIN, type Params, type Role, type SessionInfo } from '@leafbot/shared';
+import type { Params, Role, SessionInfo } from '@leafbot/shared';
 import { and, desc, eq } from 'drizzle-orm';
 import type { Config } from './config';
 import { schema, type Db } from './db';
@@ -59,14 +59,44 @@ export function clientAddress(
   socketAddress: string,
   config: Pick<Config, 'proxySecret'>,
 ): string {
-  const sent = headers[PROXY_HEADER] ?? headers[OLD_PROXY_HEADER];
-  if (!config.proxySecret || typeof sent !== 'string') return socketAddress;
-  const a = Buffer.from(sent);
-  const b = Buffer.from(config.proxySecret);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return socketAddress;
+  if (!fromTrustedProxy(headers, config)) return socketAddress;
   const forwarded = headers['x-forwarded-for'];
   const last = (Array.isArray(forwarded) ? forwarded.join(',') : (forwarded ?? '')).split(',').at(-1)?.trim();
   return last || socketAddress;
+}
+
+/** Whether the request carries the reverse proxy's secret, so its X-Forwarded-For can be believed. */
+function fromTrustedProxy(
+  headers: Record<string, string | string[] | undefined>,
+  config: Pick<Config, 'proxySecret'>,
+): boolean {
+  const sent = headers[PROXY_HEADER] ?? headers[OLD_PROXY_HEADER];
+  if (!config.proxySecret || typeof sent !== 'string') return false;
+  const a = Buffer.from(sent);
+  const b = Buffer.from(config.proxySecret);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** Whether an address is this computer's own (IPv4 loopback, IPv6 loopback, or IPv4 mapped into IPv6). */
+export function isLoopback(address: string): boolean {
+  const a = address.trim().toLowerCase();
+  return a === '::1' || /^(::ffff:)?127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(a);
+}
+
+/**
+ * Whether a request comes from the computer the server runs on. The access key, the way in when the
+ * account cannot be reached, works only from there. A request a reverse proxy passed on names where
+ * it came from: from a proxy proven by its secret, that address counts; from any other, a forwarding
+ * header at all means it came from elsewhere, even when the proxy itself sits on this computer.
+ */
+export function isLocalRequest(
+  headers: Record<string, string | string[] | undefined>,
+  socketAddress: string,
+  config: Pick<Config, 'proxySecret'>,
+): boolean {
+  if (fromTrustedProxy(headers, config)) return isLoopback(clientAddress(headers, socketAddress, config));
+  if (headers['x-forwarded-for'] || headers['forwarded'] || headers['x-real-ip']) return false;
+  return isLoopback(socketAddress);
 }
 
 /**
@@ -146,10 +176,6 @@ export function checkHostOrigin(
   const origin = meta.origin;
   if (origin === undefined) return null;
   if (origin === 'null') return refuse('error.originNull');
-  // The Leaf Bot extension's own pages (its side panel in Chrome), and no other extension's: the
-  // id comes from the extension's key, and a web page cannot send an extension's origin. Its
-  // requests still sign in like any other, with the session of a paired device.
-  if (origin === CHROME_EXTENSION_ORIGIN) return null;
   let url: URL;
   try {
     url = new URL(origin);
@@ -160,15 +186,6 @@ export function checkHostOrigin(
   if (config.allowedOrigins.includes(url.origin)) return null;
   return refuse('error.originNotAllowed', { origin });
 }
-
-/** How long a pairing code works, and how many may wait at once. */
-export const PAIRING_MS = 5 * 60_000;
-const MAX_PAIRING_CODES = 5;
-/** Letters and digits that cannot be mistaken for each other when read off a screen. */
-const PAIRING_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-
-/** A pairing code as typed: case, spaces and dashes do not matter. */
-export const normalizePairingCode = (code: string) => code.toUpperCase().replace(/[^A-Z0-9]/g, '');
 
 /** Who a request comes from, and how it proved it. */
 export interface Principal {
@@ -213,11 +230,7 @@ export class Auth {
   private cache = new Map<string, SeenSession>();
   /** Tunnelled people's roles by person, read again after a minute like a session's. */
   private tunnelCache = new Map<string, { role: Role; at: number }>();
-  /** Pairing codes waiting to be used, by hash, with whose they are and when each stops working. */
-  private pairing = new Map<string, { userId: string; until: number }>();
   readonly users: Users;
-  /** Wrong passwords and pairing codes. */
-  readonly throttle = new LoginThrottle();
   /** Wrong access keys, at sign-in and as a Bearer key. */
   readonly keyThrottle = new LoginThrottle();
   constructor(
@@ -229,31 +242,6 @@ export class Auth {
 
   checkKey(candidate: string): boolean {
     return sameSecret(candidate, this.key);
-  }
-
-  /**
-   * A code that signs one more device in, once, within five minutes: typed on a phone or another
-   * computer instead of the password or the access key. Only a signed-in device makes one, and
-   * the new device signs in as the same person.
-   */
-  createPairingCode(userId: string, now = Date.now()): { code: string; expiresAt: string } {
-    for (const [h, p] of this.pairing) if (p.until <= now) this.pairing.delete(h);
-    // The oldest goes first when too many wait.
-    while (this.pairing.size >= MAX_PAIRING_CODES) this.pairing.delete(this.pairing.keys().next().value!);
-    const bytes = randomBytes(8);
-    const raw = [...bytes].map((b) => PAIRING_ALPHABET[b % PAIRING_ALPHABET.length]).join('');
-    const until = now + PAIRING_MS;
-    this.pairing.set(hashSession(raw), { userId, until });
-    return { code: `${raw.slice(0, 4)}-${raw.slice(4)}`, expiresAt: new Date(until).toISOString() };
-  }
-
-  /** Spends a pairing code: once, for a code that is still good, whose person it signs in as. */
-  usePairingCode(code: string, now = Date.now()): string | null {
-    const h = hashSession(normalizePairingCode(code));
-    const p = this.pairing.get(h);
-    if (p === undefined) return null;
-    this.pairing.delete(h);
-    return p.until > now ? p.userId : null;
   }
 
   async createSession(userId: string, userAgent?: string): Promise<string> {
@@ -338,13 +326,12 @@ export class Auth {
 
   /**
    * Forgets what was remembered about a person's sessions, so a new role counts from their next
-   * request; with `signOut`, ends every session and pairing code of theirs too.
+   * request; with `signOut`, ends every session of theirs too.
    */
   async forgetPerson(userId: string, signOut: boolean) {
     for (const [id, seen] of this.cache) if (seen.userId === userId) this.cache.delete(id);
     this.tunnelCache.delete(userId);
     if (!signOut) return;
-    for (const [h, p] of this.pairing) if (p.userId === userId) this.pairing.delete(h);
     await this.db.delete(schema.sessions).where(eq(schema.sessions.userId, userId));
   }
 
@@ -378,15 +365,18 @@ export class Auth {
   /**
    * Bearer key or session cookie. With the address the request comes from, wrong Bearer keys
    * count against it like wrong passwords, and an address with too many is refused (429). The
-   * access key is the owner's.
+   * access key is the owner's, and works only from this computer (`local`): from anywhere else a
+   * person comes through their account.
    */
   async authenticate(
     headers: { authorization?: string | undefined },
     cookie: string | undefined,
     from?: string,
+    local = true,
   ): Promise<Principal | null> {
     const auth = headers.authorization;
     if (auth?.startsWith('Bearer ')) {
+      if (!local) return null;
       const attempt = from === undefined ? null : this.keyThrottle.attempt(from, { shared: false });
       if (from !== undefined && !attempt) throw new HttpError(429, 'error.loginBlocked');
       if (!this.checkKey(auth.slice(7).trim())) return null;

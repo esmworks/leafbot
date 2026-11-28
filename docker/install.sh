@@ -18,7 +18,7 @@
 # variable because sudo's log and `ps` show both; it reaches the second stage in the environment.
 #
 # Afterwards the `leafbot` command runs the same script: leafbot update | status | logs | restart | access-key |
-# login.
+# login | phone.
 #
 # It works in two stages. The first, possibly piped from the internet, only fetches the chosen release
 # into the installation folder; it then hands over to that release's own copy of this script, so the
@@ -68,6 +68,7 @@ Komutlar:
   restart       Kapsayıcıları yeniden başlatır
   access-key    Erişim anahtarını gösterir
   login         Leaf Bot hesabınıza e-posta koduyla girip sunucuyu hesaba bağlar
+  phone         Telefon uygulamasını ya da Chrome eklentisini hesabınıza bağlayan QR kodu gösterir
   compose ...   docker compose'u bu kurulumun dosyalarıyla çalıştırır
 
 Seçenekler:
@@ -98,6 +99,7 @@ Commands:
   restart       Restart the containers
   access-key    Show the access key
   login         Sign in to your Leaf Bot account with an email code and link the server to it
+  phone         Show the QR code that signs the phone app or the Chrome extension in to your account
   compose ...   Run docker compose with this installation's files
 
 Options:
@@ -123,7 +125,7 @@ need_value() { [ "$2" -ge 2 ] || die "$1 bir değer ister" "$1 needs a value"; }
 parse_args() {
   while [ $# -gt 0 ]; do
     case $1 in
-      install | update | status | restart | access-key | login)
+      install | update | status | restart | access-key | login | phone)
         COMMAND=$1
         shift
         ;;
@@ -288,6 +290,10 @@ manage() {
         say "Sunucu çalışmıyor; başlatmak için: sudo leafbot restart" \
           "The server is not running; start it with: sudo leafbot restart"
       fi
+      ;;
+    phone)
+      # Asks the running server for a one-time code of the account it is linked to.
+      compose exec -e LANG="$UI" leafbot node dist/index.mjs phone
       ;;
     compose) compose "${REST[@]}" ;;
   esac
@@ -677,13 +683,13 @@ summary() {
     say "Leaf Bot hesabınıza bağlandı. Botlarınıza www.leafbot.app/bots adresinden ya da hesabınızla girdiğiniz uygulamadan ulaşın." \
       "Leaf Bot is connected to your account. Reach your bots at www.leafbot.app/bots, or in the app signed in with your account."
   else
-    say "Adresi açıp erişim anahtarıyla girin; ardından bir kullanıcı adı ve şifre seçersiniz. Masaüstü ya da telefon uygulamasından bağlanmak için bağlantı ayarlarına bu adresi ve anahtarı yazın." \
-      "Open the address and sign in with the access key; you then choose a user name and password. To connect the desktop or phone app, enter this address and key in its connection settings."
-    say "Leaf Bot hesabınızla her yerden ulaşmak için girin: sudo leafbot login" \
-      "To reach it from anywhere through your Leaf Bot account, sign in: sudo leafbot login"
+    say "Botlarınıza Leaf Bot hesabınızla ulaşırsınız; önce sunucuyu hesabınıza bağlayın: sudo leafbot login" \
+      "You reach your bots through your Leaf Bot account; first link the server to it: sudo leafbot login"
   fi
-  say "Komutlar: leafbot status | logs | update | restart | access-key | login" \
-    "Commands: leafbot status | logs | update | restart | access-key | login"
+  say "Telefon uygulamasını ya da Chrome eklentisini bağlamak için: sudo leafbot phone" \
+    "To sign the phone app or the Chrome extension in: sudo leafbot phone"
+  say "Komutlar: leafbot status | logs | update | restart | access-key | login | phone" \
+    "Commands: leafbot status | logs | update | restart | access-key | login | phone"
   say "Yedek: uygulamadaki şifreli tam yedek ya da $DIR/docker/.env dosyası ile Docker birimleri." \
     "Backups: the password-sealed full backup in the app, or $DIR/docker/.env together with the Docker volumes."
 }
@@ -705,7 +711,7 @@ main() {
     [ -z "$saved" ] || UI=$saved
   fi
   case $COMMAND in
-    status | logs | restart | access-key | login | compose)
+    status | logs | restart | access-key | login | phone | compose)
       manage
       return
       ;;

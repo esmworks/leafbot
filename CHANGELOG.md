@@ -7,6 +7,23 @@ version is 0.x, a minor release may change the data format or the API; the serve
 
 ### Added
 
+- One way in for everyone: the Leaf Bot account. The app, the desktop app, the phone app and the Chrome extension
+  reach a server through the person's account and the tunnel, never by its address. A device already signed in
+  shows a one-time code as a QR code under Settings → Connection → Connect another device; the phone app scans it,
+  and the Chrome extension takes it typed. The code works once, for two minutes. On a server linked to an account,
+  `leafbot phone` prints the same QR code in the terminal for the server's owner.
+- Settings → People has "Unlink account" for a person who came in with an account: the account loses its way into
+  the server, and the person, with what is theirs, stays for a new invite. A role changed here, or a person removed
+  here, is changed at the account too, so the account's list and the server agree.
+- The desktop app opens the servers of the Leaf Bot account in its window (Settings → Connection, and the first
+  start), and keeps its offers to a server (the way out to the web, the Mac's apps) through the tunnel.
+
+- People are invited through the Leaf Bot account. Settings → People → Invite sends an invite to an email address;
+  with its link the person signs in to their account (made with that email if they have none) and comes to the
+  server. Someone already on the server who signs in with a username and password gets "Invite to an account" on
+  their row: when they accept, they come in with their account as the same person, with their role, bots,
+  conversations and notes, instead of as someone new. Pending invites are listed there and can be taken back. A
+  server needs to be linked to an account to invite; adding a person with a password is no longer offered there.
 - Team spaces and a Private for everyone. Every new bot starts in its maker's Private, which nobody else sees; moved
   into a team space, it is open to the people in that space, who can talk with it (and change it, when the space
   lets its people change its bots). The sidebar lists the team spaces the person is in, then their Private with
@@ -431,6 +448,21 @@ version is 0.x, a minor release may change the data format or the API; the serve
   and offers to try again.
 - Streamed replies are drawn once per screen refresh instead of once per word.
 - Messages held while the connection was away are sent again as soon as it is back, instead of after a wait.
+
+### Removed
+
+- Signing in with a username and password, with a pairing code, and connecting to a server by its address, in the
+  app, the desktop app, the phone app and the Chrome extension; and `POST /api/login`, `/api/pair`,
+  `/api/pairing`, `GET`/`PUT /api/account` and `POST /api/people`. Every sign-in made those ways ends with this
+  update. The access key now works only from the server's own computer (or through a proxy that proves itself with
+  `LEAFBOT_PROXY_SECRET` and forwards such an address), for the owner when the account cannot be reached and for
+  scripts there. To move over: link the server to your account (the `login` command, or Settings → Connection),
+  invite each person from Settings → People (someone already on the server comes back as the same person), and sign
+  the phone app and the Chrome extension in with the QR code. Passwords stay in the database, unused.
+- In the phone app (0.10.0, a new install from the store, not an update over the air): the list of signed-in
+  devices, the live picture of the computer's screen, copying a link to a conversation or the run command, and
+  sharing files over 64 MB, since these needed a cookie or a direct address the tunnel does not give. A link to a
+  connect code only fills the code in; the phone signs in when the person taps Connect.
 
 ### Fixed
 

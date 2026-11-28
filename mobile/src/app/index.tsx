@@ -1,56 +1,118 @@
 import { useQuery } from '@tanstack/react-query';
 import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
-import { CreateAccount } from '@/components/settings/connect/AccountSetup';
-import { Button, FormScreen, Hint, Title } from '@/components/ui';
+import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
+import { Button, FormScreen, Hint, Mark, Title } from '@/components/ui';
 import { t } from '@/i18n';
-import { hostOf } from '@/lib/address';
+import { WEBSITE_URL } from '@/lib/account';
+import { reasonKey } from '@/lib/linkText';
 import { useBots, useSettings } from '@/lib/queries';
 import { useApi, useServer } from '@/lib/server';
 import { useColors } from '@/lib/theme';
 
-/** Opens the right screen: the address form, sign-in, or the bots once signed in. */
+/**
+ * Opens the right screen for where the phone stands: the connect code when signed out, the list of
+ * servers when there is a choice, a word about what is wrong when the account or the server cannot
+ * be reached, and once the tunnel is open the first-run questions or the bots.
+ */
 export default function Start() {
-  const { ready, origin } = useServer();
-  if (!ready) return <Waiting />;
-  if (!origin) return <Redirect href="/connect" />;
-  return <Signed origin={origin} />;
+  const server = useServer();
+  switch (server.phase) {
+    case 'loading':
+      return <Waiting />;
+    case 'signedOut':
+      return <Redirect href="/connect" />;
+    case 'choose':
+      return <Redirect href="/servers" />;
+    case 'accountDown':
+      return (
+        <State title={t('start.accountDown.title')} text={t('start.accountDown.text')}>
+          <Button label={t('common.retry')} onPress={server.refresh} />
+          <Button label={t('bots.logout')} variant="ghost" onPress={() => void server.signOut()} />
+        </State>
+      );
+    case 'noServers':
+      return (
+        <State title={t('start.noServers.title')} text={t('start.noServers.text')}>
+          <Button label={t('start.noServers.open')} onPress={() => void Linking.openURL(WEBSITE_URL)} />
+          <Button label={t('common.retry')} variant="ghost" onPress={server.refresh} />
+          <Button label={t('bots.logout')} variant="ghost" onPress={() => void server.signOut()} />
+        </State>
+      );
+    case 'connecting':
+      return <Waiting text={t('link.connecting', { name: server.server?.name ?? '' })} />;
+    case 'retrying': {
+      const offline = server.reason === 'offline';
+      return (
+        <State
+          title={t(offline ? 'link.offline.title' : 'link.retrying.title', {
+            name: server.server?.name ?? '',
+          })}
+          text={t(reasonKey(server.reason))}
+          busy
+        >
+          <Button label={t('common.retry')} onPress={server.refresh} />
+          <Others />
+        </State>
+      );
+    }
+    case 'refused':
+      return (
+        <State
+          title={t('link.refused.title', { name: server.server?.name ?? '' })}
+          text={t(reasonKey(server.reason))}
+        >
+          <Button label={t('common.retry')} onPress={server.refresh} />
+          <Others />
+        </State>
+      );
+    case 'online':
+      return <Authed />;
+  }
 }
 
-function Signed({ origin }: { origin: string }) {
-  const api = useApi();
-  const session = useQuery({ queryKey: ['session', origin], queryFn: api.session });
-  if (session.isPending) return <Waiting />;
-  if (session.isError) {
-    return (
-      <FormScreen>
-        <Title>{t('offline.title')}</Title>
-        <Hint>{t('offline.text', { host: hostOf(origin) })}</Hint>
-        <Button label={t('common.retry')} busy={session.isFetching} onPress={() => void session.refetch()} />
-        <Button label={t('offline.change')} variant="ghost" onPress={() => router.push('/connect')} />
-      </FormScreen>
-    );
-  }
-  return session.data.authenticated ? <Authed origin={origin} /> : <Redirect href="/login" />;
+/** Choosing another server, when the account has more than one, and signing out. */
+function Others() {
+  const { servers, signOut } = useServer();
+  return (
+    <>
+      {servers.length > 1 ? (
+        <Button label={t('link.otherServer')} variant="ghost" onPress={() => router.push('/servers')} />
+      ) : null}
+      <Button label={t('bots.logout')} variant="ghost" onPress={() => void signOut()} />
+    </>
+  );
 }
 
 /**
- * A server without an account asks for one right after the key. Then the first-run questions on a
- * server that has no bots and says they were never answered; otherwise the bots. Decided once, so
- * bots made during the questions do not cut them off. A server older than the questions sends no
- * `onboarded` and goes straight to the bots.
+ * The tunnel is open. The server knows the person it proved; if it does not, or cannot be asked,
+ * that is said. Then the first-run questions on a server that has no bots and says they were never
+ * answered; otherwise the bots. Decided once, so bots made during the questions do not cut them
+ * off. A server older than the questions sends no `onboarded` and goes straight to the bots.
  */
-function Authed({ origin }: { origin: string }) {
+function Authed() {
+  const { origin, refresh, signOut } = useServer();
   const api = useApi();
-  const account = useQuery({ queryKey: ['account', origin], queryFn: api.account, retry: false });
-  const [accountDone, setAccountDone] = useState(false);
+  const session = useQuery({ queryKey: ['session', origin], queryFn: api.session });
   const settings = useSettings();
   const bots = useBots();
   const [onboarding, setOnboarding] = useState<boolean | null>(null);
-  if (!accountDone) {
-    if (account.isPending) return <Waiting />;
-    if (account.data?.username === null) return <CreateAccount onDone={() => setAccountDone(true)} />;
+  if (session.isPending) return <Waiting />;
+  if (session.isError) {
+    return (
+      <State title={t('start.noAnswer.title')} text={t('start.noAnswer.text')}>
+        <Button label={t('common.retry')} busy={session.isFetching} onPress={() => void session.refetch()} />
+        <Button label={t('bots.logout')} variant="ghost" onPress={() => void signOut()} />
+      </State>
+    );
+  }
+  if (!session.data.authenticated) {
+    return (
+      <State title={t('link.refused.title', { name: '' })} text={t('link.reason.access')}>
+        <Button label={t('common.retry')} onPress={refresh} />
+        <Others />
+      </State>
+    );
   }
   if (onboarding === null) {
     const first =
@@ -66,13 +128,39 @@ function Authed({ origin }: { origin: string }) {
   return <Redirect href={onboarding ? '/onboarding' : '/bots'} />;
 }
 
-function Waiting() {
+function State({
+  title,
+  text,
+  busy,
+  children,
+}: {
+  title: string;
+  text: string;
+  busy?: boolean;
+  children: React.ReactNode;
+}) {
+  const c = useColors();
+  return (
+    <FormScreen>
+      <Mark />
+      <Title>{title}</Title>
+      <Hint>{text}</Hint>
+      {busy ? <ActivityIndicator color={c.mutedForeground} /> : null}
+      {children}
+    </FormScreen>
+  );
+}
+
+function Waiting({ text }: { text?: string }) {
   const c = useColors();
   return (
     <View style={[styles.center, { backgroundColor: c.background }]}>
       <ActivityIndicator color={c.mutedForeground} />
+      {text ? <Hint>{text}</Hint> : null}
     </View>
   );
 }
 
-const styles = StyleSheet.create({ center: { flex: 1, alignItems: 'center', justifyContent: 'center' } });
+const styles = StyleSheet.create({
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+});

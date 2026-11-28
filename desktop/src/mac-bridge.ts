@@ -12,8 +12,9 @@ import {
   MacRequest,
   type MacShot,
 } from '@leafbot/shared/mac';
-import { io, type Socket } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import type { CommandJobs } from './commands';
+import { tunnelSocket, type Carrier, type TunnelListener } from './tunnel-socket';
 
 /**
  * This Mac offered to the bots of a server elsewhere. The server sends requests over a socket;
@@ -170,10 +171,8 @@ export class MacGate {
 }
 
 export interface MacBridgeOptions extends MacGateOptions {
-  /** The server's address. */
-  url: string;
-  /** The sign-in for the connection: the window's session cookie, else the access key. */
-  headers(): Promise<Record<string, string>>;
+  /** Tells this offer when the tunnel to the account server opens and ends. */
+  tunnel(listener: TunnelListener): () => void;
   /** How this Mac is named on the server. */
   device: string;
   log(level: 'info' | 'warn', message: string): void;
@@ -182,54 +181,56 @@ export interface MacBridgeOptions extends MacGateOptions {
 /** Connects this Mac to the server and answers its requests through a `MacGate`, until stopped. */
 export function startMacBridge(o: MacBridgeOptions): { gate: MacGate; stop(): void } {
   const gate = new MacGate(o);
-  let stopped = false;
-  const socket: Socket = io(`${o.url}${MAC_NAMESPACE}`, {
-    path: '/socket.io',
-    transports: ['websocket'],
-    auth: { device: o.device, commands: !!o.commands },
-    autoConnect: false,
-    reconnectionDelay: 2_000,
-    reconnectionDelayMax: 60_000,
-  });
-  const signIn = async () => {
-    socket.io.opts.extraHeaders = await o.headers().catch(() => ({}));
-  };
-  socket.on('connect', () => {
-    o.log('info', 'mac: connected');
-    // First the ends the server missed, then the jobs still running, so it closes as lost only
-    // the ones this computer no longer has.
-    o.commands?.attach((event) => {
-      if (!socket.connected) return false;
-      socket.emit(MAC_JOB_EVENT, event);
-      return true;
+  let stopSocket: (() => void) | null = null;
+
+  const attach = (tunnel: Carrier | null) => {
+    stopSocket?.();
+    stopSocket = null;
+    if (!tunnel) {
+      // A use the person allowed belongs to the connection it was allowed on; a new one asks again.
+      gate.end();
+      o.commands?.attach(null);
+      return;
+    }
+    const socket: Socket = tunnelSocket(tunnel, MAC_NAMESPACE, {
+      device: o.device,
+      commands: !!o.commands,
     });
-    socket.emit(MAC_JOBS_EVENT, { running: o.commands?.running().map((j) => j.id) ?? [] });
-  });
-  socket.on(MAC_EVENT, (req: unknown, ack: unknown) => {
-    if (typeof ack !== 'function') return;
-    void gate.handle(req).then((r) => (ack as (r: unknown) => void)(r));
-  });
-  socket.on('disconnect', (reason) => {
-    // A use the person allowed belongs to this connection; a new one asks again. Jobs go on.
-    gate.end();
-    o.commands?.attach(null);
-    o.log('info', `mac: disconnected (${reason})`);
-  });
-  socket.on('connect_error', (err) => {
-    o.log('warn', `mac: ${err.message}`);
-    void signIn();
-  });
-  void (async () => {
-    await signIn();
-    if (!stopped) socket.connect();
-  })();
+    socket.on('connect', () => {
+      o.log('info', 'mac: connected');
+      // First the ends the server missed, then the jobs still running, so it closes as lost only
+      // the ones this computer no longer has.
+      o.commands?.attach((event) => {
+        if (!socket.connected) return false;
+        socket.emit(MAC_JOB_EVENT, event);
+        return true;
+      });
+      socket.emit(MAC_JOBS_EVENT, { running: o.commands?.running().map((j) => j.id) ?? [] });
+    });
+    socket.on(MAC_EVENT, (req: unknown, ack: unknown) => {
+      if (typeof ack !== 'function') return;
+      void gate.handle(req).then((r) => (ack as (r: unknown) => void)(r));
+    });
+    socket.on('disconnect', (reason) => {
+      // A use the person allowed belongs to this connection; a new one asks again. Jobs go on.
+      gate.end();
+      o.commands?.attach(null);
+      o.log('info', `mac: disconnected (${reason})`);
+    });
+    socket.on('connect_error', (err) => o.log('warn', `mac: ${err.message}`));
+    socket.connect();
+    stopSocket = () => socket.disconnect();
+  };
+
+  const unsubscribe = o.tunnel(attach);
   return {
     gate,
     stop() {
-      stopped = true;
+      unsubscribe();
+      stopSocket?.();
+      stopSocket = null;
       o.commands?.attach(null);
       gate.close();
-      socket.disconnect();
     },
   };
 }

@@ -4,8 +4,10 @@
  * - `key` is the public half of the extension's key: it fixes the id, so the server can let
  *   exactly this extension's pages in (`CHROME_EXTENSION_ID` in `shared/src/chrome.ts`). A test
  *   checks that the two agree.
- * - No site is reachable at install. The person's own server, and each site a bot may read, are
- *   asked for one at a time with Chrome's own prompt (`optional_host_permissions`).
+ * - At install only the Leaf Bot account's host is reachable (`host_permissions`): the panel signs
+ *   in there and asks it for tickets; servers are reached through the tunnel, never by address.
+ *   Each site a bot may read is asked for one at a time with Chrome's own prompt
+ *   (`optional_host_permissions`).
  * - `tabs` lists the address and title of the open tabs for the bots; `scripting` reads the text
  *   of a page the person allowed.
  */
@@ -34,6 +36,7 @@ export function manifest(version: string) {
     side_panel: { default_path: 'sidepanel.html' },
     background: { service_worker: 'background.js', type: 'module' },
     permissions: ['sidePanel', 'storage', 'tabs', 'scripting'],
+    host_permissions: ['https://api.leafbot.app/*'],
     optional_host_permissions: ['http://*/*', 'https://*/*'],
   };
 }

@@ -7,6 +7,7 @@ import {
   type TurnEvent,
 } from '@leafbot/shared';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Tunnel } from '@leafbot/client/tunnel';
 import { apiFor } from '../api';
 import { t, uiLocale } from '../i18n';
 import { sitePattern } from '../share';
@@ -40,9 +41,9 @@ function when(iso: string | null): string {
 export type LiveEvent =
   { kind: 'delta'; e: DeltaEvent } | { kind: 'turn'; e: TurnEvent } | { kind: 'refresh'; e: RefreshScope };
 
-export function Home(props: { origin: string; sharing: boolean; onDisconnect: () => void }) {
-  const { origin } = props;
-  const api = useMemo(() => apiFor(origin), [origin]);
+export function Home(props: { tunnel: Tunnel; appUrl: string; sharing: boolean; onDisconnect: () => void }) {
+  const { tunnel, appUrl } = props;
+  const api = useMemo(() => apiFor(tunnel), [tunnel]);
   const [sharing, setSharing] = useState(props.sharing);
   const [connected, setConnected] = useState(true);
   const [bots, setBots] = useState<Bot[] | null>(null);
@@ -73,7 +74,7 @@ export function Home(props: { origin: string; sharing: boolean; onDisconnect: ()
   const sharingNow = useRef(sharing);
   useEffect(() => {
     const emit = (e: LiveEvent) => listeners.current.forEach((fn) => fn(e));
-    const l = new Live(origin, sharingNow.current, askToRead, {
+    const l = new Live(tunnel, sharingNow.current, askToRead, {
       onConnected: setConnected,
       onDelta: (e) => emit({ kind: 'delta', e }),
       onTurn: (e) => {
@@ -93,7 +94,7 @@ export function Home(props: { origin: string; sharing: boolean; onDisconnect: ()
       l.close();
       live.current = null;
     };
-  }, [origin, api, askToRead]);
+  }, [tunnel, api, askToRead]);
 
   useEffect(() => {
     void api.bots().then(setBots);
@@ -174,7 +175,7 @@ export function Home(props: { origin: string; sharing: boolean; onDisconnect: ()
         </div>
       ))}
       {bot ? (
-        <Chat key={bot.id} api={api} origin={origin} bot={bot} panelId={panelId} subscribe={subscribe} />
+        <Chat key={bot.id} api={api} appUrl={appUrl} bot={bot} panelId={panelId} subscribe={subscribe} />
       ) : (
         <ul className="bots">
           {bots && !sorted.length && <li className="empty">{t('bots.empty')}</li>}

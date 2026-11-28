@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { useT } from '@/i18n';
-import { desktop, useDesktopServer, useDesktopServers } from '@/lib/desktop';
+import { desktop } from '@/lib/desktop';
 
 export type ServerRole = 'owner' | 'admin' | 'member';
 
@@ -32,18 +32,11 @@ export interface ServerSwitch {
   servers: ServerChoice[] | null;
   choose?(id: string): void;
   add?(): void;
-  /**
-   * The desktop shell's own menu of its servers. The shell lists them itself, so a page from a
-   * server elsewhere, perhaps someone else's, never learns the person's other servers.
-   */
-  shellMenu?(): void;
 }
 
 export function useServerSwitch(): ServerSwitch {
   const t = useT();
   const host = useServerHost((s) => s.host);
-  const shown = useDesktopServer();
-  const kept = useDesktopServers();
 
   if (host) {
     const current = host.servers.find((s) => s.current);
@@ -56,21 +49,14 @@ export function useServerSwitch(): ServerSwitch {
     };
   }
 
-  const hostName = (url: string | null) => (url ? new URL(url).host : t('connection.thisComputer'));
+  // The desktop app's own page is this computer's server; the account's servers open in the
+  // window as the website's page, which lists them itself.
   if (desktop) {
-    const name = shown ? hostName(shown.url) : '';
-    if (desktop.serverMenu) {
-      const menu = desktop.serverMenu;
-      return { name, servers: null, shellMenu: () => void menu() };
-    }
-    // Older shells: only this computer's own page may list the servers and switch.
-    const show = desktop.showServer;
-    const connect = desktop.openConnect;
+    const open = desktop.openAccount;
     return {
-      name,
-      servers: kept && kept.map((s) => ({ id: s.id, name: hostName(s.url), current: s.shown })),
-      ...(show ? { choose: (id: string) => void show(id) } : {}),
-      ...(connect ? { add: () => void connect() } : {}),
+      name: t('connection.thisComputer'),
+      servers: null,
+      ...(open ? { add: () => void open() } : {}),
     };
   }
 

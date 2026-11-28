@@ -80,6 +80,13 @@ export const TicketClaims = z.object({
    * again. Absent on a `host` ticket and while the account has no name yet.
    */
   name: z.string().min(1).max(80).optional(),
+  /**
+   * The person on the server the membership's invite was made for, by the server's own id for them.
+   * Someone who was on the server before signing in with an account comes in as that person, with
+   * what is theirs there, rather than as someone new. Absent on a `host` ticket and on memberships
+   * an invite made for no one in particular.
+   */
+  person: Id.optional(),
 });
 export type TicketClaims = z.infer<typeof TicketClaims>;
 

@@ -7,52 +7,19 @@ import {
   type UploadOptions,
 } from '@leafbot/client';
 import { locale, t } from '@/i18n';
-import { xhrUpload } from './xhrUpload';
+import { blobBytes, serverFetch } from './connection';
 
 export { ApiError, NoAnswerError };
 export type { JobView, LibraryFile, Settings } from '@leafbot/client';
 
-/** How long a request may wait for the server before it counts as unreachable. */
-const TIMEOUT_MS = 15_000;
-
-/** How long an upload may go without progress before it counts as stalled. */
-const UPLOAD_IDLE_MS = 60_000;
+/** How long a file may take to go up and be answered. */
+const UPLOAD_MS = 10 * 60_000;
 
 /**
- * `fetch` that gives up after `ms`, so an address that never answers does not hang the screen;
- * `signal` calls it off sooner.
+ * One request to the chosen server, through the tunnel: the person is whoever the tunnel proved, so
+ * there is no cookie, key or origin to send. A `Blob` body goes as it is, anything else as JSON.
  */
-async function fetchWithin(
-  url: string,
-  init: RequestInit,
-  ms: number,
-  signal?: AbortSignal,
-): Promise<Response> {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), ms);
-  const stop = () => ctrl.abort();
-  // Called off before it started (the chip was removed during the wait before a second try).
-  if (signal?.aborted) stop();
-  else signal?.addEventListener('abort', stop, { once: true });
-  try {
-    return await fetch(url, { ...init, signal: ctrl.signal });
-  } finally {
-    clearTimeout(timer);
-    signal?.removeEventListener('abort', stop);
-  }
-}
-
-/**
- * One request to the server at `origin`. The sign-in cookie lives in the phone's own cookie store,
- * which keeps it across launches, so no token is handled here.
- */
-async function request<T>(
-  origin: string,
-  method: string,
-  path: string,
-  body?: unknown,
-  opts: SendOptions = {},
-): Promise<T> {
+async function request<T>(method: string, path: string, body?: unknown, opts: SendOptions = {}): Promise<T> {
   const hasBody = method !== 'GET' && method !== 'DELETE';
   const raw = body instanceof Blob;
   const headers: Record<string, string> = { accept: 'application/json' };
@@ -61,55 +28,30 @@ async function request<T>(
   Object.assign(headers, opts.headers);
   // The server writes its error messages in the language the app asks in.
   headers['accept-language'] = locale;
-  // The server takes a signed-in write only from a page of its own origin; a browser says so in
-  // this header, and the app, which has no page, says it for itself.
-  if (method !== 'GET') headers.origin = origin;
-  const url = `${origin}${path}`;
-  // A file may take as long as the connection needs, so it is cut off only after UPLOAD_IDLE_MS
-  // without progress; everything else waits TIMEOUT_MS in all. Only a runtime with
-  // XMLHttpRequest (the phone) reports upload progress.
-  const answer =
-    raw && typeof XMLHttpRequest !== 'undefined'
-      ? await xhrUpload({
-          url,
-          method,
-          headers,
-          body: body as Blob,
-          idleMs: UPLOAD_IDLE_MS,
-          signal: opts.signal,
-          onProgress: opts.onProgress,
-        })
-      : await fetchWithin(
-          url,
-          {
-            method,
-            credentials: 'include',
-            headers,
-            body: hasBody ? (raw ? body : JSON.stringify(body ?? {})) : undefined,
-          },
-          raw ? 10 * 60_000 : TIMEOUT_MS,
-          opts.signal,
-        ).then(async (res) => ({ ok: res.ok, status: res.status, text: await res.text() }));
-  const { data, reason } = readAnswer(answer.text);
-  if (!answer.ok) {
+  const payload = !hasBody
+    ? null
+    : raw
+      ? await blobBytes(body)
+      : new TextEncoder().encode(JSON.stringify(body ?? {}));
+  // The tunnel reports no progress on a file: it is 0 until the answer comes, then 1.
+  if (raw) opts.onProgress?.(0);
+  const res = await serverFetch(path, {
+    method,
+    headers,
+    body: payload,
+    signal: opts.signal,
+    ...(raw ? { timeoutMs: UPLOAD_MS } : {}),
+  });
+  const { data, reason } = readAnswer(await res.text());
+  if (!res.ok) {
     throw new ApiError(
-      answer.status,
-      reason ?? t('error.requestFailed', { status: answer.status }),
+      res.status,
+      reason ?? t('error.requestFailed', { status: res.status }),
       reason !== null,
     );
   }
+  if (raw) opts.onProgress?.(1);
   return data as T;
-}
-
-/** Whether an LeafBot server answers at the origin. */
-export async function answers(origin: string): Promise<boolean> {
-  try {
-    const res = await fetchWithin(`${origin}/api/health`, {}, 6000);
-    const data = (await res.json()) as { ok?: unknown } | null;
-    return res.status === 200 && data?.ok === true;
-  } catch {
-    return false;
-  }
 }
 
 /** A file picked on the phone, by where it lies on the device. */
@@ -122,9 +64,13 @@ async function blobOf(file: PickedFile): Promise<Blob> {
   return (await fetch(file.uri)).blob();
 }
 
-/** Typed endpoints of the server at `origin`; paths mirror the server routes. */
-export function apiFor(origin: string) {
-  const shared = endpoints((method, path, body, opts) => request(origin, method, path, body, opts), origin);
+/**
+ * Typed endpoints of the chosen server; paths mirror the server routes. The addresses that come
+ * out of it for a file or page (`fileUrl`, `pageUrl`) are paths on the server, not web addresses:
+ * they are read through the tunnel (serverFiles.ts), never handed to an image or a web view.
+ */
+export function apiFor() {
+  const shared = endpoints(request, '');
   return {
     ...shared,
     /**

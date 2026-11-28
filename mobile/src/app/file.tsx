@@ -93,14 +93,14 @@ export default function FileScreen() {
   }
 
   const body = () => {
-    if (kind === 'image') return <ImageView uri={inline} />;
-    if (kind === 'audio' || kind === 'video') return <WebFile uri={inline} kind={kind} />;
+    if (kind === 'image') return <ImageView path={inline} />;
+    if (kind === 'audio' || kind === 'video') return <WebFile path={inline} kind={kind} />;
     // Android's web view does not draw PDFs itself.
     if (kind === 'pdf')
       return Platform.OS === 'android' ? (
         <Message text={t('preview.none')} />
       ) : (
-        <WebFile uri={inline} kind="pdf" />
+        <WebFile path={inline} kind="pdf" />
       );
     if (kind === 'table') return <TableView botId={botId} path={current} url={download} name={name} />;
     if (kind)

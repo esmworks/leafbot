@@ -59,11 +59,11 @@ describe('api', () => {
     expect(call(1).init.keepalive).toBeUndefined();
   });
 
-  it('signs the page out on a refused session, but not on a wrong password', async () => {
+  it('signs the page out on a refused session, but not on a wrong access key', async () => {
     const out = vi.fn();
     setUnauthorizedHandler(out);
     fetchMock.mockImplementation(() => answer(401, '{"error":"yanlış"}'));
-    await expect(api.login('a', 'b')).rejects.toMatchObject({ status: 401, message: 'yanlış' });
+    await expect(api.access('a')).rejects.toMatchObject({ status: 401, message: 'yanlış' });
     expect(out).not.toHaveBeenCalled();
     await expect(api.bots()).rejects.toBeInstanceOf(ApiError);
     expect(out).toHaveBeenCalledTimes(1);

@@ -18,37 +18,3 @@ export function ruleLabel(pattern: string, t: T, apps: ReadonlyMap<string, strin
   if (tool === '*') return `${t('rules.appAllTools', { app })}${scope}`;
   return `${t('rules.appTool', { app, tool })}${scope}`;
 }
-
-/** A short name for the device a user agent string belongs to, such as an app and an OS. */
-export function deviceName(ua: string | null): { app: string | null; os: string | null } {
-  if (!ua) return { app: null, os: null };
-  const os = /iPhone|iPad|iPod/.test(ua)
-    ? 'iOS'
-    : /Android/.test(ua)
-      ? 'Android'
-      : /Mac OS X|Macintosh/.test(ua)
-        ? 'macOS'
-        : /Windows/.test(ua)
-          ? 'Windows'
-          : /CrOS/.test(ua)
-            ? 'ChromeOS'
-            : /Linux/.test(ua)
-              ? 'Linux'
-              : null;
-  // The desktop app's window is Electron and the phone app adds its own mark; both are checked
-  // first, as they also say Chrome or Safari.
-  const app = /Electron\/|LeafBotMobile\//.test(ua)
-    ? 'Leaf Bot'
-    : /Edg\//.test(ua)
-      ? 'Edge'
-      : /OPR\//.test(ua)
-        ? 'Opera'
-        : /Firefox\//.test(ua)
-          ? 'Firefox'
-          : /Chrome\/|CriOS\//.test(ua)
-            ? 'Chrome'
-            : /Safari\//.test(ua)
-              ? 'Safari'
-              : null;
-  return { app, os };
-}

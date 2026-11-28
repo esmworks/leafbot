@@ -10,7 +10,8 @@ const SHOWN = new Set<Message['role']>(['user', 'assistant', 'approval', 'error'
 
 interface Props {
   api: Api;
-  origin: string;
+  /** The bot's page in Leaf Bot on the website. */
+  appUrl: string;
   bot: Bot;
   /** The panel's socket while it shares Chrome, sent with each message (see `Live.panelId`). */
   panelId: () => string | undefined;
@@ -18,7 +19,7 @@ interface Props {
 }
 
 /** The bot's main conversation with the person, as in the app, in a narrow column. */
-export function Chat({ api, origin, bot, panelId, subscribe }: Props) {
+export function Chat({ api, appUrl, bot, panelId, subscribe }: Props) {
   const [thread, setThread] = useState<Thread | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [cards, setCards] = useState<Approval[]>([]);
@@ -129,7 +130,7 @@ export function Chat({ api, origin, bot, panelId, subscribe }: Props) {
                   <button
                     type="button"
                     className="link"
-                    onClick={() => void chrome.tabs.create({ url: `${origin}/` })}
+                    onClick={() => void chrome.tabs.create({ url: appUrl })}
                   >
                     {t('card.inApp')}
                   </button>
@@ -158,7 +159,7 @@ export function Chat({ api, origin, bot, panelId, subscribe }: Props) {
           <button
             type="button"
             className="link quiet"
-            onClick={() => void chrome.tabs.create({ url: `${origin}/` })}
+            onClick={() => void chrome.tabs.create({ url: appUrl })}
           >
             {t('chat.openApp')}
           </button>

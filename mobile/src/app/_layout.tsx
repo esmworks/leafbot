@@ -1,9 +1,11 @@
+import '@/lib/runtime';
 import { focusManager, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { LinkBanner } from '@/components/LinkBanner';
 import { keepUpright } from '@/lib/orientation';
 import { RealtimeProvider } from '@/lib/realtime';
 import { ServerProvider } from '@/lib/server';
@@ -45,12 +47,13 @@ export default function RootLayout() {
             >
               <Stack.Screen name="index" />
               <Stack.Screen name="connect" />
-              <Stack.Screen name="login" options={{ animation: 'fade' }} />
+              <Stack.Screen name="servers" />
               <Stack.Screen name="bots" options={{ animation: 'fade' }} />
               {/* The editors ask before dropping changes; a swipe back would leave without asking. */}
               <Stack.Screen name="bot-edit" options={{ gestureEnabled: false }} />
               <Stack.Screen name="routine" options={{ gestureEnabled: false }} />
             </Stack>
+            <LinkBanner />
             <Overlays />
           </RealtimeProvider>
         </ServerProvider>

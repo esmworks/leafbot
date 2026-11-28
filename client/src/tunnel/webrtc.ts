@@ -76,6 +76,14 @@ export interface ConnectOptions {
   ticket(): Promise<string>;
   /** How long setting up may take, in ms. */
   timeoutMs?: number;
+  /**
+   * The WebRTC and WebSocket implementations; the globals by default. A runtime without them as
+   * globals (Node, React Native before its globals are registered) passes its own.
+   */
+  rtc?: {
+    RTCPeerConnection: typeof RTCPeerConnection;
+    WebSocket: typeof WebSocket;
+  };
 }
 
 /**
@@ -85,7 +93,9 @@ export interface ConnectOptions {
  */
 export async function connectPeer(opts: ConnectOptions): Promise<Peer> {
   const ticket = await opts.ticket();
-  const ws = new WebSocket(opts.relayUrl);
+  const Rtc = opts.rtc?.RTCPeerConnection ?? globalThis.RTCPeerConnection;
+  const Ws = opts.rtc?.WebSocket ?? globalThis.WebSocket;
+  const ws = new Ws(opts.relayUrl);
   let pc: RTCPeerConnection | null = null;
   const timeoutMs = opts.timeoutMs ?? 40_000;
 
@@ -100,7 +110,7 @@ export async function connectPeer(opts: ConnectOptions): Promise<Peer> {
       };
       const timer = setTimeout(() => fail('timeout'), timeoutMs);
       const send = (msg: SignalInbound) => {
-        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+        if (ws.readyState === Ws.OPEN) ws.send(JSON.stringify(msg));
       };
       let ctl: RTCDataChannel | null = null;
       let offerSdp: string | null = null;
@@ -109,7 +119,7 @@ export async function connectPeer(opts: ConnectOptions): Promise<Peer> {
       const ownCandidates: SignalInbound[] = [];
 
       const start = async (iceServers: IceServer[]) => {
-        pc = new RTCPeerConnection({ iceServers });
+        pc = new Rtc({ iceServers });
         const conn = pc;
         // The first channel must exist before the offer, or the offer carries no data section.
         ctl = conn.createDataChannel(CHANNEL.ctl, { ordered: true });

@@ -1,10 +1,8 @@
 import {
-  type ClientToServerEvents,
   hasGap,
   type LiveText,
   type NoticeEvent,
   type RefreshScope,
-  type ServerToClientEvents,
   seedStream,
   streamEnded,
   type TurnState,
@@ -12,13 +10,12 @@ import {
 import { useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { createContext, useContext, useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { AppState } from 'react-native';
-import { io, type Socket } from 'socket.io-client';
-import { locale } from '@/i18n';
 import { apiFor } from './api';
 import { answerPhone, offeredKinds, onShareChange, sharedKinds } from './phone';
 import { expoDevice } from './phoneDevice';
 import { usePush } from './push';
 import { useServer } from './server';
+import { tunnelSocket } from './tunnelSocket';
 import { appendStream, dropStream, type Stream, type Streams } from './stream';
 
 /** What the socket has said that is not saved on the server yet: replies being written and turn states. */
@@ -190,16 +187,17 @@ export function onNotice(fn: (e: NoticeEvent) => void): () => void {
 
 /**
  * Keeps the socket to the server open while signed in. Pushes only say what changed; anything
- * lasting is refetched over HTTP. The session cookie in the phone's cookie store signs it in.
+ * lasting is refetched over HTTP. The tunnel the phone opened, and the person it proved, signs it in.
  */
 export function RealtimeProvider({ children }: { children: ReactNode }) {
-  const { origin } = useServer();
+  const { origin, phase } = useServer();
   const qc = useQueryClient();
   const [store] = useState(() => new LiveStore());
+  // Asked only while the tunnel is open: a request made before that would wait for it.
   const session = useQuery({
     queryKey: ['session', origin],
-    queryFn: () => apiFor(origin!).session(),
-    enabled: !!origin,
+    queryFn: () => apiFor().session(),
+    enabled: !!origin && phase === 'online',
   });
   const signedIn = session.data?.authenticated === true;
   usePush(origin, signedIn);
@@ -213,17 +211,11 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
 }
 
 function connect(origin: string, qc: QueryClient, store: LiveStore): () => void {
-  const s: Socket<ServerToClientEvents, ClientToServerEvents> = io(origin, {
-    path: '/socket.io',
-    transports: ['websocket'],
-    withCredentials: true,
-    // The server words its refusals in the language the app asks in.
-    extraHeaders: { 'accept-language': locale },
-  });
+  const s = tunnelSocket();
   let bootId: string | null = null;
   const inv = (...queryKey: unknown[]) => void qc.invalidateQueries({ queryKey });
   store.fetchLive = (threadId) =>
-    apiFor(origin)
+    apiFor()
       .live(threadId)
       .then((r) => r.live);
 
@@ -290,10 +282,6 @@ function connect(origin: string, qc: QueryClient, store: LiveStore): () => void 
     } else if (e.state === 'idle') {
       void qc.refetchQueries({ queryKey: ['messages', origin, e.threadId] });
     }
-  });
-  s.on('connect_error', (err) => {
-    // Refused for want of a sign-in (worded in either language): find out whether it ended.
-    if (/anahtar|access key/i.test(err.message)) inv('session', origin);
   });
 
   return () => {

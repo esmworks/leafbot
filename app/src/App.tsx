@@ -44,7 +44,6 @@ import { cn } from '@/lib/utils';
 // Screens most sessions never open load the first time they are shown; the first paint needs only
 // the chat and the sidebar. Dialogs that listen for their own shortcut stay in the main bundle.
 const AccountGate = lazyScreen(() => import('@/features/AccountGate').then((m) => m.AccountGate));
-const CreateAccount = lazyScreen(() => import('@/features/AccountSetup').then((m) => m.CreateAccount));
 const BotFormPage = lazyScreen(() => import('@/features/BotFormPage').then((m) => m.BotFormPage));
 const Onboarding = lazyScreen(() => import('@/features/onboarding/Onboarding').then((m) => m.Onboarding));
 const PhoneScreen = lazyScreen(() => import('@/features/PhoneScreen').then((m) => m.PhoneScreen));
@@ -65,7 +64,6 @@ const LAZY_SCREENS = [
   DashboardsDialog,
   Onboarding,
   AccountGate,
-  CreateAccount,
 ];
 
 // The chosen chat width applies from the first paint.
@@ -133,12 +131,6 @@ function Authed() {
   const settings = useSettings();
   const bots = useBots();
   const [onboarding, setOnboarding] = useState<boolean | null>(null);
-  // In a browser, a server without an account asks for one right after the key: from then on the
-  // username and password sign in. The desktop app signs in by itself and does not ask.
-  // Reached through the account, the person is already known and never makes a server account.
-  const local = !desktop && !viaTunnel();
-  const account = useQuery({ queryKey: ['account'], queryFn: api.account, enabled: local, retry: false });
-  const [accountDone, setAccountDone] = useState(false);
   // The owner signs in to their Leaf Bot account once, before anything else, on a server that is
   // not linked to one; the server links itself on the way. Decided by what the server has stored,
   // never by asking the account service, so the app opens without it once linked. Through the
@@ -187,12 +179,6 @@ function Authed() {
     return <Loading />;
   }
   if (askAccount) return <AccountGate onDone={() => setAskAccount(false)} />;
-  // Signed in through the account, the owner needs no username and password of the server's own.
-  const viaAccount = accountHost.data?.linked === true;
-  if (local && !accountDone && !viaAccount) {
-    if (account.isPending) return <Loading />;
-    if (account.data?.username === null) return <CreateAccount onDone={() => setAccountDone(true)} />;
-  }
   if (onboarding === null) {
     const first =
       settings.isError || bots.isError

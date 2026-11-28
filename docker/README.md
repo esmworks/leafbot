@@ -43,6 +43,7 @@ sudo leafbot status        # kapsayıcılar ve sunucunun yanıtı
 sudo leafbot logs [servis] # kayıtlar (leafbot, caddy, db, computer)
 sudo leafbot access-key    # erişim anahtarı
 sudo leafbot login         # Leaf Bot hesabınıza girip sunucuyu hesaba bağlar
+sudo leafbot phone         # telefon uygulamasını ya da Chrome eklentisini bağlayan QR kod
 sudo leafbot compose ...   # bu kurulumun dosyalarıyla docker compose
 ```
 
@@ -84,13 +85,15 @@ Erişim anahtarını burada siz seçersiniz, çünkü betiğin çıktısı sunuc
 yazdırılmaz. Birkaç dakika sonra sunucu `https://<IP-adresi-tireli>.sslip.io` adresinde açılır. Kurulumun gidişi sunucuda
 `/var/log/cloud-init-output.log` dosyasındadır.
 
-### Ters vekil ve giriş sınırı
+### Ters vekil
 
-Aynı adresten 15 dakikada 10 yanlış şifre o adresi bekletir. Ters vekilin arkasında bütün istekler vekilin adresinden
-gelir; vekil tanıtılmazsa bir kişinin yanlış denemeleri herkesi bekletir. Bunun için vekil `LEAFBOT_PROXY_SECRET`
-değerini `X-Leafbot-Proxy` başlığında, kişinin adresini `X-Forwarded-For` başlığında gönderir; sunucu
-`X-Forwarded-For`'a yalnızca bu sırla gelen isteklerde güvenir. `install.sh` bunu kendisi ayarlar. Elle kurulan bir
-nginx için:
+Erişim anahtarı yalnızca sunucunun kendi bilgisayarından gelen isteklerde geçer. Ters vekilin arkasında bütün
+istekler vekilin adresinden gelir; vekil tanıtılmazsa yönlendirme başlığı taşıyan her istek dışarıdan sayılır. Vekil
+tanıtmak için vekil `LEAFBOT_PROXY_SECRET` değerini `X-Leafbot-Proxy` başlığında, kişinin adresini `X-Forwarded-For`
+başlığında gönderir; sunucu `X-Forwarded-For`'a yalnızca bu sırla gelen isteklerde güvenir. Aynı bilgisayardaki bir
+vekil sır göndermez ve yönlendirme başlığı da eklemezse, gelen her istek bu bilgisayardan sayılır ve erişim anahtarı
+formu dışarıya açılır; bu yüzden vekile sırrı ve `X-Forwarded-For` başlığını mutlaka ekletin. `install.sh` bunu
+kendisi ayarlar. Elle kurulan bir nginx için:
 
 ```nginx
 proxy_set_header X-Leafbot-Proxy <LEAFBOT_PROXY_SECRET değeri>;
@@ -123,6 +126,10 @@ veritabanını aynı anda tek bir süreç açabilir.
 
 ## Uzaktan erişim
 
+Uygulama, telefon ve Chrome eklentisi sunucuya adresinden değil, Leaf Bot hesabı ve tünel üzerinden ulaşır; bunun
+için sunucu hiçbir port açmaz, yalnızca `login` ile hesaba bağlanır. Aşağıdaki yollar sunucunun kendi web sayfasını
+dışarıya açar; o sayfada erişim anahtarı geçmez, giriş Leaf Bot hesabına yönlendirir.
+
 Sunucuyu dışarıya açmanın üç yolu var; hiçbiri ana makinede bir port açmaz, ilk ikisi ters vekil de istemez.
 
 **Cloudflare Tunnel** (herkese açık bir alan adıyla, HTTPS Cloudflare'den):
@@ -132,12 +139,12 @@ Sunucuyu dışarıya açmanın üç yolu var; hiçbiri ana makinede bir port aç
 2. Tünelin Public Hostname ayarına alan adınızı (ör. `bot.ornek.com`) ve servis olarak `http://leafbot:4319`
    yazın.
 3. `.env` dosyasında `LEAFBOT_PUBLIC_URL=https://bot.ornek.com` ve `LEAFBOT_SECURE_COOKIES=1` yapın.
-4. Vekili tanıtın (bkz. "Ters vekil ve giriş sınırı"): `.env` dosyasında `LEAFBOT_PROXY_SECRET` boşsa
+4. Vekili tanıtın (bkz. "Ters vekil"): `.env` dosyasında `LEAFBOT_PROXY_SECRET` boşsa
    `openssl rand -hex 32` ile doldurun. Cloudflare panelinde alan adınızın Rules → Transform Rules → Modify
    Request Header bölümünde bir kural açın: koşul `Hostname equals bot.ornek.com`, işlem "Set static",
    başlık `X-Leafbot-Proxy`, değer `LEAFBOT_PROXY_SECRET` değeri. Cloudflare kişinin adresini
-   `X-Forwarded-For` başlığının sonuna kendisi yazar. Kural yoksa bütün girişler tünel kapsayıcısının
-   adresinden sayılır ve bir kişinin yanlış şifreleri herkesi bekletir.
+   `X-Forwarded-For` başlığının sonuna kendisi yazar. Kural yoksa istekler dışarıdan sayılır ve erişim
+   anahtarı geçmez.
 5. `docker compose -f docker/compose.yml --env-file docker/.env --profile cloudflare up -d`
 
 **Tailscale** (yalnız tailnet'inizdeki cihazlardan, `https://leafbot.<tailnet>.ts.net`):
@@ -148,10 +155,7 @@ Sunucuyu dışarıya açmanın üç yolu var; hiçbiri ana makinede bir port aç
 3. `docker compose -f docker/compose.yml --env-file docker/.env --profile tailscale up -d`
 
 Tailscale'in `serve` özelliği isteğe kendi başlığını ekleyemez, bu yüzden `X-Leafbot-Proxy` gönderilmez ve
-girişler tünel kapsayıcısının adresinden sayılır: tailnet'teki bir cihazdan 15 dakikada 10 yanlış şifre bütün
-cihazları bekletir. Sunucuya yalnızca tailnet'inizdeki cihazlar ulaştığı için tek kişilik bir tailnet'te bu
-sorun değildir. Tailnet'i başkalarıyla paylaşıyorsanız Tailscale ile sunucunun arasına başlığı ekleyen bir
-ters vekil (Caddy, nginx) koyun ya da Cloudflare Tunnel kullanın.
+tailnet'ten gelen istekler dışarıdan sayılır.
 
 Tünel kapsayıcıları sunucuya yalnızca kendi iç ağlarından (`edge`) ulaşır; sunucuya oradan dışarıya yeni bir yol
 açılmaz.
@@ -159,17 +163,24 @@ açılmaz.
 **Kendi ters vekiliniz** (Caddy, nginx): önüne TLS veren vekili koyun, `LEAFBOT_ALLOWED_HOSTS` değerine alan adını,
 `LEAFBOT_SECURE_COOKIES=1` yazın.
 
-Telefonu ya da başka bir bilgisayarı bağlamak için şifre yazmanız gerekmez: oturumu açık bir cihazda Ayarlar →
-Bağlantı → Başka bir cihaz bağla ile bir eşleştirme kodu alın, öbür cihazda sunucu adresini girip "Eşleştirme
-koduyla gir"i seçin. Kod bir kez ve beş dakika içinde çalışır; yanlış kodlar yanlış şifrelerle birlikte sayılır.
-
 ## Uygulamaya giriş
 
-İlk girişte `.env` dosyasındaki `LEAFBOT_ACCESS_KEY` yazılır. Hemen ardından uygulama bir kullanıcı adı ve
-şifre ister; sonraki girişler bunlarla yapılır. Veritabanında şifrenin kendisi değil, yalnızca scrypt özeti
-durur. Hesap Ayarlar → Bağlantı bölümünden mevcut şifreyle değiştirilir; şifre unutulursa giriş ekranındaki
-"Şifremi unuttum, erişim anahtarıyla gir" ile girilip mevcut şifre yerine erişim anahtarı yazılır. Aynı
-adresten 15 dakikada 10 yanlış şifre denemesi olursa o adres bekletilir.
+Herkes kendi Leaf Bot hesabıyla girer (e-posta kodu, Google ya da Apple). Sunucuyu `login` ile hesabınıza
+bağladıktan sonra www.leafbot.app/bots/ sayfası sunucuyu listeler ve tünel üzerinden açar. Başkalarını Ayarlar →
+Kişiler'den e-postayla davet edin; daha önce şifreyle giren biri, kendisi için açılan davetle aynı kişi olarak
+devam eder.
+
+Telefon uygulamasını ya da Chrome eklentisini bağlamak için sunucuda şunu çalıştırıp QR kodu okutun ya da kodu
+yazın; kod iki dakika, bir kez geçer:
+
+```bash
+docker compose -f docker/compose.yml --env-file docker/.env exec -e LANG=tr leafbot node dist/index.mjs phone
+```
+
+Aynı kod, oturumu açık bir cihazda Ayarlar → Bağlantı → Başka bir cihaz bağla'dan da alınır.
+
+`.env` dosyasındaki `LEAFBOT_ACCESS_KEY` yalnızca sunucunun kendi bilgisayarından gelen isteklerde ve oradaki
+betiklerde geçer; hesap hizmetine ulaşılamadığında sahibin yerel girişidir.
 
 ## Claude girişi
 

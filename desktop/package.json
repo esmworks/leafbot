@@ -17,9 +17,11 @@
   },
   "dependencies": {
     "electron-log": "5.4.4",
-    "electron-updater": "6.8.12"
+    "electron-updater": "6.8.12",
+    "node-datachannel": "0.33.6"
   },
   "devDependencies": {
+    "@leafbot/client": "workspace:*",
     "@leafbot/shared": "workspace:*",
     "electron": "45.3.1",
     "electron-builder": "26.18.0",

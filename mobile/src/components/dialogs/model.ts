@@ -42,16 +42,3 @@ export function isLoopback(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
   return h === 'localhost' || h.endsWith('.localhost') || h === '::1' || /^127\./.test(h);
 }
-
-/**
- * A command that runs the routine from a script or another service. The access key is read from
- * the environment, never written into the command.
- */
-export function runCommand(origin: string, routineId: string): string {
-  return [
-    `curl -X POST '${origin}/api/routines/${routineId}/run'`,
-    `  -H "Authorization: Bearer $ASISTAN_ACCESS_KEY"`,
-    `  -H 'Content-Type: application/json'`,
-    `  -d '{"payload":"..."}'`,
-  ].join(' \\\n');
-}

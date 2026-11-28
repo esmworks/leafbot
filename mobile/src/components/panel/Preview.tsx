@@ -20,6 +20,7 @@ import { Markdown } from '@/components/Markdown';
 import { Loading } from '@/components/page';
 import { t } from '@/i18n';
 import { useLibrary } from '@/lib/queries';
+import { useServerFile } from '@/lib/serverFiles';
 import { useServer } from '@/lib/server';
 import { useColors } from '@/lib/theme';
 import { fileSize, readTextStart } from './files';
@@ -65,9 +66,12 @@ function CutBar({ text }: { text: string }) {
  * on iOS a scroll view zooms it when pinched. Android's scroll
  * view has no pinch, so the picture stays fitted there.
  */
-export function ImageView({ uri }: { uri: string }) {
+export function ImageView({ path }: { path: string }) {
+  const { uri, failed } = useServerFile(path);
   const [box, setBox] = useState({ width: 0, height: 0 });
   const onLayout = (e: LayoutChangeEvent) => setBox(e.nativeEvent.layout);
+  if (failed) return <Message text={t('preview.failed')} />;
+  if (!uri) return <Message busy />;
   return (
     <ScrollView
       style={styles.fill}
@@ -89,14 +93,22 @@ export function ImageView({ uri }: { uri: string }) {
   );
 }
 
-/** A page, a PDF, a sound or a film, drawn by the phone's own web view. */
-export function WebFile({ uri, kind }: { uri: string; kind: 'pdf' | 'audio' | 'video' }) {
+/**
+ * A PDF, a sound or a film, drawn by the phone's own web view. The file is read through the tunnel
+ * into the cache first, and the web view is given that local file and no more.
+ */
+export function WebFile({ path, kind }: { path: string; kind: 'pdf' | 'audio' | 'video' }) {
   const c = useColors();
+  const { uri, failed } = useServerFile(path);
+  if (failed) return <Message text={t('preview.failed')} />;
+  if (!uri) return <Message busy />;
   return (
     <WebView
       source={{ uri }}
+      originWhitelist={['file://*']}
+      allowFileAccess
+      allowingReadAccessToURL={uri}
       style={[styles.fill, { backgroundColor: kind === 'video' ? '#000000' : c.card }]}
-      sharedCookiesEnabled
       allowsInlineMediaPlayback
       mediaPlaybackRequiresUserAction
       startInLoadingState

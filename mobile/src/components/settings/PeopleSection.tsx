@@ -1,6 +1,6 @@
 import type { PersonInfo } from '@leafbot/shared';
 import Feather from '@expo/vector-icons/Feather';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { TextBox } from '@/components/dialogs/common';
@@ -12,17 +12,16 @@ import { useManagesServer, usePeople, useSession } from '@/lib/queries';
 import { useApi, useServer } from '@/lib/server';
 import { useColors } from '@/lib/theme';
 
-/** The shortest password the server takes. */
-const MIN_PASSWORD = 8;
-
 /** A person's name as the lists show it. */
 function personName(p: Pick<PersonInfo, 'displayName' | 'username'>, owner: string) {
   return p.displayName || p.username || owner;
 }
 
 /**
- * The people on this server. Everyone sees who is here; those who look after the server add,
+ * The people on this server. Everyone sees who is here; those who look after the server invite,
  * change and remove them. Only the owner handles admins, and nobody changes themselves here.
+ * Everyone comes in with a Leaf Bot account: someone new by an emailed invite, and someone who was
+ * here before accounts by one that brings them in as the same person.
  */
 export function PeopleSection() {
   const { data: people = [] } = usePeople();
@@ -33,10 +32,16 @@ export function PeopleSection() {
       <Hint>{t('people.intro')}</Hint>
       {manages && !adding ? (
         <View style={styles.start}>
-          <PillButton icon="plus" label={t('people.add')} variant="primary" onPress={() => setAdding(true)} />
+          <PillButton
+            icon="plus"
+            label={t('people.invite')}
+            variant="primary"
+            onPress={() => setAdding(true)}
+          />
         </View>
       ) : null}
-      {adding ? <NewPerson onDone={() => setAdding(false)} /> : null}
+      {adding ? <NewInvite onDone={() => setAdding(false)} /> : null}
+      {manages ? <PendingInvites people={people} /> : null}
       <Section>
         <Rows>
           {people.map((p) => (
@@ -75,18 +80,29 @@ function PersonRow({ person }: { person: PersonInfo }) {
     },
     onError: toastError,
   });
+  // Their account stops reaching the server; they stay, with what is theirs, for an invite to
+  // another address to bring back.
+  const unlink = useMutation({
+    mutationFn: () => api.unlinkPerson(person.id),
+    onSuccess: done,
+    onError: toastError,
+  });
   const name = personName(person, t('people.owner'));
-  const resetPassword = async () => {
-    const password = await askText({
-      title: t('people.resetPassword'),
-      placeholder: t('people.newPassword', { min: String(MIN_PASSWORD) }),
-      secure: true,
-      confirmLabel: t('common.save'),
+  const inviteToAccount = async () => {
+    const email = await askText({
+      title: t('people.inviteToAccount'),
+      message: t('people.inviteToAccountHint', { name }),
+      placeholder: t('people.inviteEmail'),
+      confirmLabel: t('people.send'),
     });
-    if (password === null) return;
-    if (password.length < MIN_PASSWORD)
-      return toast(t('people.newPassword', { min: String(MIN_PASSWORD) }), { tone: 'error' });
-    change.mutate({ password });
+    if (!email?.trim()) return;
+    try {
+      await api.invitePerson({ email: email.trim(), personId: person.id });
+      void qc.invalidateQueries({ queryKey: ['people-invites', origin] });
+      toast(t('people.invited', { email: email.trim() }));
+    } catch (e) {
+      toastError(e);
+    }
   };
   const items: SheetItem[] = [
     ...(me?.role === 'owner'
@@ -96,7 +112,21 @@ function PersonRow({ person }: { person: PersonInfo }) {
           onPress: () => person.role !== role && change.mutate({ role }),
         }))
       : []),
-    { icon: 'key', label: t('people.resetPassword'), onPress: () => void resetPassword() },
+    ...(!person.linked && !person.disabled
+      ? [{ icon: 'mail' as const, label: t('people.inviteToAccount'), onPress: () => void inviteToAccount() }]
+      : []),
+    ...(person.linked
+      ? [
+          {
+            icon: 'link-2' as const,
+            label: t('people.unlink'),
+            onPress: () =>
+              void confirm({ title: t('people.confirmUnlink', { name }), destructive: true }).then(
+                (ok) => ok && unlink.mutate(),
+              ),
+          },
+        ]
+      : []),
     {
       icon: person.disabled ? 'unlock' : 'lock',
       label: person.disabled ? t('people.enable') : t('people.disable'),
@@ -140,6 +170,7 @@ function PersonRow({ person }: { person: PersonInfo }) {
           {person.username && person.displayName ? `${person.username} · ` : ''}
           {t(`people.role.${person.role}`)}
           {person.disabled ? ` · ${t('people.disabled')}` : ''}
+          {person.linked ? ` · ${t('people.linked')}` : ''}
         </Text>
       </View>
       {mayChange ? <Feather name="more-horizontal" size={20} color={c.mutedForeground} /> : null}
@@ -148,26 +179,74 @@ function PersonRow({ person }: { person: PersonInfo }) {
   );
 }
 
-function NewPerson({ onDone }: { onDone(): void }) {
+/** Invites that wait to be accepted, each one taken back with a tap. */
+function PendingInvites({ people }: { people: PersonInfo[] }) {
+  const c = useColors();
+  const api = useApi();
+  const qc = useQueryClient();
+  const { origin } = useServer();
+  const key = ['people-invites', origin];
+  const { data } = useQuery({ queryKey: key, queryFn: api.personInvites });
+  const revoke = useMutation({
+    mutationFn: (id: string) => api.revokeInvite(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: key }),
+    onError: toastError,
+  });
+  const invites = data?.invites ?? [];
+  if (!invites.length) return null;
+  return (
+    <Section title={t('people.pending')}>
+      <Rows>
+        {invites.map((i) => {
+          const who = i.person
+            ? personName(
+                people.find((p) => p.id === i.person) ?? { displayName: null, username: null },
+                t('people.owner'),
+              )
+            : '';
+          return (
+            <View key={i.id} style={styles.person}>
+              <Feather name="mail" size={18} color={c.mutedForeground} />
+              <View style={styles.grow}>
+                <Text style={[styles.name, { color: c.foreground }]} numberOfLines={1}>
+                  {i.email ?? t('people.linkInvite')}
+                </Text>
+                <Text style={[styles.sub, { color: c.mutedForeground }]} numberOfLines={1}>
+                  {t(`people.role.${i.role}`)}
+                  {who ? ` · ${t('people.pendingFor', { name: who })}` : ''}
+                  {i.undelivered ? ` · ${t('people.undelivered')}` : ''}
+                </Text>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t('people.revokeInvite')}
+                hitSlop={10}
+                disabled={revoke.isPending}
+                onPress={() => revoke.mutate(i.id)}
+              >
+                <Feather name="x" size={20} color={c.mutedForeground} />
+              </Pressable>
+            </View>
+          );
+        })}
+      </Rows>
+    </Section>
+  );
+}
+
+/** Someone new, invited by address; the owner chooses whether they come as an admin. */
+function NewInvite({ onDone }: { onDone(): void }) {
   const api = useApi();
   const qc = useQueryClient();
   const { origin } = useServer();
   const isOwner = useSession().data?.user?.role === 'owner';
-  const [username, setUsername] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
   const [role, setRole] = useState<'member' | 'admin'>('member');
-  const add = useMutation({
-    mutationFn: () =>
-      api.addPerson({
-        username,
-        password,
-        role,
-        ...(displayName.trim() && { displayName: displayName.trim() }),
-      }),
-    onSuccess: (p) => {
-      void qc.invalidateQueries({ queryKey: ['people', origin] });
-      toast(t('people.added', { name: personName(p, '') }));
+  const send = useMutation({
+    mutationFn: () => api.invitePerson({ email: email.trim(), role }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['people-invites', origin] });
+      toast(t('people.invited', { email: email.trim() }));
       onDone();
     },
     onError: toastError,
@@ -177,22 +256,14 @@ function NewPerson({ onDone }: { onDone(): void }) {
       <Rows>
         <Pad>
           <TextBox
-            value={username}
-            onChangeText={setUsername}
-            placeholder={t('people.username')}
+            value={email}
+            onChangeText={setEmail}
+            placeholder={t('people.inviteEmail')}
+            accessibilityLabel={t('people.inviteEmail')}
             autoCapitalize="none"
             autoCorrect={false}
-          />
-          <TextBox value={displayName} onChangeText={setDisplayName} placeholder={t('people.displayName')} />
-          <TextBox
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholder={t('people.password', { min: String(MIN_PASSWORD) })}
-            accessibilityLabel={t('people.passwordLabel')}
-            autoCapitalize="none"
-            autoCorrect={false}
-            textContentType="newPassword"
+            keyboardType="email-address"
+            textContentType="emailAddress"
           />
           {isOwner ? (
             <ChipRow>
@@ -201,15 +272,15 @@ function NewPerson({ onDone }: { onDone(): void }) {
               ))}
             </ChipRow>
           ) : null}
-          <Hint>{t('people.passwordHint')}</Hint>
+          <Hint>{t('people.inviteHint')}</Hint>
           <View style={styles.buttons}>
             <PillButton label={t('common.cancel')} variant="ghost" onPress={onDone} />
             <PillButton
-              label={t('people.add')}
+              label={t('people.send')}
               variant="primary"
-              busy={add.isPending}
-              disabled={!username.trim() || password.length < MIN_PASSWORD}
-              onPress={() => add.mutate()}
+              busy={send.isPending}
+              disabled={!email.trim()}
+              onPress={() => send.mutate()}
             />
           </View>
         </Pad>

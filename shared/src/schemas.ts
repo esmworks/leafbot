@@ -1481,39 +1481,42 @@ export const PersonInfo = z.object({
   /** No longer able to sign in; their conversations and notes are kept. */
   disabled: z.boolean(),
   createdAt: z.string(),
+  /** Signs in with a Leaf Bot account; set on the people list. */
+  linked: z.boolean().optional(),
 });
 export type PersonInfo = z.infer<typeof PersonInfo>;
 /** The roles a person can be given; there is only ever one owner. */
 export const GivenRole = z.enum(['admin', 'member']);
-export const PersonCreate = z.object({
-  username: z.string().trim().min(1).max(100),
-  password: z.string().min(1).max(200),
-  displayName: z.string().trim().max(100).optional(),
+/**
+ * An invite to the server through the Leaf Bot account, sent to an address. With `personId`, it is
+ * for someone already here: whoever accepts it comes in as that person, with what is theirs.
+ */
+export const PersonInvite = z.object({
+  email: z.string().trim().toLowerCase().email().max(254),
   role: GivenRole.default('member'),
+  personId: z.string().min(1).max(100).optional(),
 });
-export type PersonCreate = z.input<typeof PersonCreate>;
+export type PersonInvite = z.input<typeof PersonInvite>;
+/** An invite waiting to be accepted, as the account service keeps it. */
+export const AccountInvite = z.object({
+  id: z.string(),
+  role: GivenRole,
+  email: z.string().nullable(),
+  /** The person here it is for, when it was made for one. */
+  person: z.string().nullable().default(null),
+  expiresAt: z.number(),
+  /** The mail never arrived: the address does not exist, or is not mailed to. */
+  undelivered: z.boolean().default(false),
+});
+export type AccountInvite = z.infer<typeof AccountInvite>;
 export const PersonUpdate = z.object({
   displayName: z.string().trim().max(100).nullable().optional(),
   role: GivenRole.optional(),
   disabled: z.boolean().optional(),
-  /** A new password, for someone who forgot theirs; their devices are signed out. */
-  password: z.string().min(1).max(200).optional(),
 });
 export type PersonUpdate = z.input<typeof PersonUpdate>;
 
 export const AccessRequest = z.object({ key: z.string().min(1).max(500) });
-export const LoginRequest = z.object({
-  username: z.string().trim().min(1).max(100),
-  password: z.string().min(1).max(200),
-});
-/** Makes the account, or changes it; a change needs the current password or the access key. */
-export const AccountSet = z.object({
-  username: z.string().trim().min(1).max(100),
-  password: z.string().min(1).max(200),
-  current: z.string().max(500).optional(),
-});
-export type AccountSet = z.infer<typeof AccountSet>;
-
 /** A device signed in to the server. */
 export const SessionInfo = z.object({
   id: z.string(),

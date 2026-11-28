@@ -37,7 +37,6 @@ import {
   Plug,
   Plus,
   Shield,
-  Smartphone,
   Sparkles,
   Volume2,
   SlidersHorizontal,
@@ -75,7 +74,7 @@ import {
   useSession,
   useSettings,
 } from '@/lib/queries';
-import { desktop, useDesktopServer, useDesktopServers } from '@/lib/desktop';
+import { desktop } from '@/lib/desktop';
 import { useUi, type SettingsTab } from '@/lib/store';
 import { NoteSource } from './NoteSource';
 import { LearnSetting, MemoryHistory, NoteRow } from './MemoryNote';
@@ -129,7 +128,7 @@ import { UsageTab } from './UsageTab';
 import { VaultTab } from './VaultTab';
 import { PeopleTab, personName, personNameOf } from './PeopleTab';
 import { SpacesTab } from './SpacesTab';
-import { AccountForm } from './AccountSetup';
+import { ConnectPhone } from './ConnectPhone';
 import { ApnsCard } from './PhoneSettings';
 import { TailscaleCard } from './TailscaleSettings';
 import { AccountHostCard } from './AccountHostSettings';
@@ -935,6 +934,7 @@ function Connection() {
   // Everyone keeps their own account, devices and sign-out here; the server's environment is for
   // those who look after the server. The AI providers have their own section.
   const manages = useManagesServer();
+  const owner = useSession().data?.user?.role === 'owner';
   return (
     <>
       {manages && (
@@ -948,113 +948,18 @@ function Connection() {
         <Row label={t('connection.address')} hint={window.location.origin} />
         <DesktopServerRow />
         <Row label={t('connection.version')} hint={info?.version ?? '…'} />
-        <AccountRow />
         <Row label={t('connection.logoutHere')}>
           <Button variant="secondary" size="sm" className="rounded-full" onClick={() => logout.mutate()}>
             <LogOut /> {t('connection.logout')}
           </Button>
         </Row>
       </Card>
-      <PairDevice />
+      <ConnectPhone owner={owner} />
       <Devices />
       <AccountHostCard />
       <TailscaleCard />
       {manages && <ApnsCard />}
     </>
-  );
-}
-
-/**
- * A one-time code for signing in a phone or another computer, typed there instead of the password.
- * It works once, within five minutes; the address is the one the other device reaches this
- * server at.
- */
-function PairDevice() {
-  const t = useT();
-  const qc = useQueryClient();
-  const [pairing, setPairing] = useState<{ code: string; expiresAt: string; url: string | null } | null>(
-    null,
-  );
-  const [now, setNow] = useState(() => Date.now());
-  const make = useMutation({
-    mutationFn: api.pairingCode,
-    onSuccess: (p) => {
-      setPairing(p);
-      setNow(Date.now());
-    },
-    onError: (e) => toast.error((e as Error).message),
-  });
-  const left = pairing ? Math.max(0, Math.round((Date.parse(pairing.expiresAt) - now) / 1000)) : 0;
-  useEffect(() => {
-    if (!pairing || left <= 0) return;
-    const timer = setTimeout(() => {
-      setNow(Date.now());
-      // A device that used the code shows up in the list below.
-      void qc.invalidateQueries({ queryKey: ['sessions'] });
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [pairing, left, qc]);
-  const address = pairing?.url ?? window.location.origin;
-  return (
-    <Card title={t('pair.title')}>
-      <Row label={t('pair.label')} hint={t('pair.hint')}>
-        <Button
-          variant="secondary"
-          size="sm"
-          className="rounded-full"
-          onClick={() => make.mutate()}
-          disabled={make.isPending}
-        >
-          {make.isPending ? <Loader2 className="animate-spin" /> : <Smartphone />}
-          {pairing && left > 0 ? t('pair.again') : t('pair.make')}
-        </Button>
-      </Row>
-      {pairing && left > 0 && (
-        <div className="space-y-2 px-4 pb-4">
-          <div className="flex flex-wrap items-center gap-3">
-            <code className="rounded-xl bg-secondary px-4 py-2 font-mono text-2xl tracking-widest">
-              {pairing.code}
-            </code>
-            <span className="text-xs text-muted-foreground">
-              {t('pair.left', {
-                minutes: String(Math.floor(left / 60)),
-                seconds: String(left % 60).padStart(2, '0'),
-              })}
-            </span>
-          </div>
-          <p className="text-xs text-muted-foreground">{t('pair.where', { address })}</p>
-        </div>
-      )}
-    </Card>
-  );
-}
-
-/** The username and password browsers sign in with; hidden on servers older than accounts. */
-function AccountRow() {
-  const t = useT();
-  const { data, isError } = useQuery({ queryKey: ['account'], queryFn: api.account, retry: false });
-  const [open, setOpen] = useState(false);
-  if (isError || !data) return null;
-  return (
-    <div>
-      <Row label={t('account.title')} hint={data.username ?? t('account.none')}>
-        <Button variant="secondary" size="sm" className="rounded-full" onClick={() => setOpen((v) => !v)}>
-          {data.username ? t('account.change') : t('account.create')}
-        </Button>
-      </Row>
-      {open && (
-        <div className="max-w-sm px-4 pb-4">
-          <AccountForm
-            username={data.username ?? ''}
-            change={data.username !== null}
-            onDone={() => {
-              setOpen(false);
-              toast.success(t('account.saved'));
-            }}
-          />
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -1111,61 +1016,17 @@ function Devices() {
   );
 }
 
-/**
- * In the desktop app: the servers it keeps, with the main one marked and a way to show another in
- * this window; connecting to one more, or back to the one on this computer.
- */
+/** In the desktop app: the servers of the person's Leaf Bot account, opened in the window. */
 function DesktopServerRow() {
   const t = useT();
-  const server = useDesktopServer();
-  const servers = useDesktopServers();
-  if (!desktop?.openConnect || !server) return null;
-  const name = (url: string | null) => (url ? new URL(url).host : t('connection.thisComputer'));
-  const localKept = servers?.some((s) => s.id === 'local') ?? false;
+  const open = desktop?.openAccount;
+  if (!open) return null;
   return (
-    <>
-      <Row
-        label={t('connection.connectedTo')}
-        hint={server.mode === 'local' ? t('connection.thisComputer') : (server.url ?? '')}
-      >
-        <Button
-          variant="secondary"
-          size="sm"
-          className="rounded-full"
-          onClick={() => void desktop!.openConnect?.()}
-        >
-          {t(servers ? 'connection.addServer' : 'connection.connectOther')}
-        </Button>
-        {server.mode === 'remote' && !localKept && (
-          <Button
-            variant="secondary"
-            size="sm"
-            className="rounded-full"
-            onClick={() => void desktop!.useLocal()}
-          >
-            {t('connection.useLocal')}
-          </Button>
-        )}
-      </Row>
-      {servers &&
-        servers.length > 1 &&
-        servers.map((s) => (
-          <Row key={s.id} label={name(s.url)} hint={s.main ? t('connection.mainServer') : undefined}>
-            {s.shown ? (
-              <span className="text-xs text-muted-foreground">{t('connection.shownHere')}</span>
-            ) : (
-              <Button
-                variant="secondary"
-                size="sm"
-                className="rounded-full"
-                onClick={() => void desktop!.showServer?.(s.id)}
-              >
-                {t('connection.showHere')}
-              </Button>
-            )}
-          </Row>
-        ))}
-    </>
+    <Row label={t('server.remote')} hint={t('server.remoteHint')}>
+      <Button variant="secondary" size="sm" onClick={() => void open()}>
+        {t('connection.openAccount')}
+      </Button>
+    </Row>
   );
 }
 

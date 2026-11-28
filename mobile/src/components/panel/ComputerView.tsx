@@ -1,10 +1,8 @@
-import { SCREEN_READY } from '@leafbot/app/src/lib/screen';
 import type { Bot, BrowserInput, BrowserState } from '@leafbot/shared';
 import Feather from '@expo/vector-icons/Feather';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,12 +11,11 @@ import {
   type GestureResponderEvent,
   type LayoutChangeEvent,
 } from 'react-native';
-import { WebView } from 'react-native-webview';
 import { IconButton, PillButton } from '@/components/page';
 import { toast, toastError } from '@/components/overlay';
 import { t } from '@/i18n';
 import { useInfo } from '@/lib/queries';
-import { useApi, useServer } from '@/lib/server';
+import { useApi } from '@/lib/server';
 import { useColors } from '@/lib/theme';
 import { STATUS } from './ComputerCard';
 import { useBrowserLive, useDesktopLive, type Frame } from './live';
@@ -337,62 +334,17 @@ const PHASE = {
   running: 'computer.desktop.running',
 } as const;
 
-/** How long a loaded page has to say it is the screen page before the phone shows its own view. */
-const SCREEN_READY_WAIT_MS = 8000;
-
 /**
- * The bot's own desktop. Its live screen is a remote-desktop stream only the web viewer draws, so
- * the server's screen page is shown in a web view, signed in with the phone's own cookie. A server
- * from before that page never says it is ready; there the phone shows the desktop's state and wakes it.
+ * The bot's own desktop. Its live screen is a remote-desktop stream only the web viewer draws, from
+ * a page of the server's own web app. The phone reaches the server only through the tunnel, which
+ * carries requests and Socket.IO but cannot give a web view a page to load and sign in on, so the
+ * phone shows the desktop's state and wakes it, and the screen is for the computer's app.
  */
 export function DesktopView({ bot }: { bot: Bot }) {
-  const c = useColors();
-  const { origin } = useServer();
-  const [screen, setScreen] = useState<'checking' | 'ready' | 'missing'>('checking');
-  const wait = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(
-    () => () => {
-      if (wait.current) clearTimeout(wait.current);
-    },
-    [],
-  );
-  if (screen === 'missing' || !origin) return <DesktopState bot={bot} />;
-  const page = `${origin}/?screen=${encodeURIComponent(bot.id)}`;
-  return (
-    <View style={[styles.fill, { backgroundColor: '#0a0a0a' }]}>
-      <WebView
-        source={{ uri: page }}
-        style={[styles.fill, { backgroundColor: '#0a0a0a', opacity: screen === 'ready' ? 1 : 0 }]}
-        sharedCookiesEnabled
-        // Only the server's own pages; nothing on the desktop can take the view elsewhere.
-        onShouldStartLoadWithRequest={(r) => r.url === page || r.url.startsWith(`${origin}/`)}
-        onMessage={(e) => {
-          if (e.nativeEvent.data !== SCREEN_READY) return;
-          if (wait.current) clearTimeout(wait.current);
-          setScreen('ready');
-        }}
-        onLoadEnd={() => {
-          if (screen !== 'checking' || wait.current) return;
-          wait.current = setTimeout(
-            () => setScreen((s) => (s === 'ready' ? s : 'missing')),
-            SCREEN_READY_WAIT_MS,
-          );
-        }}
-        onError={() => setScreen('missing')}
-        scrollEnabled={false}
-        bounces={false}
-        allowsInlineMediaPlayback
-      />
-      {screen === 'checking' ? (
-        <View style={[StyleSheet.absoluteFill, styles.note]}>
-          <ActivityIndicator color={c.mutedForeground} />
-        </View>
-      ) : null}
-    </View>
-  );
+  return <DesktopState bot={bot} />;
 }
 
-/** The desktop's state and a way to wake it, for a server that has no screen page. */
+/** The desktop's state and a way to wake it. */
 function DesktopState({ bot }: { bot: Bot }) {
   const c = useColors();
   const { state, wake } = useDesktopLive(bot.id);

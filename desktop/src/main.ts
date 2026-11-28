@@ -15,7 +15,6 @@ import {
   nativeImage,
   nativeTheme,
   powerSaveBlocker,
-  safeStorage,
   screen,
   session,
   shell,
@@ -25,19 +24,21 @@ import {
 import log from 'electron-log/main';
 import { autoUpdater } from 'electron-updater';
 import {
-  addRemote,
+  accountClient,
+  accountUrl,
+  AccountError,
+  SESSION_COOKIE,
+  WEBSITE,
+  type ServerEntry,
+} from './account';
+import {
+  chooseServer,
   LOCAL_ONLY,
-  lockedRemote,
-  mainServer,
-  normalizeRemoteUrl,
   readDesktopConfig,
-  remoteOf,
-  removeRemote,
   setLocal,
   show,
   writeDesktopConfig,
   type DesktopConfig,
-  type ServerId,
 } from './desktop-config';
 import { canInstall, createInstaller, isAppId, type InstallEnv, type Installer } from './app-install';
 import { appWindowUrl, readAppWindowSize, writeAppWindowSize } from './app-windows';
@@ -61,6 +62,7 @@ import {
 } from './mac-bridge';
 import { claimQuickKey, isThreadId, quickBounds, quickUrl, readQuickOn, writeQuickOn } from './quick';
 import { ServerProcess } from './server-process';
+import { newDevice, nodeRtc, openServer, RELAY_URL, ServerLink } from './tunnel-link';
 import { compileCacheDir, pruneCompileCaches } from './compile-cache';
 import {
   describe as describeLaunch,
@@ -124,7 +126,7 @@ function heldByRunningApp(dir: string): boolean {
 
 // Own data folder, separate from any earlier installation. The internal name stays LeafBot while
 // the app bundle is called Leaf Bot: what Electron keys to it, such as the keychain entry for the
-// saved server key, would otherwise be looked up under a new name. The About panel and the menu
+// window's encrypted cookies, would otherwise be looked up under a new name. The About panel and the menu
 // items that name the app show the product name people see.
 app.setName('LeafBot');
 app.setAboutPanelOptions({ applicationName: 'Leaf Bot' });
@@ -141,7 +143,6 @@ const userData = app.getPath('userData');
 const dataDir = join(userData, 'data');
 
 let win: BrowserWindow | null = null;
-let connectWin: BrowserWindow | null = null;
 /** The small window the global shortcut opens; kept hidden between uses so it opens at once. */
 let quickWin: BrowserWindow | null = null;
 /** The global shortcut that opens it, or null when another app holds every one we try. */
@@ -154,15 +155,17 @@ let localOrigin: string | null = null;
 let localKey: string | null = null;
 let config: DesktopConfig = LOCAL_ONLY;
 /**
- * The person chose this computer's server for this run because the keychain would not give back a
- * saved server's key. Nothing is written then, so that server is still there on the next start.
+ * Origin of the page the main window shows: this computer's own server, or the website. Only the
+ * first gets the bridge to this app (the preload script and its calls); the website's page is
+ * remote content and gets none.
  */
-let keepSavedConfig = false;
-/** Origin of the page the main window shows; the only origin that may ask for the key. */
 let origin: string | null = null;
-let accessKey: string | null = null;
-/** The main server this computer is offered to (its address and key), or null when there is none. */
+/** The account server this computer is offered to, once the offers were started for it. */
 let offeredTo: string | null = null;
+/** The tunnel to that server, shared by the offers made through it. */
+let link: ServerLink | null = null;
+/** The servers of the signed-in account, as the account service last listed them. */
+let accountServers: ServerEntry[] = [];
 /** Asks this computer's server now and then whether a bot works there, while the window shows another. */
 let workTimer: ReturnType<typeof setInterval> | null = null;
 /** Ends when this computer's server, told to stop, has stopped; null when none is stopping. */
@@ -185,9 +188,9 @@ let displayTimer: ReturnType<typeof setInterval> | null = null;
 let updates: Updates | null = null;
 /** A downloaded version waiting for a restart. */
 let updateReady: string | null = null;
-/** Ends this computer's offer to be the bots' way out to the web; set while connected to a remote server. */
+/** Ends this computer's offer to be the bots' way out to the web; set while an account server is chosen. */
 let stopEgress: (() => void) | null = null;
-/** Ends this Mac's offer to the bots of a remote server; set while it is offered. */
+/** Ends this Mac's offer to the bots of the account server; set while it is offered. */
 let stopMac: (() => void) | null = null;
 let macGate: MacGate | null = null;
 /** Whether a bot uses this Mac now, with the person's yes on it; shown in the menu bar. */
@@ -324,9 +327,8 @@ async function boot() {
   // A packaged app takes its Dock icon from the bundle; one run from source would show Electron's.
   // icon.png is the tile of assets/icon.icon drawn flat, without the glass macOS adds to the real one.
   if (process.platform === 'darwin' && !app.isPackaged) app.dock?.setIcon(join(assets(), 'icon.png'));
-  // The language first: a locked keychain is asked about while the settings are read.
   loadLocale(userData, app.getPreferredSystemLanguages());
-  config = await readConfigOnceUnlocked();
+  config = readDesktopConfig(userData);
   launchMark('config');
   // This computer's server takes the longest to come up, so it starts before the rest is set up
   // and before the window, which it does not need; the window is ready long before it is.
@@ -336,56 +338,20 @@ async function boot() {
   registerIpc();
   registerLinks();
   createTray();
-  watchMacSignIn();
+  watchSignIn();
   registerQuickKey();
   watchForUpdates();
   await connect(local);
   void offerMove();
 }
 
-/**
- * A remote server's key is kept in the keychain. When the keychain is not open yet, the app waits
- * a little for it, then asks, so it never swaps the chosen server for this computer's own without
- * saying so. Using this computer's server here is for this run only; the saved choice stays.
- */
-async function readConfigOnceUnlocked(): Promise<DesktopConfig> {
-  for (;;) {
-    for (let i = 0; i < 20 && lockedRemote(userData, safeStorage); i++) {
-      await new Promise((r) => setTimeout(r, 500));
-    }
-    const host = lockedRemote(userData, safeStorage);
-    if (!host) return readDesktopConfig(userData, safeStorage);
-    log.warn(`the key for ${host} cannot be read; the keychain is not open`);
-    const { response } = await dialog.showMessageBox({
-      type: 'warning',
-      message: t('dialog.keychainLocked', { host }),
-      detail: t('dialog.keychainLockedDetail'),
-      buttons: [t('dialog.retry'), t('dialog.useLocal')],
-      defaultId: 0,
-      cancelId: 0,
-    });
-    if (response === 1) {
-      keepSavedConfig = true;
-      return LOCAL_ONLY;
-    }
-  }
-}
-
 function saveConfig() {
-  if (keepSavedConfig) {
-    log.info('the saved servers stay as they were; this run uses this computer only');
-    return;
-  }
   try {
-    writeDesktopConfig(userData, config, safeStorage);
+    writeDesktopConfig(userData, config);
   } catch (err) {
     log.warn('could not save the servers', err);
   }
 }
-
-/** The main server when it is elsewhere; null when this computer's own is the main one. */
-const mainRemote = () => remoteOf(config, mainServer(config));
-const hostOf = (url: string) => new URL(url).host;
 
 /**
  * An app opened from a disk image or straight from a download cannot replace itself, so updates
@@ -452,53 +418,104 @@ async function checkForUpdatesNow() {
 async function connect(started?: Promise<void>) {
   startOffers();
   pointAtShown();
+  void refreshAccountServers();
   if (!config.local) {
-    setStatus('status.remote', { host: hostOf(mainServer(config)) });
+    setStatus('status.account');
     // Apps are installed from this computer's own server, which is off: the window opens instead.
     pendingApp = null;
     showWindow();
     return;
   }
-  // A server elsewhere opens at once; this computer's own comes up behind it.
+  // The account's page opens at once; this computer's own server comes up behind it.
   if (config.shown !== 'local') showWindow();
   // This computer's own is shown: the window opens now and says the server is starting.
   else if (!pendingApp) showLoadingWindow();
   await (started ?? startLocal());
 }
 
-/** Points the window's origin and key at the server it shows; no origin while that one is not up. */
+/** Points the window's origin at what it shows; no origin while this computer's server is not up. */
 function pointAtShown() {
-  const remote = remoteOf(config, config.shown);
-  origin = remote ? remote.url : localOrigin;
-  accessKey = remote ? remote.key : localKey;
+  origin = config.shown === 'account' ? new URL(WEBSITE).origin : localOrigin;
 }
 
+/** The page the window loads: the account's servers, at the chosen one when there is one. */
+const windowUrl = () => (config.shown === 'account' ? accountUrl(config.server) : origin);
+
+/** The device key and WebRTC for the tunnels; made when the first one is needed, once per run. */
+let device: ReturnType<typeof newDevice> | null = null;
+let rtc: ReturnType<typeof nodeRtc> | null = null;
+
+/** What the account service says for the window's sign-in; this app holds no sign-in of its own. */
+const account = accountClient({ fetch: (input, init) => fetch(input, init), cookie: sessionCookie });
+
 /**
- * Offers this computer to the main server when that one is elsewhere: as the bots' way out to the
- * web, and the Mac when the person turned that on. Only the main server gets it, so the bots that
- * keep working while this computer is away are the ones that may use it while it is here.
+ * Offers this computer to the account server the person chose: as the bots' way out to the web,
+ * and the Mac when the person turned that on. Only that server gets it. It is reached through a
+ * tunnel the person's own account opens, with the website's sign-in from the window, so no address
+ * or key is kept here.
  */
 function startOffers() {
-  const remote = mainRemote();
-  const to = remote ? `${remote.url}\n${remote.key}` : null;
-  if (to === offeredTo) return;
-  offeredTo = to;
+  const id = config.server;
+  if (id === offeredTo) return;
+  offeredTo = id;
   stopEgress?.();
   stopEgress = null;
   stopMacOffer();
-  if (!remote) return;
-  stopEgress = startEgress({
-    url: remote.url,
-    // The access key, or the session a pairing code gave the window.
-    headers: async (): Promise<Record<string, string>> => {
-      if (remote.key) return { authorization: `Bearer ${remote.key}` };
-      const cookies = await session.defaultSession.cookies.get({ url: remote.url });
-      return cookies.length ? { cookie: cookies.map((c) => `${c.name}=${c.value}`).join('; ') } : {};
+  link?.stop();
+  link = null;
+  if (!id) return;
+  const mine = new ServerLink({
+    serverId: id,
+    account,
+    cookie: sessionCookie,
+    open: async (server, onEnd) => {
+      device ??= newDevice();
+      rtc ??= nodeRtc();
+      return openServer(server, {
+        account,
+        device: await device,
+        relayUrl: RELAY_URL,
+        rtc: await rtc,
+        language: locale(),
+        onEnd,
+      });
     },
-    device: hostname().replace(/\.local$/, ''),
+    log: (level, line) => log[level](line),
+  });
+  link = mine;
+  stopEgress = startEgress({
+    tunnel: (fn) => mine.subscribe(fn),
+    device: deviceName(),
     log: (level, line) => log[level](line),
   });
   startMac();
+  mine.start();
+}
+
+/** How this computer is named in the server's settings. */
+const deviceName = () => hostname().replace(/\.local$/, '');
+
+/** The chosen server's name as the account lists it, for a question on this computer. */
+function serverLabel(): string {
+  const name = accountServers.find((s) => s.id === config.server)?.name ?? '';
+  return (
+    name
+      .replace(/[\p{Cc}\p{Cf}]/gu, ' ')
+      .trim()
+      .slice(0, 60) || 'Leaf Bot'
+  );
+}
+
+/** The account's servers, for the menu; empty while the person is signed out of the website. */
+async function refreshAccountServers() {
+  try {
+    accountServers = await account.servers();
+  } catch (err) {
+    // Out of reach keeps the last list; an answer that says signed out empties it.
+    if (!(err instanceof AccountError) || (err.status !== 401 && err.status !== 403)) return;
+    accountServers = [];
+  }
+  rebuildMenu();
 }
 
 async function startLocal() {
@@ -616,13 +633,12 @@ async function stopLocal() {
     if (localStopping === settled) localStopping = null;
   });
   await stopping;
-  const remote = mainRemote();
-  if (remote) setStatus('status.remote', { host: hostOf(remote.url) });
+  if (!config.local) setStatus('status.account');
 }
 
 /**
- * Makes a new choice of servers real: this computer's server starts or stops, the main server is
- * offered this computer, and the window moves to the server it now shows. The choice is kept.
+ * Makes a new choice real: this computer's server starts or stops, the chosen account server is
+ * offered this computer, and the window moves to what it now shows. The choice is kept.
  * Changes go one after another, each made from the choice the one before left, so a quick off and
  * on never starts a second server beside one still stopping.
  */
@@ -640,8 +656,7 @@ async function applyNow(next: DesktopConfig) {
   saveConfig();
   startOffers();
   if (before.local && !next.local) await stopLocal();
-  const reshow =
-    before.shown !== next.shown || remoteOf(before, next.shown)?.key !== remoteOf(next, next.shown)?.key;
+  const reshow = before.shown !== next.shown || (next.shown === 'account' && before.server !== next.server);
   if (reshow) {
     // The old page belongs to another origin; start fresh. Apps of this computer's server stay.
     closeQuick();
@@ -721,7 +736,7 @@ function watchForUpdates() {
       quitting = false;
       stopped = false;
       if (config.local) void startLocal();
-      else setStatus('status.remote', { host: hostOf(mainServer(config)) });
+      else setStatus('status.account');
       rebuildMenu();
       void dialog.showMessageBox({ type: 'error', message: t('update.failed'), detail: message });
     },
@@ -737,18 +752,19 @@ const crashGuard = createCrashGuard();
 
 function showWindow() {
   if (!origin) return;
+  const target = windowUrl() ?? origin;
   if (win && !win.isDestroyed()) {
     // The window opened before its server was up, or shows a server that moved to another port.
     const shown = win.webContents.getURL();
-    if (isLoadingPage(shown) || (shown && new URL(shown).origin !== new URL(origin).origin)) {
-      void win.loadURL(origin);
+    if (isLoadingPage(shown) || (shown && new URL(shown).origin !== new URL(target).origin)) {
+      void win.loadURL(target);
     }
     win.show();
     win.focus();
     return;
   }
   createMainWindow();
-  void win!.loadURL(origin);
+  void win!.loadURL(target);
 }
 
 /** Opens the main window on a page that says this computer's server is starting. */
@@ -788,7 +804,8 @@ function createMainWindow() {
       trafficLightPosition: { x: 20, y: 17 },
     }),
     webPreferences: {
-      preload: join(__dirname, 'preload.cjs'),
+      // The website's page is remote content: no bridge to this app, whatever it asks for.
+      ...(config.shown === 'local' && { preload: join(__dirname, 'preload.cjs') }),
       contextIsolation: true,
       sandbox: true,
       nodeIntegration: false,
@@ -1052,7 +1069,8 @@ function registerQuickKey() {
 
 /** Opens the quick window over whatever app is in front, or puts it away when it is already up. */
 function toggleQuick() {
-  if (!origin) return;
+  // The quick window is a page of this computer's own server and needs the bridge to put itself away.
+  if (!origin || config.shown !== 'local') return;
   if (quickWin && !quickWin.isDestroyed() && quickWin.isVisible() && quickWin.isFocused()) {
     quickWin.hide();
     return;
@@ -1113,82 +1131,31 @@ function closeQuick() {
   quickWin = null;
 }
 
-function openConnectWindow() {
-  if (connectWin && !connectWin.isDestroyed()) return connectWin.focus();
-  connectWin = new BrowserWindow({
-    width: 460,
-    height: 470,
-    resizable: false,
-    title: t('connect.title'),
-    backgroundColor: nativeTheme.shouldUseDarkColors ? '#1b1b1b' : '#fafafa',
-    webPreferences: {
-      preload: join(__dirname, 'preload.cjs'),
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
-    },
-  });
-  // A closed window's objects throw when touched; the next question about it must find none.
-  const opened = connectWin;
-  opened.on('closed', () => {
-    if (connectWin === opened) connectWin = null;
-  });
-  void connectWin.loadFile(join(assets(), 'connect.html'), { query: { lang: locale() } });
-}
-
-/** A pairing code as people type it (`ABCD-2345`); access keys are much longer. */
-const isPairingCode = (v: string) => /^[A-Za-z0-9]{4}[\s-]?[A-Za-z0-9]{4}$/.test(v);
-
-/** Spends a pairing code at `url` and keeps the session it gives as the window's sign-in cookie. */
-async function pairWith(url: string, code: string) {
-  const res = await session.defaultSession.fetch(`${url}/api/pair`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ code, token: true }),
-  });
-  const body = (await res.json().catch(() => null)) as {
-    token?: string;
-    cookie?: string;
-    maxAge?: number;
-    error?: string;
-  } | null;
-  if (!res.ok || !body?.token || !body.cookie) {
-    throw new Error(body?.error ?? t('connect.noResponse', { status: String(res.status) }));
-  }
-  const secure = url.startsWith('https:');
-  await session.defaultSession.cookies.set({
-    url,
-    name: body.cookie,
-    value: body.token,
-    httpOnly: true,
-    secure,
-    sameSite: 'strict',
-    path: '/',
-    expirationDate: Date.now() / 1000 + (body.maxAge ?? 90 * 24 * 3600),
-  });
-}
-
+/** The pages that may ask for the microphone: this computer's own server's, and the website's. */
 function isAppOrigin(url: string) {
   try {
-    return !!origin && new URL(url).origin === new URL(origin).origin;
+    const at = new URL(url).origin;
+    return at === new URL(WEBSITE).origin || (!!localOrigin && at === localOrigin);
   } catch {
     return false;
   }
 }
 
+/**
+ * From the page of this computer's own server, shown in the main window: the only page that may
+ * use the bridge to this app. The website's page, shown in the same window, has none.
+ */
 function fromMainPage(e: IpcMainInvokeEvent) {
   try {
-    return !!origin && new URL(e.senderFrame?.url ?? '').origin === origin;
+    return (
+      config.shown === 'local' &&
+      !!localOrigin &&
+      origin === localOrigin &&
+      new URL(e.senderFrame?.url ?? '').origin === localOrigin
+    );
   } catch {
     return false;
   }
-}
-/** From the page of this computer's own server, shown in the main window. */
-function fromLocalPage(e: IpcMainInvokeEvent) {
-  return config.shown === 'local' && !!localOrigin && origin === localOrigin && fromMainPage(e);
-}
-function fromConnectPage(e: IpcMainInvokeEvent) {
-  return !!connectWin && e.sender === connectWin.webContents;
 }
 /** From a saved app's own window, showing the page of this computer's server. */
 function fromLocalAppWindow(e: IpcMainInvokeEvent) {
@@ -1204,26 +1171,24 @@ const isAppName = (v: unknown): v is string =>
   typeof v === 'string' && v.trim().length > 0 && v.length <= 120;
 
 function registerIpc() {
-  ipcMain.handle('leafbot:access-key', (e) =>
-    fromMainPage(e) ? accessKey : fromLocalAppWindow(e) ? localKey : null,
-  );
+  ipcMain.handle('leafbot:access-key', (e) => (fromMainPage(e) || fromLocalAppWindow(e) ? localKey : null));
   // Saved apps: a window of their own, from any server's page; launchers on this computer only
   // from this computer's own server's page, whose apps they open.
   ipcMain.handle('leafbot:open-app', (e, id: unknown) => {
     if (fromMainPage(e) && origin && isAppId(id)) openAppWindow(id, origin);
   });
   ipcMain.handle('leafbot:app-installs', (e) =>
-    fromLocalPage(e) ? (appInstaller()?.installed() ?? null) : null,
+    fromMainPage(e) ? (appInstaller()?.installed() ?? null) : null,
   );
   ipcMain.handle('leafbot:app-install', async (e, id: unknown, name: unknown) => {
-    if (!fromLocalPage(e) || !isAppId(id) || !isAppName(name)) return null;
+    if (!fromMainPage(e) || !isAppId(id) || !isAppName(name)) return null;
     return appInstaller()?.install(id, name.trim()) ?? null;
   });
   ipcMain.handle('leafbot:app-uninstall', async (e, id: unknown) => {
-    if (fromLocalPage(e) && isAppId(id)) await appInstaller()?.uninstall(id);
+    if (fromMainPage(e) && isAppId(id)) await appInstaller()?.uninstall(id);
   });
   ipcMain.handle('leafbot:app-desktop', async (e, id: unknown, name: unknown, on: unknown) => {
-    if (!fromLocalPage(e) || !isAppId(id) || !isAppName(name) || typeof on !== 'boolean') return null;
+    if (!fromMainPage(e) || !isAppId(id) || !isAppName(name) || typeof on !== 'boolean') return null;
     return appInstaller()?.setDesktop(id, name.trim(), on) ?? null;
   });
   // The chat a `leafbot://` link named, once: the page asks when it starts and when told to.
@@ -1232,23 +1197,6 @@ function registerIpc() {
     const link = pendingLink;
     pendingLink = null;
     return link;
-  });
-  // Which server the window shows, so the page can offer to switch.
-  ipcMain.handle('leafbot:server', (e) =>
-    fromMainPage(e)
-      ? {
-          mode: config.shown === 'local' ? 'local' : 'remote',
-          url: config.shown === 'local' ? null : config.shown,
-        }
-      : null,
-  );
-  // Every server this app keeps, for the page to list and switch between. Only this computer's own
-  // server's page is told: a server elsewhere, perhaps someone else's, does not learn the person's
-  // other servers nor move the window to one (it has `use-local`, as before).
-  ipcMain.handle('leafbot:servers', (e) => (fromLocalPage(e) ? serverList() : null));
-  ipcMain.handle('leafbot:show-server', async (e, id: unknown) => {
-    if (!fromLocalPage(e) || !isKept(id) || id === config.shown) return;
-    await apply((c) => show(c, id));
   });
   // The quick window: putting itself away, opening a conversation in the main window, and the
   // shortcut that opens it, for the app to show.
@@ -1261,37 +1209,10 @@ function registerIpc() {
     openLink({ kind: 'thread', id });
   });
   ipcMain.handle('leafbot:quick-key', (e) => (fromMainPage(e) ? quickKey : null));
-  ipcMain.handle('leafbot:open-connect', (e) => {
-    if (fromMainPage(e)) openConnectWindow();
-  });
-  // The sidebar's server row opens a menu of the kept servers where the pointer is. The shell draws
-  // it, so any server's page may ask for it, a server elsewhere too, without learning the list. It
-  // only moves the window and offers to connect: stopping this computer's server or leaving one stays
-  // in the menu bar, out of reach of a page that may be someone else's.
-  ipcMain.handle('leafbot:server-menu', (e) => {
-    if (!win || e.sender !== win.webContents || !fromMainPage(e)) return;
-    Menu.buildFromTemplate(serverPickMenu()).popup({ window: win });
-  });
-  ipcMain.handle('leafbot:connect-remote', async (e, rawUrl: string, key: string) => {
-    if (!fromConnectPage(e)) return { ok: false, error: t('connect.noPermission') };
-    try {
-      const url = normalizeRemoteUrl(String(rawUrl));
-      const res = await session.defaultSession.fetch(`${url}/api/health`);
-      if (!res.ok) throw new Error(t('connect.noResponse', { status: String(res.status) }));
-      let saved = String(key).trim();
-      // A pairing code signs this app in once; the session it gives is kept with the window's
-      // cookies, and there is no key to keep.
-      if (isPairingCode(saved)) {
-        await pairWith(url, saved);
-        saved = '';
-      }
-      if (!safeStorage.isEncryptionAvailable()) throw new Error(t('error.noKeychain'));
-      await apply((c) => addRemote(c, { url, key: saved }));
-      connectWin?.close();
-      return { ok: true };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
+  // The page of this computer's server offers the way to the account's servers; the website's page
+  // it opens is remote content and has no calls of its own.
+  ipcMain.handle('leafbot:open-account', async (e) => {
+    if (fromMainPage(e)) await apply((c) => show(c, 'account'));
   });
   // The app reports its language so the menu and windows match it.
   ipcMain.handle('leafbot:set-locale', (e, next: unknown) => {
@@ -1302,7 +1223,6 @@ function registerIpc() {
     } catch (err) {
       log.warn('dil kaydedilemedi', err);
     }
-    if (connectWin && !connectWin.isDestroyed()) connectWin.setTitle(t('connect.title'));
     rebuildMenu();
   });
   ipcMain.handle('leafbot:set-unread', (e, count: unknown) => {
@@ -1344,28 +1264,6 @@ function registerIpc() {
   ipcMain.handle('leafbot:show-logs', (e) => {
     if (fromMainPage(e)) shell.showItemInFolder(log.transports.file.getFile().path);
   });
-  ipcMain.handle('leafbot:use-local', async (e) => {
-    if (!fromConnectPage(e) && !fromMainPage(e)) return;
-    await apply((c) => show(c, 'local'));
-    connectWin?.close();
-  });
-}
-
-/** A server this app keeps: this computer's own while it runs, or one elsewhere on the list. */
-function isKept(id: unknown): id is ServerId {
-  return id === 'local' ? config.local : typeof id === 'string' && !!remoteOf(config, id);
-}
-
-/** The servers this app keeps, the main one first when it is elsewhere. */
-function serverList() {
-  const main = mainServer(config);
-  const ids: ServerId[] = [...config.remotes.map((r) => r.url), ...(config.local ? ['local'] : [])];
-  return ids.map((id) => ({
-    id,
-    url: id === 'local' ? null : id,
-    main: id === main,
-    shown: id === config.shown,
-  }));
 }
 
 /**
@@ -1384,7 +1282,7 @@ function setAwake(busy: boolean) {
 }
 
 /**
- * While the window shows a server elsewhere, its page cannot say whether this computer's bots
+ * While the window shows the account's page, that page cannot say whether this computer's bots
  * work: this computer's server is asked now and then instead.
  */
 function watchLocalWork() {
@@ -1453,46 +1351,49 @@ function hardenSessions() {
       if (/^https?:\/\//.test(url)) void shell.openExternal(url);
       return { action: 'deny' };
     });
-    contents.on('will-navigate', (e, url) => {
-      // The origin is compared whole: a prefix would also let https://bot.example.com.evil.net or
-      // https://bot.example.com@evil.net through.
-      const allowed = url.startsWith('file://') || isAppOrigin(url);
-      if (!allowed) {
-        e.preventDefault();
-        if (/^https?:\/\//.test(url)) void shell.openExternal(url);
+    // A page stays on its own origin, which is this computer's server or the website and nothing
+    // else: the origin is compared whole, as a prefix would also let https://www.leafbot.app.evil.net
+    // or https://www.leafbot.app@evil.net through. Anything else opens in the person's browser,
+    // which a redirect (the sign-in of another provider, say) is held to as well.
+    const stay = (e: { preventDefault(): void }, url: string) => {
+      let same = false;
+      try {
+        same = isAppOrigin(url) && new URL(url).origin === new URL(contents.getURL()).origin;
+      } catch {
+        // A page not loaded yet has no origin to stay on.
       }
-    });
+      if (same) return;
+      e.preventDefault();
+      if (/^https?:\/\//.test(url)) void shell.openExternal(url);
+    };
+    contents.on('will-navigate', (e, url) => stay(e, url));
+    contents.on('will-redirect', (e, url) => stay(e, url));
   });
 }
 
 /**
- * This computer can be offered to a remote server's bots: a Mac or a Windows computer, with its
- * helper in place, connected to a server elsewhere.
+ * This computer can be offered to the account server's bots: a Mac or a Windows computer, with its
+ * helper in place, with an account server chosen.
  */
-const canOfferMac = () => helperSystem() && !!mainRemote() && existsSync(personComputer());
+const canOfferMac = () => helperSystem() && !!link && existsSync(personComputer());
 
 /**
- * Offers this Mac to the bots of the remote server, when the person turned it on in the menu bar.
- * The Mac is the one of the person signed in in the window: the connection uses the window's
- * session, and the access key (always the owner) only when there is none.
+ * Offers this Mac to the bots of the account server, when the person turned it on in the menu bar.
+ * The Mac is the one of the person signed in on the website in the window: the tunnel is made with
+ * that account, so the server sees who it belongs to.
  */
 function startMac() {
   stopMacOffer();
-  const remote = mainRemote();
-  if (!canOfferMac() || !readMacOn(userData) || !remote) return;
+  const mine = link;
+  if (!canOfferMac() || !readMacOn(userData) || !mine) return;
   const helper = startHelper(personComputer(), 'jpeg');
   const bridge = startMacBridge({
-    url: remote.url,
-    headers: async (): Promise<Record<string, string>> => {
-      macSignIn = await sessionCookie(remote.url);
-      if (macSignIn) return { cookie: macSignIn };
-      return remote.key ? { authorization: `Bearer ${remote.key}` } : {};
-    },
-    device: hostname().replace(/\.local$/, ''),
+    tunnel: (fn) => mine.subscribe(fn),
+    device: deviceName(),
     driver: helper.driver,
     shot: helper.shot,
-    ask: (bot, signal) => askForMac(bot, new URL(remote.url).host, signal),
-    commands: readCommandsOn(userData) ? commandJobs(new URL(remote.url).host) : null,
+    ask: (bot, signal) => askForMac(bot, serverLabel(), signal),
+    commands: readCommandsOn(userData) ? commandJobs(serverLabel()) : null,
     onChange: (active) => {
       macInUse = active;
       // A sleeping display makes the bot's screenshots black: kept on while the use goes on, which
@@ -1516,40 +1417,38 @@ function commandJobs(host: string): CommandJobs {
   return jobs;
 }
 
-let macRestart: ReturnType<typeof setTimeout> | null = null;
-/** The window's sign-in the Mac's connection was made with; null when it used the access key. */
-let macSignIn: string | null = null;
+let signInTimer: ReturnType<typeof setTimeout> | null = null;
+/** The website's sign-in as the app last saw it, to tell a change of person from a renewed cookie. */
+let lastSignIn: string | null = null;
 
-/** The names the server gives its sign-in cookie; the second is from before the app's new name. */
-const SESSION_COOKIES = ['leafbot_session', 'yumakbot_session'];
-
-/** The window's sign-in cookie for `url`, as a Cookie header value, or null when there is none. */
-async function sessionCookie(url: string): Promise<string | null> {
-  const cookies = await session.defaultSession.cookies.get({ url });
-  const c = cookies.find((x) => SESSION_COOKIES.includes(x.name));
+/** The window's sign-in cookie for the website, as a Cookie header value; null while signed out. */
+async function sessionCookie(): Promise<string | null> {
+  const [c] = await session.defaultSession.cookies.get({ url: WEBSITE, name: SESSION_COOKIE });
   return c ? `${c.name}=${c.value}` : null;
 }
 
 /**
- * A sign-in that changed in the window (another person, or signed out) changes whose Mac this is:
- * the offer starts again with the new sign-in, and a use the previous one allowed ends with it. The
- * server sets the same cookie again on each visit to keep it from running out; that is no change.
+ * A sign-in that changed in the window (another person, or signed out) changes whose computer this
+ * is: the tunnel is made again with the new sign-in, or not at all when there is none, and what
+ * the previous one allowed ends with it. The website sets the same cookie again on each visit to
+ * keep it from running out; that is no change.
  */
-function watchMacSignIn() {
+function watchSignIn() {
+  void sessionCookie().then((now) => (lastSignIn = now));
   session.defaultSession.cookies.on('changed', (_e, cookie) => {
-    const remote = mainRemote();
-    if (!remote || !stopMac || !SESSION_COOKIES.includes(cookie.name)) return;
-    const url = remote.url;
-    if (cookie.domain?.replace(/^\./, '') !== new URL(url).hostname) return;
-    if (macRestart) clearTimeout(macRestart);
-    macRestart = setTimeout(() => {
-      macRestart = null;
-      void sessionCookie(url).then((now) => {
+    if (cookie.name !== SESSION_COOKIE || cookie.domain?.replace(/^\./, '') !== new URL(WEBSITE).hostname) {
+      return;
+    }
+    if (signInTimer) clearTimeout(signInTimer);
+    signInTimer = setTimeout(() => {
+      signInTimer = null;
+      void sessionCookie().then((now) => {
+        if (now === lastSignIn) return;
+        lastSignIn = now;
         // Commands started for the one signed in before are theirs: they stop with the change.
-        if (stopMac && now !== macSignIn) {
-          jobs?.stopAll();
-          startMac();
-        }
+        jobs?.stopAll();
+        void link?.signInChanged();
+        void refreshAccountServers();
       });
     }, 1_000);
   });
@@ -1661,54 +1560,53 @@ function macMenu(): Electron.MenuItemConstructorOptions[] {
   ];
 }
 
-/** The kept servers as a choice, the main one marked when there are several, the shown one checked. */
-function serverChoices(): Electron.MenuItemConstructorOptions[] {
-  const list = serverList();
-  const name = (id: ServerId) => (id === 'local' ? t('menu.thisComputer') : hostOf(id));
-  return list.map((s) => ({
-    label: list.length > 1 && s.main ? t('menu.mainServer', { name: name(s.id) }) : name(s.id),
-    type: 'radio' as const,
-    checked: s.shown,
-    click: () => void apply((c) => show(c, s.id)),
-  }));
-}
-
-/** The sidebar's menu of servers: moving the window to one, or connecting another. */
-function serverPickMenu(): Electron.MenuItemConstructorOptions[] {
-  return [
-    ...serverChoices(),
-    { type: 'separator' },
-    { label: t('menu.connectRemote'), click: () => openConnectWindow() },
-  ];
-}
-
 /**
- * The menu bar's part for the servers: the ones kept, the main one marked when there are several,
- * which the window shows, this computer's own server on or off, adding one and leaving one.
+ * The menu bar's part for the servers: what the window shows (this computer's own server, or the
+ * website's page of the account's servers), this computer's own server on or off, and the account
+ * server the window opens and this computer is offered to.
  */
 function serverMenu(): Electron.MenuItemConstructorOptions[] {
   return [
-    ...serverChoices(),
+    {
+      label: t('menu.thisComputer'),
+      type: 'radio',
+      checked: config.shown === 'local',
+      click: () => void apply((c) => show(c, 'local')),
+    },
+    {
+      label: t('menu.accountServers'),
+      type: 'radio',
+      checked: config.shown === 'account',
+      click: () => void apply((c) => show(c, 'account')),
+    },
+    {
+      label: t('menu.accountServer'),
+      submenu: [
+        ...accountServers.map((s) => ({
+          label: s.name,
+          type: 'radio' as const,
+          checked: config.server === s.id,
+          click: () => void apply((c) => chooseServer(c, s.id)),
+        })),
+        ...(accountServers.length
+          ? [
+              { type: 'separator' as const },
+              {
+                label: t('menu.noAccountServer'),
+                type: 'radio' as const,
+                checked: !config.server,
+                click: () => void apply((c) => chooseServer(c, null)),
+              },
+            ]
+          : [{ label: t('menu.signInForServers'), enabled: false }]),
+      ],
+    },
     {
       label: t('menu.runLocal'),
       type: 'checkbox',
       checked: config.local,
-      // This computer's server is the only one while no other is kept.
-      enabled: config.remotes.length > 0,
       click: (item) => void turnLocal(item.checked),
     },
-    { label: t('menu.connectRemote'), click: () => openConnectWindow() },
-    ...(config.remotes.length
-      ? [
-          {
-            label: t('menu.removeServer'),
-            submenu: config.remotes.map((r) => ({
-              label: hostOf(r.url),
-              click: () => void leaveServer(r.url),
-            })),
-          },
-        ]
-      : []),
   ];
 }
 
@@ -1731,25 +1629,16 @@ async function turnLocal(on: boolean) {
   await apply((c) => setLocal(c, on));
 }
 
-/** Forgets a server elsewhere after asking; what is on it stays there. */
-async function leaveServer(url: string) {
-  const { response } = await dialog.showMessageBox({
-    type: 'question',
-    message: t('dialog.removeServer', { host: hostOf(url) }),
-    detail: t('dialog.removeServerDetail'),
-    buttons: [t('dialog.remove'), t('dialog.cancel')],
-    defaultId: 1,
-    cancelId: 1,
-  });
-  if (response === 0) await apply((c) => removeRemote(c, url));
-}
-
 function createTray() {
   const icon = nativeImage.createFromPath(join(assets(), 'trayTemplate.png'));
   icon.setTemplateImage(true);
   tray = new Tray(icon);
   tray.setToolTip('Leaf Bot');
-  tray.on('click', () => tray?.popUpContextMenu());
+  tray.on('click', () => {
+    // The list is read in the background, so it is a little behind the first time the menu opens.
+    void refreshAccountServers();
+    tray?.popUpContextMenu();
+  });
   rebuildMenu();
 }
 
@@ -1780,7 +1669,8 @@ function buildAppMenu() {
             label: t('menu.settings'),
             accelerator: 'CommandOrControl+,',
             click: openSettings,
-            enabled: !!origin,
+            // Settings are a page of this computer's own server; the website's page has its own.
+            enabled: !!origin && config.shown === 'local',
           },
           { type: 'separator' },
           // Without a label these read "Hide LeafBot", from the internal name.
@@ -1842,7 +1732,7 @@ function rebuildMenu() {
       {
         label: t('menu.quick'),
         click: () => toggleQuick(),
-        enabled: !!origin,
+        enabled: !!origin && config.shown === 'local',
         ...(quickKey && { accelerator: quickKey, registerAccelerator: false }),
       },
       {
@@ -1891,6 +1781,7 @@ app.on('will-quit', () => {
   // A command does not outlive the app that answers for it.
   jobs?.stopAll();
   stopMacOffer();
+  link?.stop();
   stopDisplayWatch();
 });
 // Keep running in the menu bar when every window is closed.

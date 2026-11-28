@@ -99,7 +99,11 @@ describe('yedek', () => {
   });
 
   it('geri yükleme owner’ın oturumunu korur; yedekte olmayan kişinin oturumu kapanır', async () => {
-    await t.auth.users.setCredentials(OWNER_ID, 'erhan', 'owner-sifresi');
+    const ownerPassword = await hashPassword('owner-sifresi');
+    await t.services.ctx.db
+      .update(schema.users)
+      .set({ username: 'erhan', usernameKey: 'erhan', password: ownerPassword })
+      .where(eq(schema.users.id, OWNER_ID));
     const ownerSession = await t.auth.createSession(OWNER_ID);
     const { file } = await download(PASSWORD);
     // Someone added after the backup, signed in on a device of their own.
@@ -115,7 +119,8 @@ describe('yedek', () => {
     expect(sessions.map((s) => s.userId)).not.toContain('ayse');
     const later = new Date(Date.now() + 2 * 60_000);
     expect(await t.auth.validSession(ownerSession, later)).toMatchObject({ userId: OWNER_ID });
-    expect(await t.auth.users.check('erhan', 'owner-sifresi')).not.toBeNull();
+    const [owner] = await t.services.ctx.db.select().from(schema.users).where(eq(schema.users.id, OWNER_ID));
+    expect(owner).toMatchObject({ username: 'erhan', password: ownerPassword });
   });
 
   it('kişilerden önceki bir yedeğin tek hesabı owner olur', async () => {
@@ -131,7 +136,8 @@ describe('yedek', () => {
     );
     await replaceRows(t.services.ctx.db, new Map([['kv', kv]]));
 
-    expect(await t.auth.users.check('erhan', 'eski-sifre')).toMatchObject({ id: OWNER_ID, role: 'owner' });
+    const [owner] = await t.services.ctx.db.select().from(schema.users).where(eq(schema.users.id, OWNER_ID));
+    expect(owner).toMatchObject({ username: 'Erhan', role: 'owner', password: { hash: expect.any(String) } });
     expect(await t.services.ctx.db.select().from(schema.kv).where(eq(schema.kv.key, 'account'))).toEqual([]);
     const later = new Date(Date.now() + 2 * 60_000);
     expect(await t.auth.validSession(ownerSession, later)).toMatchObject({ userId: OWNER_ID });

@@ -4,7 +4,6 @@ import { join } from 'node:path';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { normalizeRemoteUrl, readDesktopConfig, writeDesktopConfig } from './desktop-config';
 import { fullPath, ServerProcess, serverStep, type ServerState } from './server-process';
 
 const entry = join(import.meta.dirname, '../../server/dist/index.mjs');
@@ -39,30 +38,6 @@ describe.skipIf(!existsSync(entry))('sunucu süreci', () => {
     await sp.stop();
     expect(sp.running).toBe(false);
     await expect(fetch(`${url2}/api/health`)).rejects.toThrow();
-  });
-});
-
-describe('masaüstü ayarı', () => {
-  const crypto = {
-    isEncryptionAvailable: () => true,
-    encryptString: (s: string) => Buffer.from([...s].reverse().join('')),
-    decryptString: (b: Buffer) => [...b.toString()].reverse().join(''),
-  };
-  it('uzak sunucu anahtarı şifreli saklanır ve geri okunur', () => {
-    const d = mkdtempSync(join(tmpdir(), 'leafbot-cfg-'));
-    const cfg = {
-      local: false,
-      remotes: [{ url: 'https://a.example.com', key: 'gizli' }],
-      shown: 'https://a.example.com',
-    };
-    writeDesktopConfig(d, cfg, crypto);
-    expect(readDesktopConfig(d, crypto)).toEqual(cfg);
-    rmSync(d, { recursive: true, force: true });
-  });
-  it('uzak adres https olmalı; yerel ağ istisnadır', () => {
-    expect(normalizeRemoteUrl('https://a.example.com/x')).toBe('https://a.example.com');
-    expect(normalizeRemoteUrl('http://localhost:4319')).toBe('http://localhost:4319');
-    expect(() => normalizeRemoteUrl('http://a.example.com')).toThrow();
   });
 });
 

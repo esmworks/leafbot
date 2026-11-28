@@ -9,90 +9,7 @@ import {
   LoginThrottle,
   MAX_FAILURES,
 } from '../src/account';
-import { OWNER_ID } from '../src/users';
 import { KEY, testServer, type TestServer } from './helpers';
-
-describe('kullanıcı adı ve şifreyle giriş', () => {
-  let t: TestServer;
-  beforeAll(async () => {
-    t = await testServer();
-  });
-  afterAll(() => t.dispose());
-
-  const send = (method: string, url: string, payload?: object, headers: Record<string, string> = {}) =>
-    t.app.inject({
-      method: method as 'POST',
-      url,
-      headers: { host: 'localhost', ...headers },
-      ...(payload ? { payload } : {}),
-    });
-  const auth = { authorization: `Bearer ${KEY}` };
-  const cookieOf = (r: { headers: Record<string, unknown> }) =>
-    String(r.headers['set-cookie']).split(';')[0]!;
-
-  it('hesap yokken giriş sayfası anahtar ister, şifreyle giriş olmaz', async () => {
-    expect((await send('GET', '/api/session')).json()).toEqual({ authenticated: false, account: false });
-    expect((await send('POST', '/api/login', { username: 'erhan', password: 'herhangi1' })).statusCode).toBe(
-      401,
-    );
-  });
-
-  it('hesap oturumla kurulur; kısa şifre reddedilir', async () => {
-    expect(
-      (await send('PUT', '/api/account', { username: 'erhan', password: 'gizli-sifre' })).statusCode,
-    ).toBe(401);
-    expect(
-      (await send('PUT', '/api/account', { username: 'erhan', password: 'kisa' }, auth)).statusCode,
-    ).toBe(400);
-    const made = await send('PUT', '/api/account', { username: 'Erhan', password: 'gizli-sifre' }, auth);
-    expect(made.json()).toEqual({ username: 'Erhan' });
-    expect((await send('GET', '/api/account', undefined, auth)).json()).toEqual({ username: 'Erhan' });
-    expect((await send('GET', '/api/session')).json()).toEqual({ authenticated: false, account: true });
-  });
-
-  it('doğru kullanıcı adı ve şifre oturum açar; yanlışları açmaz', async () => {
-    expect(
-      (await send('POST', '/api/login', { username: 'erhan', password: 'yanlis-sifre' })).statusCode,
-    ).toBe(401);
-    expect(
-      (await send('POST', '/api/login', { username: 'baska', password: 'gizli-sifre' })).statusCode,
-    ).toBe(401);
-    // The username is matched without regard to case or surrounding spaces.
-    const ok = await send('POST', '/api/login', { username: ' erhan ', password: 'gizli-sifre' });
-    expect(ok.statusCode).toBe(200);
-    const cookie = cookieOf(ok);
-    expect((await send('GET', '/api/bots', undefined, { cookie })).statusCode).toBe(200);
-  });
-
-  it('şifre değişikliği mevcut şifreyi ya da erişim anahtarını ister', async () => {
-    const change = (current?: string) =>
-      send('PUT', '/api/account', { username: 'erhan', password: 'yeni-sifre-1', current }, auth);
-    expect((await change()).statusCode).toBe(403);
-    expect((await change('yanlis')).statusCode).toBe(403);
-    expect((await change('gizli-sifre')).statusCode).toBe(200);
-    // A forgotten password is replaced with the access key.
-    const viaKey = await send(
-      'PUT',
-      '/api/account',
-      { username: 'erhan', password: 'yeni-sifre-2', current: KEY },
-      auth,
-    );
-    expect(viaKey.statusCode).toBe(200);
-    expect(
-      (await send('POST', '/api/login', { username: 'erhan', password: 'yeni-sifre-1' })).statusCode,
-    ).toBe(401);
-    expect(
-      (await send('POST', '/api/login', { username: 'erhan', password: 'yeni-sifre-2' })).statusCode,
-    ).toBe(200);
-  });
-
-  it('veritabanında şifrenin kendisi değil yalnızca özeti durur', async () => {
-    const rows = await t.db.db.query.users.findMany();
-    const stored = JSON.stringify(rows.find((r) => r.id === OWNER_ID)?.password);
-    expect(stored).toContain('"hash"');
-    expect(stored).not.toContain('yeni-sifre-2');
-  });
-});
 
 describe('LoginThrottle', () => {
   it('çok sayıda yanlış denemeden sonra pencere geçene kadar bekletir', () => {
@@ -153,85 +70,46 @@ describe('LoginThrottle', () => {
   });
 });
 
-describe('giriş sınırı ve şifre değişikliği', () => {
+describe('erişim anahtarı', () => {
   let t: TestServer;
   beforeAll(async () => {
     t = await testServer();
-    const made = await t.app.inject({
-      method: 'PUT',
-      url: '/api/account',
-      headers: { host: 'localhost', authorization: `Bearer ${KEY}` },
-      payload: { username: 'erhan', password: 'gizli-sifre' },
-    });
-    expect(made.statusCode).toBe(200);
   });
   afterAll(() => t.dispose());
 
-  const login = (password: string, from = '127.0.0.1') =>
+  const access = (key: string, from: string) =>
     t.app.inject({
       method: 'POST',
-      url: '/api/login',
+      url: '/api/access',
       remoteAddress: from,
       headers: { host: 'localhost' },
-      payload: { username: 'erhan', password },
+      payload: { key },
+    });
+  const bearer = (key: string, from: string) =>
+    t.app.inject({
+      method: 'GET',
+      url: '/api/bots',
+      remoteAddress: from,
+      headers: { host: 'localhost', authorization: `Bearer ${key}` },
     });
 
-  // The password check is slow on purpose; tries sent all at once were all let through before
-  // any of them was counted.
-  it('aynı anda gönderilen yanlış şifreler sınırı aşamaz', async () => {
-    const replies = await Promise.all(
-      Array.from({ length: MAX_FAILURES * 3 }, () => login('yanlis-sifre', '192.0.2.10')),
-    );
-    const codes = replies.map((r) => r.statusCode);
-    expect(codes.filter((c) => c === 401)).toHaveLength(MAX_FAILURES);
-    expect(codes.filter((c) => c === 429)).toHaveLength(MAX_FAILURES * 2);
-    expect((await login('gizli-sifre', '192.0.2.10')).statusCode).toBe(429);
-    expect((await login('gizli-sifre', '192.0.2.11')).statusCode).toBe(200);
-  });
-
-  it('şifre değişince diğer cihazların oturumları kapanır, değiştiren cihazınki açık kalır', async () => {
-    const cookieOf = (r: { headers: Record<string, unknown> }) =>
-      String(r.headers['set-cookie']).split(';')[0]!;
-    const phone = cookieOf(await login('gizli-sifre'));
-    const laptop = cookieOf(await login('gizli-sifre'));
-    const bots = (cookie: string) =>
-      t.app.inject({ method: 'GET', url: '/api/bots', headers: { host: 'localhost', cookie } });
-    expect((await bots(phone)).statusCode).toBe(200);
-    const change = await t.app.inject({
-      method: 'PUT',
-      url: '/api/account',
-      headers: { host: 'localhost', origin: 'http://localhost', cookie: laptop },
-      payload: { username: 'erhan', password: 'yeni-sifre-1', current: 'gizli-sifre' },
-    });
-    expect(change.statusCode).toBe(200);
-    expect((await bots(phone)).statusCode).toBe(401);
-    expect((await bots(laptop)).statusCode).toBe(200);
+  it('başka bir adresten, doğru olsa da, geçmez', async () => {
+    expect((await access(KEY, '192.0.2.20')).statusCode).toBe(403);
+    expect((await bearer(KEY, '192.0.2.20')).statusCode).toBe(401);
+    expect((await access(KEY, '::ffff:192.0.2.20')).statusCode).toBe(403);
+    expect((await access(KEY, '::1')).statusCode).toBe(200);
+    expect((await access(KEY, '::ffff:127.0.0.1')).statusCode).toBe(200);
   });
 
   it('erişim anahtarı ve Bearer denemeleri adres başına sınırlanır', async () => {
-    const access = (key: string, from: string) =>
-      t.app.inject({
-        method: 'POST',
-        url: '/api/access',
-        remoteAddress: from,
-        headers: { host: 'localhost' },
-        payload: { key },
-      });
     for (let i = 0; i < MAX_FAILURES; i++)
-      expect((await access('yanlis', '192.0.2.20')).statusCode).toBe(401);
-    expect((await access(KEY, '192.0.2.20')).statusCode).toBe(429);
-    expect((await access(KEY, '192.0.2.21')).statusCode).toBe(200);
-    const bearer = (key: string, from: string) =>
-      t.app.inject({
-        method: 'GET',
-        url: '/api/bots',
-        remoteAddress: from,
-        headers: { host: 'localhost', authorization: `Bearer ${key}` },
-      });
+      expect((await access('yanlis', '127.0.0.20')).statusCode).toBe(401);
+    expect((await access(KEY, '127.0.0.20')).statusCode).toBe(429);
+    expect((await access(KEY, '127.0.0.21')).statusCode).toBe(200);
     for (let i = 0; i < MAX_FAILURES; i++)
-      expect((await bearer('yanlis', '192.0.2.30')).statusCode).toBe(401);
-    expect((await bearer(KEY, '192.0.2.30')).statusCode).toBe(429);
+      expect((await bearer('yanlis', '127.0.0.30')).statusCode).toBe(401);
+    expect((await bearer(KEY, '127.0.0.30')).statusCode).toBe(429);
     // A right key does not use up an address's tries.
-    for (let i = 0; i < MAX_FAILURES * 2; i++) expect((await bearer(KEY, '192.0.2.31')).statusCode).toBe(200);
+    for (let i = 0; i < MAX_FAILURES * 2; i++) expect((await bearer(KEY, '127.0.0.31')).statusCode).toBe(200);
   });
 });

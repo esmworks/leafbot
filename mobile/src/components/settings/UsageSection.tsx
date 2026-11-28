@@ -19,7 +19,6 @@ import { locale, t } from '@/i18n';
 import { formatters } from '@/lib/format';
 import { useBots, useSettings, useStorage, useUsage } from '@/lib/queries';
 import { nav } from '@/lib/nav';
-import { useServer } from '@/lib/server';
 import { useColors } from '@/lib/theme';
 
 /** The bot filter's value for every bot; bot ids never take this form. */
@@ -30,7 +29,6 @@ const fmt = formatters(locale, t);
 
 export function UsageSection() {
   const c = useColors();
-  const { origin } = useServer();
   const [days, setDays] = useState<UsageRange>(30);
   const [botId, setBotId] = useState<string | null>(null);
   const { data, isPending, isError } = useUsage(days, botId ?? undefined);
@@ -85,7 +83,7 @@ export function UsageSection() {
         busy={busy}
         onPress={async () => {
           setBusy(true);
-          await shareFile(`${origin}/api/usage/turns.csv?days=${days}`, 'leafbot-usage.csv');
+          await shareFile(`/api/usage/turns.csv?days=${days}`, 'leafbot-usage.csv');
           setBusy(false);
         }}
       />
