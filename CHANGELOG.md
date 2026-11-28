@@ -3,7 +3,7 @@
 All notable changes to Leaf Bot (called Yumak Bot before 0.7.0) are listed here. Versions follow [Semantic Versioning](https://semver.org/). While the
 version is 0.x, a minor release may change the data format or the API; the server migrates its database on start.
 
-## Unreleased
+## 0.10.0 — 2026-11-28
 
 ### Added
 
@@ -448,6 +448,11 @@ version is 0.x, a minor release may change the data format or the API; the serve
   and offers to try again.
 - Streamed replies are drawn once per screen refresh instead of once per word.
 - Messages held while the connection was away are sent again as soon as it is back, instead of after a wait.
+- All fifteen languages cover the whole interface. The ten that were translated for the first screens
+  only — Arabic, French, Hindi, Indonesian, Italian, Polish, Portuguese (Brazil), Russian, Ukrainian and
+  Vietnamese — now carry every text, and German, Spanish and Chinese the keys the routine changes added,
+  so nothing falls back to English in a language someone picked. The new texts were drafted from the
+  English catalog and want a native read before a language leaves beta.
 
 ### Removed
 
@@ -601,14 +606,6 @@ version is 0.x, a minor release may change the data format or the API; the serve
   restart that was waiting is cancelled.
 - An update that did not install (an unsigned build, a replace the system refused) can be tried again; before, every
   later attempt did nothing. The desktop app starts its server again and says the update failed.
-
-### Changed
-
-- All fifteen languages cover the whole interface. The ten that were translated for the first screens
-  only — Arabic, French, Hindi, Indonesian, Italian, Polish, Portuguese (Brazil), Russian, Ukrainian and
-  Vietnamese — now carry every text, and German, Spanish and Chinese the keys the routine changes added,
-  so nothing falls back to English in a language someone picked. The new texts were drafted from the
-  English catalog and want a native read before a language leaves beta.
 
 ## 0.9.1 — 2026-11-23
 

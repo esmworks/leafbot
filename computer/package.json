@@ -3,7 +3,7 @@
   "private": true,
   "license": "PolyForm-Noncommercial-1.0.0",
   "type": "module",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "scripts": {
     "build": "node build.mjs",
     "typecheck": "tsc -p tsconfig.json"
