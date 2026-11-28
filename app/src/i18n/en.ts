@@ -2491,10 +2491,15 @@ export const en: Catalog<MessageKey> = {
   'connection.shownHere': 'Shown in this window',
   'connection.viaAccount':
     'Open through your Leaf Bot account, over an encrypted connection between your device and the server; the server opens no port.',
-  'connection.yourRole': 'Your role: {role}.',
   'connection.accountSignOut': 'Sign out of your Leaf Bot account',
   'connection.accountSignOutHint':
     'This app signs out of your account; you sign in again in your browser to open your servers.',
+  'connection.servers': 'Servers',
+  'connection.serversHint':
+    "The servers in your Leaf Bot account. A server's settings change while it is open in this window; choosing another moves the window to it.",
+  'connection.how': 'Connection',
+  'connection.versionLine': 'Version {version}',
+  'connection.lastSeen': 'Last seen {when}',
 
   'browserInfo.label': "Bots' browser",
   'browserInfo.ok': 'Available',

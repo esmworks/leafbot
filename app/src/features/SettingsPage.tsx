@@ -75,7 +75,6 @@ import {
   useSettings,
 } from '@/lib/queries';
 import { desktop } from '@/lib/desktop';
-import { useServerSwitch, type ServerRole } from '@/lib/serverSwitch';
 import { useUi, type SettingsTab } from '@/lib/store';
 import { useTransport } from '@/lib/transport';
 import { NoteSource } from './NoteSource';
@@ -130,6 +129,7 @@ import { UsageTab } from './UsageTab';
 import { VaultTab } from './VaultTab';
 import { PeopleTab, personName, personNameOf } from './PeopleTab';
 import { SpacesTab } from './SpacesTab';
+import { AccountConnection, useConnectionTitle } from './ConnectionServers';
 import { ConnectPhone } from './ConnectPhone';
 import { ApnsCard } from './PhoneSettings';
 import { TailscaleCard } from './TailscaleSettings';
@@ -251,8 +251,15 @@ export function SettingsPage() {
   const view = useUi((s) => s.settingsView);
   const providerName = useProviderTitle(current.id === 'providers' ? view : null);
   const channelName = useChannelTitle(current.id === 'channels' ? view : null);
+  const serverName = useConnectionTitle(current.id === 'connection' ? view : null);
   const viewTitle =
-    current.id === 'providers' ? providerName : current.id === 'channels' ? channelName : null;
+    current.id === 'providers'
+      ? providerName
+      : current.id === 'channels'
+        ? channelName
+        : current.id === 'connection'
+          ? serverName
+          : null;
   const toSection = () => useUi.setState({ settingsView: null });
   // A phone shows one of two screens: the list of sections, or the section picked from it.
   const phone = useMedia(PHONE);
@@ -929,6 +936,14 @@ function General() {
 }
 
 function Connection() {
+  // Through the account's tunnel the page has no address of the server's and no session of its
+  // own: the account lists the servers and signs out.
+  const tunnel = useTransport((s) => !!s.tunnel);
+  return tunnel ? <AccountConnection /> : <OwnConnection />;
+}
+
+/** The server's own page: this one server, reached at its address with a session of its own. */
+function OwnConnection() {
   const t = useT();
   const { data: info } = useInfo();
   const setAuthed = useUi((s) => s.setAuthed);
@@ -937,40 +952,22 @@ function Connection() {
   // those who look after the server. The AI providers have their own section.
   const manages = useManagesServer();
   const owner = useSession().data?.user?.role === 'owner';
-  // Through the account's tunnel the page has no address of the server's and no session of its
-  // own: the server is known by its name in the account, and signing out is the account's.
-  const tunnel = useTransport((s) => !!s.tunnel);
   return (
     <>
-      {manages && (
-        <Card title={t('connection.environment')}>
-          <ShellSandboxRow sandbox={info?.shellSandbox} />
-          <BrowserRow browser={info?.browser} />
-          <EgressRow egress={info?.egress} />
-        </Card>
-      )}
-      {tunnel ? (
-        <Card title={t('connection.server')}>
-          <AccountServerRow />
-          <Row label={t('connection.version')} hint={info?.version ?? '…'} />
-          <AccountSignOutRow />
-        </Card>
-      ) : (
-        <Card title={t('connection.server')}>
-          <Row label={t('connection.address')} hint={window.location.origin} />
-          <DesktopServerRow />
-          <Row label={t('connection.version')} hint={info?.version ?? '…'} />
-          <Row label={t('connection.logoutHere')}>
-            <Button variant="secondary" size="sm" className="rounded-full" onClick={() => logout.mutate()}>
-              <LogOut /> {t('connection.logout')}
-            </Button>
-          </Row>
-        </Card>
-      )}
+      {manages && <ServerEnvironment />}
+      <Card title={t('connection.server')}>
+        <Row label={t('connection.address')} hint={window.location.origin} />
+        <DesktopServerRow />
+        <Row label={t('connection.version')} hint={info?.version ?? '…'} />
+        <Row label={t('connection.logoutHere')}>
+          <Button variant="secondary" size="sm" className="rounded-full" onClick={() => logout.mutate()}>
+            <LogOut /> {t('connection.logout')}
+          </Button>
+        </Row>
+      </Card>
       <ConnectPhone owner={owner} />
-      {/* The server's own sign-ins, made with the access key on its computer; devices that come
-          through the account are the account's. */}
-      {!tunnel && <Devices />}
+      {/* The server's own sign-ins, made with the access key on its computer. */}
+      <Devices />
       <AccountHostCard />
       <TailscaleCard />
       {manages && <ApnsCard />}
@@ -978,50 +975,16 @@ function Connection() {
   );
 }
 
-const ROLE_LABEL: Record<ServerRole, MessageKey> = {
-  owner: 'bots.role.owner',
-  admin: 'bots.role.admin',
-  member: 'bots.role.member',
-};
-
-/** Through the tunnel: the server as the account lists it, and how this page reaches it. */
-function AccountServerRow() {
+/** Where the server's bots run: the Bash sandbox, their browser and the way it goes out. */
+export function ServerEnvironment() {
   const t = useT();
-  const { name, role } = useServerSwitch();
-  const how = t('connection.viaAccount');
+  const { data: info } = useInfo();
   return (
-    <Row
-      label={name}
-      hint={role ? `${t('connection.yourRole', { role: t(ROLE_LABEL[role]) })} ${how}` : how}
-    />
-  );
-}
-
-/**
- * In the desktop app, signing out of the Leaf Bot account, which its menu bar offers too. On the
- * website the page has no account sign-out it can call, so there is nothing here; ending the tunnel
- * alone would only leave the page signed out of this server.
- */
-function AccountSignOutRow() {
-  const t = useT();
-  const signOut = desktop?.account?.signOut;
-  const [busy, setBusy] = useState(false);
-  if (!signOut) return null;
-  return (
-    <Row label={t('connection.accountSignOut')} hint={t('connection.accountSignOutHint')}>
-      <Button
-        variant="secondary"
-        size="sm"
-        className="rounded-full"
-        disabled={busy}
-        onClick={() => {
-          setBusy(true);
-          void signOut().finally(() => setBusy(false));
-        }}
-      >
-        <LogOut /> {t('connection.logout')}
-      </Button>
-    </Row>
+    <Card title={t('connection.environment')}>
+      <ShellSandboxRow sandbox={info?.shellSandbox} />
+      <BrowserRow browser={info?.browser} />
+      <EgressRow egress={info?.egress} />
+    </Card>
   );
 }
 

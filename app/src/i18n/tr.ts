@@ -2458,10 +2458,15 @@ export const tr = {
   'connection.shownHere': 'Bu pencerede açık',
   'connection.viaAccount':
     'Leaf Bot hesabınız üzerinden, cihazınızla sunucu arasında şifreli bir bağlantıyla açık; sunucunun port açması gerekmez.',
-  'connection.yourRole': 'Rolünüz: {role}.',
   'connection.accountSignOut': 'Leaf Bot hesabından çık',
   'connection.accountSignOutHint':
     'Bu uygulama hesabınızdan çıkar; sunucularınızı yeniden açmak için tarayıcıda giriş yapmanız gerekir.',
+  'connection.servers': 'Sunucular',
+  'connection.serversHint':
+    'Leaf Bot hesabınızdaki sunucular. Bir sunucunun ayarları o sunucu bu pencerede açıkken değişir; başka birini seçmek pencereyi ona geçirir.',
+  'connection.how': 'Bağlantı',
+  'connection.versionLine': 'Sürüm {version}',
+  'connection.lastSeen': 'Son görülme {when}',
 
   'browserInfo.label': 'Botların tarayıcısı',
   'browserInfo.ok': 'Var',

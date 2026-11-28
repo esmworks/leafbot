@@ -10,6 +10,8 @@ export interface ServerChoice {
   name: string;
   role?: ServerRole;
   current: boolean;
+  /** When the server last reached the account (milliseconds), as the account lists it. */
+  seenAt?: number;
 }
 
 /**
