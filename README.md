@@ -154,6 +154,66 @@ docs/       Notes on languages, screenshots and social images
 The server stores everything in PostgreSQL. With `DATABASE_URL` unset it uses embedded PGlite under the data folder,
 so a local install needs no database server.
 
+## Installing from scratch
+
+Everyone reaches Leaf Bot through a Leaf Bot account: the account says who you are, and the tunnel carries you to
+your server without an open port or an address of its own. A new installation therefore ends with the server linked
+to your account. Pick where the bots run: on your own computer with the desktop app, or on a Linux server that stays
+on.
+
+### On your own computer
+
+1. Download the installer for your system from the latest
+   [release](https://github.com/esmworks/leafbot/releases): `.dmg` for macOS (Apple silicon), `.exe` for Windows,
+   `.AppImage` or `.deb` for Linux. On Linux, also install `bubblewrap` and `socat` (the bots' shell sandbox) and
+   `poppler-utils` (reading PDFs); the `.deb` recommends them. On a Mac, `brew install poppler` lets the bots read
+   PDFs.
+2. Open Leaf Bot. It starts its own server on this computer and asks you to sign in with your Leaf Bot account:
+   your email, the 6-digit code mailed to it, and your name if the account has none yet. The server links itself to
+   the account on the way. If the account cannot be reached, "Go on without signing in" opens the app anyway and it
+   asks again on the next start.
+3. The setup screens follow: the language, the AI the bots run on (a Claude subscription with the token from
+   `claude setup-token`, an Anthropic API key, or another provider's key), the default model, and your first bots.
+4. Your bots are now on this computer. To reach them from elsewhere, sign in with the same account: in a browser at
+   www.leafbot.app/bots, or in the phone app with "Sign in with leafbot.app" (the phone app is still built from
+   source; see [Phone app](#phone-app-early)). Settings → Connection → Connect another device
+   shows a one-time QR code for the phone and a code for the Chrome extension.
+
+The bots work only while the computer is on and Leaf Bot is open. For bots that keep working around the clock, put
+them on a server.
+
+### On a Linux server
+
+You need a fresh Ubuntu (22.04 or later) or Debian (12 or later) server with at least 2 GB of memory (4 GB
+recommended, 8 GB for the bots' desktops) and ports 80 and 443 open in the provider's firewall. The server gets an
+HTTPS address of its own through Caddy for calls that come from outside, such as webhooks; people do not sign in
+there.
+
+1. Sign in at www.leafbot.app and open "Add a server". It gives the install command with an install code in a line
+   before the script:
+
+   ```bash
+   { echo LEAFBOT_INSTALL_CODE=ABCDE-FGHJK-LMNPQ-RSTUV; curl -fsSL https://raw.githubusercontent.com/esmworks/leafbot/main/docker/install.sh; } | sudo bash -s
+   ```
+
+   The code works once, for 15 minutes. It sits in a line of its own rather than in an argument because sudo's log
+   and `ps` would show an argument.
+
+2. Connect to the server over SSH and paste the command. The script installs Docker, the server, its database,
+   Caddy, AppArmor and the egress firewall, and at the end the server joins your account by itself: nothing asks for
+   an email or a code. A code that has run out does not stop the install; link the server afterwards with
+   `sudo leafbot login`.
+3. Open www.leafbot.app/bots, or the desktop or phone app signed in to the same account, and pick the new server.
+   The first visit walks you through the setup screens: the AI the bots run on, the default model and the first bots.
+4. To sign the phone app or the Chrome extension in from the server, run `sudo leafbot phone` and scan the QR code
+   or type the code. To bring other people in, invite them by email under Settings → People → Invite; they come in
+   with their own Leaf Bot account.
+
+Without an install code, run the plain command from [Quick start: your own server](#quick-start-your-own-server) and
+then `sudo leafbot login`: it asks for your email, the code mailed to it and your name, links the server and restarts
+it. `sudo leafbot update` later moves to the newest release and keeps settings and data. Back up with Settings →
+Import and backup, which seals the database, the vault key and the bots' folders into one password-protected file.
+
 ## Requirements
 
 - Node.js 24 or later
@@ -173,11 +233,13 @@ pnpm start
 ```
 
 `pnpm start` builds the app, the server and the Electron shell, then opens Leaf Bot. In local mode the desktop app
-starts its own server in the background and signs you in. On first launch, connect Claude in the setup screen (or later
-in Settings → Connection → Claude).
+starts its own server in the background. On first launch it asks you to sign in with your Leaf Bot account (an emailed
+code), which links that server to the account, then connect Claude in the setup screen (or later in Settings →
+Connection → Claude).
 
-The desktop app also opens the servers of your Leaf Bot account (Settings → Connection): it signs in to the account in
-its window and reaches each server through the tunnel, never by address.
+The desktop app also opens the servers of your Leaf Bot account (Settings → Connection): "Sign in with your browser"
+opens leafbot.app in your browser, approving there brings you back signed in, and the app reaches each server through
+the tunnel, never by address.
 
 Installers for macOS (`.dmg`, Apple silicon), Windows (`.exe`) and Linux (`.AppImage`, and a `.deb` for Debian and
 Ubuntu) are attached to each [release](https://github.com/esmworks/leafbot/releases). On Linux, install `bubblewrap`
@@ -223,6 +285,10 @@ curl -fsSL https://raw.githubusercontent.com/esmworks/leafbot/main/docker/instal
 
 The script installs Docker, fills in `docker/.env` with random secrets, sets up AppArmor and the egress firewall (kept
 across reboots), puts Caddy in front for HTTPS with a Let's Encrypt certificate, and prints the address and access key.
+People do not sign in at that address: they come through their Leaf Bot account (below). The access key works only
+from the server's own computer, as the owner's way in when the account cannot be reached and for local scripts. The
+command from your account's "Add a server" page also links the server at the end; see
+[Installing from scratch](#on-a-linux-server).
 Without a domain the server uses a name made from its IP address (`1-2-3-4.sslip.io`); an installed server keeps its
 name on updates. With your own domain, point its DNS record at the server first and pass it:
 
@@ -250,6 +316,8 @@ runcmd:
 
 The access key is chosen there because the script's output goes to a log file on the server; it needs at least 24
 letters, digits or `- _ . ~`. A few minutes later the server answers at `https://<server IP with dashes>.sslip.io`.
+To link it to your account, connect over SSH once and run `sudo leafbot login`; the install's progress is in
+`/var/log/cloud-init-output.log`.
 
 ## Running on a server (Docker, by hand)
 
