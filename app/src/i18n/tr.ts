@@ -22,9 +22,7 @@ export const tr = {
   'date.yesterdayShort': 'Dün',
 
   // Login
-  'login.enterKey': 'Anahtarı girin',
   'login.unreachable': 'Sunucuya ulaşılamadı',
-  'login.hint': 'Hesabına ulaşılamadığında bu bilgisayarda sunucunun erişim anahtarıyla da girebilirsin.',
   'login.accountOnly': 'Sunucularına ulaşmak için leafbot.app üzerinden Leaf Bot hesabınla gir.',
   'login.openAccount': 'leafbot.app üzerinden gir',
   'phone.title': 'Başka bir cihaz bağla',
@@ -37,10 +35,8 @@ export const tr = {
   'phone.orType': 'Ya da telefon uygulamasında bu kodu yaz:',
   'phone.left': '{minutes}:{seconds} daha geçerli',
   'phone.failed': 'Kod alınamadı. Bu sunucu Leaf Bot hesabına bağlı mı?',
-  'login.placeholder': 'Erişim anahtarı',
-  'login.submit': 'Giriş yap',
   'login.serverHere': 'Bu bilgisayardaki sunucu',
-  'login.savedKey': 'Anahtarı yazmadan gir',
+  'login.savedKey': 'Bu bilgisayarda gir',
   'accountGate.title': 'Leaf Bot hesabınızla girin',
   'accountGate.hint':
     'Hesabınız adınızı tutar ve bu bilgisayardaki botlarınıza telefondan ve webden ulaşmanızı sağlar. E-postanıza bir kod göndereceğiz.',

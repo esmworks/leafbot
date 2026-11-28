@@ -19,10 +19,7 @@ export const en: Catalog<MessageKey> = {
   'date.yesterday': 'Yesterday {time}',
   'date.yesterdayShort': 'Yesterday',
 
-  'login.enterKey': 'Enter the key',
   'login.unreachable': 'Could not reach the server',
-  'login.hint':
-    'On this computer you can also sign in with the server’s access key, when your account cannot be reached.',
   'login.accountOnly': 'Sign in with your Leaf Bot account at leafbot.app to reach your servers.',
   'login.openAccount': 'Sign in at leafbot.app',
   'phone.title': 'Connect another device',
@@ -35,10 +32,8 @@ export const en: Catalog<MessageKey> = {
   'phone.orType': 'Or type this code in the phone app:',
   'phone.left': 'Works for {minutes}:{seconds} more',
   'phone.failed': 'Could not get a code. Is this server linked to your Leaf Bot account?',
-  'login.placeholder': 'Access key',
-  'login.submit': 'Sign in',
   'login.serverHere': "This computer's server",
-  'login.savedKey': 'Sign in without typing the key',
+  'login.savedKey': 'Sign in on this computer',
   'accountGate.title': 'Sign in with your Leaf Bot account',
   'accountGate.hint':
     "Your account keeps your name and lets you reach this computer's bots from your phone and the web. We'll send a code to your email.",
