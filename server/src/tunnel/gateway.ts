@@ -437,8 +437,12 @@ class HttpStreams {
     for (const [k, v] of Object.entries(head.headers))
       if (!droppedRequestHeader(k)) headers[k.toLowerCase()] = v;
     headers.host = this.host;
-    if (head.length !== undefined) headers['content-length'] = String(head.length);
-    else if (head.method !== 'GET' && head.method !== 'HEAD') headers['transfer-encoding'] = 'chunked';
+    // A request that declares no length and names no type has no body (an older page's DELETE, say):
+    // sent on as a chunked body with no type, the app would refuse it.
+    const noBody = head.method === 'GET' || head.method === 'HEAD';
+    const length = head.length ?? (noBody || !headers['content-type'] ? 0 : undefined);
+    if (length === undefined) headers['transfer-encoding'] = 'chunked';
+    else if (!noBody || head.length !== undefined) headers['content-length'] = String(length);
     let req: ClientRequest;
     try {
       // Node writes the request line and headers itself and refuses CR/LF in any of them, so
@@ -457,7 +461,7 @@ class HttpStreams {
       res: null,
       inflight: 0,
       received: 0,
-      declared: head.length ?? (head.method === 'GET' || head.method === 'HEAD' ? 0 : null),
+      declared: length ?? null,
       acked: 0,
       written: 0,
       queue: [],

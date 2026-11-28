@@ -318,7 +318,7 @@ export async function tunnelRequest(
   const res = await (
     await http()
   ).request(
-    { method, path: url.pathname + url.search, headers, ...(body ? { length: body.byteLength } : {}) },
+    { method, path: url.pathname + url.search, headers, ...bodyLength(method, body) },
     body,
     init.signal ?? undefined,
   );
@@ -327,6 +327,15 @@ export async function tunnelRequest(
     return { status: res.status < 200 ? 502 : res.status, headers: res.headers, body: emptyBody() };
   }
   return res;
+}
+
+/**
+ * The length a request declares: none for GET and HEAD, and 0 for any other method sent with no
+ * body, which the server would otherwise take for a body still to come.
+ */
+function bodyLength(method: string, body: Uint8Array | null): { length?: number } {
+  if (method === 'GET' || method === 'HEAD') return {};
+  return { length: body?.byteLength ?? 0 };
 }
 
 function emptyBody(): ReadableStream<Uint8Array> {
@@ -356,7 +365,7 @@ export async function tunnelFetch(
   const res = await (
     await http()
   ).request(
-    { method, path: url.pathname + url.search, headers, ...(body ? { length: body.byteLength } : {}) },
+    { method, path: url.pathname + url.search, headers, ...bodyLength(method, body) },
     body,
     init.signal ?? undefined,
   );
