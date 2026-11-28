@@ -134,9 +134,7 @@ const SAMPLES = [
 let browser;
 try {
   base = await ready;
-  // The owner gets a username and password, has been welcomed, and has one bot with a conversation.
-  const password = 'snap-password-0123';
-  await call('PUT', '/api/account', { username: 'snap', password });
+  // The owner has been welcomed and has one bot with a conversation.
   await call('PATCH', '/api/settings', { onboarded: true, grokMoveOffered: true });
   const bot = await call('POST', '/api/bots', { name: 'Writer', description: 'Drafts and reviews text' });
   const thread = await call('GET', `/api/bots/${bot.id}/main-thread`);
@@ -164,7 +162,8 @@ try {
   await page.route('**/api/account-host', (route) =>
     route.request().method() === 'GET' ? route.fulfill({ status: 404, body: '{}' }) : route.continue(),
   );
-  const login = await page.request.post(`${base}/api/login`, { data: { username: 'snap', password } });
+  // Signed in with the access key, as this computer's own app is.
+  const login = await page.request.post(`${base}/api/access`, { data: { key: KEY } });
   if (!login.ok()) throw new Error(`sign-in: ${login.status()}`);
   mkdirSync(out, { recursive: true });
 
