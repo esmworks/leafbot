@@ -5,7 +5,7 @@ import { account, AccountError, appUrl, loadToken, type ServerEntry } from '../a
 import { t } from '../i18n';
 import { openServer } from '../tunnel';
 import { Home } from './Home';
-import { REOPEN_MS, reopens } from './reopen';
+import { reopenDelay, SETTLED_MS } from './reopen';
 import { loadStored, saveServer, type Stored } from './stored';
 
 type State =
@@ -32,9 +32,16 @@ export function App() {
   // Each opening is numbered, so one that finishes after the person moved on is dropped.
   const attempt = useRef(0);
   // `open` itself, for the reopening its own tunnel's end asks for.
-  const reopen = useRef<(server: ServerEntry) => void>(() => {});
+  const reopen = useRef<(server: ServerEntry, reopened: number) => void>(() => {});
+  // Declared before the tunnel's own cleanup, so the end that closing it brings opens nothing more.
+  useEffect(
+    () => () => {
+      attempt.current++;
+    },
+    [],
+  );
 
-  const open = useCallback((server: ServerEntry) => {
+  const open = useCallback((server: ServerEntry, reopened = 0) => {
     const mine = ++attempt.current;
     let ended: TunnelEndCode | null = null;
     // When the tunnel was handed over, so a drop after it worked a while is opened again by itself.
@@ -46,11 +53,13 @@ export function App() {
       // An end before the tunnel was handed over is read when it is.
       ended = code;
       if (attempt.current !== mine) return;
-      if (openedAt !== null && reopens(code, Date.now() - openedAt)) {
+      const delay = openedAt === null ? null : reopenDelay(code, Date.now() - openedAt, reopened);
+      if (delay !== null) {
+        const next = Date.now() - (openedAt ?? 0) >= SETTLED_MS ? 1 : reopened + 1;
         setState({ at: 'opening', server });
         setTimeout(() => {
-          if (attempt.current === mine) reopen.current(server);
-        }, REOPEN_MS);
+          if (attempt.current === mine) reopen.current(server, next);
+        }, delay);
         return;
       }
       setState((s) =>
