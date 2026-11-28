@@ -236,10 +236,11 @@ describe('görev panosu', () => {
     expect(useUi.getState().boardOpen).toBe(false);
   });
 
-  it('kimse istemeden ana konuşmaya dönmek panoyu kapatmaz, bir konuşma açmak kapatır', () => {
+  it('kimse istemeden ana konuşmaya ya da ilk bota dönmek panoyu kapatmaz, bir konuşma açmak kapatır', () => {
     useUi.getState().setBoardOpen(true);
     useUi.getState().selectThread(null);
-    expect(useUi.getState().boardOpen).toBe(true);
+    useUi.getState().selectBot('b2');
+    expect(useUi.getState()).toMatchObject({ boardOpen: true, botId: 'b2' });
     useUi.getState().selectThread('t2');
     expect(useUi.getState()).toMatchObject({ boardOpen: false, threadId: 't2' });
   });

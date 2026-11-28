@@ -185,6 +185,8 @@ function SidebarPanel({
       if (!target) return;
       e.preventDefault();
       useUi.getState().selectBot(target.id);
+      // The person asked for this bot's chat, so it takes the board's place.
+      useUi.getState().setBoardOpen(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);

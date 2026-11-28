@@ -303,12 +303,13 @@ export const useUi = create<UiState>((set, get) => ({
   tools: {},
   setAuthed: (authed) => set({ authed }),
   setConnection: (connection) => set({ connection }),
-  // Without a bot there is no chat to show, so a phone goes back to the list.
+  // Without a bot there is no chat to show, so a phone goes back to the list. The board stays: a
+  // bot is chosen here with no one asking too (the first one, once the open one is gone).
   selectBot: (botId) => {
     if (!get().leavePage()) return;
     set(
       botId
-        ? { botId, threadId: null, roomId: null, findOpen: false, apps: null, boardOpen: false }
+        ? { botId, threadId: null, roomId: null, findOpen: false, apps: null }
         : {
             botId,
             threadId: null,
