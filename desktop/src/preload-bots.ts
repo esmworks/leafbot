@@ -26,6 +26,14 @@ const account = {
   },
 };
 
+/** This computer for the bots of the server the page shows; turning it on asks on this computer. */
+type ComputerState = { helper: 'ok' | 'unsupported' | 'missing'; server: string | null; on: boolean };
+const computer = {
+  state: (): Promise<ComputerState | null> => ipcRenderer.invoke('leafbot:computer-state'),
+  offer: (serverId: string): Promise<ComputerState | null> =>
+    ipcRenderer.invoke('leafbot:computer-offer', serverId),
+};
+
 const bridge = {
   framelessTitleBar: process.platform === 'darwin',
   /** The page of an account server signs in through the account, never with a key of this computer. */
@@ -33,5 +41,6 @@ const bridge = {
   setLocale: (locale: string): Promise<void> => ipcRenderer.invoke('leafbot:set-locale', locale),
   setUnread: (count: number): Promise<void> => ipcRenderer.invoke('leafbot:set-unread', count),
   account,
+  computer,
 };
 contextBridge.exposeInMainWorld('leafbotDesktop', bridge);

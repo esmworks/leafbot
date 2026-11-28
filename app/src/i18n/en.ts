@@ -2196,7 +2196,7 @@ export const en: Catalog<MessageKey> = {
   'bot.personComputerHint':
     'In work you ask for, it can look at your screen and use the mouse and keyboard. It asks before its first step each time. With “Bots may run commands” on in the desktop app, it can also run commands there, each asked on a card.',
   'bot.personComputerRemote':
-    'Your computer is not connected. In the Leaf Bot desktop app on your Mac or Windows computer, turn on “Bots may use this computer” in the Leaf Bot icon’s menu.',
+    'Your computer is not connected. In the Leaf Bot app on your Mac or Windows computer, open this server and press “Turn this computer on” in Settings → Computer use. In older versions: in the Leaf Bot icon’s menu, choose this server under “Account server for this computer”, then turn on “Bots may use this computer”.',
   'bot.personComputerDevice':
     'Connected: {device}. That computer asks on its own screen before a bot first uses it.',
   'bot.personComputerMissing': 'macOS has not allowed it yet: {what}',
@@ -2217,6 +2217,21 @@ export const en: Catalog<MessageKey> = {
   'computerUse.botsHint':
     'A bot uses this computer only when “Can use my computer” is on in its own settings, and it asks before its first step in each piece of work.',
   'computerUse.notConnected': 'No computer for the bots to use',
+  'computerUse.offer': 'Turn this computer on',
+  'computerUse.offerHint':
+    'You can let this server’s bots use this computer. Leaf Bot asks here first, in a window of its own.',
+  'computerUse.offerMove':
+    'This computer is on for another server now. Turning it on here means that server can no longer use it.',
+  'computerUse.connecting': 'This computer is on for this server; connecting.',
+  'computerUse.connectingHint': 'If it does not show in a few seconds, press “Connect again”.',
+  'computerUse.notSeen': 'The server could not see this computer',
+  'computerUse.notSeenHint':
+    'This computer is on for this server, but the connection did not come up. Try connecting again; if that does not help, turn “Bots may use this computer” off and on in the menu of the Leaf Bot icon.',
+  'computerUse.reconnect': 'Connect again',
+  'computerUse.noHelper':
+    'This computer cannot be offered to the bots; computer use is for Mac and Windows only.',
+  'computerUse.helperMissing':
+    'This installation of Leaf Bot lacks the part that uses the computer. Downloading and installing Leaf Bot again brings it back.',
   'computerUse.unavailable': 'This server has no computer for you.',
   'computerUse.device': 'Connected computer: {device}',
   'computerUse.deviceHint':
