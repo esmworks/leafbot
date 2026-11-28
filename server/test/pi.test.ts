@@ -538,6 +538,20 @@ describe('Pi motoru', () => {
     expect(calls).toBeGreaterThanOrEqual(MAX_STEPS);
   });
 
+  it('stops at the step limit the turn was given instead of its own', async () => {
+    let calls = 0;
+    const loop = () => {
+      calls++;
+      return fauxAssistantMessage([fauxToolCall('list_files', {})], { stopReason: 'toolUse' });
+    };
+    faux.setResponses(Array.from({ length: 20 }, () => loop));
+    const out = await engine().run(request({ maxSteps: 5 }).req);
+    expect(out).toMatchObject({ ok: false, kind: 'engine', stepLimit: true });
+    expect(!out.ok && out.message).toContain('(5)');
+    expect(calls).toBeLessThanOrEqual(6);
+    expect(calls).toBeGreaterThanOrEqual(5);
+  });
+
   it('modeli kayıtlı anahtarla tek kısa istekle dener', async () => {
     faux.setResponses([fauxAssistantMessage('OK')]);
     expect(await engine().testModel('deneme/m1', 'tr')).toEqual({ ok: true });
@@ -1213,6 +1227,26 @@ describe('Pi motoru', () => {
       });
       expect(offered.find((o) => !o.helper)!.tools).toContain('Agent');
       expect(offered.find((o) => o.helper)!.tools).not.toContain('Agent');
+    });
+
+    it("a helper stops at the turn's step limit when that is below its own", async () => {
+      let helperCalls = 0;
+      const reply = (ctx: Ctx) => {
+        if (isHelper(ctx)) {
+          helperCalls++;
+          return fauxAssistantMessage([fauxToolCall('list_files', {})], { stopReason: 'toolUse' });
+        }
+        return ctx.messages.some((m) => m.role === 'toolResult')
+          ? fauxAssistantMessage('Bitti.')
+          : helpers(1);
+      };
+      faux.setResponses(Array.from({ length: 20 }, () => reply));
+      const seen = track();
+      await engine().run(request({ maxSteps: 3, onSubagent: seen.onSubagent }).req);
+      // The abort lands while the next request starts; that one is cut off.
+      expect(helperCalls).toBeGreaterThanOrEqual(3);
+      expect(helperCalls).toBeLessThanOrEqual(4);
+      expect(seen.last.get('g1')?.state).not.toBe('done');
     });
 
     it('araç seçiminden çıkarılan alt ajan aracı modele hiç sunulmaz', async () => {

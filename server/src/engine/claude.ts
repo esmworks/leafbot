@@ -9,7 +9,7 @@ import {
   type SDKMessage,
   type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
-import { EFFORTS, type ClaudeModel, type Effort, type PlanWindow } from '@leafbot/shared';
+import { EFFORTS, TURN_STEPS, type ClaudeModel, type Effort, type PlanWindow } from '@leafbot/shared';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { translator } from '../i18n';
@@ -61,8 +61,8 @@ export function contextOf(usage: unknown): number | null {
   return total > 0 ? total : null;
 }
 
-/** The most model steps one turn may take. */
-const MAX_TURNS = 50;
+/** The most model steps one turn may take, unless the team set another number. */
+const MAX_TURNS = TURN_STEPS;
 
 /** What the CLI says when asked to resume a session it has no transcript for. */
 const LOST_SESSION = /No conversation found with session ID/i;
@@ -542,7 +542,7 @@ export class ClaudeEngine implements Engine {
       // A bot's tool selection lists the built-in tools it keeps; without one it gets them all.
       ...(req.pickTool && { tools: CLAUDE_BUILTIN_TOOLS.filter(req.pickTool) }),
       mcpServers: mcpServers(req.tools),
-      maxTurns: MAX_TURNS,
+      maxTurns: req.maxSteps ?? MAX_TURNS,
       hooks: {
         PreToolUse: [
           {
@@ -811,7 +811,7 @@ export class ClaudeEngine implements Engine {
                 : m.errors?.length
                   ? m.errors.join('; ')
                   : m.subtype === 'error_max_turns'
-                    ? t('engine.stepLimit', { max: MAX_TURNS })
+                    ? t('engine.stepLimit', { max: req.maxSteps ?? MAX_TURNS })
                     : apiError || t('engine.unfinished');
           }
           // A model that says what it is about to do ("Let me check the file:") and stops there, with

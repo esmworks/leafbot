@@ -15,7 +15,7 @@ import { completeSimple, getModel, streamSimple } from '@earendil-works/pi-ai/co
 import { clampThinkingLevel } from '@earendil-works/pi-ai/models';
 import { estimateTextTokens } from '@earendil-works/pi-ai/utils/estimate';
 import { isContextOverflow } from '@earendil-works/pi-ai/utils/overflow';
-import type { Locale } from '@leafbot/shared';
+import { TURN_STEPS, type Locale } from '@leafbot/shared';
 import { z } from 'zod';
 import { translator, type T } from '../i18n';
 import { failureStreak } from './failures';
@@ -122,8 +122,12 @@ export interface PiEngineOptions {
 }
 
 const SESSION_ID = /^[0-9a-f-]{36}$/;
-/** Model calls per user turn, as for Claude bots; stops a looping bot from spending the key. */
-export const MAX_STEPS = 50;
+/**
+ * Model calls per turn, as for Claude bots, unless the person set another number; stops a looping
+ * bot from spending the key. A helper the bot starts keeps this one, or the turn's when that is
+ * lower: its task is a narrower part.
+ */
+export const MAX_STEPS = TURN_STEPS;
 /**
  * Messages sent to a model that names no context window; older ones stay on disk but are left out
  * of the request. A model with a window gets what fits it (see `pi-context`).
@@ -858,6 +862,8 @@ export class PiEngine implements Engine {
      * same checks before each call, a step limit and a failure count of its own. Its words stay out of
      * the chat; what it spends counts toward the turn.
      */
+    // A helper never takes more steps than the turn that started it may.
+    const helperSteps = Math.min(MAX_STEPS, req.maxSteps ?? MAX_STEPS);
     const runHelper: HelperRun = async (task, signal, onStep) => {
       let keptFailing = false;
       const failures = failureStreak(() => {
@@ -897,7 +903,7 @@ export class PiEngine implements Engine {
           req.onActivity?.({ id: event.toolCallId, name, running });
           if (running) onStep(name);
         } else req.onActivity?.();
-        if (event.type === 'turn_end' && ++steps >= MAX_STEPS && !capped) {
+        if (event.type === 'turn_end' && ++steps >= helperSteps && !capped) {
           capped = true;
           helper.abort();
         } else if (event.type === 'message_end' && event.message.role === 'assistant') {
@@ -920,7 +926,7 @@ export class PiEngine implements Engine {
         .reverse()
         .find((m): m is AssistantMessage => m.role === 'assistant');
       const text = last ? textOf(last) : '';
-      if (capped) return { text, failed: t('engine.stepLimit', { max: MAX_STEPS }) };
+      if (capped) return { text, failed: t('engine.stepLimit', { max: helperSteps }) };
       if (keptFailing) return { text, failed: t('engine.subagentKeptFailing') };
       if (signal.aborted || last?.stopReason === 'aborted') return { text, stopped: true };
       if (!last || last.stopReason === 'error') {
@@ -991,6 +997,7 @@ export class PiEngine implements Engine {
       beforeToolCall: gate,
     });
 
+    const maxSteps = req.maxSteps ?? MAX_STEPS;
     let steps = 0;
     let capped = false;
     agent.subscribe((event) => {
@@ -1002,7 +1009,7 @@ export class PiEngine implements Engine {
           running: event.type === 'tool_execution_start',
         });
       } else req.onActivity?.();
-      if (event.type === 'turn_end' && ++steps >= MAX_STEPS && !capped) {
+      if (event.type === 'turn_end' && ++steps >= maxSteps && !capped) {
         capped = true;
         agent.abort();
       } else if (event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') {
@@ -1059,7 +1066,7 @@ export class PiEngine implements Engine {
       return {
         ok: false,
         kind: 'engine',
-        message: t('engine.stepLimit', { max: MAX_STEPS }),
+        message: t('engine.stepLimit', { max: maxSteps }),
         text,
         sessionId,
         costUsd: costUsd || null,

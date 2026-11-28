@@ -32,7 +32,7 @@ import {
   type ControlInfo,
 } from '../src/tools/browser';
 import { workspacePaths } from '../src/workspace';
-import { testServer, waitFor, type TestServer } from './helpers';
+import { testServer, waitFor, warmBrowser, type TestServer } from './helpers';
 
 /** Width and height from a JPEG's start-of-frame header. */
 function jpegSize(b: Buffer): { width: number; height: number } | null {
@@ -232,6 +232,7 @@ describe.skipIf(!BROWSER)('botun tarayıcısı', () => {
   const posts: string[] = [];
 
   beforeAll(async () => {
+    await warmBrowser(BROWSER!, process.getuid?.() !== 0);
     site = httpServer((req, res) => {
       res.setHeader('content-type', 'text/html; charset=utf-8');
       if (req.url === '/kaydet' && req.method === 'POST') {

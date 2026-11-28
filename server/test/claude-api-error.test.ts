@@ -3,11 +3,12 @@ import type { TurnRequest } from '../src/engine/types';
 
 const frames: { current: unknown[] | 'hang' } = { current: [] };
 type Hook = (input: Record<string, unknown>) => Promise<unknown>;
-const last: { hooks?: Record<string, { hooks: Hook[] }[]> } = {};
+const last: { hooks?: Record<string, { hooks: Hook[] }[]>; maxTurns?: number } = {};
 vi.mock('@anthropic-ai/claude-agent-sdk', async (real) => ({
   ...(await real<object>()),
-  query: ({ options }: { options: { hooks: Record<string, { hooks: Hook[] }[]> } }) => {
+  query: ({ options }: { options: { hooks: Record<string, { hooks: Hook[] }[]>; maxTurns?: number } }) => {
     last.hooks = options.hooks;
+    last.maxTurns = options.maxTurns;
     // 'hang': a CLI that ignores the interrupt; only closing it ends the stream.
     let close = () => {};
     const closed = new Promise<void>((r) => (close = r));
@@ -221,6 +222,15 @@ describe('Claude API hatası', () => {
     // What the failed turn spent still counts.
     expect(out).toMatchObject({ ok: false, kind: 'engine', costUsd: 0.8, stepLimit: true });
     if (!out.ok) expect(out.message).toContain('50');
+    expect(last.maxTurns).toBe(50);
+  });
+
+  it('gives Claude the step limit the turn was given, and names it when the turn stops there', async () => {
+    frames.current = [{ type: 'result', subtype: 'error_max_turns', errors: [], total_cost_usd: 0.8 }];
+    const out = await new ClaudeEngine({ credential: async () => null }).run({ ...request(), maxSteps: 200 });
+    expect(last.maxTurns).toBe(200);
+    expect(out).toMatchObject({ ok: false, stepLimit: true });
+    if (!out.ok) expect(out.message).toContain('200');
   });
 
   it('her çerçevede ve her araç başlayıp bittiğinde canlılık işareti verir', async () => {

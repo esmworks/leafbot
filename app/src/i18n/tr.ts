@@ -386,6 +386,9 @@ export const tr = {
   'usage.parallel.hint':
     'Botların aynı anda en fazla kaç işi yürüttüğü. Azı harcamayı yavaşlatır, fazlası daha çok işi birlikte bitirir; geri kalanlar sırada bekler.',
   'usage.parallel.default': 'Varsayılan ({count})',
+  'usage.steps': 'Tur başına adım',
+  'usage.steps.hint':
+    'Bir botun tek bir işte durup beklemeden önce en fazla kaç adım atabileceği; böylece kısır döngüye giren bir bot durmadan harcayamaz. Derleme ya da birçok dosyaya dokunan bir değişiklik gibi uzun işler daha fazlasını ister. Bilgisayardaki bir kodlama ajanıyla çalışan botlar o ajanın kendi sınırını kullanır.',
   'archive.title': 'Arşivlenen botlar',
   'archive.empty': 'Arşivlenen bot yok. Kenar çubuğundan arşivlenen bot burada bekler.',
   'archive.since': '{when} arşivlendi',

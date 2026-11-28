@@ -2,6 +2,7 @@ import {
   planPace,
   planTone,
   ROUTINE_GATE_MODES,
+  TURN_STEPS,
   USAGE_RANGES,
   type Bot,
   type StorageReport,
@@ -19,6 +20,7 @@ import { useT } from '@/i18n';
 import { useFormat } from '@/lib/format';
 import { PLAN_TONE_BAR, planLabel } from '@/lib/planUsage';
 import { useBots, useSettings, useStorage, useUsage } from '@/lib/queries';
+import { withSaved } from '@/lib/savedChoice';
 import { useUi } from '@/lib/store';
 import { cn } from '@/lib/utils';
 import { Chip } from './onboarding/Chip';
@@ -101,6 +103,7 @@ export function UsageTab() {
       <SkillNet net={data?.skillSuggestions} />
       <BackgroundNet calls={data?.background} />
       <Parallel parallel={data?.parallel} />
+      <Steps />
       <Storage />
       <UnusedCard />
       <Button variant="secondary" size="sm" className="rounded-full" asChild>
@@ -376,6 +379,7 @@ function Parallel({ parallel }: { parallel?: UsageReport['parallel'] }) {
   // A server older than the setting does not offer it.
   if (!parallel || settings?.maxTurns === undefined) return null;
   const value = settings.maxTurns;
+  const choices = withSaved(PARALLEL_CHOICES, value);
   return (
     <Card title={t('usage.parallel')}>
       <Row label={t('usage.parallel')} hint={t('usage.parallel.hint')}>
@@ -384,7 +388,7 @@ function Parallel({ parallel }: { parallel?: UsageReport['parallel'] }) {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {PARALLEL_CHOICES.map((n) => (
+            {choices.map((n) => (
               <SelectItem key={n} value={String(n)}>
                 {n === 0 ? t('usage.parallel.default', { count: parallel.serverDefault }) : String(n)}
               </SelectItem>
@@ -398,6 +402,37 @@ function Parallel({ parallel }: { parallel?: UsageReport['parallel'] }) {
 
 /** 0 is the server's own number. */
 const PARALLEL_CHOICES = [0, 1, 2, 3, 4, 5, 6, 8, 10];
+
+/** How many model calls one turn may make before it stops; 0 leaves it to the engine. */
+function Steps() {
+  const t = useT();
+  const { data: settings } = useSettings();
+  const save = useSaveSettings();
+  // A server older than the setting does not offer it.
+  if (settings?.maxSteps === undefined) return null;
+  const choices = withSaved(STEP_CHOICES, settings.maxSteps);
+  return (
+    <Card title={t('usage.steps')}>
+      <Row label={t('usage.steps')} hint={t('usage.steps.hint')}>
+        <Select value={String(settings.maxSteps)} onValueChange={(v) => save.mutate({ maxSteps: Number(v) })}>
+          <SelectTrigger className="w-40 rounded-full" aria-label={t('usage.steps')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {choices.map((n) => (
+              <SelectItem key={n} value={String(n)}>
+                {n === 0 ? t('usage.parallel.default', { count: TURN_STEPS }) : String(n)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Row>
+    </Card>
+  );
+}
+
+/** 0 is the engines' own number; the server takes up to `MAX_TURN_STEPS`. */
+const STEP_CHOICES = [0, 100, 200, 300, 500];
 
 /** The bot filter's value for every bot; bot ids never take this form. */
 const ALL = '*';

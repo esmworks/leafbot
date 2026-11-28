@@ -167,6 +167,8 @@ export interface TurnRequest {
    * conversation no longer matches. For Pi a `provider/model`, asked through the Advisor tool.
    */
   advisorModel?: string;
+  /** Model calls the turn may make before it stops; unset takes the engine's own number. */
+  maxSteps?: number;
   prompt: string;
   /**
    * What changes on every turn, such as the time now, sent before the prompt. It stays out of the
