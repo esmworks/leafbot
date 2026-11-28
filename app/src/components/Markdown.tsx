@@ -29,7 +29,7 @@ import { FileLinks, localFilePath, localFolderPath } from '@/lib/fileLink';
 import { useUi } from '@/lib/store';
 import { sameServerThread } from '@/lib/threadLink';
 import { WebLink } from './LinkPreview';
-import { ServerAudio, ServerImg, ServerVideo } from '@/components/ServerMedia';
+import { ServerAudio, ServerImg, VideoTile } from '@/components/ServerMedia';
 
 /**
  * Math is typeset from `$$…$$` (inline when on one line with text, display on its own lines),
@@ -554,8 +554,9 @@ function Link({ href, children }: { href?: string; children: ReactNode }) {
         {children}
       </a>
     );
-    // Sound and video play where they are named, from the same URL the preview plays; the link
-    // stays to open the preview.
+    // Sound plays where it is named, from the same URL the preview plays. A video shows its first
+    // frame there and opens in the preview, as a small player is all controls and no picture. The
+    // link stays to open the preview.
     const media = previewKind(name);
     if (media !== 'audio' && media !== 'video') return link;
     const src = api.fileUrl(files.botId, path, { inline: true });
@@ -566,11 +567,11 @@ function Link({ href, children }: { href?: string; children: ReactNode }) {
           {media === 'audio' ? (
             <ServerAudio src={src} controls preload="metadata" className="w-full max-w-sm" />
           ) : (
-            <ServerVideo
+            <VideoTile
               src={src}
-              controls
-              preload="metadata"
-              className="max-h-80 max-w-full rounded-xl bg-black"
+              label={t('preview.open', { name })}
+              onOpen={() => preview({ botId: files.botId, path, name, size: -1 })}
+              className="max-w-sm"
             />
           )}
         </span>
