@@ -1,6 +1,7 @@
 import { request } from 'node:http';
 import { WebSocket } from 'ws';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { AccountHost } from '../src/tunnel/host';
 import { connectInProcess, type TunnelIdentity } from '../src/tunnel/identity';
 import { testServer, type TestServer } from './helpers';
 
@@ -102,6 +103,18 @@ describe('requests that came over the tunnel', () => {
     expect((await call(as('zeynep'), 'GET', '/api/bots')).status).toBe(401);
     expect((await call(as('nobody'), 'GET', '/api/bots')).status).toBe(401);
     expect((await call(as('nobody'), 'GET', '/api/session')).body).toMatchObject({ authenticated: false });
+  });
+
+  it('closes the person’s tunnels along with their sockets after a change to them', async () => {
+    // An unlinked person stays active here, so only closing the tunnel stops what it already opened.
+    const dropped = vi.spyOn(AccountHost.prototype, 'dropUser');
+    try {
+      await t.person('can', 'member');
+      expect((await t.api('PATCH', '/api/people/can', { disabled: true })).status).toBe(200);
+      expect(dropped).toHaveBeenCalledWith('can');
+    } finally {
+      dropped.mockRestore();
+    }
   });
 
   it('opens Socket.IO as the person, and refuses one that is not there', async () => {
