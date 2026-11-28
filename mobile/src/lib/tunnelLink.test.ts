@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TunnelError } from '@leafbot/client/tunnel';
+import { ConnectError } from '@leafbot/client/webrtc';
 import { AccountError } from './account';
 import { Link, NoTunnelError, type LinkState, type LiveTunnel } from './tunnelLink';
 
@@ -116,6 +117,38 @@ describe('Link', () => {
     await settle();
     expect(link.state.at).toBe('online');
     link.stop();
+  });
+
+  it('says what the WebRTC stack said while it tries again', async () => {
+    const link = new Link({
+      sleep: () => new Promise(() => undefined),
+      open: async () => {
+        throw new ConnectError('failed', 'answer: Failed to set remote answer sdp');
+      },
+    });
+    link.start();
+    await settle();
+    expect(link.state).toEqual({
+      at: 'retrying',
+      reason: 'failed',
+      detail: 'answer: Failed to set remote answer sdp',
+    });
+    link.stop();
+
+    const other = new Link({
+      sleep: () => new Promise(() => undefined),
+      open: async () => {
+        throw new TypeError('addIceCandidate is not a function');
+      },
+    });
+    other.start();
+    await settle();
+    expect(other.state).toEqual({
+      at: 'retrying',
+      reason: 'failed',
+      detail: 'addIceCandidate is not a function',
+    });
+    other.stop();
   });
 
   it('hands a waiting request the tunnel that opens, and fails it when the link stops', async () => {

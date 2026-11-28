@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Redirect, router } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Linking, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native';
 import { Button, FormScreen, Hint, Mark, Title } from '@/components/ui';
 import { t } from '@/i18n';
 import { WEBSITE_URL } from '@/lib/account';
@@ -49,6 +49,7 @@ export default function Start() {
             name: server.server?.name ?? '',
           })}
           text={t(reasonKey(server.reason))}
+          detail={server.detail}
           busy
         >
           <Button label={t('common.retry')} onPress={server.refresh} />
@@ -61,6 +62,7 @@ export default function Start() {
         <State
           title={t('link.refused.title', { name: server.server?.name ?? '' })}
           text={t(reasonKey(server.reason))}
+          detail={server.detail}
         >
           <Button label={t('common.retry')} onPress={server.refresh} />
           <Others />
@@ -131,11 +133,14 @@ function Authed() {
 function State({
   title,
   text,
+  detail,
   busy,
   children,
 }: {
   title: string;
   text: string;
+  /** What the device's WebRTC stack said, small, for whoever is looking into it. */
+  detail?: string | null;
   busy?: boolean;
   children: React.ReactNode;
 }) {
@@ -145,6 +150,11 @@ function State({
       <Mark />
       <Title>{title}</Title>
       <Hint>{text}</Hint>
+      {detail ? (
+        <Text selectable style={[styles.detail, { color: c.mutedForeground }]}>
+          {t('link.detail', { detail })}
+        </Text>
+      ) : null}
       {busy ? <ActivityIndicator color={c.mutedForeground} /> : null}
       {children}
     </FormScreen>
@@ -163,4 +173,5 @@ function Waiting({ text }: { text?: string }) {
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  detail: { fontSize: 12, textAlign: 'center' },
 });
