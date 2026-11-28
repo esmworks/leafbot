@@ -42,3 +42,21 @@ function candidates(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): string[]
     '/snap/bin/chromium',
   ];
 }
+
+/**
+ * The ffmpeg program that turns a page's frames into a video: `LEAFBOT_FFMPEG` if set, else the
+ * first `ffmpeg` on the PATH or in a usual place. A desktop app started from the Dock gets a short
+ * PATH, so Homebrew's folders are looked in by name.
+ */
+export function findFfmpeg(
+  env: NodeJS.ProcessEnv = process.env,
+  platform: NodeJS.Platform = process.platform,
+  exists: (p: string) => boolean = existsSync,
+): string | null {
+  if (env.LEAFBOT_FFMPEG) return exists(env.LEAFBOT_FFMPEG) ? env.LEAFBOT_FFMPEG : null;
+  const path = platform === 'win32' ? win32 : posix;
+  const name = platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+  const dirs = (env.PATH ?? env.Path ?? '').split(path.delimiter).filter(Boolean);
+  if (platform !== 'win32') dirs.push('/opt/homebrew/bin', '/usr/local/bin', '/usr/bin');
+  return dirs.map((d) => path.join(d, name)).find(exists) ?? null;
+}

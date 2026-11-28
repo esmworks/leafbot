@@ -83,6 +83,7 @@ export async function testServer(
       routinesEnabled: false,
       reactionDelayMs: 10,
       browserPath: null,
+      ffmpegPath: null,
       appDir: null,
       port: 0,
       // Tests never reach the public model catalog.

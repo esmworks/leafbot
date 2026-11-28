@@ -351,6 +351,7 @@ const REPORT_ONLY_TOOLS: ReadonlySet<string> = new Set([
   'send_file',
   'show_page',
   'page_to_image',
+  'page_to_video',
   'slides_create',
   'browser_open',
   'browser_snapshot',

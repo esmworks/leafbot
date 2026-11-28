@@ -1259,7 +1259,7 @@ const tr = {
   'tool.imageLimit': 'Bir turda en çok {max} resim oluşturulabilir; bu turda daha fazlası yapılmaz.',
   'tool.imageFileBase': 'resim',
   'tool.video_create':
-    'Yazılı bir tariften kısa bir video oluştur ve kullanıcıya gönder; ayrıca send_file çağırma. prompt: videonun ayrıntılı tarifi (konu, hareket, kamera, ışık, üslup; ses ya da konuşma istenirse onu da yaz), seconds: 1 ile 15 arası süre (varsayılan 6), shape: landscape, portrait ya da square, caption: isteğe bağlı kısa not. Video birkaç dakika sürer ve kullanıcının xAI hesabından saniye başına ücretlendirilir: yalnızca istendiğinde yap, bir turda en çok bir video.',
+    'Yazılı bir tariften kısa bir video oluştur ve kullanıcıya gönder; ayrıca send_file çağırma. prompt: videonun ayrıntılı tarifi (konu, hareket, kamera, ışık, üslup; ses ya da konuşma istenirse onu da yaz), seconds: 1 ile 15 arası süre (varsayılan 6), shape: landscape, portrait ya da square, caption: isteğe bağlı kısa not. Video birkaç dakika sürer ve kullanıcının xAI hesabından saniye başına ücretlendirilir: yalnızca istendiğinde yap, bir turda en çok bir video. Hareketli yazı, başlık kartı ve anlatım videoları için page_to_video (varsa) ücretsizdir ve yazıları kusursuz çizer.',
   'tool.videoCreated':
     '{seconds} saniyelik video oluşturuldu ({provider}) ve kullanıcıya gönderildi: {name}. Dosya: {path}',
   'tool.videoCreatedMain':
@@ -1287,6 +1287,24 @@ const tr = {
     'Sayfa resme çevrildi ve kullanıcıya gönderildi: {name}. Sohbette resim olarak görünüyor. Dosya: {path}',
   'tool.pageImageSentMain':
     'Sayfa resme çevrildi: {name}. Bu konuşma botlar arasında; resim senin kullanıcıyla olan sohbetine kondu, karşıdaki bot görmez. Dosya: {path}',
+  'tool.page_to_video':
+    "Yaptığın bir HTML sayfasını MP4 videoya çevir ve kullanıcıya video olarak gönder; ayrıca send_file çağırma. Hareketli sosyal medya gönderisi, başlık kartı, anlatım ya da ürün animasyonu gibi yazı içeren videolar için video_create yerine bunu kullan: yazılar kusursuz çıkar ve ücretsizdir. Ses yoktur. Sayfayı tam width × height boyutunda tasarla (body'ye bu boyutu ver, kenar boşluğunu sıfırla) ve şu yollardan biriyle canlandır: CSS animasyonu ya da geçişi, Web Animations API (element.animate), setTimeout ya da requestAnimationFrame kullanan bir betik, SVG'nin kendi animasyonları (animate, set), video öğesi ya da t saniyedeki anı çizen bir window.render(t) fonksiyonu (async olabilir). Hareketli GIF gerçek zamanda oynar, kare kare çekilmez; onun yerine bunlardan birini kullan. Sayfanın saati durur ve her kare için bir kare ilerler; bu yüzden her kare tam yerinde çıkar. Tıklama ya da kaydırma bekleme. path: .html dosyası ya da index.html'li klasör, width ve height: sayfanın piksel boyutu, seconds: süre (en çok {seconds}; 60 fps'te en çok {fastSeconds}), fps: saniyedeki kare, 1 ile 60 arası (varsayılan 30), scale: daha çok pikselle daha keskin video (en çok {width}×{height} piksel; örneğin 1280×720'lik sayfa ve 1.5), caption: isteğe bağlı kısa not. Resimleri page_to_image'daki gibi sayfanın klasörüne koy; kitaplıklar ve Google Fonts yazı tipleri sohbetteki gibi yüklenir, başka adreslere ulaşılmaz. Bir turda en çok {max} video.",
+  'tool.pageVideoSent':
+    'Sayfadan {seconds} saniyelik video yapıldı ve kullanıcıya gönderildi: {name}. Sohbette video olarak görünüyor. Dosya: {path}',
+  'tool.pageVideoSentMain':
+    'Sayfadan {seconds} saniyelik video yapıldı: {name}. Bu konuşma botlar arasında; video senin kullanıcıyla olan sohbetine kondu, karşıdaki bot görmez. Dosya: {path}',
+  'tool.pageVideoNotJsx': 'Videoya yalnızca HTML sayfası çevrilir; bunun için sayfanın .html hâlini yaz.',
+  'tool.pageVideoLimit': 'Bir turda sayfadan en çok {max} video yapılabilir; bu turda daha fazlası yapılmaz.',
+  'tool.pageVideoTooLong':
+    'Bu kadar kare çok fazla: seconds × fps en çok {frames} olabilir. Süreyi kısalt ya da fps değerini düşür.',
+  'tool.pageVideoTooLarge':
+    'Bu video çok büyük: width × height × scale² en çok {width} × {height} piksel olabilir. Sayfayı ya da scale değerini küçült.',
+  'tool.pageVideoTooShort': 'Bu videoda hiç kare olmaz: seconds × fps en az 1 olmalı.',
+  'tool.pageVideoFailed.stuck':
+    'Sayfa bir karede {seconds} saniyeden uzun takıldı (window.render bitmiyor ya da sayfa donuyor); video yapılmadı. Sayfayı düzeltip yeniden dene.',
+  'tool.pageVideoFailed.timeout':
+    'Video {minutes} dakikada bitmedi; yapılmadı. Daha kısa bir süre, daha düşük fps ya da daha küçük bir sayfa dene.',
+  'tool.pageVideoFailed.ffmpeg': 'Kareler videoya çevrilemedi (ffmpeg): {message}',
   'tool.send_file':
     'Klasörlerindeki dosyaları kullanıcıya gönder; sohbette indirilebilir kart olarak görünür (resimler resim olarak). paths: dosya yolları (göreli yollar çalışma klasörüne göre), caption: isteğe bağlı kısa açıklama.',
   'tool.browser_open':
@@ -3831,7 +3849,7 @@ const en: Catalog<ServerKey> = {
   'tool.imageLimit': 'At most {max} pictures can be created in one turn; no more in this one.',
   'tool.imageFileBase': 'image',
   'tool.video_create':
-    "Make a short video from a written description and send it to the user; do not call send_file as well. prompt: a detailed description of the video (subject, motion, camera, light, style; say so if sound or speech is wanted), seconds: length from 1 to 15 (default 6), shape: landscape, portrait or square, caption: an optional short note. A video takes a few minutes and is billed per second to the user's xAI account: make one only when asked, at most one in a turn.",
+    "Make a short video from a written description and send it to the user; do not call send_file as well. prompt: a detailed description of the video (subject, motion, camera, light, style; say so if sound or speech is wanted), seconds: length from 1 to 15 (default 6), shape: landscape, portrait or square, caption: an optional short note. A video takes a few minutes and is billed per second to the user's xAI account: make one only when asked, at most one in a turn. For animated text, title cards and explainers, page_to_video (when you have it) costs nothing and draws the text exactly.",
   'tool.videoCreated':
     'A {seconds}-second video was created ({provider}) and sent to the user: {name}. File: {path}',
   'tool.videoCreatedMain':
@@ -3859,6 +3877,24 @@ const en: Catalog<ServerKey> = {
     'The page was turned into a picture and sent to the user: {name}. It shows in the conversation as a picture. File: {path}',
   'tool.pageImageSentMain':
     'The page was turned into a picture: {name}. This conversation is between bots; the picture went to your conversation with the user, and the other bot does not see it. File: {path}',
+  'tool.page_to_video':
+    "Film an HTML page you made into an MP4 video and send it to the user as a video; do not call send_file as well. For videos with text (an animated post, a title card, an explainer, a product animation) use this instead of video_create: the text comes out exact and it costs nothing. There is no sound. Design the page at exactly width × height (give the body that size, zero margins) and animate it in one of these ways: CSS animations or transitions, the Web Animations API (element.animate), a script on setTimeout or requestAnimationFrame, SVG's own animations (animate, set), a video element, or a window.render(t) function that draws the moment t seconds in (it may be async). An animated GIF plays in real time and is not filmed frame by frame; use one of these instead. The page's clock stands still and moves on one frame at a time, so every frame comes out exact. Do not wait for clicks or scrolling. path: an .html file or a folder with index.html, width and height: the page's size in pixels, seconds: the length (at most {seconds}; at most {fastSeconds} at 60 fps), fps: frames a second, 1 to 60 (default 30), scale: a sharper video at more pixels (at most {width}×{height} pixels; for example a 1280×720 page at 1.5), caption: an optional short note. Pictures go in the folder of the page as with page_to_image; libraries and Google Fonts load as in the chat, and no other address is reached. At most {max} in a turn.",
+  'tool.pageVideoSent':
+    'A {seconds}-second video was made from the page and sent to the user: {name}. It shows in the conversation as a video. File: {path}',
+  'tool.pageVideoSentMain':
+    'A {seconds}-second video was made from the page: {name}. This conversation is between bots; the video went to your conversation with the user, and the other bot does not see it. File: {path}',
+  'tool.pageVideoNotJsx': 'Only an HTML page turns into a video; write the page as .html for that.',
+  'tool.pageVideoLimit': 'At most {max} page videos can be made in one turn; no more in this one.',
+  'tool.pageVideoTooLong':
+    'That is too many frames: seconds × fps may be at most {frames}. Make it shorter or use a lower fps.',
+  'tool.pageVideoTooLarge':
+    'That video is too large: width × height × scale² may be at most {width} × {height} pixels. Use a smaller page or scale.',
+  'tool.pageVideoTooShort': 'That video would have no frames: seconds × fps must be at least 1.',
+  'tool.pageVideoFailed.stuck':
+    'The page was stuck on one frame for more than {seconds} seconds (a window.render that does not finish, or a page that hangs); no video was made. Fix the page and try again.',
+  'tool.pageVideoFailed.timeout':
+    'The video was not finished within {minutes} minutes; none was made. Try fewer seconds, a lower fps or a smaller page.',
+  'tool.pageVideoFailed.ffmpeg': 'The frames could not be turned into a video (ffmpeg): {message}',
   'tool.send_file':
     'Send files from your folders to the user; they show in the conversation as download cards (images as pictures). paths: file paths (relative ones are from your working folder), caption: an optional short note.',
   'tool.browser_open':

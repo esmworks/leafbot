@@ -70,7 +70,7 @@ import { personComputerTools } from './person-computer';
 import { callTools } from './calls';
 import { personPhoneTools } from './person-phone';
 import { personBrowserTools } from './person-browser';
-import { handFiles, pageImageTool, sendFileTool, showPageTool } from './files';
+import { handFiles, pageImageTool, pageVideoTool, sendFileTool, showPageTool } from './files';
 import { imageTool } from './images';
 import { videoTool } from './videos';
 import { slidesTool } from './slides';
@@ -569,6 +569,7 @@ export type ToolName =
   | 'whatsapp_follow'
   | 'whatsapp_suggest_route'
   | 'page_to_image'
+  | 'page_to_video'
   | 'browser_open'
   | 'browser_snapshot'
   | 'browser_click'
@@ -2710,6 +2711,23 @@ export class ToolFactory {
           t,
         }),
       );
+      // A video is the page's frames encoded by ffmpeg; without the program there is none.
+      const ffmpeg = this.ctx.config.ffmpegPath;
+      if (ffmpeg) {
+        tools.push(
+          pageVideoTool({
+            def,
+            services: s,
+            dataDir: this.ctx.config.dataDir,
+            bot,
+            thread,
+            browser: { executable, sandbox: this.ctx.config.browserSandbox },
+            ffmpeg,
+            signal,
+            t,
+          }),
+        );
+      }
     }
     // Only a message the person sent gets an emoji back; a turn about their emoji, or another bot's
     // reply, does not. The tool is listed in every turn all the same: the tool list opens the cached

@@ -1341,6 +1341,7 @@ export const en: Catalog<MessageKey> = {
   'activity.tool.video': 'Creating a video',
   'activity.tool.slides': 'Making slides',
   'activity.tool.pageImage': 'Turning a page into a picture',
+  'activity.tool.pageVideo': 'Turning a page into a video',
   'activity.tool.write': 'Writing a file',
   'activity.tool.web': 'Searching the web',
   'activity.tool.api': 'Calling a service',

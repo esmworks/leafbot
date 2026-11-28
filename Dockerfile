@@ -18,9 +18,10 @@ FROM node:22-bookworm-slim
 # pages must render; without a CJK font those pages show empty boxes).
 # poppler-utils: Claude's Read tool turns chosen PDF pages into pictures with pdftoppm. A PDF of more
 # than ten pages can only be read that way, so without it a long scanned PDF cannot be read at all.
+# ffmpeg: page_to_video encodes a page's frames into an MP4 with it; without it bots have no such tool.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends bubblewrap socat tini ca-certificates git ripgrep poppler-utils \
-    chromium fonts-dejavu-core fonts-liberation fonts-noto-color-emoji fonts-noto-cjk \
+    ffmpeg chromium fonts-dejavu-core fonts-liberation fonts-noto-color-emoji fonts-noto-cjk \
  && rm -rf /var/lib/apt/lists/* \
  && useradd --create-home --uid 10001 --shell /usr/sbin/nologin leafbot \
  && mkdir -p /data && chown leafbot:leafbot /data

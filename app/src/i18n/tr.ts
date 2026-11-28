@@ -1300,6 +1300,7 @@ export const tr = {
   'activity.tool.video': 'Video oluşturuyor',
   'activity.tool.slides': 'Slayt hazırlıyor',
   'activity.tool.pageImage': 'Sayfayı resme çeviriyor',
+  'activity.tool.pageVideo': 'Sayfayı videoya çeviriyor',
   'activity.tool.write': 'Dosya yazıyor',
   'activity.tool.web': "Web'de arıyor",
   'activity.tool.api': 'Bir servisi çağırıyor',
