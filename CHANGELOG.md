@@ -470,6 +470,8 @@ version is 0.x, a minor release may change the data format or the API; the serve
   tunnel. They were refused with 415, as the server read the missing body as one still to come.
 - A person removed, disabled or unlinked loses the tunnel they had open at once, not when it next renews its ticket,
   up to ten minutes later. One whose role changed is reconnected with the new role straight away.
+- The Chrome extension's panel opens its connection again by itself when it drops after working, as when the server
+  restarts, instead of waiting for "Retry".
 - The usage export (Settings → Usage) and a bot's list of steps as CSV start with a UTF-8 byte order mark, as
   a table's export already did, so Excel no longer garbles bot names with letters such as İ, ğ or ş.
 - A browser that reaches the relay while its server is restarting connects as soon as the server is back,
