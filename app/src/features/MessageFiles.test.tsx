@@ -47,6 +47,20 @@ describe('mesajdaki dosya kartları', () => {
     expect(families).toEqual(['document', 'other']);
   });
 
+  it('video oynatıcı olarak değil ilk karesiyle durur ve tıklanınca önizlemede açılır', () => {
+    const withVideo = [{ name: 'tanitim.mp4', size: 5000, path: 'demo/tanitim.mp4' }, files[0]!];
+    const { container } = render(<MessageFiles files={withVideo} botId="b1" align="start" />);
+    const video = container.querySelector('video')!;
+    // A player this small would be all controls; the controls belong to the preview.
+    expect(video.hasAttribute('controls')).toBe(false);
+
+    fireEvent.click(video.closest('button')!);
+    const shown = usePreview.getState();
+    expect(shown.file?.path).toBe('demo/tanitim.mp4');
+    // The preview steps on to the message's other files from the video as well.
+    expect(shown.set.map((f) => f.path)).toEqual(['demo/tanitim.mp4', 'demo/rapor.md']);
+  });
+
   it('henüz gönderilmekte olan dosyanın indirilecek bir şeyi yoktur', () => {
     const { container } = render(<MessageFiles files={[{ ...files[0]!, path: '' }]} />);
     expect(container.querySelector('a[download]')?.getAttribute('href')).toBeNull();

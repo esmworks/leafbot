@@ -61,7 +61,9 @@ export function VideoTile({
         playsInline
         tabIndex={-1}
         aria-hidden
-        className="pointer-events-none block aspect-video w-full object-contain"
+        // The video keeps its own shape up to a height, so a phone recording stands tall rather
+        // than shrinking into a wide box.
+        className="pointer-events-none block max-h-64 w-full object-contain"
       />
       <span className="absolute inset-0 flex items-center justify-center">
         <span className="flex size-12 items-center justify-center rounded-full bg-black/60 text-white transition-transform group-hover:scale-110">

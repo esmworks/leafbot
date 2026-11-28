@@ -155,7 +155,14 @@ function PreviewBody({ file }: { file: PreviewFile }) {
           </div>
         ) : kind === 'video' ? (
           <div className="flex size-full items-center justify-center bg-black">
-            <ServerVideo src={inline} controls preload="metadata" className="max-h-full max-w-full" />
+            {/* Opening a video is asking to watch it; a browser that holds sound back leaves it paused. */}
+            <ServerVideo
+              src={inline}
+              controls
+              autoPlay
+              preload="metadata"
+              className="max-h-full max-w-full"
+            />
           </div>
         ) : kind === 'pdf' && tunnel ? (
           <div className="flex size-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
