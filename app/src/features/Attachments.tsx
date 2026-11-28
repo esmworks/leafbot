@@ -34,7 +34,7 @@ import { usePreview } from './previewStore';
 import { cn } from '@/lib/utils';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { ImageMarkup } from './ImageMarkup';
-import { ServerAudio, ServerImg, ServerVideo } from '@/components/ServerMedia';
+import { ServerAudio, ServerImg, ServerVideo, VideoTile } from '@/components/ServerMedia';
 
 /** An upload waiting on the server for its message; sending moves it into the conversation folder. */
 export interface StagedFile {
@@ -443,7 +443,8 @@ export function MessageFiles({
       botId && f.path && previewKind(f.name)
         ? () => preview({ botId, path: f.path, name: f.name, size: f.size }, viewable)
         : null;
-    // Sound and video play where they are; the name above still opens the preview.
+    // Sound plays where it is. A video shows its first frame and is watched in the preview: a player
+    // this small is all controls and no picture. The name above opens the preview as well.
     const media = href ? previewKind(f.name) : null;
     if (href && (media === 'audio' || media === 'video')) {
       const src = api.fileUrl(botId!, f.path, { inline: true });
@@ -462,6 +463,8 @@ export function MessageFiles({
           </button>
           {media === 'audio' ? (
             <ServerAudio src={src} controls preload="metadata" className="w-full" />
+          ) : open ? (
+            <VideoTile src={src} label={t('preview.open', { name: f.name })} onOpen={open} />
           ) : (
             <ServerVideo
               src={src}
