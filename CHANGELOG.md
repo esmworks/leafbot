@@ -3,7 +3,7 @@
 All notable changes to Leaf Bot (called Yumak Bot before 0.7.0) are listed here. Versions follow [Semantic Versioning](https://semver.org/). While the
 version is 0.x, a minor release may change the data format or the API; the server migrates its database on start.
 
-## Unreleased
+## 0.10.1 — 2026-11-28
 
 ### Added
 

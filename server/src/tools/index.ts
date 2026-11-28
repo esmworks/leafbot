@@ -518,7 +518,7 @@ export type Define = ReturnType<typeof definer>;
 const MAX_OPENED = 5;
 
 /** The version a problem report names. */
-const LEAFBOT_VERSION = '0.10.0';
+const LEAFBOT_VERSION = '0.10.1';
 /** Errors of the conversation a problem report carries: the latest few of the last hour. */
 const REPORT_ERRORS = 5;
 const REPORT_ERRORS_MS = 60 * 60_000;
