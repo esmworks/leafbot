@@ -298,7 +298,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     shellDir,
   });
   // Coding agents on the computer, only where the server runs on the owner's own computer.
-  const acp = config.onUserComputer ? new AcpEngine({ version: '0.10.2' }) : null;
+  const acp = config.onUserComputer ? new AcpEngine({ version: '0.10.3' }) : null;
   const engineFor = (bot: Bot): Engine =>
     opts.engine ??
     fake ??
@@ -489,7 +489,7 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
 
   const info = (): ServerInfo => ({
     name: 'leafbot',
-    version: '0.10.2',
+    version: '0.10.3',
     bootId,
     buildId,
     claude: claudeStatus,

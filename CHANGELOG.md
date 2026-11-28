@@ -3,7 +3,40 @@
 All notable changes to Leaf Bot (called Yumak Bot before 0.7.0) are listed here. Versions follow [Semantic Versioning](https://semver.org/). While the
 version is 0.x, a minor release may change the data format or the API; the server migrates its database on start.
 
-## Unreleased
+## 0.10.3 — 2026-11-28
+
+### Added
+
+- A mail account on any domain can be a connection over IMAP and SMTP: its address, password and two servers,
+  checked by signing in to both. Bots search, read, download attachments, send, reply, forward, flag, move and trash
+  with the same tools and the same mail card as Gmail. A connection is opened for each call, so nothing stays open
+  between turns.
+- Bots can film an HTML page they made into an MP4 video (`page_to_video`), in the server's own closed-off browser.
+  The page's clock moves one frame at a time, so the video is exact however slow the computer is, and no paid video
+  provider is needed for an animated post.
+- How many steps one turn may take is a team setting under Usage, from the engines' own 50 up to 500, so a long job
+  such as a build no longer stops halfway. Only those who look after the server may change it. Helpers a bot starts
+  keep to it too when it is lower; bots on a coding agent keep that agent's own limit.
+- The Connection page lists the account's servers: each with the person's role, the open one with its version, the
+  others with when the account last saw them. Choosing another opens its settings.
+- In the desktop app, Settings › Computer use offers "Turn this computer on" for the server it shows, after asking in
+  the app's own dialog. Before, the switch lived only in the menu bar and was missing there for a desktop with no
+  server chosen.
+
+### Changed
+
+- A video in a conversation shows as its first frame with a play mark, keeping its own shape, and opens in the
+  preview like a picture, where it starts playing. A player the size of a card had been all controls and no picture.
+- The task board opens beside the sidebar instead of over the window, so the bots stay in reach. Opening a bot,
+  room, routine or conversation leaves the board; coming back finds the filters and the open ticket as they were.
+- The Connection settings fit signing in through the account. Reached through the tunnel, the server card names the
+  server and the person's role instead of the app's own address. The list of signed-in devices shows only on the
+  server's own page, and the sign-in code for another device is offered there only once the server is linked.
+
+### Fixed
+
+- In the desktop app, a video's full-screen button works; the app had refused the page's request to go full screen.
+- The board stays open when the app opens another bot by itself after the open one is deleted or archived.
 
 ### Removed
 
