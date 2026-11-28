@@ -150,7 +150,7 @@ export function TextView({
   source: boolean;
 }) {
   const c = useColors();
-  const { data, isPending, isError } = useFileText(botId, path, url, true);
+  const { data, isPending } = useFileText(botId, path, url, true);
   const [width, setWidth] = useState(0);
   const blocks = useMemo(() => {
     if (!data || kind === 'markdown' || (kind === 'html' && !source)) return [];
@@ -165,7 +165,7 @@ export function TextView({
     [data, wrap],
   );
   if (isPending) return <Message busy />;
-  if (isError || !data) return <Message text={t('preview.failed')} />;
+  if (!data) return <Message text={t('preview.failed')} />;
   const cut = data.cut ? <CutBar text={t('preview.cut')} /> : null;
   if (kind === 'html' && !source) {
     return (
@@ -227,10 +227,10 @@ export function TableView({
 }) {
   const c = useColors();
   const [width, setWidth] = useState(0);
-  const { data, isPending, isError } = useFileText(botId, path, url, true);
+  const { data, isPending } = useFileText(botId, path, url, true);
   const rows = useMemo(() => (data ? parseCsv(data.text, /\.tsv$/i.test(name)) : []), [data, name]);
   if (isPending) return <Message busy />;
-  if (isError || !data) return <Message text={t('preview.failed')} />;
+  if (!data) return <Message text={t('preview.failed')} />;
   const [head = [], ...body] = rows;
   const shown = body.slice(0, TABLE_ROWS);
   const columns = Math.max(head.length, ...shown.slice(0, 50).map((r) => r.length));

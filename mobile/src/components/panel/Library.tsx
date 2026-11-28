@@ -17,9 +17,10 @@ const fmt = formatters(locale, t);
 export function Library({ bot }: { bot: Bot }) {
   const c = useColors();
   const api = useApi();
-  const { data: files = [], isLoading, isError } = useLibrary(bot.id);
+  const { data, isLoading, isError } = useLibrary(bot.id);
+  const files = data ?? [];
   if (isLoading) return <Loading />;
-  if (isError) return <Note tone="error">{t('panel.filesFailed')}</Note>;
+  if (isError && !data) return <Note tone="error">{t('panel.filesFailed')}</Note>;
   if (!files.length) {
     return (
       <Block>
