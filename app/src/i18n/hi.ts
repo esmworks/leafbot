@@ -875,10 +875,6 @@ export const hi: Partial<Catalog<MessageKey>> = {
   'chat.attach': 'फ़ाइलें जोड़ें',
   'tailscale.title': 'Tailscale',
   'tailscale.share': 'Tailscale पर मेरे डिवाइस से पहुँचें',
-  'tailscale.hint':
-    'इस सर्वर को एक https पता देता है जो सिर्फ़ आपके Tailscale नेटवर्क के डिवाइस ही पहुँच सकते हैं, बिना इसे इंटरनेट पर खोले। वहाँ साइन इन फिर भी ज़रूरी है। यह कंप्यूटर {name} है।',
-  'tailscale.missing':
-    'सर्वर के कंप्यूटर पर Tailscale इंस्टॉल नहीं है। इसके साथ आपका फ़ोन और दूसरे कंप्यूटर कहीं से भी इस सर्वर तक पहुँच सकते हैं, बिना इसे इंटरनेट पर खोले।',
   'tailscale.stopped': 'Tailscale इंस्टॉल है पर जुड़ा नहीं है। Tailscale ऐप खोलकर साइन इन करें।',
   'tailscale.address': 'आपके tailnet पर पता',
   'tailscale.copy': 'कॉपी करें',
@@ -1882,8 +1878,6 @@ export const hi: Partial<Catalog<MessageKey>> = {
     'साइटें उस कंप्यूटर का कनेक्शन देखती हैं जिसका Leaf Bot ऐप इस सर्वर से जुड़ा है, सर्वर का नहीं। जब तक वह कंप्यूटर बंद है, ब्राउज़र सर्वर से बाहर जाते हैं। केवल ब्राउज़र: बॉट के कमांड अब भी सर्वर से बाहर जाते हैं।',
   'egress.connected': 'अभी {device} से बाहर जा रहा है।',
   'egress.connectedUnnamed': 'अभी जुड़े कंप्यूटर से बाहर जा रहा है।',
-  'egress.waiting':
-    'कोई कंप्यूटर जुड़ा नहीं है, इसलिए अभी सर्वर से बाहर जाता है। डेस्कटॉप ऐप खुला रखें और इसे इस सर्वर से जुड़ा रखें।',
   'sandbox.label': 'Bash सैंडबॉक्स',
   'sandbox.okHint': 'Claude बॉट के Bash कमांड ऐसे सैंडबॉक्स में चलते हैं जो केवल उनके अपने फ़ोल्डर देख सकता है।',
   'sandbox.unavailableHint':

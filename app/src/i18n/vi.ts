@@ -866,10 +866,6 @@ export const vi: Partial<Catalog<MessageKey>> = {
   'chat.attach': 'Đính kèm tệp',
   'tailscale.title': 'Tailscale',
   'tailscale.share': 'Truy cập từ các thiết bị của tôi trên Tailscale',
-  'tailscale.hint':
-    'Cấp cho máy chủ này một địa chỉ https mà chỉ các thiết bị trong mạng Tailscale của bạn truy cập được, không cần mở nó ra internet. Vẫn cần đăng nhập ở đó. Máy tính này là {name}.',
-  'tailscale.missing':
-    'Tailscale chưa được cài trên máy tính của máy chủ. Với nó, điện thoại và các máy tính khác của bạn truy cập được máy chủ này từ bất kỳ đâu mà không cần mở nó ra internet.',
   'tailscale.stopped': 'Tailscale đã được cài nhưng chưa kết nối. Mở ứng dụng Tailscale và đăng nhập.',
   'tailscale.address': 'Địa chỉ trên tailnet của bạn',
   'tailscale.copy': 'Sao chép',
@@ -1889,8 +1885,6 @@ export const vi: Partial<Catalog<MessageKey>> = {
     'Các trang thấy kết nối của máy tính có ứng dụng Leaf Bot đang kết nối tới máy chủ này, không phải của máy chủ. Khi máy tính đó tắt, trình duyệt đi ra từ máy chủ. Chỉ trình duyệt: lệnh của bot vẫn đi ra từ máy chủ.',
   'egress.connected': 'Hiện đang đi ra qua {device}.',
   'egress.connectedUnnamed': 'Hiện đang đi ra qua máy tính đang kết nối.',
-  'egress.waiting':
-    'Không có máy tính nào kết nối, nên hiện đang đi ra từ máy chủ. Giữ ứng dụng máy tính mở và kết nối tới máy chủ này.',
   'sandbox.label': 'Hộp cát Bash',
   'sandbox.okHint': 'Lệnh Bash của bot Claude chạy trong hộp cát chỉ thấy được thư mục của chính chúng.',
   'sandbox.unavailableHint':

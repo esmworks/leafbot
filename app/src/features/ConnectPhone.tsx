@@ -44,7 +44,7 @@ export function ConnectPhone({ owner }: { owner: boolean }) {
   if (!tunnel && !owner) return null;
   return (
     <Card title={t('phone.title')}>
-      <Row label={t('phone.label')} hint={t('phone.hint')}>
+      <Row label={t('phone.label')} hint={t('phone.signInHint')}>
         <Button
           variant="secondary"
           size="sm"

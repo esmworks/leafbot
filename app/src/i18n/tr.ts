@@ -29,8 +29,8 @@ export const tr = {
   'login.openAccount': 'leafbot.app üzerinden gir',
   'phone.title': 'Başka bir cihaz bağla',
   'phone.label': 'Leaf Bot telefon uygulamasında ya da Chrome eklentisinde oturum aç',
-  'phone.hint':
-    'QR kodu telefon uygulamasıyla okut ya da kodu orada veya Chrome eklentisinde yaz. Kod iki dakika, bir kez geçer.',
+  'phone.signInHint':
+    'Telefon uygulamasında “leafbot.app ile giriş yap” ile girebilir ya da bu QR kodu okutabilirsiniz; Chrome eklentisi bu kodu ister. Kod Leaf Bot hesabınızla oturum açar, iki dakika ve bir kez geçer.',
   'phone.make': 'QR kodu göster',
   'phone.again': 'Yeni kod',
   'phone.qrAlt': 'Leaf Bot telefon uygulamasıyla okutulacak QR kod',
@@ -1065,7 +1065,8 @@ export const tr = {
   'accountHost.link': 'Bağla',
   'accountHost.linked': 'Bu sunucu hesabınıza bağlandı',
   'accountHost.linkedLabel': 'Hesabınıza bağlı',
-  'accountHost.running': 'Hesabınızdaki kişiler onu www.leafbot.app/bots adresinden açabilir.',
+  'accountHost.running':
+    'Hesabınızdaki kişiler onu www.leafbot.app/bots adresinden, masaüstü ve telefon uygulamasından açabilir.',
   'accountHost.notRunning': 'Şu an Leaf Bot ile bağlantısı yok; denemeye devam ediyor.',
   'accountHost.noWebRtc': 'Bu sürüm web uygulamasından gelen bağlantıları henüz alamıyor.',
   'accountHost.unlink': 'Bağlantıyı kaldır',
@@ -1114,10 +1115,8 @@ export const tr = {
   'bots.notOffered': 'Bu sunucu bunu sunmuyor.',
   'tailscale.title': 'Tailscale',
   'tailscale.share': 'Tailscale ağımdaki cihazlardan eriş',
-  'tailscale.hint':
-    'Bu sunucuya yalnızca Tailscale ağınızdaki cihazların ulaşabildiği bir https adresi verir; sunucu internete açılmaz. Orada da giriş yapmak gerekir. Bu bilgisayar: {name}.',
-  'tailscale.missing':
-    'Sunucunun bilgisayarında Tailscale kurulu değil. Kurulursa telefonunuz ve diğer bilgisayarlarınız bu sunucuya, internete açmadan her yerden ulaşabilir.',
+  'tailscale.pageHint':
+    'Sunucunun kendi sayfasını yalnızca Tailscale ağınızdaki cihazların ulaştığı bir https adresinde açar; sunucu internete açılmaz. Uygulama, telefon ve Chrome eklentisi buna gerek duymadan sunucuya Leaf Bot hesabınız üzerinden ulaşır. Bu bilgisayar: {name}.',
   'tailscale.stopped': 'Tailscale kurulu ama bağlı değil. Tailscale uygulamasını açıp giriş yapın.',
   'tailscale.address': 'Tailnet adresi',
   'tailscale.copy': 'Kopyala',
@@ -2457,6 +2456,12 @@ export const tr = {
   'connection.openAccount': 'Aç',
   'connection.addServer': 'Sunucu ekle',
   'connection.shownHere': 'Bu pencerede açık',
+  'connection.viaAccount':
+    'Leaf Bot hesabınız üzerinden, cihazınızla sunucu arasında şifreli bir bağlantıyla açık; sunucunun port açması gerekmez.',
+  'connection.yourRole': 'Rolünüz: {role}.',
+  'connection.accountSignOut': 'Leaf Bot hesabından çık',
+  'connection.accountSignOutHint':
+    'Bu uygulama hesabınızdan çıkar; sunucularınızı yeniden açmak için tarayıcıda giriş yapmanız gerekir.',
 
   'browserInfo.label': 'Botların tarayıcısı',
   'browserInfo.ok': 'Var',
@@ -2469,8 +2474,8 @@ export const tr = {
     'Siteler sunucunun değil, Leaf Bot uygulaması bu sunucuya bağlı olan bilgisayarın bağlantısını görür. O bilgisayar kapalıyken tarayıcı sunucudan çıkar. Yalnızca tarayıcı: botların komutları yine sunucudan çıkar.',
   'egress.connected': 'Şu an {device} üzerinden çıkıyor.',
   'egress.connectedUnnamed': 'Şu an bağlı bilgisayarın üzerinden çıkıyor.',
-  'egress.waiting':
-    'Bağlı bilgisayar yok, şu an sunucudan çıkıyor. Masaüstü uygulamasını bu sunucuya bağlı olarak açık tutun.',
+  'egress.waitingChoose':
+    'Bağlı bilgisayar yok, şu an sunucudan çıkıyor. Masaüstü uygulamasında Leaf Bot simgesinin menüsünden “Bu bilgisayar için hesap sunucusu” olarak bu sunucuyu seçin ve uygulamayı açık tutun.',
   'sandbox.label': 'Bash yalıtımı',
   'sandbox.okHint':
     'Claude botlarının Bash komutları yalnızca kendi klasörlerini görebilen bir yalıtımda çalışır.',

@@ -991,10 +991,6 @@ export const ar: Partial<Catalog<MessageKey>> = {
   'chat.attach': 'إرفاق ملفات',
   'tailscale.title': 'Tailscale',
   'tailscale.share': 'الوصول من أجهزتي على Tailscale',
-  'tailscale.hint':
-    'يمنح هذا الخادم عنوان https لا تصل إليه إلا الأجهزة على شبكة Tailscale لديك، دون فتحه على الإنترنت. يبقى تسجيل الدخول مطلوبًا هناك. هذا الحاسوب هو {name}.',
-  'tailscale.missing':
-    'Tailscale غير مثبّت على حاسوب الخادم. بفضله، يصل هاتفك وحواسيبك الأخرى إلى هذا الخادم من أي مكان دون فتحه على الإنترنت.',
   'tailscale.stopped': 'Tailscale مثبّت لكنه غير متصل. افتح تطبيق Tailscale وسجّل الدخول.',
   'tailscale.address': 'العنوان على tailnet لديك',
   'tailscale.copy': 'نسخ',
@@ -2045,7 +2041,6 @@ export const ar: Partial<Catalog<MessageKey>> = {
     'ترى المواقع اتصال الحاسوب الذي يتصل تطبيق Leaf Bot فيه بهذا الخادم، لا اتصال الخادم. وما دام ذلك الحاسوب مغلقًا، تخرج المتصفحات من الخادم. المتصفحات وحدها: أما أوامر البوتات فتخرج من الخادم كما هي.',
   'egress.connected': 'الخروج الآن عبر {device}.',
   'egress.connectedUnnamed': 'الخروج الآن عبر الحاسوب المتصل.',
-  'egress.waiting': 'لا حاسوب متصل، لذا يخرج الآن من الخادم. أبقِ تطبيق سطح المكتب مفتوحًا ومتصلًا بهذا الخادم.',
   'sandbox.label': 'بيئة عزل Bash',
   'sandbox.okHint': 'تعمل أوامر Bash في بوتات Claude داخل بيئة عزل لا ترى إلا مجلدات البوتات نفسها.',
   'sandbox.unavailableHint':

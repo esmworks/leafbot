@@ -924,10 +924,6 @@ export const es: Partial<Catalog<MessageKey>> = {
   'chat.attach': 'Adjuntar archivos',
   'tailscale.title': 'Tailscale',
   'tailscale.share': 'Acceso desde mis dispositivos en Tailscale',
-  'tailscale.hint':
-    'Da a este servidor una dirección https a la que solo llegan los dispositivos de tu red de Tailscale, sin abrirlo a internet. Aun así hay que iniciar sesión. Este ordenador es {name}.',
-  'tailscale.missing':
-    'Tailscale no está instalado en el ordenador del servidor. Con él, tu teléfono y otros ordenadores llegan a este servidor desde cualquier lugar sin abrirlo a internet.',
   'tailscale.stopped':
     'Tailscale está instalado pero no conectado. Abre la aplicación Tailscale e inicia sesión.',
   'tailscale.address': 'Dirección en tu tailnet',
@@ -1970,8 +1966,6 @@ export const es: Partial<Catalog<MessageKey>> = {
     'Los sitios ven la conexión del ordenador cuya aplicación Leaf Bot está conectada a este servidor, no la del servidor. Mientras ese ordenador está apagado, los navegadores salen desde el servidor. Solo los navegadores: los comandos de los bots siguen saliendo desde el servidor.',
   'egress.connected': 'Saliendo ahora por {device}.',
   'egress.connectedUnnamed': 'Saliendo ahora por el ordenador conectado.',
-  'egress.waiting':
-    'No hay ningún ordenador conectado, así que ahora sale desde el servidor. Mantén la aplicación de escritorio abierta y conectada a este servidor.',
   'sandbox.label': 'Entorno aislado de Bash',
   'sandbox.okHint':
     'Los comandos Bash de los bots de Claude se ejecutan en un entorno aislado que solo ve sus propias carpetas.',

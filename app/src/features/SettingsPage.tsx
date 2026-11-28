@@ -75,7 +75,9 @@ import {
   useSettings,
 } from '@/lib/queries';
 import { desktop } from '@/lib/desktop';
+import { useServerSwitch, type ServerRole } from '@/lib/serverSwitch';
 import { useUi, type SettingsTab } from '@/lib/store';
+import { useTransport } from '@/lib/transport';
 import { NoteSource } from './NoteSource';
 import { LearnSetting, MemoryHistory, NoteRow } from './MemoryNote';
 import { MemoryMap } from './MemoryMap';
@@ -935,6 +937,9 @@ function Connection() {
   // those who look after the server. The AI providers have their own section.
   const manages = useManagesServer();
   const owner = useSession().data?.user?.role === 'owner';
+  // Through the account's tunnel the page has no address of the server's and no session of its
+  // own: the server is known by its name in the account, and signing out is the account's.
+  const tunnel = useTransport((s) => !!s.tunnel);
   return (
     <>
       {manages && (
@@ -944,22 +949,79 @@ function Connection() {
           <EgressRow egress={info?.egress} />
         </Card>
       )}
-      <Card title={t('connection.server')}>
-        <Row label={t('connection.address')} hint={window.location.origin} />
-        <DesktopServerRow />
-        <Row label={t('connection.version')} hint={info?.version ?? '…'} />
-        <Row label={t('connection.logoutHere')}>
-          <Button variant="secondary" size="sm" className="rounded-full" onClick={() => logout.mutate()}>
-            <LogOut /> {t('connection.logout')}
-          </Button>
-        </Row>
-      </Card>
+      {tunnel ? (
+        <Card title={t('connection.server')}>
+          <AccountServerRow />
+          <Row label={t('connection.version')} hint={info?.version ?? '…'} />
+          <AccountSignOutRow />
+        </Card>
+      ) : (
+        <Card title={t('connection.server')}>
+          <Row label={t('connection.address')} hint={window.location.origin} />
+          <DesktopServerRow />
+          <Row label={t('connection.version')} hint={info?.version ?? '…'} />
+          <Row label={t('connection.logoutHere')}>
+            <Button variant="secondary" size="sm" className="rounded-full" onClick={() => logout.mutate()}>
+              <LogOut /> {t('connection.logout')}
+            </Button>
+          </Row>
+        </Card>
+      )}
       <ConnectPhone owner={owner} />
-      <Devices />
+      {/* The server's own sign-ins, made with the access key on its computer; devices that come
+          through the account are the account's. */}
+      {!tunnel && <Devices />}
       <AccountHostCard />
       <TailscaleCard />
       {manages && <ApnsCard />}
     </>
+  );
+}
+
+const ROLE_LABEL: Record<ServerRole, MessageKey> = {
+  owner: 'bots.role.owner',
+  admin: 'bots.role.admin',
+  member: 'bots.role.member',
+};
+
+/** Through the tunnel: the server as the account lists it, and how this page reaches it. */
+function AccountServerRow() {
+  const t = useT();
+  const { name, role } = useServerSwitch();
+  const how = t('connection.viaAccount');
+  return (
+    <Row
+      label={name}
+      hint={role ? `${t('connection.yourRole', { role: t(ROLE_LABEL[role]) })} ${how}` : how}
+    />
+  );
+}
+
+/**
+ * In the desktop app, signing out of the Leaf Bot account, which its menu bar offers too. On the
+ * website the account's own pages sign out, so there is nothing here; ending the tunnel alone would
+ * only leave the page signed out of this server.
+ */
+function AccountSignOutRow() {
+  const t = useT();
+  const signOut = desktop?.account?.signOut;
+  const [busy, setBusy] = useState(false);
+  if (!signOut) return null;
+  return (
+    <Row label={t('connection.accountSignOut')} hint={t('connection.accountSignOutHint')}>
+      <Button
+        variant="secondary"
+        size="sm"
+        className="rounded-full"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          void signOut().finally(() => setBusy(false));
+        }}
+      >
+        <LogOut /> {t('connection.logout')}
+      </Button>
+    </Row>
   );
 }
 
@@ -1917,7 +1979,7 @@ function EgressRow({ egress }: { egress: ServerInfo['egress'] | undefined }) {
     ? egress.device
       ? t('egress.connected', { device: egress.device })
       : t('egress.connectedUnnamed')
-    : t('egress.waiting');
+    : t('egress.waitingChoose');
   return (
     <Row label={t('egress.label')} hint={on ? `${t('egress.hint')} ${now}` : t('egress.hint')}>
       <Switch checked={on} onCheckedChange={(v) => save.mutate({ browserViaComputer: v })} />

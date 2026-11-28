@@ -16,6 +16,8 @@ const account = {
   /** Opens the sign-in in the browser; resolves once the browser sent the person back, or it ended. */
   signIn: (): Promise<{ ok: true } | { ok: false; reason: string }> =>
     ipcRenderer.invoke('leafbot:account-sign-in'),
+  /** Signs out of the account, as the menu bar's item does; `onChange` follows. */
+  signOut: (): Promise<void> => ipcRenderer.invoke('leafbot:account-sign-out'),
   /** Opens a page of the website (adding a server, say) in the person's browser. */
   openWebsite: (path: string): Promise<void> => ipcRenderer.invoke('leafbot:account-website', path),
   /** Calls `fn` when the person signs in or out from the menu bar; returns a function that stops it. */

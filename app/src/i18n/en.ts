@@ -27,8 +27,8 @@ export const en: Catalog<MessageKey> = {
   'login.openAccount': 'Sign in at leafbot.app',
   'phone.title': 'Connect another device',
   'phone.label': 'Sign the Leaf Bot phone app or Chrome extension in',
-  'phone.hint':
-    'Scan the QR code with the phone app, or type the code there or in the Chrome extension. It works once, for two minutes.',
+  'phone.signInHint':
+    'In the phone app, sign in with “Sign in with leafbot.app” or scan this QR code; the Chrome extension asks for the code. It signs in to your Leaf Bot account and works once, for two minutes.',
   'phone.make': 'Show QR code',
   'phone.again': 'New code',
   'phone.qrAlt': 'QR code to scan with the Leaf Bot phone app',
@@ -1105,7 +1105,8 @@ export const en: Catalog<MessageKey> = {
   'accountHost.link': 'Link',
   'accountHost.linked': 'This server is linked to your account',
   'accountHost.linkedLabel': 'Linked to your account',
-  'accountHost.running': 'People in your account can open it at www.leafbot.app/bots.',
+  'accountHost.running':
+    'People in your account can open it at www.leafbot.app/bots, in the desktop app and in the phone app.',
   'accountHost.notRunning': 'Not connected to Leaf Bot right now; it keeps trying.',
   'accountHost.noWebRtc': "This version can't take connections from the web app yet.",
   'accountHost.unlink': 'Unlink',
@@ -1155,10 +1156,8 @@ export const en: Catalog<MessageKey> = {
   'bots.notOffered': 'This server doesn’t offer this.',
   'tailscale.title': 'Tailscale',
   'tailscale.share': 'Reach from my devices on Tailscale',
-  'tailscale.hint':
-    'Gives this server an https address that only the devices on your Tailscale network reach, without opening it to the internet. Signing in is still needed there. This computer is {name}.',
-  'tailscale.missing':
-    "Tailscale is not installed on the server's computer. With it, your phone and other computers reach this server from anywhere without opening it to the internet.",
+  'tailscale.pageHint':
+    "Opens the server's own page at an https address that only the devices on your Tailscale network reach, without opening it to the internet. The app, phone and Chrome extension reach this server through your Leaf Bot account without it. This computer is {name}.",
   'tailscale.stopped': 'Tailscale is installed but not connected. Open the Tailscale app and sign in.',
   'tailscale.address': 'Address on your tailnet',
   'tailscale.copy': 'Copy',
@@ -2490,6 +2489,12 @@ export const en: Catalog<MessageKey> = {
   'connection.openAccount': 'Open',
   'connection.addServer': 'Add a server',
   'connection.shownHere': 'Shown in this window',
+  'connection.viaAccount':
+    'Open through your Leaf Bot account, over an encrypted connection between your device and the server; the server opens no port.',
+  'connection.yourRole': 'Your role: {role}.',
+  'connection.accountSignOut': 'Sign out of your Leaf Bot account',
+  'connection.accountSignOutHint':
+    'This app signs out of your account; you sign in again in your browser to open your servers.',
 
   'browserInfo.label': "Bots' browser",
   'browserInfo.ok': 'Available',
@@ -2502,8 +2507,8 @@ export const en: Catalog<MessageKey> = {
     "Sites see the connection of the computer whose Leaf Bot app is connected to this server, not the server's. While that computer is off, the browsers go out from the server. Browsers only: the bots' commands still go out from the server.",
   'egress.connected': 'Going out through {device} now.',
   'egress.connectedUnnamed': 'Going out through the connected computer now.',
-  'egress.waiting':
-    'No computer is connected, so it goes out from the server now. Keep the desktop app open and connected to this server.',
+  'egress.waitingChoose':
+    'No computer is connected, so it goes out from the server now. In the desktop app, choose this server as “Account server for this computer” in the Leaf Bot icon’s menu and keep the app open.',
   'sandbox.label': 'Bash sandbox',
   'sandbox.okHint': "Claude bots' Bash commands run in a sandbox that can only see their own folders.",
   'sandbox.unavailableHint':

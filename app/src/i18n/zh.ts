@@ -819,10 +819,6 @@ export const zh: Partial<Catalog<MessageKey>> = {
   'chat.attach': '添加附件',
   'tailscale.title': 'Tailscale',
   'tailscale.share': '允许我在 Tailscale 上的设备访问',
-  'tailscale.hint':
-    '为这台服务器提供一个 https 地址，只有你 Tailscale 网络中的设备能访问，无需对互联网开放。在这些设备上仍需登录。这台电脑是 {name}。',
-  'tailscale.missing':
-    '服务器所在的电脑上没有安装 Tailscale。安装后，你的手机和其他电脑就能从任何地方访问这台服务器，而无需对互联网开放。',
   'tailscale.stopped': '已安装 Tailscale，但未连接。打开 Tailscale 应用并登录。',
   'tailscale.address': '你的 tailnet 中的地址',
   'tailscale.copy': '复制',
@@ -1801,7 +1797,6 @@ export const zh: Partial<Catalog<MessageKey>> = {
     '网站看到的是连接到此服务器的 Leaf Bot 应用所在电脑的连接，而不是服务器的连接。那台电脑关机时，浏览器从服务器出网。仅限浏览器：机器人的命令仍从服务器出网。',
   'egress.connected': '当前正通过 {device} 出网。',
   'egress.connectedUnnamed': '当前正通过已连接的电脑出网。',
-  'egress.waiting': '没有电脑连接，因此当前从服务器出网。请保持桌面应用打开并连接到此服务器。',
   'sandbox.label': 'Bash 沙盒',
   'sandbox.okHint': 'Claude 机器人的 Bash 命令在只能看到自身文件夹的沙盒中运行。',
   'sandbox.unavailableHint':
