@@ -12,6 +12,7 @@ describe('hangi hatalar tekrar denenir', () => {
     expect(passing(new ConnectError('offline'))).toBe(true);
     expect(passing(new AccountError(0, 'unreachable'))).toBe(true);
     expect(passing(new AccountError(503, 'down'))).toBe(true);
+    expect(passing(new AccountError(429, 'rate_limited'))).toBe(true);
     expect(passing(new TunnelError('host-proof'))).toBe(false);
     expect(passing(new ConnectError('revoked'))).toBe(false);
     expect(passing(new AccountError(403, 'forbidden'))).toBe(false);
@@ -90,6 +91,23 @@ describe('sunucuya açık tünel', () => {
     opens[0]!.onEnd('timeout');
     await vi.advanceTimersByTimeAsync(1000);
     expect(opens).toHaveLength(2);
+  });
+
+  it('açılır açılmaz kopan tünelde bekleme uzar, bir süre açık kalandan sonra kısalır', async () => {
+    link.start();
+    await settle();
+    opens[0]!.onEnd('closed');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(opens).toHaveLength(2);
+    opens[1]!.onEnd('closed');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(opens).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(opens).toHaveLength(3);
+    await vi.advanceTimersByTimeAsync(30_000);
+    opens[2]!.onEnd('closed');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(opens).toHaveLength(4);
   });
 
   it('hesaptan düşen sunucu için tünel açmaz', async () => {

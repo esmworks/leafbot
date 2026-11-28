@@ -73,11 +73,16 @@ const PASSING = new Set<string>(['closed', 'timeout', 'offline', 'relay', 'faile
 
 export function passing(err: unknown): boolean {
   if (err instanceof TunnelError || err instanceof ConnectError) return PASSING.has(err.code);
-  // The account service out of reach or restarting; a 4xx is an answer about this person.
-  if (err instanceof AccountError) return err.status === 0 || err.status >= 500;
+  // The account service out of reach, restarting or asking for fewer requests; any other 4xx is an
+  // answer about this person.
+  if (err instanceof AccountError)
+    return err.status === 0 || err.status === 408 || err.status === 429 || err.status >= 500;
   // Whatever else broke (WebRTC on this computer, say) is tried again later, as slowly as the rest.
   return true;
 }
+
+/** A tunnel that stayed open this long counts as working, so the next attempt is quick again. */
+const STEADY_MS = 30_000;
 
 /** Waits between attempts: quick at first, as a restart takes seconds, then no more than every 30 s. */
 export function reconnectDelay(attempt: number): number {
@@ -183,11 +188,14 @@ export class ServerLink {
           return done('closed');
         }
         this.live = live;
+        this.openedAt = Date.now();
         this.o.log('info', 'account: tunnel open');
         for (const fn of this.listeners) fn(live);
       }, fail);
     });
   }
+
+  private openedAt = 0;
 
   private async run(round: number) {
     const current = () => this.running && this.round === round;
@@ -209,7 +217,9 @@ export class ServerLink {
         const how = await this.openOnce(server, current);
         if (!current()) return;
         this.drop();
-        attempt = 0;
+        // One that drops as soon as it opens keeps backing off, or a server that takes and drops
+        // every tunnel would cost the account a list and a ticket every second.
+        if (Date.now() - this.openedAt >= STEADY_MS) attempt = 0;
         this.o.log('info', `account: tunnel ended (${how})`);
         if (!PASSING.has(how)) return;
       } catch (err) {

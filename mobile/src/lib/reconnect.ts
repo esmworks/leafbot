@@ -18,8 +18,10 @@ export function passingEnd(code: string): boolean {
 /** Whether a failure to open is worth trying again. */
 export function passing(err: unknown): boolean {
   if (err instanceof TunnelError || err instanceof ConnectError) return PASSING.has(err.code);
-  // The account service out of reach or restarting; a 4xx is an answer about this person.
-  if (err instanceof AccountError) return err.status === 0 || err.status >= 500;
+  // The account service out of reach, restarting or asking for fewer requests; any other 4xx is an
+  // answer about this person.
+  if (err instanceof AccountError)
+    return err.status === 0 || err.status === 408 || err.status === 429 || err.status >= 500;
   // WebRTC itself failing on this phone is tried again later, as slowly as the rest.
   return true;
 }
