@@ -15,8 +15,11 @@ import { answerPhone, offeredKinds, onShareChange, sharedKinds } from './phone';
 import { expoDevice } from './phoneDevice';
 import { usePush } from './push';
 import { useServer } from './server';
+import { createBatcher } from './deltaBatch';
+import { launchMark } from './launchMarks';
+import { refreshAll } from './refreshAll';
 import { tunnelSocket } from './tunnelSocket';
-import { appendStream, dropStream, type Stream, type Streams } from './stream';
+import { appendPieces, dropStream, type Stream, type StreamPiece, type Streams } from './stream';
 
 /** What the socket has said that is not saved on the server yet: replies being written and turn states. */
 class LiveStore {
@@ -42,11 +45,13 @@ class LiveStore {
     for (const fn of this.listeners) fn();
   }
 
-  append(threadId: string, turnId: string, text: string, restart?: boolean, at?: number) {
-    this.streams = appendStream(this.streams, threadId, turnId, text, restart, at);
+  /** Adds the pieces of one frame, so the screens draw once for all of them. */
+  append(pieces: readonly StreamPiece[]) {
+    const { streams, gaps } = appendPieces(this.streams, pieces);
+    this.streams = streams;
     this.emit();
     // Words before these went missing: what the bot has written so far is fetched.
-    if (hasGap(this.streams[threadId])) this.catchUp(threadId);
+    for (const threadId of gaps) this.catchUp(threadId);
   }
 
   /**
@@ -202,10 +207,14 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const signedIn = session.data?.authenticated === true;
   usePush(origin, signedIn);
 
+  // The socket goes through the tunnel, so it is opened when the tunnel is, alongside the first
+  // reads; a sign-in kept from the last launch does not wait for the session to be read again. A
+  // socket left trying while the tunnel was away would be backing off for seconds when it is back.
+  const online = phase === 'online';
   useEffect(() => {
-    if (!origin || !signedIn) return;
+    if (!origin || !signedIn || !online) return;
     return connect(origin, qc, store);
-  }, [origin, signedIn, qc, store]);
+  }, [origin, signedIn, online, qc, store]);
 
   return <LiveContext.Provider value={store}>{children}</LiveContext.Provider>;
 }
@@ -214,6 +223,11 @@ function connect(origin: string, qc: QueryClient, store: LiveStore): () => void 
   const s = tunnelSocket();
   let bootId: string | null = null;
   const inv = (...queryKey: unknown[]) => void qc.invalidateQueries({ queryKey });
+  // Words arrive far faster than the screen can show them: they are applied once per frame.
+  const deltas = createBatcher<StreamPiece>(
+    (pieces) => store.append(pieces),
+    () => AppState.currentState !== 'active',
+  );
   store.fetchLive = (threadId) =>
     apiFor()
       .live(threadId)
@@ -242,23 +256,31 @@ function connect(origin: string, qc: QueryClient, store: LiveStore): () => void 
     offer();
   });
   s.on('disconnect', (reason) => {
+    deltas.flush();
     store.setConnected(false);
     // A server that shuts down drops every socket itself, and Socket.IO does not retry that alone.
     if (reason === 'io server disconnect') s.connect();
   });
   s.on('hello', (e) => {
+    deltas.flush();
+    launchMark('live hello');
     // A reconnect may have missed events, so nothing live is trusted after one.
     if (bootId !== null) store.reset();
     bootId = e.bootId;
-    void qc.invalidateQueries();
+    void refreshAll(qc);
     // A reply being written while the socket was down is brought in from where it is now.
     store.catchUpWatched();
   });
   s.on('refresh', (e) => refresh(origin, e, inv));
-  s.on('delta', (e) => store.append(e.threadId, e.turnId, e.text, e.restart, e.at));
-  s.on('tool', (e) => store.setTool(e.threadId, e.tool));
+  s.on('delta', (e) => deltas.push(e));
+  s.on('tool', (e) => {
+    deltas.flush();
+    store.setTool(e.threadId, e.tool);
+  });
   s.on('notice', (e) => notices.forEach((fn) => fn(e)));
   s.on('turn', (e) => {
+    // The turn's own words are shown before its end is.
+    deltas.flush();
     store.setState(e.threadId, e.state);
     if (e.state !== 'running') store.setTool(e.threadId, null);
     inv('summaries', origin);
@@ -285,6 +307,7 @@ function connect(origin: string, qc: QueryClient, store: LiveStore): () => void 
   });
 
   return () => {
+    deltas.cancel();
     offShare();
     offActive.remove();
     s.removeAllListeners();
