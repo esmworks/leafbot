@@ -351,9 +351,9 @@ export class AccountHost {
     this.signal.start();
   }
 
-  /** A person was removed or disabled here: their tunnelled connections close now. */
-  dropUser(userId: string) {
-    this.gateway?.dropUser(userId);
+  /** A person changed here: their tunnelled connections close now (see `TunnelGateway.dropUser`). */
+  dropUser(userId: string, cutOff = true) {
+    this.gateway?.dropUser(userId, cutOff);
   }
 
   stop() {

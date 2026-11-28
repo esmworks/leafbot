@@ -126,9 +126,13 @@ export class TunnelGateway {
     }
   }
 
-  /** A person was removed or disabled on this server: their connections close. */
-  dropUser(userId: string): void {
-    for (const s of [...this.sessions]) if (s.identity?.userId === userId) s.end('access');
+  /**
+   * A person changed on this server: their connections close. One cut off (removed, disabled, unlinked)
+   * is told so and stays out; one who only got another role is not, so the page comes back at once
+   * with a fresh ticket.
+   */
+  dropUser(userId: string, cutOff = true): void {
+    for (const s of [...this.sessions]) if (s.identity?.userId === userId) s.end(cutOff ? 'access' : null);
   }
 
   close(): void {
