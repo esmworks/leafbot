@@ -256,7 +256,13 @@ export function BotsApp() {
     const { servers, server, tunnel } = openNow;
     useServerHost.setState({
       host: {
-        servers: servers.map((s) => ({ id: s.id, name: s.name, role: s.role, current: s.id === server.id })),
+        servers: servers.map((s) => ({
+          id: s.id,
+          name: s.name,
+          role: s.role,
+          current: s.id === server.id,
+          seenAt: s.seenAt,
+        })),
         choose: (id) => {
           const next = servers.find((s) => s.id === id);
           if (!next || next.id === server.id) return;

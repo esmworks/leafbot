@@ -87,6 +87,8 @@ export interface DesktopAccount {
   connectCode(): Promise<DesktopAnswer<unknown>>;
   /** Opens the sign-in in the browser; resolves once the browser sent the person back, or it ended. */
   signIn(): Promise<{ ok: true } | { ok: false; reason: string }>;
+  /** Signs out of the account, as the menu bar's item does; `onChange` follows. Missing in older shells. */
+  signOut?(): Promise<void>;
   /** Opens a page of the website in the person's browser. */
   openWebsite(path: string): Promise<void>;
   /** Calls `fn` when the person signs in or out from the menu bar; returns a function that stops it. */

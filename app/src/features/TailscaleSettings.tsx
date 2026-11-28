@@ -10,8 +10,9 @@ import { useSession } from '@/lib/queries';
 import { Card, Row } from './SettingsPage';
 
 /**
- * Reaching this server from the person's other devices over their Tailscale network: it gets an
- * https address only those devices reach, and signing in is still needed there. For the owner,
+ * The server's own page at an https address only the devices on the person's Tailscale network
+ * reach. The apps do not need it, since they come through the account, so the card stays away
+ * until Tailscale is on the server's computer rather than suggest installing it. For the owner,
  * since it changes how the server's computer is reached.
  */
 export function TailscaleCard() {
@@ -29,15 +30,13 @@ export function TailscaleCard() {
     onSuccess: (state) => qc.setQueryData(['tailscale'], state),
     onError: (e) => toast.error((e as Error).message),
   });
-  if (!owner || !ts) return null;
+  if (!owner || !ts?.installed) return null;
   return (
     <Card title={t('tailscale.title')}>
-      {!ts.installed ? (
-        <Row label={t('tailscale.share')} hint={t('tailscale.missing')} />
-      ) : !ts.running ? (
+      {!ts.running ? (
         <Row label={t('tailscale.share')} hint={t('tailscale.stopped')} />
       ) : (
-        <Row label={t('tailscale.share')} hint={t('tailscale.hint', { name: ts.name ?? '' })}>
+        <Row label={t('tailscale.share')} hint={t('tailscale.pageHint', { name: ts.name ?? '' })}>
           <Switch
             checked={ts.sharing}
             disabled={share.isPending}

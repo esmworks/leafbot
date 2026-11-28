@@ -864,10 +864,6 @@ export const id: Partial<Catalog<MessageKey>> = {
   'chat.attach': 'Lampirkan berkas',
   'tailscale.title': 'Tailscale',
   'tailscale.share': 'Akses dari perangkat saya di Tailscale',
-  'tailscale.hint':
-    'Memberi server ini alamat https yang hanya bisa dijangkau perangkat di jaringan Tailscale Anda, tanpa membukanya ke internet. Masuk tetap diperlukan di sana. Komputer ini adalah {name}.',
-  'tailscale.missing':
-    'Tailscale tidak terpasang di komputer server. Dengan itu, ponsel dan komputer lain Anda bisa menjangkau server ini dari mana saja tanpa membukanya ke internet.',
   'tailscale.stopped': 'Tailscale terpasang tetapi tidak terhubung. Buka aplikasi Tailscale dan masuk.',
   'tailscale.address': 'Alamat di tailnet Anda',
   'tailscale.copy': 'Salin',
@@ -1885,8 +1881,6 @@ export const id: Partial<Catalog<MessageKey>> = {
     'Situs melihat koneksi komputer yang aplikasi Leaf Bot-nya terhubung ke server ini, bukan koneksi server. Selama komputer itu mati, peramban keluar dari server. Hanya peramban: perintah bot tetap keluar dari server.',
   'egress.connected': 'Sekarang keluar lewat {device}.',
   'egress.connectedUnnamed': 'Sekarang keluar lewat komputer yang terhubung.',
-  'egress.waiting':
-    'Tidak ada komputer yang terhubung, jadi sekarang keluar dari server. Biarkan aplikasi desktop tetap terbuka dan terhubung ke server ini.',
   'sandbox.label': 'Sandbox Bash',
   'sandbox.okHint':
     'Perintah Bash bot Claude berjalan di sandbox yang hanya bisa melihat folder bot itu sendiri.',

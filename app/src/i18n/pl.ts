@@ -963,10 +963,6 @@ export const pl: Partial<Catalog<MessageKey>> = {
   'chat.attach': 'Dołącz pliki',
   'tailscale.title': 'Tailscale',
   'tailscale.share': 'Dostęp z moich urządzeń w Tailscale',
-  'tailscale.hint':
-    'Daje temu serwerowi adres https, osiągalny tylko dla urządzeń w Twojej sieci Tailscale, bez otwierania go do internetu. Zalogowanie się tam nadal jest wymagane. Ten komputer to {name}.',
-  'tailscale.missing':
-    'Tailscale nie jest zainstalowany na komputerze serwera. Z nim Twój telefon i inne komputery dotrą do tego serwera z dowolnego miejsca, bez otwierania go do internetu.',
   'tailscale.stopped':
     'Tailscale jest zainstalowany, ale niepołączony. Otwórz aplikację Tailscale i zaloguj się.',
   'tailscale.address': 'Adres w Twojej sieci tailnet',
@@ -2020,8 +2016,6 @@ export const pl: Partial<Catalog<MessageKey>> = {
     'Witryny widzą połączenie komputera, z którego aplikacja Leaf Bot jest połączona z tym serwerem, a nie serwera. Gdy ten komputer jest wyłączony, przeglądarki wychodzą z serwera. Dotyczy tylko przeglądarek: polecenia botów nadal wychodzą z serwera.',
   'egress.connected': 'Teraz wychodzi przez {device}.',
   'egress.connectedUnnamed': 'Teraz wychodzi przez połączony komputer.',
-  'egress.waiting':
-    'Żaden komputer nie jest połączony, więc teraz wychodzi z serwera. Trzymaj aplikację desktopową otwartą i połączoną z tym serwerem.',
   'sandbox.label': 'Piaskownica Bash',
   'sandbox.okHint':
     'Polecenia Bash botów Claude działają w piaskownicy, która widzi tylko ich własne foldery.',

@@ -1312,6 +1312,10 @@ function registerIpc() {
   ipcMain.handle('leafbot:account-sign-in', (e) =>
     fromBotsPage(e) ? browserSignIn.start() : { ok: false, reason: 'failed' },
   );
+  // The server's settings offer the sign-out the menu bar has, for whoever looks for it there.
+  ipcMain.handle('leafbot:account-sign-out', async (e) => {
+    if (fromBotsPage(e)) await signOut();
+  });
   // Adding a server and the rest of the account's pages are the website's, in the person's browser.
   ipcMain.handle('leafbot:account-website', (e, path: unknown) => {
     if (!fromBotsPage(e) || typeof path !== 'string' || !/^\/[a-z0-9/_-]*$/i.test(path)) return;

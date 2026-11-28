@@ -76,6 +76,7 @@ import {
 } from '@/lib/queries';
 import { desktop } from '@/lib/desktop';
 import { useUi, type SettingsTab } from '@/lib/store';
+import { useTransport } from '@/lib/transport';
 import { NoteSource } from './NoteSource';
 import { LearnSetting, MemoryHistory, NoteRow } from './MemoryNote';
 import { MemoryMap } from './MemoryMap';
@@ -128,6 +129,7 @@ import { UsageTab } from './UsageTab';
 import { VaultTab } from './VaultTab';
 import { PeopleTab, personName, personNameOf } from './PeopleTab';
 import { SpacesTab } from './SpacesTab';
+import { AccountConnection, useConnectionTitle } from './ConnectionServers';
 import { ConnectPhone } from './ConnectPhone';
 import { ApnsCard } from './PhoneSettings';
 import { TailscaleCard } from './TailscaleSettings';
@@ -249,8 +251,15 @@ export function SettingsPage() {
   const view = useUi((s) => s.settingsView);
   const providerName = useProviderTitle(current.id === 'providers' ? view : null);
   const channelName = useChannelTitle(current.id === 'channels' ? view : null);
+  const serverName = useConnectionTitle(current.id === 'connection' ? view : null);
   const viewTitle =
-    current.id === 'providers' ? providerName : current.id === 'channels' ? channelName : null;
+    current.id === 'providers'
+      ? providerName
+      : current.id === 'channels'
+        ? channelName
+        : current.id === 'connection'
+          ? serverName
+          : null;
   const toSection = () => useUi.setState({ settingsView: null });
   // A phone shows one of two screens: the list of sections, or the section picked from it.
   const phone = useMedia(PHONE);
@@ -927,6 +936,14 @@ function General() {
 }
 
 function Connection() {
+  // Through the account's tunnel the page has no address of the server's and no session of its
+  // own: the account lists the servers and signs out.
+  const tunnel = useTransport((s) => !!s.tunnel);
+  return tunnel ? <AccountConnection /> : <OwnConnection />;
+}
+
+/** The server's own page: this one server, reached at its address with a session of its own. */
+function OwnConnection() {
   const t = useT();
   const { data: info } = useInfo();
   const setAuthed = useUi((s) => s.setAuthed);
@@ -937,13 +954,7 @@ function Connection() {
   const owner = useSession().data?.user?.role === 'owner';
   return (
     <>
-      {manages && (
-        <Card title={t('connection.environment')}>
-          <ShellSandboxRow sandbox={info?.shellSandbox} />
-          <BrowserRow browser={info?.browser} />
-          <EgressRow egress={info?.egress} />
-        </Card>
-      )}
+      {manages && <ServerEnvironment />}
       <Card title={t('connection.server')}>
         <Row label={t('connection.address')} hint={window.location.origin} />
         <DesktopServerRow />
@@ -955,11 +966,25 @@ function Connection() {
         </Row>
       </Card>
       <ConnectPhone owner={owner} />
+      {/* The server's own sign-ins, made with the access key on its computer. */}
       <Devices />
       <AccountHostCard />
       <TailscaleCard />
       {manages && <ApnsCard />}
     </>
+  );
+}
+
+/** Where the server's bots run: the Bash sandbox, their browser and the way it goes out. */
+export function ServerEnvironment() {
+  const t = useT();
+  const { data: info } = useInfo();
+  return (
+    <Card title={t('connection.environment')}>
+      <ShellSandboxRow sandbox={info?.shellSandbox} />
+      <BrowserRow browser={info?.browser} />
+      <EgressRow egress={info?.egress} />
+    </Card>
   );
 }
 
@@ -1917,7 +1942,7 @@ function EgressRow({ egress }: { egress: ServerInfo['egress'] | undefined }) {
     ? egress.device
       ? t('egress.connected', { device: egress.device })
       : t('egress.connectedUnnamed')
-    : t('egress.waiting');
+    : t('egress.waitingChoose');
   return (
     <Row label={t('egress.label')} hint={on ? `${t('egress.hint')} ${now}` : t('egress.hint')}>
       <Switch checked={on} onCheckedChange={(v) => save.mutate({ browserViaComputer: v })} />
