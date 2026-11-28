@@ -1,25 +1,17 @@
 /**
- * The account service as this app's main process reaches it: on the website's origin under
- * /api/v1, with the session cookie the person's sign-in in the window set. The window shows the
- * website, so the sign-in is the website's; the main process only borrows the cookie to ask for
- * the person's servers and a ticket for one. Writes carry the session's CSRF token, handed out by
- * `GET /session`, and the website's origin, as the page there sends them.
+ * The account service as this app reaches it: bearer-token calls under /v1, as the phone makes them.
+ * The person signs in in their own browser, on the website's connect page; the code it hands back
+ * through a `leafbot://connect` link is spent here, with this sign-in's PKCE verifier, for a session
+ * of this app's own. The window never shows the website: a browser is where a sign-in belongs, with
+ * the person's passwords and their Google or Apple sign-in, and an app window is not one.
  */
+import { createHash, randomBytes } from 'node:crypto';
 
-/** The website: the account's page, and the host of the account service. */
+/** The website: where the person signs in, makes an account and adds a server. */
 export const WEBSITE = 'https://www.leafbot.app';
 
-/** The sign-in cookie the website sets; host-only, so no other host of leafbot.app sees it. */
-export const SESSION_COOKIE = '__Host-leafbot_session';
-
-const CSRF_HEADER = 'x-leafbot-csrf';
-
-/** The website's page of the person's servers, at one of them when `server` names it. */
-export function accountUrl(server: string | null): string {
-  const url = new URL('/bots/', WEBSITE);
-  if (server) url.searchParams.set('server', server);
-  return url.toString();
-}
+/** The account service; another one only for development. */
+export const ACCOUNT_URL = process.env.LEAFBOT_ACCOUNT_URL || 'https://api.leafbot.app';
 
 export type Role = 'owner' | 'admin' | 'member';
 
@@ -38,6 +30,13 @@ export interface Ticket {
   expiresAt: number;
 }
 
+export interface Redeemed {
+  user: { id: string; email: string; name?: string | null };
+  sessionId: string;
+  token: string;
+}
+
+/** The service's answer was an error (`status`, and its own `code`), or none came (status 0). */
 export class AccountError extends Error {
   constructor(
     readonly status: number,
@@ -48,36 +47,40 @@ export class AccountError extends Error {
 }
 
 export interface AccountDeps {
-  /** The website's address; the website by default. */
+  /** The account service's address; the real one by default. */
   base?: string;
-  /** A plain `fetch`: the cookie and the origin are set here, not by a browser. */
   fetch: typeof fetch;
-  /** The window's sign-in cookie as a `Cookie` header value; null while the person is signed out. */
-  cookie(): Promise<string | null>;
+  /** This app's bearer token; null while the person is signed out. */
+  token(): string | null;
 }
 
 export interface AccountClient {
+  /** Spends a code the connect page handed back, with the verifier of the sign-in that asked for it. */
+  redeem(code: string, verifier: string): Promise<Redeemed>;
   /** The servers the person may reach. */
   servers(): Promise<ServerEntry[]>;
   /** A client ticket for one server, bound to a device key's thumbprint. */
   ticket(serverId: string, jkt: string): Promise<Ticket>;
+  /** A one-time code that signs a phone in to this account. */
+  connectCode(): Promise<{ code: string; expiresAt: number; url: string }>;
+  /** Ends this app's session at the service. */
+  signOut(): Promise<void>;
 }
 
 export function accountClient(d: AccountDeps): AccountClient {
-  const base = d.base ?? WEBSITE;
-  // The token follows from the cookie's value, so it is asked for again only when that changes.
-  let csrf: { cookie: string; token: string } | null = null;
+  const base = d.base ?? ACCOUNT_URL;
 
-  async function call<T>(method: string, path: string, cookie: string, body?: unknown, token?: string) {
-    const headers: Record<string, string> = { cookie, accept: 'application/json' };
+  async function call<T>(method: string, path: string, body?: unknown, auth = true): Promise<T> {
+    const headers: Record<string, string> = { accept: 'application/json' };
     if (body !== undefined) headers['content-type'] = 'application/json';
-    if (method !== 'GET') {
-      headers.origin = base;
-      if (token) headers[CSRF_HEADER] = token;
+    if (auth) {
+      const token = d.token();
+      if (!token) throw new AccountError(401, 'unauthorized');
+      headers.authorization = `Bearer ${token}`;
     }
     let res: Response;
     try {
-      res = await d.fetch(`${base}/api/v1${path}`, {
+      res = await d.fetch(`${base}/v1${path}`, {
         method,
         headers,
         body: body === undefined ? undefined : JSON.stringify(body),
@@ -92,37 +95,61 @@ export function accountClient(d: AccountDeps): AccountClient {
     return data as T;
   }
 
-  const signedIn = async (): Promise<string> => {
-    const cookie = await d.cookie();
-    if (!cookie) throw new AccountError(401, 'unauthorized');
-    return cookie;
-  };
-
   return {
-    async servers() {
-      const cookie = await signedIn();
-      return (await call<{ servers: ServerEntry[] }>('GET', '/servers', cookie)).servers;
-    },
-    async ticket(serverId, jkt) {
-      const cookie = await signedIn();
-      if (csrf?.cookie !== cookie) {
-        const s = await call<{ csrf?: string }>('GET', '/session', cookie);
-        if (!s.csrf) throw new AccountError(401, 'unauthorized');
-        csrf = { cookie, token: s.csrf };
-      }
-      try {
-        return await call<Ticket>(
-          'POST',
-          `/servers/${encodeURIComponent(serverId)}/ticket`,
-          cookie,
-          { jkt },
-          csrf.token,
-        );
-      } catch (err) {
-        // A token the service no longer takes (the cookie was renewed) is asked for again next time.
-        if (err instanceof AccountError && err.code === 'csrf') csrf = null;
-        throw err;
-      }
-    },
+    redeem: (code, verifier) => call<Redeemed>('POST', '/connect-codes/redeem', { code, verifier }, false),
+    servers: async () => (await call<{ servers: ServerEntry[] }>('GET', '/servers')).servers,
+    ticket: (serverId, jkt) =>
+      call<Ticket>('POST', `/servers/${encodeURIComponent(serverId)}/ticket`, { jkt }),
+    connectCode: () => call<{ code: string; expiresAt: number; url: string }>('POST', '/connect-codes', {}),
+    signOut: () => call<unknown>('POST', '/auth/signout').then(() => undefined),
   };
+}
+
+/** Bytes as base64url without padding, as PKCE writes a verifier and its challenge. */
+const base64url = (b: Buffer) => b.toString('base64url');
+
+/**
+ * A fresh verifier and its S256 challenge. The website makes the code with the challenge; only this
+ * app, holding the verifier, can spend it, so a code caught on its way back is of no use to anyone.
+ */
+export function newPkce(): { verifier: string; challenge: string } {
+  const verifier = base64url(randomBytes(32));
+  const challenge = base64url(createHash('sha256').update(verifier).digest());
+  return { verifier, challenge };
+}
+
+/** The website's page that signs the app in, in the app's language where the site has it. */
+export function connectPageUrl(locale: string, challenge: string, website = WEBSITE): string {
+  const prefix = locale === 'tr' ? '/tr' : '';
+  return `${website}${prefix}/connect?challenge=${encodeURIComponent(challenge)}`;
+}
+
+/** The characters a connect code is made of: no 0, 1, I, L or O, which look alike. */
+const CODE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{10}$/;
+
+/**
+ * The code of a `leafbot://connect?code=…` link, in the form the account service takes it
+ * (`ABCDE-FGHJK`); null for any other link or a code that cannot be one.
+ */
+export function codeOfConnectLink(link: string): string | null {
+  let url: URL;
+  try {
+    url = new URL(link.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'leafbot:' || url.host !== 'connect' || url.pathname.replace(/\/$/, '') !== '')
+    return null;
+  const code = (url.searchParams.get('code') ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return CODE.test(code) ? `${code.slice(0, 5)}-${code.slice(5)}` : null;
+}
+
+/** Whether a link is a `leafbot://connect` one, with a code or not: it is the sign-in's, not a chat's. */
+export function isConnectLink(link: string): boolean {
+  try {
+    const url = new URL(link.trim());
+    return url.protocol === 'leafbot:' && url.host === 'connect';
+  } catch {
+    return false;
+  }
 }

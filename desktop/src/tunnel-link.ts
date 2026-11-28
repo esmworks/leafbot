@@ -98,8 +98,8 @@ export interface LinkOptions {
   /** The account server to keep a tunnel to. */
   serverId: string;
   account: AccountClient;
-  /** The window's sign-in cookie, as a header value; null while signed out. */
-  cookie(): Promise<string | null>;
+  /** This app's session at the account service; null while signed out. */
+  session(): Promise<string | null>;
   /** Opens a tunnel to a server; `onEnd` is called when it ends after it opened. */
   open(server: ServerEntry, onEnd: (code: string) => void): Promise<Live>;
   log(level: 'info' | 'warn', message: string): void;
@@ -110,7 +110,7 @@ export interface LinkOptions {
  * opens again when the tunnel ends, waiting longer after each failed attempt, and does not give up
  * on a network that is down: this computer is offered whenever it can be. A refusal (the person
  * has no access any more, the server is gone from the account) stops it until the sign-in changes;
- * signing out in the window stops it, and a different sign-in starts it again.
+ * signing out stops it, and a different sign-in starts it again.
  */
 export class ServerLink {
   private listeners = new Set<TunnelListener>();
@@ -118,8 +118,8 @@ export class ServerLink {
   /** Bumps on every start, stop and change of sign-in, so an attempt that was overtaken opens nothing. */
   private round = 0;
   private running = false;
-  /** The cookie the current run asked with; null while it found the person signed out. */
-  private usedCookie: string | null = null;
+  /** The session the current run asked with; null while it found the person signed out. */
+  private usedSession: string | null = null;
   private wake: (() => void) | null = null;
 
   constructor(private o: LinkOptions) {}
@@ -143,14 +143,13 @@ export class ServerLink {
   }
 
   /**
-   * The window's sign-in may have changed: the tunnel belongs to the person who asked for its
-   * ticket, so another sign-in (or none) ends it, and a new one starts from the new sign-in. The
-   * cookie the website renews on each visit is the same cookie again, not a change.
+   * The sign-in may have changed: the tunnel belongs to the person who asked for its ticket, so
+   * another sign-in (or none) ends it, and a new one starts from the new sign-in.
    */
   async signInChanged() {
     if (!this.running) return;
-    const now = await this.o.cookie().catch(() => null);
-    if (!this.running || now === this.usedCookie) return;
+    const now = await this.o.session().catch(() => null);
+    if (!this.running || now === this.usedSession) return;
     this.restart();
     void this.run(++this.round);
   }
@@ -202,9 +201,9 @@ export class ServerLink {
     let attempt = 0;
     while (current()) {
       try {
-        const cookie = await this.o.cookie();
-        this.usedCookie = cookie;
-        if (!cookie) {
+        const session = await this.o.session();
+        this.usedSession = session;
+        if (!session) {
           this.o.log('info', 'account: signed out; no tunnel until the person signs in');
           return;
         }

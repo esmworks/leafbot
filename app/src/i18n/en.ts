@@ -1102,6 +1102,19 @@ export const en: Catalog<MessageKey> = {
     'Unlink this server from your account? Nobody can open it from the web until it is linked again. Remove it in your account too if you no longer use it.',
   'bots.checking': 'Checking your account…',
   'bots.title': 'Your servers',
+  'bots.signIn.title': 'Sign in to Leaf Bot',
+  'bots.signIn.lead':
+    'Sign in with your Leaf Bot account to open your servers. Sign-in opens in your browser, then brings you back here.',
+  'bots.signIn.button': 'Sign in with your browser',
+  'bots.signIn.waiting':
+    'Finish signing in in your browser. Leaf Bot opens your servers as soon as you approve.',
+  'bots.signIn.again': 'Open the browser again',
+  'bots.signIn.create': 'Create an account',
+  'bots.signIn.failed.expired': 'That sign-in took too long. Start it again.',
+  'bots.signIn.failed.rejected': "That sign-in didn't work. Start it again.",
+  'bots.signIn.failed.unreachable':
+    "The Leaf Bot account service can't be reached. Try again in a little while.",
+  'bots.signIn.failed.failed': "The browser couldn't be opened. Try again.",
   'bots.pick': 'Pick the server to open.',
   'bots.none': 'Your account has no server yet.',
   'bots.addServer': 'Add a server',
