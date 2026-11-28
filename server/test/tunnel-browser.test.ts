@@ -105,6 +105,7 @@ beforeEach(async () => {
     return reply.type('application/octet-stream').send(buf);
   });
   app.get('/api/empty', async (_req, reply) => reply.code(204).send());
+  app.delete('/api/thing', async () => ({ deleted: true }));
   await app.ready();
   io = new IOServer(app.server, {
     path: '/socket.io',
@@ -235,6 +236,17 @@ describe('the browser side of the tunnel', () => {
     const empty = await tunnel.fetch('/api/empty');
     expect(empty.status).toBe(204);
     expect(await empty.text()).toBe('');
+    tunnel.close();
+  });
+
+  it('sends a request with no body, such as a DELETE, as one with none', async () => {
+    const { tunnel } = await open();
+    const res = await tunnel.fetch('/api/thing', { method: 'DELETE' });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ deleted: true });
+    const raw = await tunnel.request('/api/thing', { method: 'DELETE' });
+    expect(raw.status).toBe(200);
+    expect(await new Response(raw.body).json()).toEqual({ deleted: true });
     tunnel.close();
   });
 

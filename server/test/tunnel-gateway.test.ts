@@ -129,6 +129,7 @@ beforeEach(async () => {
     const body = req.body as Buffer;
     return { length: body.length, sha: createHash('sha256').update(body).digest('hex') };
   });
+  app.delete('/api/thing', async () => ({ deleted: true }));
   app.addContentTypeParser(
     'application/octet-stream',
     { parseAs: 'buffer', bodyLimit: 64 * 1024 * 1024 },
@@ -320,6 +321,18 @@ describe('TunnelGateway', () => {
     await tick(50);
     return reset;
   }
+
+  it('serves a request that declares no length and names no type as one with no body', async () => {
+    const { peer } = await connected();
+    const http = peer.open(CHANNEL.http);
+    await tick();
+    const fetch = httpClient(http);
+    // An older page sends a DELETE so; a chunked body with no type would be refused by the app.
+    const res = await fetch('DELETE', '/api/thing');
+    expect(res.status).toBe(200);
+    expect(JSON.parse(res.body.toString())).toEqual({ deleted: true });
+    expect(await raw(http, 101, { method: 'DELETE', path: '/api/thing' }, [new Uint8Array(3)])).toBe(true);
+  });
 
   it('holds a body to the length the page declared', async () => {
     const { peer } = await connected();

@@ -620,7 +620,11 @@ export async function createServer(config: Config, opts: ServerOptions = {}): Pr
     info,
     checkClaude: () => checkClaude(),
     claude: claudeAuth,
-    dropSockets: (userId) => io.in(personRoom(userId)).disconnectSockets(true),
+    // Their tunnels too: one already open would otherwise serve them until its next ticket.
+    dropSockets: (userId) => {
+      io.in(personRoom(userId)).disconnectSockets(true);
+      accountHost.dropUser(userId);
+    },
     testModel,
   });
 
