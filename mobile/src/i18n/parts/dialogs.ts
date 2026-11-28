@@ -4,6 +4,8 @@ export const tr = {
   'dialogs.botNotFound': 'Bot bulunamadı.',
   'dialogs.routineNotFound': 'Rutin bulunamadı.',
   'dialogs.routineBotRequired': 'Bir bot seç',
+  'dialogs.routineOlderServer':
+    'Sunucu bu sürümden eski: rutinin kaç haftada bir çalışacağı ya da son günü kaydedilmedi. Sunucu güncellenince yeniden kaydet.',
   'dialogs.routineEnabled': 'Açık',
   'dialogs.routineEnabledHint': 'Kapalıyken zamanı gelse de çalışmaz.',
   'dialogs.routineDeleteConfirm': 'Bu rutin silinsin mi?',
@@ -19,6 +21,8 @@ export const en: Record<keyof typeof tr, string> = {
   'dialogs.botNotFound': 'Bot not found.',
   'dialogs.routineNotFound': 'Routine not found.',
   'dialogs.routineBotRequired': 'Choose a bot',
+  'dialogs.routineOlderServer':
+    'The server is older than this app: how many weeks apart the routine runs, or its last day, was not saved. Save it again once the server is updated.',
   'dialogs.routineEnabled': 'On',
   'dialogs.routineEnabledHint': 'While off, it does not run when its time comes.',
   'dialogs.routineDeleteConfirm': 'Delete this routine?',

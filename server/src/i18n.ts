@@ -738,6 +738,7 @@ const tr = {
   'routine.staleWait': 'Beklemeyi bıraktı: bu rutinin sıradaki çalışması onun yerine başladı.',
   'routine.webhookEvent': 'Olay: {event}',
   'routine.pausedWait': 'Rutin duraklatıldığı için beklemeyi bıraktı.',
+  'routine.endedWait': 'Rutinin son günü geçtiği için beklemeyi bıraktı.',
   'routine.switchedOff':
     '"{name}" rutini art arda {count} kez başarısız olduğu için kapatıldı. Talimatı, araçları ya da baktığı sayfayı kontrol edip yeniden açabilirsin; sayım baştan başlar.',
   'routine.stillRunning': 'Önceki çalıştırma hâlâ sürüyor',
@@ -3293,6 +3294,7 @@ const en: Catalog<ServerKey> = {
   'routine.staleWait': 'Stopped waiting: the next run of this routine started instead.',
   'routine.webhookEvent': 'Event: {event}',
   'routine.pausedWait': 'Stopped waiting because the routine was paused.',
+  'routine.endedWait': 'Stopped waiting because the routine’s last day went by.',
   'routine.switchedOff':
     'The routine "{name}" was switched off after failing {count} times in a row. Check its instruction, its tools or the page it reads, then turn it back on; the count starts again.',
   'routine.stillRunning': 'The previous run is still going',

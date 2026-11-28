@@ -330,14 +330,16 @@ function RoutinePage({
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['routines', origin] });
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
+      const schedule = toSchedule(v, timezone);
+      const lastDay = v.ends && v.type !== 'once' ? v.endsOn : null;
       const body = {
         name: v.name.trim(),
         prompt: v.prompt.trim(),
-        schedule: toSchedule(v, timezone),
+        schedule,
         enabled,
         // An older server has no last day; it is sent one only when there is one to keep or remove.
-        ...(routine?.endsOn || v.ends ? { endsOn: v.ends && v.type !== 'once' ? v.endsOn : null } : {}),
+        ...(routine?.endsOn || v.ends ? { endsOn: lastDay } : {}),
         missed: v.missed,
         carryReport: v.carryReport,
         reportOnly: v.reportOnly,
@@ -352,7 +354,15 @@ function RoutinePage({
           ? { inputs: Object.fromEntries(v.inputs.map((i) => [i.name.trim(), i.value])) }
           : {}),
       };
-      return routine ? api.updateRoutine(routine.id, body) : api.createRoutine({ ...body, botId, timezone });
+      const saved = await (routine
+        ? api.updateRoutine(routine.id, body)
+        : api.createRoutine({ ...body, botId, timezone }));
+      // An older server drops what it does not know without a word: the routine would run every
+      // week, or never end, while the person thinks otherwise. They are told so.
+      const weeksOf = (x: Schedule) => (x.type === 'weekly' ? (x.weeks ?? 1) : 1);
+      if (weeksOf(schedule) !== weeksOf(saved.schedule) || (lastDay && saved.endsOn === undefined))
+        toast(t('dialogs.routineOlderServer'), { tone: 'error' });
+      return saved;
     },
     onSuccess: () => {
       void invalidate();

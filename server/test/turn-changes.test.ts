@@ -4,7 +4,7 @@ import type { Thread, TurnChanges, TurnFileDiff, TurnLogEntry } from '@leafbot/s
 import { desc, eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { schema } from '../src/db';
-import { FILE_KEEP_MAX, CHANGE_KEEP_DAYS } from '../src/services/turn-changes';
+import { FILE_KEEP_MAX, CHANGE_KEEP_DAYS, routineShape, sig } from '../src/services/turn-changes';
 import { OWNER_ID } from '../src/users';
 import { workspacePaths } from '../src/workspace';
 import { testServer, waitFor, type TestServer } from './helpers';
@@ -97,6 +97,9 @@ describe('taking back what one turn changed', () => {
     // Changed again after the turn: the comparison would show more than the turn did.
     writeFileSync(file, 'something else');
     expect((await diff()).state).toBe('changedSince');
+    // A file grown past what is kept is not read to compare.
+    writeFileSync(file, 'x'.repeat(FILE_KEEP_MAX + 1));
+    expect((await diff()).state).toBe('tooLong');
     const other = await t.person('someone-else', 'admin');
     expect((await other.api('GET', `/api/turn-changes/${item!.id}/diff`)).status).toBeGreaterThanOrEqual(400);
   });
@@ -243,6 +246,25 @@ describe('taking back what one turn changed', () => {
     await t.services.routines.update(back!.id, { steps: [] });
     expect((await undo(stepsLater)).body.items[0]!.outcome).toBe('later');
     expect((await t.services.routines.get(back!.id)).prompt).toBe('Say bye.');
+  });
+
+  it('puts back a routine change kept before routines had a last day', async () => {
+    const { bot, thread } = await setup();
+    await say(thread.id, `[araç:routine_create ${JSON.stringify(ROUTINE)}]`);
+    const [made] = await t.services.routines.list(bot.id);
+    await say(
+      thread.id,
+      `[araç:routine_update ${JSON.stringify({ routine: 'Morning', prompt: 'Say hello.' })}]`,
+    );
+    const turn = await lastTurn(thread.id);
+    // Such a change was signed with the routine's fields as they were then, with no endsOn.
+    const { endsOn: _none, ...older } = routineShape(await t.services.routines.get(made!.id));
+    await t.services.ctx.db
+      .update(schema.turnChanges)
+      .set({ after: { sig: sig(older) } })
+      .where(eq(schema.turnChanges.turnId, turn));
+    expect((await undo(turn)).body.items[0]!.outcome).toBe('restored');
+    expect((await t.services.routines.get(made!.id)).prompt).toBe('Say good morning.');
   });
 
   it('puts a ticket and a skill back', async () => {

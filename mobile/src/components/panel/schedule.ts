@@ -25,8 +25,11 @@ export function describeSchedule(s: Schedule): string {
     case 'daily':
     case 'weekdays':
       return t(s.type === 'daily' ? 'panel.sched.daily' : 'panel.sched.weekdays', { time: s.time });
-    case 'weekly':
-      return t('panel.sched.weekly', { days: names(s.days, shortDay), time: s.time });
+    case 'weekly': {
+      const text = t('panel.sched.weekly', { days: names(s.days, shortDay), time: s.time });
+      // One that skips weeks says how many, as the web app does.
+      return s.weeks && s.weeks > 1 ? `${t('routine.weeksCount', { count: s.weeks })}: ${text}` : text;
+    }
     case 'monthly':
       return t('panel.sched.monthly', { day: s.day, time: s.time });
     case 'interval': {

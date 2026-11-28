@@ -1,4 +1,4 @@
-import type { Routine, RoutineRun } from '@leafbot/shared';
+import type { Approval, Routine, RoutineRun } from '@leafbot/shared';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { testServer, type TestServer } from './helpers';
 
@@ -51,6 +51,27 @@ describe('a routine with a last day', () => {
 
     await tick('2026-11-18T06:00:00.000Z');
     expect(await runs(id)).toHaveLength(2);
+  });
+
+  it('ends a run of it waiting on the person once its last day goes by', async () => {
+    const bot = await t.bot();
+    const id = (
+      await create({
+        botId: bot.id,
+        steps: [{ id: 'onay', kind: 'approval', question: 'Gönderilsin mi?' }],
+        schedule: { type: 'daily', time: '09:00' },
+        endsOn: '2026-11-16',
+      })
+    ).body.id;
+    await tick('2026-11-16T06:00:00.000Z');
+    const [held] = await runs(id);
+    expect(held!.status).toBe('waiting');
+    const cardId = held!.steps?.find((s) => s.approvalId)?.approvalId;
+
+    await tick('2026-11-16T21:00:00.000Z');
+    const [after] = await runs(id);
+    expect(after!.status).toBe('stopped');
+    expect((await t.api<Approval>('GET', `/api/approvals/${cardId}`)).body.status).toBe('expired');
   });
 
   it('is not turned on again with its last day gone by, until the day is moved', async () => {

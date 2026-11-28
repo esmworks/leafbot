@@ -331,6 +331,7 @@ describe('bot içe aktarma', () => {
       steps: [{ id: 'kisa', kind: 'agent', prompt: 'Üç maddeye indir', model: '' }],
       schedule: { type: 'daily', time: '08:00' },
       timezone: 'Europe/Istanbul',
+      endsOn: '2026-12-31',
     });
     await t.api('POST', '/api/memory', { scope: 'bot', botId: bot.id, content: 'Toplantılar salı.' });
     await t.api('POST', '/api/memory', { scope: 'user', content: 'Ortak not' });
@@ -387,6 +388,8 @@ describe('bot içe aktarma', () => {
     expect(skills.find((k) => k.name === 'rapor')).toMatchObject({ body: 'Adımlar', botIds: [copy.id] });
     const routines = await list<Routine>(`/api/routines?botId=${copy.id}`);
     expect(routines.map((r) => [r.name, r.enabled])).toEqual([['Sabah', false]]);
+    // Its last day comes along, so turned on here it still ends.
+    expect(routines[0]!.endsOn).toBe('2026-12-31');
     // Its steps come along, so the copy does the same work in the same order.
     expect(routines[0]!.steps).toEqual([
       { id: 'kisa', kind: 'agent', prompt: 'Üç maddeye indir', model: '' },
