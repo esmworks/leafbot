@@ -1,5 +1,5 @@
 import { router, usePathname } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t } from '@/i18n';
@@ -28,11 +28,26 @@ function useLasting(on: boolean, ms: number): boolean {
 }
 
 /**
+ * Goes back to the start screen when the chosen server changes under the screens: signed out, or
+ * the account's list, read after the screens opened with what was kept, no longer has the server
+ * they show. The start screen then says what to do (choose another, sign in again).
+ */
+export function useBackToStart() {
+  const { origin } = useServer();
+  const was = useRef(origin);
+  useEffect(() => {
+    if (was.current && was.current !== origin) router.replace('/');
+    was.current = origin;
+  }, [origin]);
+}
+
+/**
  * A line over the screens while the tunnel to the server stays down, so a screen that cannot load
  * does not look broken: the phone is trying again, or the server turned it away (a tap says why).
  * The first screen says the same itself, so it shows none there.
  */
 export function LinkBanner() {
+  useBackToStart();
   const c = useColors();
   const inset = useSafeAreaInsets();
   const path = usePathname();

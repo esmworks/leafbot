@@ -12,6 +12,18 @@ version is 0.x, a minor release may change the data format or the API; the serve
   code the website hands back is bound to that sign-in (PKCE), so it is of no use to anything that catches it on its
   way. leafbot.app/connect also shows a QR code for the phone on any computer signed in to the account.
 
+### Changed
+
+- The phone app opens faster. It shows the bots, the summaries and the latest messages of the last conversations
+  from its previous launch at once, while the connection to the server opens, and reads them again as soon as it is
+  open. It opens the connection without waiting for the account's server list, asks for both of the connection's
+  tickets at once, and connects the live channel together with the first reads instead of after them. Only what the
+  first screens show is kept on the phone, and signing out removes it.
+- On the phone a streamed reply is drawn once per frame instead of for every word, the live channel connects again
+  as soon as the connection is back instead of after a wait of up to five seconds, a message held back by a dropped
+  connection goes as soon as it is back, and a list read in the last 30 seconds is not read again when a screen
+  opens.
+
 ### Fixed
 
 - The phone and the browser take the server's ICE candidates in the standard form (`candidate:…` with the media

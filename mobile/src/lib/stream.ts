@@ -1,4 +1,4 @@
-import { addPiece, type LiveStream, type Message } from '@leafbot/shared';
+import { addPiece, hasGap, type LiveStream, type Message } from '@leafbot/shared';
 
 /** The reply a bot is writing now, as it arrives over the socket, before it is saved. */
 export type Stream = LiveStream;
@@ -19,6 +19,29 @@ export function appendStream(
   at?: number,
 ): Streams {
   return { ...streams, [threadId]: addPiece(streams[threadId], turnId, { text, at, restart }) };
+}
+
+/** One piece of a reply as the socket sent it. */
+export interface StreamPiece {
+  threadId: string;
+  turnId: string;
+  text: string;
+  restart?: boolean;
+  at?: number;
+}
+
+/**
+ * Adds the pieces of one frame in the order they came, each as `appendStream` would, and names
+ * the conversations left missing words, so what the bot wrote so far is fetched for them.
+ */
+export function appendPieces(
+  streams: Streams,
+  pieces: readonly StreamPiece[],
+): { streams: Streams; gaps: string[] } {
+  let next = streams;
+  for (const p of pieces) next = appendStream(next, p.threadId, p.turnId, p.text, p.restart, p.at);
+  const gaps = [...new Set(pieces.map((p) => p.threadId))].filter((id) => hasGap(next[id]));
+  return { streams: next, gaps };
 }
 
 /** Drops a conversation's text, only when it is still that turn's if one is named. */

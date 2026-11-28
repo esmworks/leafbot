@@ -8,6 +8,7 @@ import { locale } from '@/i18n';
 import { RELAY_URL, type AccountClient, type ServerEntry } from './account';
 import { loadDeviceKey, verifyHost } from './deviceKey';
 import type { LiveTunnel } from './tunnelLink';
+import { ticketsAhead } from './ticketsAhead';
 
 const KEY = 'leafbot.device-key';
 const OPTIONS: SecureStore.SecureStoreOptions = {
@@ -50,11 +51,12 @@ export async function openServer(
   onEnd: (code: string) => void,
 ): Promise<LiveTunnel> {
   const key = await phoneKey();
-  const ticket = async () => {
+  const fetchTicket = async () => {
     const t = await account.ticket(server.id, key.jkt);
     if (t.publicKey !== server.publicKey) throw new TunnelError('host-proof');
     return t.ticket;
   };
+  const ticket = ticketsAhead(fetchTicket);
   const peer = await connectPeer({
     relayUrl: RELAY_URL,
     ticket,

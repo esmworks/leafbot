@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient } from '@tanstack/react-query';
+import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import {
   createContext,
@@ -16,12 +17,17 @@ import { AppState } from 'react-native';
 import { AccountError, accountClient, pickServer, type AccountUser, type ServerEntry } from './account';
 import { apiFor, type Api } from './api';
 import { getLink, setLink } from './connection';
+import { KEPT_KEY, keepQueries, restoreKept, type Who } from './keptQueries';
+import { launchMark } from './launchMarks';
 import { clearServerFiles } from './serverFiles';
 import { Link, type LinkState } from './tunnelLink';
 import { forgetDeviceKey, openServer } from './tunnelOpen';
 
 const SESSION_KEY = 'leafbot.account';
 const SERVER_KEY = 'leafbot.server';
+/** The account's servers as last listed, so the tunnel opens without waiting for the list. */
+const SERVERS_KEY = 'leafbot.servers';
+const APP_VERSION = Constants.expoConfig?.version ?? '';
 const KEYCHAIN: SecureStore.SecureStoreOptions = {
   keychainAccessible: SecureStore.AFTER_FIRST_UNLOCK_THIS_DEVICE_ONLY,
 };
@@ -80,6 +86,24 @@ const ServerContext = createContext<ServerState | null>(null);
 const IDLE: LinkState = { at: 'idle' };
 const never = () => () => undefined;
 
+async function readServers(): Promise<ServerEntry[] | null> {
+  try {
+    const raw = await AsyncStorage.getItem(SERVERS_KEY);
+    const list = raw ? (JSON.parse(raw) as unknown) : null;
+    return Array.isArray(list) ? (list as ServerEntry[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Who the kept screens belong to: the person signed in, on the server the phone would open. */
+function keptFor(saved: Saved | null, servers: ServerEntry[] | null, chosen: string | null): Who | null {
+  const server = saved && servers ? pickServer(servers, chosen) : null;
+  return saved && server ? { user: saved.user.id, origin: originOf(server), version: APP_VERSION } : null;
+}
+
+const originOf = (server: ServerEntry) => `leafbot:${server.id}`;
+
 async function readSaved(): Promise<Saved | null> {
   try {
     const raw = await SecureStore.getItemAsync(SESSION_KEY, KEYCHAIN);
@@ -114,16 +138,24 @@ export function ServerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let live = true;
-    void Promise.all([readSaved(), AsyncStorage.getItem(SERVER_KEY).catch(() => null)]).then(([s, id]) => {
-      if (!live) return;
-      setSaved(s);
-      setChosen(id);
-      setReady(true);
-    });
+    void Promise.all([readSaved(), AsyncStorage.getItem(SERVER_KEY).catch(() => null), readServers()]).then(
+      async ([s, id, list]) => {
+        // The servers as last listed open the tunnel at once; the account's list follows and wins.
+        const known = s ? list : null;
+        const who = keptFor(s, known, id);
+        // What the screens showed last is in the cache before the first of them asks for it.
+        if (who && (await restoreKept(qc, AsyncStorage, who).catch(() => false))) launchMark('kept screens');
+        if (!live) return;
+        setSaved(s);
+        setChosen(id);
+        if (known) setServers((cur) => cur ?? known);
+        setReady(true);
+      },
+    );
     return () => {
       live = false;
     };
-  }, []);
+  }, [qc]);
 
   const forget = useCallback(async () => {
     setLink(null);
@@ -131,19 +163,22 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     setServers(null);
     setListDown(false);
     setChosen(null);
+    // Emptied first, so nothing of this sign-in is kept again while the copy is being removed.
+    qc.clear();
     await Promise.all([
       SecureStore.deleteItemAsync(SESSION_KEY, KEYCHAIN).catch(() => undefined),
-      AsyncStorage.removeItem(SERVER_KEY).catch(() => undefined),
+      AsyncStorage.multiRemove([SERVER_KEY, SERVERS_KEY, KEPT_KEY]).catch(() => undefined),
       forgetDeviceKey(),
     ]);
     clearServerFiles();
-    qc.clear();
   }, [qc]);
 
   const loadServers = useCallback(async () => {
     setListDown(false);
     try {
-      setServers(await account.servers());
+      const list = await account.servers();
+      setServers(list);
+      void AsyncStorage.setItem(SERVERS_KEY, JSON.stringify(list)).catch(() => undefined);
     } catch (err) {
       // The service no longer knows this sign-in (ended elsewhere): the phone is signed out.
       if (err instanceof AccountError && err.status === 401) void forget();
@@ -192,6 +227,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
   // What failed to load while the link was down loads again once it is back, so a screen that
   // showed the failure mends itself instead of waiting for a tap.
   const online = linkState.at === 'online';
+  if (online) launchMark('tunnel open');
   useEffect(() => {
     if (online) void qc.refetchQueries({ type: 'active', predicate: (q) => q.state.status === 'error' });
   }, [online, qc]);
@@ -229,12 +265,16 @@ export function ServerProvider({ children }: { children: ReactNode }) {
                   ? 'refused'
                   : 'connecting';
 
-  // Everything on screen was read through the old tunnel: after a new one opens, it is read again.
-  const wasOnline = useRef(false);
+  // Everything on screen read through an earlier tunnel is read again when the socket says hello
+  // on the new one (realtime.tsx), which it does as soon as the tunnel is open.
+
+  // What the screens show is kept for the next launch, for this person on this server.
+  const userId = saved?.user.id ?? null;
+  const keptOrigin = server ? originOf(server) : null;
   useEffect(() => {
-    if (phase === 'online' && !wasOnline.current) void qc.invalidateQueries();
-    wasOnline.current = phase === 'online';
-  }, [phase, qc]);
+    if (!userId || !keptOrigin) return;
+    return keepQueries(qc, AsyncStorage, { user: userId, origin: keptOrigin, version: APP_VERSION });
+  }, [userId, keptOrigin, qc]);
 
   const redeem = useCallback(
     async (code: string, verifier?: string) => {
@@ -252,7 +292,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
       setLink(null);
       setServers(null);
       setChosen(null);
-      void AsyncStorage.removeItem(SERVER_KEY).catch(() => undefined);
+      void AsyncStorage.multiRemove([SERVER_KEY, SERVERS_KEY, KEPT_KEY]).catch(() => undefined);
       clearServerFiles();
       qc.clear();
       token.current = next.token;
@@ -285,7 +325,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
     () => ({
       ready,
       phase,
-      origin: server ? `leafbot:${server.id}` : null,
+      origin: server ? originOf(server) : null,
       user: saved?.user ?? null,
       servers: servers ?? [],
       server,
@@ -307,11 +347,12 @@ export function useServer(): ServerState {
   return ctx;
 }
 
-/** The endpoints of the chosen server. Screens that call it are only reached once one is chosen. */
+/** The endpoints of the chosen server. */
 export function useApi(): Api {
   const { origin } = useServer();
-  if (!origin) throw new Error('useApi before a server is chosen');
-  // The origin is the key of the chosen server: a new one gets new endpoints.
+  // The origin is the key of the chosen server: a new one gets new endpoints. A screen can still be
+  // up for a moment after there is none (signing out, or the server left the account while the
+  // screens showed what was kept of it): its reads find no link and fail until it gives way.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   return useMemo(() => apiFor(), [origin]);
 }

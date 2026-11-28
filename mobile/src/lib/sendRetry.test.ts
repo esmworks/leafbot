@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('react-native', () => ({ AppState: { currentState: 'active', addEventListener: vi.fn() } }));
 
-const { isOffline, sendWithRetry } = await import('./sendRetry');
+const { isOffline, sendWithRetry, waitOrBack } = await import('./sendRetry');
 
 const fast = { wait: async () => undefined, active: async () => undefined };
 
@@ -64,5 +64,53 @@ describe('send retry', () => {
     expect(isOffline(new ApiError(503, 'x', false))).toBe(true);
     expect(isOffline(new ApiError(503, 'x', true))).toBe(false);
     expect(isOffline(new ApiError(500, 'x', true))).toBe(false);
+  });
+});
+
+describe('waitOrBack', () => {
+  /** A link whose state the test moves; only what `waitOrBack` reads of it. */
+  function fakeLink(at: string) {
+    const listeners = new Set<() => void>();
+    const link = {
+      state: { at },
+      subscribe: (fn: () => void) => {
+        listeners.add(fn);
+        return () => void listeners.delete(fn);
+      },
+      move(next: string) {
+        link.state = { at: next };
+        for (const fn of listeners) fn();
+      },
+      listeners,
+    };
+    return link;
+  }
+
+  it('ends the wait when the link opens again', async () => {
+    vi.useFakeTimers();
+    const link = fakeLink('retrying');
+    let done = false;
+    void waitOrBack(45_000, link as never).then(() => (done = true));
+    link.move('connecting');
+    await Promise.resolve();
+    expect(done).toBe(false);
+    link.move('online');
+    await Promise.resolve();
+    expect(done).toBe(true);
+    expect(link.listeners.size).toBe(0);
+    vi.useRealTimers();
+  });
+
+  it('gives the whole wait when the link was open all along', async () => {
+    vi.useFakeTimers();
+    const link = fakeLink('online');
+    let done = false;
+    void waitOrBack(3_000, link as never).then(() => (done = true));
+    await vi.advanceTimersByTimeAsync(2_999);
+    expect(done).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(done).toBe(true);
+    expect(link.listeners.size).toBe(0);
+    vi.useRealTimers();
   });
 });
