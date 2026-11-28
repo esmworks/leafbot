@@ -9,7 +9,18 @@ import type { Services } from '../services';
 import { safeFileName } from '../uploads';
 import { workspacePaths } from '../workspace';
 import type { Define } from './index';
-import { MAX_RENDER_SIDE, renderPage } from '../browser/render';
+import {
+  FRAME_MS,
+  MAX_RENDER_SIDE,
+  MAX_VIDEO_FRAMES,
+  MAX_VIDEO_PIXELS,
+  MAX_VIDEO_SECONDS,
+  MAX_VIDEO_SIZE,
+  renderPage,
+  renderVideo,
+  VIDEO_MS,
+  VideoError,
+} from '../browser/render';
 import { bundlePage } from './page-bundle';
 import { isJsxPage, isPageFile } from '../page-kit';
 
@@ -374,4 +385,106 @@ export function pageImageTool(opts: {
     },
     'internal',
   );
+}
+
+/** Page videos one turn may make: each films its page frame by frame, which takes a while. */
+export const MAX_PAGE_VIDEOS_PER_TURN = 2;
+
+/**
+ * `page_to_video`: films a page the bot made into an MP4 (an animated post, a product demo, a
+ * title card) and hands it to the person as a card. The page animates with CSS, the Web Animations
+ * API, its own script or a `window.render(t)` that draws each moment; the browser's clock stands
+ * still and moves on frame by frame, so the video is smooth however slow the computer. It costs
+ * nothing, unlike `video_create`, and its text comes out exact.
+ */
+export function pageVideoTool(opts: {
+  def: Define;
+  services: Services;
+  dataDir: string;
+  bot: Bot;
+  thread: ThreadRef;
+  browser: { executable: string; sandbox: boolean };
+  ffmpeg: string;
+  signal: AbortSignal;
+  t: T;
+}): AppTool {
+  const { def, services, dataDir, bot, thread, signal, t } = opts;
+  const side = z.number().int().min(16).max(MAX_RENDER_SIDE);
+  let made = 0;
+  const tool = def(
+    'page_to_video',
+    {
+      path: z.string().max(2000),
+      width: side,
+      height: side,
+      seconds: z.number().positive().max(MAX_VIDEO_SECONDS),
+      fps: z.number().int().min(1).max(60).optional(),
+      scale: z.number().min(1).max(3).optional(),
+      caption: z.string().max(2000).optional(),
+    },
+    async ({ path, width, height, seconds, fps = 30, scale = 1, caption }) => {
+      if (made >= MAX_PAGE_VIDEOS_PER_TURN)
+        return t('tool.pageVideoLimit', { max: MAX_PAGE_VIDEOS_PER_TURN });
+      const full = pageFile(dataDir, bot, thread.id, path, t);
+      if (!full) return t('tool.pageNotHtml');
+      // A React page loads its libraries from this server, which the video's browser does not reach.
+      if (isJsxPage(full)) return t('tool.pageVideoNotJsx');
+      if (statSync(full).size > MAX_PAGE) return t('tool.pageTooLarge');
+      const frames = Math.round(seconds * fps);
+      if (frames < 1) return t('tool.pageVideoTooShort');
+      if (frames > MAX_VIDEO_FRAMES) return t('tool.pageVideoTooLong', { frames: MAX_VIDEO_FRAMES });
+      if (width * scale * height * scale > MAX_VIDEO_PIXELS)
+        return t('tool.pageVideoTooLarge', MAX_VIDEO_SIZE);
+      made++;
+      const { html, leftOut } = await bundlePage(full);
+      let mp4: Buffer;
+      try {
+        mp4 = await renderVideo({
+          ...opts.browser,
+          ffmpeg: opts.ffmpeg,
+          html,
+          width,
+          height,
+          scale,
+          seconds,
+          fps,
+          // A bot kept off the internet does not reach it through its page either.
+          libraries: bot.internet,
+          signal,
+        });
+      } catch (err) {
+        if (!(err instanceof VideoError)) throw err;
+        return t(`tool.pageVideoFailed.${err.reason}`, {
+          seconds: FRAME_MS / 1000,
+          minutes: VIDEO_MS / 60_000,
+          message: err.message,
+        });
+      }
+      const named = basename(full, extname(full));
+      const base = named === 'index' ? basename(join(full, '..')) : named;
+      const dir = workspacePaths(dataDir, bot.id, thread.id, bot.groupId).threadDir;
+      const file = await writeNewFile(dir, safeFileName(base), 'mp4', mp4);
+      const { files, moved } = await postFiles({ services, dataDir, bot, thread, paths: [file], caption, t });
+      const sent = t(moved ? 'tool.pageVideoSentMain' : 'tool.pageVideoSent', {
+        name: files[0]!.name,
+        path: file,
+        seconds: Math.round(seconds * 10) / 10,
+      });
+      if (!leftOut.length) return sent;
+      const names = leftOut.slice(0, 10).map((l) => `${l.name} (${t(`tool.pageLeftOut.${l.why}`)})`);
+      return `${sent} ${t('tool.pageLeftOut', { files: names.join(', ') })}`;
+    },
+    'internal',
+  );
+  // The limits are the code's, put into the description rather than written into its text.
+  return {
+    ...tool,
+    description: t('tool.page_to_video', {
+      seconds: MAX_VIDEO_SECONDS,
+      fastSeconds: MAX_VIDEO_FRAMES / 60,
+      width: MAX_VIDEO_SIZE.width,
+      height: MAX_VIDEO_SIZE.height,
+      max: MAX_PAGE_VIDEOS_PER_TURN,
+    }),
+  };
 }

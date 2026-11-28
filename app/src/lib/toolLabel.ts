@@ -23,6 +23,7 @@ export function toolLabel(tool: string, t: T, apps: ReadonlyMap<string, string>)
   if (name === 'video_create') return t('activity.tool.video');
   if (name === 'slides_create') return t('activity.tool.slides');
   if (name === 'page_to_image') return t('activity.tool.pageImage');
+  if (name === 'page_to_video') return t('activity.tool.pageVideo');
   if (name === 'Task' || name === 'Agent') return t('activity.tool.agent');
   if (name === 'Advisor') return t('activity.tool.advisor');
   if (name.startsWith('memory_')) return t('activity.tool.memory');

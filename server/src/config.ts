@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { upstreamProxy, type UpstreamProxy } from '@leafbot/shared/egress';
-import { findBrowser } from './browser/find';
+import { findBrowser, findFfmpeg } from './browser/find';
 import { BASH_MAX_TIMEOUT_MS, stallLimits, type StallLimits } from './runtime/watchdog';
 
 export interface Config {
@@ -65,6 +65,8 @@ export interface Config {
   browserPath: string | null;
   /** Chromium's own sandbox for web pages; turn off only where it cannot start (e.g. running as root). */
   browserSandbox: boolean;
+  /** The ffmpeg program that encodes a page's frames into a video; null = bots make no page videos. */
+  ffmpegPath: string | null;
   /** Browsers open at once; the least recently used idle one closes to make room. */
   maxBrowsers: number;
   /** An unwatched browser the bot has not used for this long is closed. */
@@ -212,6 +214,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
         : null,
     browserPath: findBrowser(env),
     browserSandbox: env.LEAFBOT_BROWSER_SANDBOX !== '0',
+    ffmpegPath: findFfmpeg(env),
     maxBrowsers: Number(env.LEAFBOT_MAX_BROWSERS ?? 3),
     browserIdleMs: 15 * 60_000,
     browserCallMs: 90_000,
