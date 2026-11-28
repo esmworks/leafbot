@@ -60,13 +60,21 @@ interface DesktopBridge {
 
 /**
  * This computer as the desktop app offers it to an account server's bots: whether it can be
- * offered, the server it is offered to (null while none was chosen), and whether the offer is on.
+ * offered (`unsupported` on a system without computer use, `missing` when the app lacks its
+ * helper), the server it is offered to (null while none was chosen), and whether the offer is on.
  */
-export type DesktopComputerState = { helper: boolean; server: string | null; on: boolean };
+export type DesktopComputerState = {
+  helper: 'ok' | 'unsupported' | 'missing';
+  server: string | null;
+  on: boolean;
+};
 
 export interface DesktopComputer {
   state(): Promise<DesktopComputerState | null>;
-  /** Offers this computer to that server's bots, after the app asks on this computer. */
+  /**
+   * Offers this computer to that server's bots, after the app asks on this computer; when it is
+   * already on for that server, connects it again without asking.
+   */
   offer(serverId: string): Promise<DesktopComputerState | null>;
 }
 

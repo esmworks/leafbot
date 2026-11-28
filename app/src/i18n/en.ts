@@ -2220,9 +2220,15 @@ export const en: Catalog<MessageKey> = {
   'computerUse.offerMove':
     'This computer is on for another server now. Turning it on here means that server can no longer use it.',
   'computerUse.connecting': 'This computer is on for this server; connecting.',
-  'computerUse.connectingHint': 'If it does not show in a few seconds, press “Check again”.',
+  'computerUse.connectingHint': 'If it does not show in a few seconds, press “Connect again”.',
+  'computerUse.notSeen': 'The server could not see this computer',
+  'computerUse.notSeenHint':
+    'This computer is on for this server, but the connection did not come up. Try connecting again; if that does not help, turn “Bots may use this computer” off and on in the menu of the Leaf Bot icon.',
+  'computerUse.reconnect': 'Connect again',
   'computerUse.noHelper':
     'This computer cannot be offered to the bots; computer use is for Mac and Windows only.',
+  'computerUse.helperMissing':
+    'This installation of Leaf Bot lacks the part that uses the computer. Downloading and installing Leaf Bot again brings it back.',
   'computerUse.unavailable': 'This server has no computer for you.',
   'computerUse.device': 'Connected computer: {device}',
   'computerUse.deviceHint':

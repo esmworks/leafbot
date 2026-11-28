@@ -1,6 +1,7 @@
 import type { ComputerPermission } from '@leafbot/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CircleCheck, Monitor, MousePointer2, RefreshCw } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/i18n';
@@ -123,39 +124,57 @@ const OFFER_POLL_MS = 1_500;
 /**
  * The desktop app's window showing an account server that sees no computer of the person's: the
  * way to offer this one from here, rather than from a menu item that shows only once a server was
- * chosen in the menu bar. The app asks on this computer before it turns the offer on.
+ * chosen in the menu bar. The app asks on this computer before it turns the offer on; once on, the
+ * same button connects it again.
  */
 function OfferThisComputer({ again }: { again: React.ReactNode }) {
   const t = useT();
   const bridge = desktop?.computer;
   const current = useServerHost((s) => s.host?.servers.find((x) => x.current)?.id ?? null);
-  const { data: here, refetch: refetchHere } = useQuery({
+  const here = useQuery({
     queryKey: ['desktop-computer'],
-    queryFn: () => bridge?.state() ?? Promise.resolve(null),
+    queryFn: async () => (await bridge?.state()) ?? null,
+    retry: false,
     refetchOnWindowFocus: true,
   });
   const qc = useQueryClient();
+  // The server shown now, null once the tab is closed: a wait for another one stops, and its
+  // answer lands nowhere.
+  const shown = useRef(current);
+  useEffect(() => {
+    shown.current = current;
+    return () => {
+      shown.current = null;
+    };
+  }, [current]);
   const offer = useMutation({
-    mutationFn: async (serverId: string) => {
+    mutationFn: async (serverId: string): Promise<'seen' | 'unseen' | 'left'> => {
       const after = await bridge?.offer(serverId);
-      await refetchHere();
-      if (!after?.on || after.server !== serverId) return;
+      if (shown.current !== serverId) return 'left';
+      qc.setQueryData(['desktop-computer'], after ?? null);
+      if (!after?.on || after.server !== serverId) return 'left';
       // The offer reaches the server through the tunnel a moment later.
       for (let waited = 0; waited < OFFER_WAIT_MS; waited += OFFER_POLL_MS) {
         await new Promise((r) => setTimeout(r, OFFER_POLL_MS));
+        if (shown.current !== serverId) return 'left';
         const st = await api.personComputer().catch(() => null);
+        if (shown.current !== serverId) return 'left';
         if (st?.available) {
           qc.setQueryData(['person-computer'], st);
-          return;
+          return 'seen';
         }
       }
+      return 'unseen';
     },
     onError: (e) => toast.error((e as Error).message),
   });
+  const { reset } = offer;
+  useEffect(() => reset(), [current, reset]);
 
   // While the app answers, nothing: the hint below would name a button that is not there.
-  if (here === undefined) return null;
-  if (!here || !current) {
+  if (here.isPending) return null;
+  const state = here.data;
+  if (!state || !current) {
     return (
       <Card>
         <Row label={t('computerUse.notConnected')} hint={t('bot.personComputerRemote')}>
@@ -164,36 +183,49 @@ function OfferThisComputer({ again }: { again: React.ReactNode }) {
       </Card>
     );
   }
-  if (!here.helper) {
+  if (state.helper !== 'ok') {
     return (
       <Card>
-        <Row label={t('computerUse.notConnected')} hint={t('computerUse.noHelper')} />
+        <Row
+          label={t('computerUse.notConnected')}
+          hint={t(state.helper === 'missing' ? 'computerUse.helperMissing' : 'computerUse.noHelper')}
+        />
       </Card>
     );
   }
-  if (here.on && here.server === current) {
+  const button = (label: 'computerUse.offer' | 'computerUse.reconnect') => (
+    <Button
+      size="sm"
+      className="rounded-full"
+      disabled={offer.isPending}
+      onClick={() => offer.mutate(current)}
+    >
+      {offer.isPending && <RefreshCw className="animate-spin" />}
+      {t(label)}
+    </Button>
+  );
+  if (state.on && state.server === current) {
+    const unseen = offer.data === 'unseen' && !offer.isPending;
     return (
       <Card>
-        <Row label={t('computerUse.connecting')} hint={t('computerUse.connectingHint')}>
-          {again}
+        <Row
+          label={t(unseen ? 'computerUse.notSeen' : 'computerUse.connecting')}
+          hint={t(unseen ? 'computerUse.notSeenHint' : 'computerUse.connectingHint')}
+        >
+          <div className="ms-auto flex items-center gap-2">
+            {again}
+            {button('computerUse.reconnect')}
+          </div>
         </Row>
       </Card>
     );
   }
   const hint =
-    here.server && here.server !== current ? t('computerUse.offerMove') : t('computerUse.offerHint');
+    state.server && state.server !== current ? t('computerUse.offerMove') : t('computerUse.offerHint');
   return (
     <Card>
       <Row label={t('computerUse.notConnected')} hint={hint}>
-        <Button
-          size="sm"
-          className="rounded-full"
-          disabled={offer.isPending}
-          onClick={() => offer.mutate(current)}
-        >
-          {offer.isPending && <RefreshCw className="animate-spin" />}
-          {t('computerUse.offer')}
-        </Button>
+        {button('computerUse.offer')}
       </Row>
     </Card>
   );

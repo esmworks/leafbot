@@ -27,7 +27,7 @@ const account = {
 };
 
 /** This computer for the bots of the server the page shows; turning it on asks on this computer. */
-type ComputerState = { helper: boolean; server: string | null; on: boolean };
+type ComputerState = { helper: 'ok' | 'unsupported' | 'missing'; server: string | null; on: boolean };
 const computer = {
   state: (): Promise<ComputerState | null> => ipcRenderer.invoke('leafbot:computer-state'),
   offer: (serverId: string): Promise<ComputerState | null> =>

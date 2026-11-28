@@ -2188,9 +2188,15 @@ export const tr = {
   'computerUse.offerMove':
     'Bu bilgisayar şu an başka bir sunucuya açık. Buraya açarsan o sunucu artık kullanamaz.',
   'computerUse.connecting': 'Bu bilgisayar bu sunucuya açık; bağlantı kuruluyor.',
-  'computerUse.connectingHint': 'Birkaç saniye içinde görünmezse "Tekrar kontrol et"e bas.',
+  'computerUse.connectingHint': 'Birkaç saniye içinde görünmezse "Yeniden bağlan"a bas.',
+  'computerUse.notSeen': 'Sunucu bu bilgisayarı göremedi',
+  'computerUse.notSeenHint':
+    'Bu bilgisayar bu sunucuya açık ama bağlantı kurulamadı. Yeniden bağlanmayı dene; olmazsa Leaf Bot simgesinin menüsünden "Botlar bu bilgisayarı kullanabilir"i kapatıp aç.',
+  'computerUse.reconnect': 'Yeniden bağlan',
   'computerUse.noHelper':
     'Bu bilgisayar botlara açılamaz; bilgisayar kullanımı yalnızca Mac ve Windows için var.',
+  'computerUse.helperMissing':
+    "Leaf Bot'un bilgisayarı kullanan parçası bu kurulumda yok. Leaf Bot'u indirip yeniden kurunca gelir.",
   'computerUse.unavailable': 'Bu sunucuda senin için bir bilgisayar yok.',
   'computerUse.device': 'Bağlı bilgisayar: {device}',
   'computerUse.deviceHint': "İzinler o bilgisayarda verilir; düğmeler Sistem Ayarları'nı orada açar.",

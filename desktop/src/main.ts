@@ -39,6 +39,7 @@ import {
   pageOrigin,
 } from './bots-page';
 import { BrowserSignIn, readSession, writeSession, type SessionFile } from './sign-in';
+import { helperState, macMenuShape, offerStep } from './computer-offer';
 import {
   chooseServer,
   LOCAL_ONLY,
@@ -1292,8 +1293,15 @@ function registerIpc() {
   ipcMain.handle('leafbot:computer-state', (e) => (fromBotsPage(e) ? computerState() : null));
   ipcMain.handle('leafbot:computer-offer', async (e, serverId: unknown) => {
     if (!fromBotsPage(e) || typeof serverId !== 'string') return null;
-    if (!computerState().helper || !accountServers.some((s) => s.id === serverId)) return computerState();
-    if (!(await confirmOffer(serverId))) return computerState();
+    const step = offerStep({
+      helper: helperFound(),
+      listed: accountServers.map((s) => s.id),
+      chosen: config.server,
+      on: readMacOn(userData),
+      serverId,
+    });
+    if (step.do === 'refuse') return computerState();
+    if (step.do === 'ask' && !(await confirmOffer(serverId, step.moveFrom))) return computerState();
     writeMacOn(userData, true);
     if (config.server === serverId) startMac();
     else await apply((c) => chooseServer(c, serverId), true);
@@ -1468,19 +1476,21 @@ function hardenSessions() {
  * This computer can be offered to the account server's bots: a Mac or a Windows computer, with its
  * helper in place, with an account server chosen.
  */
-const canOfferMac = () => hasHelper() && !!link;
-const hasHelper = () => helperSystem() && existsSync(personComputer());
+const canOfferMac = () => helperFound() === 'ok' && !!link;
+const helperFound = () => helperState(helperSystem(), helperSystem() && existsSync(personComputer()));
 
 /**
  * What the page of the account's servers is told about this computer: whether it can be offered
  * at all, the server it is offered to (null while none was chosen), and whether the person turned
  * the offer on.
  */
-const computerState = () => ({ helper: hasHelper(), server: config.server, on: readMacOn(userData) });
+const computerState = () => ({ helper: helperFound(), server: config.server, on: readMacOn(userData) });
 
-/** Asks on this computer before it is offered to the bots of `serverId`; default is no. */
-async function confirmOffer(serverId: string): Promise<boolean> {
-  const previous = config.server && config.server !== serverId ? config.server : null;
+/**
+ * Asks on this computer before it is offered to the bots of `serverId`, saying which server it
+ * leaves (`previous`); default is no.
+ */
+async function confirmOffer(serverId: string, previous: string | null): Promise<boolean> {
   app.focus({ steal: true });
   const { response } = await dialog.showMessageBox({
     type: 'question',
@@ -1673,10 +1683,15 @@ async function askForCommand(
 
 /** The menu bar's part for this Mac: the switch, and while a bot uses it, a way to stop that. */
 function macMenu(): Electron.MenuItemConstructorOptions[] {
-  if (!hasHelper()) return [];
+  const shape = macMenuShape({
+    helper: helperFound(),
+    linked: !!link,
+    accountServers: accountServers.length,
+  });
+  if (shape === 'none') return [];
   // Without a chosen server the switch would have no one to offer this computer to; it shows, off,
   // with the step that is missing, so the person is not left looking for it.
-  if (!link) {
+  if (shape === 'chooseServer') {
     return [
       { label: t('mac.offer'), type: 'checkbox', checked: false, enabled: false },
       { label: t('mac.chooseServer'), enabled: false },
