@@ -5,6 +5,7 @@ import { account, AccountError, appUrl, loadToken, type ServerEntry } from '../a
 import { t } from '../i18n';
 import { openServer } from '../tunnel';
 import { Home } from './Home';
+import { REOPEN_MS, reopens } from './reopen';
 import { loadStored, saveServer, type Stored } from './stored';
 
 type State =
@@ -30,10 +31,14 @@ export function App() {
 
   // Each opening is numbered, so one that finishes after the person moved on is dropped.
   const attempt = useRef(0);
+  // `open` itself, for the reopening its own tunnel's end asks for.
+  const reopen = useRef<(server: ServerEntry) => void>(() => {});
 
   const open = useCallback((server: ServerEntry) => {
     const mine = ++attempt.current;
     let ended: TunnelEndCode | null = null;
+    // When the tunnel was handed over, so a drop after it worked a while is opened again by itself.
+    let openedAt: number | null = null;
     const failed = (message: string): State => ({ at: 'failed', server, message });
     setState({ at: 'opening', server });
     void saveServer(server.id);
@@ -41,6 +46,13 @@ export function App() {
       // An end before the tunnel was handed over is read when it is.
       ended = code;
       if (attempt.current !== mine) return;
+      if (openedAt !== null && reopens(code, Date.now() - openedAt)) {
+        setState({ at: 'opening', server });
+        setTimeout(() => {
+          if (attempt.current === mine) reopen.current(server);
+        }, REOPEN_MS);
+        return;
+      }
       setState((s) =>
         s.at === 'open' && s.server.id === server.id ? failed(tunnelText(new TunnelError(code))) : s,
       );
@@ -51,6 +63,7 @@ export function App() {
           tunnel.close();
           return setState(failed(tunnelText(new TunnelError(ended))));
         }
+        openedAt = Date.now();
         setState({ at: 'open', server, tunnel });
       },
       (err: unknown) => {
@@ -60,6 +73,10 @@ export function App() {
       },
     );
   }, []);
+
+  useEffect(() => {
+    reopen.current = open;
+  }, [open]);
 
   // The servers of the account; the one opened last, or the only one, opens at once.
   const list = useCallback(
