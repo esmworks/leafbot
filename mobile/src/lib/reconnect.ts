@@ -51,12 +51,14 @@ export function reconnectDelay(attempt: number): number {
 }
 
 /**
- * Whether a request that failed on a tunnel may go again on the next one. A tunnel already over sent
- * nothing, so any request may; one cut off on the way may have reached the server, so only a read
- * goes again, never a change that might then be made twice.
+ * Whether a request that failed on a tunnel may go again on the next one. A tunnel already over, or
+ * a request channel that could not open on it, sent nothing, so any request may; one cut off on the
+ * way may have reached the server, so only a read goes again, never a change that might then be made
+ * twice.
  */
 export function sendAgain(err: unknown, method = 'GET'): boolean {
-  if (err instanceof TunnelError) return passingEnd(err.code);
+  if (err instanceof TunnelError) return err.code === 'closed';
+  if (err instanceof ConnectError) return err.code === 'failed';
   const read = method === 'GET' || method === 'HEAD';
   return (
     read &&

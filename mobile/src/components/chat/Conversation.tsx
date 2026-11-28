@@ -504,7 +504,8 @@ export function Conversation({
     [c, bot, threadId, highlightId, findText, send, retryable, lastId, focusMessage],
   );
 
-  const failed = messagesQ.isError;
+  // A failed refresh keeps the messages already shown; only a first load that failed says so.
+  const failed = messagesQ.isError && !messagesQ.data;
   return (
     <>
       {thread?.goal || thread?.pinned ? (

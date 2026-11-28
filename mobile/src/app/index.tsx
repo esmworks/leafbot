@@ -100,7 +100,8 @@ function Authed() {
   const bots = useBots();
   const [onboarding, setOnboarding] = useState<boolean | null>(null);
   if (session.isPending) return <Waiting />;
-  if (session.isError) {
+  // A failed refresh, as on coming back while the link opens again, keeps the answer it had.
+  if (!session.data) {
     return (
       <State title={t('start.noAnswer.title')} text={t('start.noAnswer.text')}>
         <Button label={t('common.retry')} busy={session.isFetching} onPress={() => void session.refetch()} />

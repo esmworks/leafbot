@@ -31,7 +31,7 @@ export function UsageSection() {
   const c = useColors();
   const [days, setDays] = useState<UsageRange>(30);
   const [botId, setBotId] = useState<string | null>(null);
-  const { data, isPending, isError } = useUsage(days, botId ?? undefined);
+  const { data, isPending } = useUsage(days, botId ?? undefined);
   const { data: bots = [] } = useBots();
   const [busy, setBusy] = useState(false);
   return (
@@ -62,7 +62,7 @@ export function UsageSection() {
       </Section>
       {isPending ? (
         <Loading />
-      ) : isError || !data ? (
+      ) : !data ? (
         <Note>{t('usage.failed')}</Note>
       ) : (
         <Report data={data} filtered={botId !== null} onPickBot={setBotId} />
@@ -96,7 +96,7 @@ export function UsageSection() {
  * Read only: room is freed by deleting a conversation, which a row opens.
  */
 function Storage() {
-  const { data, isPending, isError } = useStorage();
+  const { data, isPending } = useStorage();
   const { data: bots = [] } = useBots();
   /** A size the walk did not finish counting is at least what it says. */
   const size = (bytes: number, partial = false) =>
@@ -109,7 +109,7 @@ function Storage() {
     <Section title={t('storage.title')}>
       {isPending ? (
         <Loading />
-      ) : isError || !data ? (
+      ) : !data ? (
         <Note>{t('storage.failed')}</Note>
       ) : (
         <Rows>

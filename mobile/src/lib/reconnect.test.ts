@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { TunnelError, TunnelRequestError } from '@leafbot/client/tunnel';
+import { ConnectError } from '@leafbot/client/webrtc';
 import { sendAgain } from './reconnect';
 
 describe('sendAgain', () => {
   it('sends any request again when the tunnel was already over, as nothing went out', () => {
     expect(sendAgain(new TunnelError('closed'), 'POST')).toBe(true);
     expect(sendAgain(new TunnelError('closed'))).toBe(true);
+    expect(sendAgain(new ConnectError('failed'), 'POST')).toBe(true);
+    expect(sendAgain(new TunnelError('timeout'), 'POST')).toBe(false);
     expect(sendAgain(new TunnelError('host-proof'), 'GET')).toBe(false);
   });
 
