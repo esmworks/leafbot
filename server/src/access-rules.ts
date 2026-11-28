@@ -224,6 +224,8 @@ export const ROUTE_RULES: Record<string, Rule> = {
   'POST /api/skill-suggestions/:id/dismiss': 'self',
   'GET /api/turns/:id/result': read('turn'),
   'GET /api/turns/:id/changes': read('turn'),
+  // The handler reads a change only for the person whose turn it was.
+  'GET /api/turn-changes/:id/diff': 'self',
   'POST /api/turns/:id/undo': write('turn'),
   // How much work stopping the whole server would stop: for those who look after it.
   'GET /api/turns/running': 'admin',
