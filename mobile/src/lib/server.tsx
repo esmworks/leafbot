@@ -347,11 +347,12 @@ export function useServer(): ServerState {
   return ctx;
 }
 
-/** The endpoints of the chosen server. Screens that call it are only reached once one is chosen. */
+/** The endpoints of the chosen server. */
 export function useApi(): Api {
   const { origin } = useServer();
-  if (!origin) throw new Error('useApi before a server is chosen');
-  // The origin is the key of the chosen server: a new one gets new endpoints.
+  // The origin is the key of the chosen server: a new one gets new endpoints. A screen can still be
+  // up for a moment after there is none (signing out, or the server left the account while the
+  // screens showed what was kept of it): its reads find no link and fail until it gives way.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   return useMemo(() => apiFor(), [origin]);
 }

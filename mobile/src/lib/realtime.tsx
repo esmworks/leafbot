@@ -29,6 +29,8 @@ class LiveStore {
   /** How much of its turn's streaming text had arrived when each card (by message id) did. */
   cardCuts: Readonly<Record<string, number>> = {};
   connected = false;
+  /** Whether a live channel said hello since the server or sign-in last changed. */
+  greeted = false;
   /** Fetches what a running turn has shown of its reply so far; set while a socket is open. */
   fetchLive: ((threadId: string) => Promise<LiveText | null>) | null = null;
   private listeners = new Set<() => void>();
@@ -215,13 +217,21 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
     if (!origin || !signedIn || !online) return;
     return connect(origin, qc, store);
   }, [origin, signedIn, online, qc, store]);
+  // What the channel said stays on screen while the tunnel opens again, until the next channel says
+  // hello; it belongs to one server and sign-in, so it goes when either changes.
+  useEffect(
+    () => () => {
+      store.reset();
+      store.greeted = false;
+    },
+    [origin, signedIn, store],
+  );
 
   return <LiveContext.Provider value={store}>{children}</LiveContext.Provider>;
 }
 
 function connect(origin: string, qc: QueryClient, store: LiveStore): () => void {
   const s = tunnelSocket();
-  let bootId: string | null = null;
   const inv = (...queryKey: unknown[]) => void qc.invalidateQueries({ queryKey });
   // Words arrive far faster than the screen can show them: they are applied once per frame.
   const deltas = createBatcher<StreamPiece>(
@@ -261,12 +271,12 @@ function connect(origin: string, qc: QueryClient, store: LiveStore): () => void 
     // A server that shuts down drops every socket itself, and Socket.IO does not retry that alone.
     if (reason === 'io server disconnect') s.connect();
   });
-  s.on('hello', (e) => {
+  s.on('hello', () => {
     deltas.flush();
     launchMark('live hello');
     // A reconnect may have missed events, so nothing live is trusted after one.
-    if (bootId !== null) store.reset();
-    bootId = e.bootId;
+    if (store.greeted) store.reset();
+    store.greeted = true;
     void refreshAll(qc);
     // A reply being written while the socket was down is brought in from where it is now.
     store.catchUpWatched();
@@ -307,14 +317,14 @@ function connect(origin: string, qc: QueryClient, store: LiveStore): () => void 
   });
 
   return () => {
-    deltas.cancel();
+    // Words that came are shown; the next hello decides what of it is trusted.
+    deltas.flush();
     offShare();
     offActive.remove();
     s.removeAllListeners();
     s.close();
     store.fetchLive = null;
     store.setConnected(false);
-    store.reset();
   };
 }
 

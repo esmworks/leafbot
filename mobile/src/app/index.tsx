@@ -25,10 +25,12 @@ let openedKept = false;
 export default function Start() {
   const server = useServer();
   const qc = useQueryClient();
-  // A sign-in kept from the last launch opens the screens at once, with what they showed then;
-  // their reads wait for the tunnel and go as soon as it is open.
+  // A sign-in kept from the last launch opens the bots at once, with what they showed then; their
+  // reads wait for the tunnel and go as soon as it is open. Without kept bots the first-run
+  // questions may be due, which only the server can say.
   const kept =
-    qc.getQueryData<{ authenticated?: boolean }>(['session', server.origin])?.authenticated === true;
+    qc.getQueryData<{ authenticated?: boolean }>(['session', server.origin])?.authenticated === true &&
+    (qc.getQueryData<unknown[]>(['bots', server.origin])?.length ?? 0) > 0;
   if (kept && !openedKept && (server.phase === 'connecting' || server.phase === 'retrying')) {
     return <Authed />;
   }
