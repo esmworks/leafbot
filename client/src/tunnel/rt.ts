@@ -62,6 +62,10 @@ export class RtSocket {
       if (this.readyState !== 1) return;
       for (const piece of encodeRt(m)) ch.send(piece);
     });
+    // A channel that closed before its close event reached this socket refuses the send; the
+    // socket closes as it would on that event, rather than leaving the error unhandled, which ends
+    // a Node process.
+    this.sending = this.sending.catch(() => this.close());
   }
 
   close() {
