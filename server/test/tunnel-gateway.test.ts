@@ -466,6 +466,21 @@ describe('TunnelGateway', () => {
     expect(checker.epoch).toBe(2);
   });
 
+  it('tells a person cut off here why, and closes without a reason for one who only changed', async () => {
+    const said = async (cutOff: boolean) => {
+      const { peer, ctl } = await connected();
+      const got: string[] = [];
+      ctl.onMessage((m) => got.push(m as string));
+      gateway.dropUser('user_alice', cutOff);
+      await tick(50);
+      expect(peer.closed).toBe(true);
+      return got;
+    };
+    expect(await said(true)).toContain(JSON.stringify({ t: 'denied', code: 'access' }));
+    // With no reason the page counts the close as passing and comes back with a fresh ticket.
+    expect((await said(false)).some((m) => m.includes('denied'))).toBe(false);
+  });
+
   it('leaves other people connected when one person loses access', async () => {
     await connected();
     gateway.revoke({ epoch: 2, userId: 'acct_someone1' });

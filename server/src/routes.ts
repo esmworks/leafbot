@@ -236,8 +236,11 @@ interface Deps {
   };
   /** One short request to a provider's model with its stored key. */
   testModel(provider: string, model: string): Promise<ModelTest>;
-  /** Closes a person's live connections, so they come back with what they may do now, or not at all. */
-  dropSockets(userId: string): void;
+  /**
+   * Closes a person's live connections, so they come back with what they may do now, or, when
+   * `cutOff`, not at all.
+   */
+  dropSockets(userId: string, cutOff: boolean): void;
 }
 
 const IdParams = z.object({ id: z.string().min(1) });
@@ -387,7 +390,7 @@ export function registerRoutes(app: FastifyInstance, d: Deps) {
     s.access.forget();
     // A step may have waited for this person's second yes.
     await s.approvals.refuseUnanswerable();
-    d.dropSockets(userId);
+    d.dropSockets(userId, signOut);
     s.ctx.bus.refresh({ scope: 'people' });
   };
   // Invites through the Leaf Bot account: to someone new, or to someone already here, who then comes

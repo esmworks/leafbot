@@ -110,8 +110,11 @@ describe('requests that came over the tunnel', () => {
     const dropped = vi.spyOn(AccountHost.prototype, 'dropUser');
     try {
       await t.person('can', 'member');
+      // Another role: closed so it counts at once, but not as a refusal, so their apps come back.
+      expect((await t.api('PATCH', '/api/people/can', { role: 'admin' })).status).toBe(200);
+      expect(dropped).toHaveBeenLastCalledWith('can', false);
       expect((await t.api('PATCH', '/api/people/can', { disabled: true })).status).toBe(200);
-      expect(dropped).toHaveBeenCalledWith('can');
+      expect(dropped).toHaveBeenLastCalledWith('can', true);
     } finally {
       dropped.mockRestore();
     }
