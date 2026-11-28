@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Redirect, router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native';
 import { Button, FormScreen, Hint, Mark, Title } from '@/components/ui';
 import { t } from '@/i18n';
@@ -11,12 +11,27 @@ import { useApi, useServer } from '@/lib/server';
 import { useColors } from '@/lib/theme';
 
 /**
+ * Whether the screens kept from the last launch were opened while the tunnel was still opening.
+ * That happens once a launch: coming back here (the banner over the screens leads here) shows how
+ * the tunnel stands instead of opening them again.
+ */
+let openedKept = false;
+
+/**
  * Opens the right screen for where the phone stands: the connect code when signed out, the list of
  * servers when there is a choice, a word about what is wrong when the account or the server cannot
  * be reached, and once the tunnel is open the first-run questions or the bots.
  */
 export default function Start() {
   const server = useServer();
+  const qc = useQueryClient();
+  // A sign-in kept from the last launch opens the screens at once, with what they showed then;
+  // their reads wait for the tunnel and go as soon as it is open.
+  const kept =
+    qc.getQueryData<{ authenticated?: boolean }>(['session', server.origin])?.authenticated === true;
+  if (kept && !openedKept && (server.phase === 'connecting' || server.phase === 'retrying')) {
+    return <Authed />;
+  }
   switch (server.phase) {
     case 'loading':
       return <Waiting />;
@@ -93,6 +108,9 @@ function Others() {
  * off. A server older than the questions sends no `onboarded` and goes straight to the bots.
  */
 function Authed() {
+  useEffect(() => {
+    openedKept = true;
+  }, []);
   const { origin, refresh, signOut } = useServer();
   const api = useApi();
   const session = useQuery({ queryKey: ['session', origin], queryFn: api.session });
