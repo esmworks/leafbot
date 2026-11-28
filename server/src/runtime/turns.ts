@@ -2449,6 +2449,7 @@ export class TurnManager {
           ? { effort: (bot.effort || settings.effort) as Effort }
           : {}),
         compactWindow: settings.claudeCompactWindow,
+        ...(settings.maxSteps > 0 && { maxSteps: settings.maxSteps }),
         // The backup only stands in until the limit lifts; it runs plain, without an advisor of its own.
         ...(!backup && advisor),
         prompt,

@@ -101,6 +101,7 @@ export function UsageTab() {
       <SkillNet net={data?.skillSuggestions} />
       <BackgroundNet calls={data?.background} />
       <Parallel parallel={data?.parallel} />
+      <Steps />
       <Storage />
       <UnusedCard />
       <Button variant="secondary" size="sm" className="rounded-full" asChild>
@@ -398,6 +399,38 @@ function Parallel({ parallel }: { parallel?: UsageReport['parallel'] }) {
 
 /** 0 is the server's own number. */
 const PARALLEL_CHOICES = [0, 1, 2, 3, 4, 5, 6, 8, 10];
+
+/** How many model calls one turn may make before it stops; 0 leaves it to the engine. */
+function Steps() {
+  const t = useT();
+  const { data: settings } = useSettings();
+  const save = useSaveSettings();
+  // A server older than the setting does not offer it.
+  if (settings?.maxSteps === undefined) return null;
+  return (
+    <Card title={t('usage.steps')}>
+      <Row label={t('usage.steps')} hint={t('usage.steps.hint')}>
+        <Select value={String(settings.maxSteps)} onValueChange={(v) => save.mutate({ maxSteps: Number(v) })}>
+          <SelectTrigger className="w-40 rounded-full" aria-label={t('usage.steps')}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {STEP_CHOICES.map((n) => (
+              <SelectItem key={n} value={String(n)}>
+                {n === 0 ? t('usage.parallel.default', { count: ENGINE_STEPS }) : String(n)}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Row>
+    </Card>
+  );
+}
+
+/** The engines' own number of steps per turn, which 0 leaves it to. */
+const ENGINE_STEPS = 50;
+/** 0 is the engines' own number; the server takes at most 500. */
+const STEP_CHOICES = [0, 100, 200, 300, 500];
 
 /** The bot filter's value for every bot; bot ids never take this form. */
 const ALL = '*';

@@ -122,7 +122,10 @@ export interface PiEngineOptions {
 }
 
 const SESSION_ID = /^[0-9a-f-]{36}$/;
-/** Model calls per user turn, as for Claude bots; stops a looping bot from spending the key. */
+/**
+ * Model calls per turn, as for Claude bots, unless the person set another number; stops a looping
+ * bot from spending the key. A helper the bot starts keeps this one: its task is a narrower part.
+ */
 export const MAX_STEPS = 50;
 /**
  * Messages sent to a model that names no context window; older ones stay on disk but are left out
@@ -991,6 +994,7 @@ export class PiEngine implements Engine {
       beforeToolCall: gate,
     });
 
+    const maxSteps = req.maxSteps ?? MAX_STEPS;
     let steps = 0;
     let capped = false;
     agent.subscribe((event) => {
@@ -1002,7 +1006,7 @@ export class PiEngine implements Engine {
           running: event.type === 'tool_execution_start',
         });
       } else req.onActivity?.();
-      if (event.type === 'turn_end' && ++steps >= MAX_STEPS && !capped) {
+      if (event.type === 'turn_end' && ++steps >= maxSteps && !capped) {
         capped = true;
         agent.abort();
       } else if (event.type === 'message_update' && event.assistantMessageEvent.type === 'text_delta') {
@@ -1059,7 +1063,7 @@ export class PiEngine implements Engine {
       return {
         ok: false,
         kind: 'engine',
-        message: t('engine.stepLimit', { max: MAX_STEPS }),
+        message: t('engine.stepLimit', { max: maxSteps }),
         text,
         sessionId,
         costUsd: costUsd || null,

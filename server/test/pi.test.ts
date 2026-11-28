@@ -538,6 +538,20 @@ describe('Pi motoru', () => {
     expect(calls).toBeGreaterThanOrEqual(MAX_STEPS);
   });
 
+  it('stops at the step limit the turn was given instead of its own', async () => {
+    let calls = 0;
+    const loop = () => {
+      calls++;
+      return fauxAssistantMessage([fauxToolCall('list_files', {})], { stopReason: 'toolUse' });
+    };
+    faux.setResponses(Array.from({ length: 20 }, () => loop));
+    const out = await engine().run(request({ maxSteps: 5 }).req);
+    expect(out).toMatchObject({ ok: false, kind: 'engine', stepLimit: true });
+    expect(!out.ok && out.message).toContain('(5)');
+    expect(calls).toBeLessThanOrEqual(6);
+    expect(calls).toBeGreaterThanOrEqual(5);
+  });
+
   it('modeli kayıtlı anahtarla tek kısa istekle dener', async () => {
     faux.setResponses([fauxAssistantMessage('OK')]);
     expect(await engine().testModel('deneme/m1', 'tr')).toEqual({ ok: true });

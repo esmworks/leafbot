@@ -1247,6 +1247,20 @@ describe('sohbet', () => {
     expect((await t.api('PATCH', '/api/settings', { claudeCompactWindow: 50_000 })).status).toBe(400);
   });
 
+  it("a turn's step limit comes from the setting; 0 leaves it to the engine, too many is refused", async () => {
+    const bot = await t.bot();
+    const thread = await main(bot.id);
+    expect((await t.api('GET', '/api/settings')).body).toMatchObject({ maxSteps: 0 });
+    await t.send(thread.id, 'merhaba');
+    await t.services.turns.idle();
+    expect(t.engine.requests.at(-1)!.maxSteps).toBeUndefined();
+    expect((await t.api('PATCH', '/api/settings', { maxSteps: 200 })).status).toBe(200);
+    await t.send(thread.id, 'tekrar');
+    await t.services.turns.idle();
+    expect(t.engine.requests.at(-1)!.maxSteps).toBe(200);
+    expect((await t.api('PATCH', '/api/settings', { maxSteps: 5000 })).status).toBe(400);
+  });
+
   it('Claude botun danışman modeli ayardan gelir; kapalı başlar, geçersiz değer reddedilir', async () => {
     const bot = await t.bot();
     const thread = await main(bot.id);

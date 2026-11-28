@@ -254,6 +254,8 @@ export interface Settings {
   /** The routine pre-check; missing on older servers. */
   routineGate?: RoutineGateMode;
   maxTurns?: number;
+  /** Model calls one turn may make before it stops; 0 leaves it to the engine. Missing on older servers. */
+  maxSteps?: number;
   /** Finished turns between two looks back at a conversation for lasting facts; 0 is off. Missing on older servers. */
   memoryReviewEvery?: number;
   /** Whether the person's own requests are looked at for something asked again and again; missing on older servers. */
