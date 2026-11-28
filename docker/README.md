@@ -128,7 +128,9 @@ veritabanını aynı anda tek bir süreç açabilir.
 
 Uygulama, telefon ve Chrome eklentisi sunucuya adresinden değil, Leaf Bot hesabı ve tünel üzerinden ulaşır; bunun
 için sunucu hiçbir port açmaz, yalnızca `login` ile hesaba bağlanır. Aşağıdaki yollar sunucunun kendi web sayfasını
-dışarıya açar; o sayfada erişim anahtarı geçmez, giriş Leaf Bot hesabına yönlendirir.
+dışarıya açar; o sayfada erişim anahtarı geçmez, giriş Leaf Bot hesabına yönlendirir. Sunucunun genel bir adrese
+yine de ihtiyacı olduğu yerler: Microsoft Teams'in mesajları gönderdiği adres ve bağlantıların (MCP, OAuth)
+girişten döndüğü adres. Bunları kullanmıyorsanız aşağıdakilerin hiçbiri gerekmez.
 
 Sunucuyu dışarıya açmanın üç yolu var; hiçbiri ana makinede bir port açmaz, ilk ikisi ters vekil de istemez.
 
