@@ -62,6 +62,8 @@ interface ServerState {
   server: ServerEntry | null;
   /** Why the tunnel is waiting or refused: a tunnel or connection code, or `account`. */
   reason: string | null;
+  /** What the WebRTC stack said when the last attempt failed, when it said something. */
+  detail: string | null;
   /**
    * Signs the phone in with a connect code; `verifier` for one the phone asked for through the
    * website. Rejects with an `AccountError`.
@@ -281,6 +283,7 @@ export function ServerProvider({ children }: { children: ReactNode }) {
       servers: servers ?? [],
       server,
       reason: linkState.at === 'retrying' || linkState.at === 'refused' ? linkState.reason : null,
+      detail: linkState.at === 'retrying' || linkState.at === 'refused' ? (linkState.detail ?? null) : null,
       redeem,
       choose,
       refresh,

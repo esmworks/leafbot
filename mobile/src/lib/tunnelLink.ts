@@ -1,5 +1,5 @@
 import type { RawRequest, RtSocket, TunnelResponse } from '@leafbot/client/tunnel';
-import { passing, passingEnd, reasonOf, reconnectDelay } from './reconnect';
+import { detailOf, passing, passingEnd, reasonOf, reconnectDelay } from './reconnect';
 
 /** What the app needs of an open tunnel. */
 export interface LiveTunnel {
@@ -17,8 +17,8 @@ export type LinkState =
   | { at: 'idle' }
   | { at: 'connecting' }
   | { at: 'online' }
-  | { at: 'retrying'; reason: string }
-  | { at: 'refused'; reason: string };
+  | { at: 'retrying'; reason: string; detail?: string }
+  | { at: 'refused'; reason: string; detail?: string };
 
 export interface LinkDeps {
   /** Opens a tunnel; `onEnd` is called once when it ends after it opened. Rejects with why it could not. */
@@ -170,11 +170,13 @@ export class Link {
       } catch (err) {
         if (!current()) return;
         const reason = reasonOf(err);
+        const detail = detailOf(err);
+        const said = detail ? { detail } : {};
         if (!passing(err)) {
-          this.set({ at: 'refused', reason });
+          this.set({ at: 'refused', reason, ...said });
           return this.failWaiting();
         }
-        this.set({ at: 'retrying', reason });
+        this.set({ at: 'retrying', reason, ...said });
       }
       await this.sleep(reconnectDelay(attempt++));
     }

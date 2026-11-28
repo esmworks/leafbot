@@ -12,6 +12,12 @@ version is 0.x, a minor release may change the data format or the API; the serve
   code the website hands back is bound to that sign-in (PKCE), so it is of no use to anything that catches it on its
   way. leafbot.app/connect also shows a QR code for the phone on any computer signed in to the account.
 
+### Fixed
+
+- The phone and the browser take the server's ICE candidates in the standard form (`candidate:…` with the media
+  section's index), and one candidate a device cannot use no longer ends the whole connection. When a connection
+  still cannot be made, the phone shows what its WebRTC stack said under the reason.
+
 ## 0.10.0 — 2026-11-28
 
 ### Added

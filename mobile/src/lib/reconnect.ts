@@ -34,6 +34,17 @@ export function reasonOf(err: unknown): string {
   return 'failed';
 }
 
+/**
+ * What the WebRTC stack said when opening failed on this device, for the screen to show under the
+ * reason; null when there is nothing beyond the reason itself.
+ */
+export function detailOf(err: unknown): string | null {
+  if (err instanceof ConnectError) return err.detail ?? null;
+  if (err instanceof TunnelError || err instanceof AccountError) return null;
+  const text = err instanceof Error ? err.message || err.name : String(err);
+  return text ? text.slice(0, 200) : null;
+}
+
 /** Waits between attempts: quick at first, as a restart takes seconds, then no more than every 30 s. */
 export function reconnectDelay(attempt: number): number {
   return Math.min(1000 * 2 ** attempt, 30_000);

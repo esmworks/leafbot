@@ -12,9 +12,41 @@ import type { Channel, Peer } from './channel';
 export type ConnectFailure = 'offline' | 'relay' | 'ticket' | 'revoked' | 'busy' | 'failed' | 'timeout';
 
 export class ConnectError extends Error {
-  constructor(readonly code: ConnectFailure) {
-    super(code);
+  /**
+   * `detail`: the step that failed and what the WebRTC stack said, when it said something. Not for
+   * deciding anything; it lets a screen show what went wrong on a device nobody can debug.
+   */
+  constructor(
+    readonly code: ConnectFailure,
+    readonly detail?: string,
+  ) {
+    super(detail ? `${code}: ${detail}` : code);
   }
+}
+
+/** What an error says, short enough to show on a screen. */
+function said(err: unknown): string {
+  const text = err instanceof Error ? err.message || err.name : String(err);
+  return text.slice(0, 200);
+}
+
+/**
+ * A candidate from the server as every WebRTC stack takes it. The server's (libdatachannel) come as
+ * SDP lines, `a=candidate:…`, with the media section named only by `sdpMid`; the standard form is
+ * `candidate:…`, and some stacks also want the section's index. The tunnel has one media section.
+ */
+export function remoteCandidate(c: {
+  candidate: string;
+  sdpMid?: string | null;
+  sdpMLineIndex?: number | null;
+  usernameFragment?: string | null;
+}): RTCIceCandidateInit {
+  return {
+    candidate: c.candidate.trim().replace(/^a=/, ''),
+    sdpMid: c.sdpMid ?? '0',
+    sdpMLineIndex: c.sdpMLineIndex ?? 0,
+    ...(c.usernameFragment ? { usernameFragment: c.usernameFragment } : {}),
+  };
 }
 
 /** The DTLS fingerprint an SDP names (`a=fingerprint:sha-256 AB:...`). */
@@ -102,11 +134,11 @@ export async function connectPeer(opts: ConnectOptions): Promise<Peer> {
   try {
     return await new Promise<Peer>((resolve, reject) => {
       let settled = false;
-      const fail = (code: ConnectFailure) => {
+      const fail = (code: ConnectFailure, detail?: string) => {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        reject(new ConnectError(code));
+        reject(new ConnectError(code, detail));
       };
       const timer = setTimeout(() => fail('timeout'), timeoutMs);
       const send = (msg: SignalInbound) => {
@@ -140,12 +172,12 @@ export async function connectPeer(opts: ConnectOptions): Promise<Peer> {
           send(msg);
         });
         conn.addEventListener('connectionstatechange', () => {
-          if (conn.connectionState === 'failed') fail('failed');
+          if (conn.connectionState === 'failed') fail('failed', `ice: ${conn.iceConnectionState}`);
         });
         const offer = await conn.createOffer();
         await conn.setLocalDescription(offer);
         offerSdp = conn.localDescription?.sdp ?? offer.sdp ?? null;
-        if (!offerSdp) return fail('failed');
+        if (!offerSdp) return fail('failed', 'offer: empty');
         send({ type: 'offer', sdp: offerSdp });
         const ctlChannel = ctl;
         dataChannel(ctlChannel).then(
@@ -155,7 +187,7 @@ export async function connectPeer(opts: ConnectOptions): Promise<Peer> {
             clearTimeout(timer);
             resolve(peerOf(conn, first));
           },
-          () => fail('failed'),
+          () => fail('failed', 'channel: closed before it opened'),
         );
       };
 
@@ -174,7 +206,7 @@ export async function connectPeer(opts: ConnectOptions): Promise<Peer> {
         }
         switch (msg.type) {
           case 'welcome':
-            if (!pc) void start(msg.iceServers).catch(() => fail('failed'));
+            if (!pc) void start(msg.iceServers).catch((e: unknown) => fail('failed', `start: ${said(e)}`));
             return;
           case 'host-online':
             // The relay dropped the offer and the candidates while the server was away (restarting, or
@@ -188,23 +220,21 @@ export async function connectPeer(opts: ConnectOptions): Promise<Peer> {
           case 'error':
             if (msg.code === 'host-offline') return; // The relay waits for it, up to its own limit.
             return fail('relay');
-          case 'answer':
+          case 'answer': {
             if (!pc) return;
-            void pc
-              .setRemoteDescription({ type: 'answer', sdp: msg.sdp })
-              .then(async () => {
-                for (const c of pendingCandidates.splice(0)) await pc?.addIceCandidate(c);
-              })
-              .catch(() => fail('failed'));
+            const conn = pc;
+            void conn.setRemoteDescription({ type: 'answer', sdp: msg.sdp }).then(
+              () => {
+                // One candidate this phone or browser cannot use leaves the others to try.
+                for (const c of pendingCandidates.splice(0)) void conn.addIceCandidate(c).catch(() => {});
+              },
+              (e: unknown) => fail('failed', `answer: ${said(e)}`),
+            );
             return;
+          }
           case 'ice-candidate': {
             if (!pc || !msg.candidate) return;
-            const c: RTCIceCandidateInit = {
-              candidate: msg.candidate.candidate,
-              sdpMid: msg.candidate.sdpMid ?? null,
-              sdpMLineIndex: msg.candidate.sdpMLineIndex ?? null,
-              ...(msg.candidate.usernameFragment ? { usernameFragment: msg.candidate.usernameFragment } : {}),
-            };
+            const c = remoteCandidate(msg.candidate);
             if (pc.remoteDescription) void pc.addIceCandidate(c).catch(() => {});
             else pendingCandidates.push(c);
             return;
